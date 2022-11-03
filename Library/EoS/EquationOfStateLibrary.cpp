@@ -9,7 +9,7 @@
 #include <math.h> /* sqrt */
 
 #include "PolynomialBasis.hpp"
-#include "EquationOfStateLibrary_IDEAL.hpp"
+#include "EquationOfStateLibrary.hpp"
 
 // Compute pressure assuming an ideal gas
 Real ComputePressureFromPrimitive_IDEAL( const Real Ev, const Real GAMMA )
@@ -51,4 +51,10 @@ Real ComputeInternalEnergy( const Kokkos::View<Real ***> U, ModalBasis *Basis,
 Real ComputeInternalEnergy( const Kokkos::View<Real ***> U, const UInt iX )
 {
   return U( 2, iX, 0 ) - 0.5 * U( 1, iX, 0 ) * U( 1, iX, 0 );
+}
+
+Real ComputeEnthalpy( const Real Tau, const Real V, const Real Em_T, 
+                      const Real GAMMA  )
+{
+//TODO
 }

@@ -1,5 +1,5 @@
-#ifndef EQUATIONOFSTATELIBRARY_IDEAL_H
-#define EQUATIONOFSTATELIBRARY_IDEAL_H
+#ifndef EQUATIONOFSTATELIBRARY_H
+#define EQUATIONOFSTATELIBRARY_H
 
 #include "Abstractions.hpp"
 
@@ -14,5 +14,7 @@ Real ComputeSoundSpeedFromConserved_IDEAL( const Real Tau, const Real V,
 Real ComputeInternalEnergy( const Kokkos::View<Real ***> U, ModalBasis *Basis,
                             const UInt iX, const UInt iN );
 Real ComputeInternalEnergy( const Kokkos::View<Real ***> U, const UInt iX );
+Real ComputeEnthalpy( const Real Tau, const Real V, const Real Em_T, 
+                      const Real GAMMA = 1.4  );
 
 #endif
