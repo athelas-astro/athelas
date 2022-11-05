@@ -15,6 +15,8 @@
 #include "Grid.hpp"
 #include "Initialization.hpp"
 
+#define GAMMA 1.4
+
 /**
  * Initialize the conserved Fields for various problems.
  * TODO: For now I initialize constant on each cell. Is there a better way?
@@ -22,7 +24,7 @@
  **/
 void InitializeFields( Kokkos::View<Real ***> uCF, Kokkos::View<Real ***> uPF,
                        GridStructure *Grid, const unsigned int pOrder,
-                       const Real GAMMA_IDEAL, const std::string ProblemName )
+                       const std::string ProblemName )
 {
 
   const unsigned int ilo    = Grid->Get_ilo( );
@@ -299,7 +301,7 @@ void InitializeFields( Kokkos::View<Real ***> uCF, Kokkos::View<Real ***> uPF,
               uCF( iCF_Tau, iX, 0 ) = 1.0 / D_L;
               uCF( iCF_V, iX, 0 )   = V_L;
               uCF( iCF_E, iX, 0 ) =
-                  ( P_L / ( GAMMA_IDEAL - 1.0 ) ) * uCF( iCF_Tau, iX, 0 ) +
+                  ( P_L / ( GAMMA - 1.0 ) ) * uCF( iCF_Tau, iX, 0 ) +
                   0.5 * V_L * V_L;
             }
 
@@ -312,7 +314,7 @@ void InitializeFields( Kokkos::View<Real ***> uCF, Kokkos::View<Real ***> uPF,
               uCF( iCF_Tau, iX, 0 ) = 1.0 / D_R;
               uCF( iCF_V, iX, 0 )   = V_R;
               uCF( iCF_E, iX, 0 ) =
-                  ( P_R / ( GAMMA_IDEAL - 1.0 ) ) * uCF( iCF_Tau, iX, 0 ) +
+                  ( P_R / ( GAMMA - 1.0 ) ) * uCF( iCF_Tau, iX, 0 ) +
                   0.5 * V_R * V_R;
             }
 

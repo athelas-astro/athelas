@@ -18,7 +18,7 @@ include("Basis.jl")
 """
 Simple load routine for Athelas data.
 """
-@views function Load_Output( fn::String  )
+function Load_Output( fn::String )
   println(fn)
   fid = h5open(fn, "r")
 
@@ -54,9 +54,7 @@ end
 """
 Load athelas basis
 """
-@views function LoadBasis(Dir::AbstractString, ProblemName::AbstractString,
-                   order::Int64)
-  fn::String = Dir * "athelas_basis_" * ProblemName * ".h5"
+function LoadBasis( fn::String )
   println(fn)
   fid = h5open(fn, "r")
 

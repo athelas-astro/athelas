@@ -11,14 +11,16 @@
 #include "PolynomialBasis.hpp"
 #include "EquationOfStateLibrary.hpp"
 
+#define GAMMA 1.4
+
 // Compute pressure assuming an ideal gas
-Real ComputePressureFromPrimitive_IDEAL( const Real Ev, const Real GAMMA )
+Real ComputePressureFromPrimitive_IDEAL( const Real Ev )
 {
   return ( GAMMA - 1.0 ) * Ev;
 }
 
 Real ComputePressureFromConserved_IDEAL( const Real Tau, const Real V,
-                                         const Real Em_T, const Real GAMMA )
+                                         const Real Em_T )
 {
   Real Em = Em_T - 0.5 * V * V;
   Real Ev = Em / Tau;
@@ -28,7 +30,7 @@ Real ComputePressureFromConserved_IDEAL( const Real Tau, const Real V,
 }
 
 Real ComputeSoundSpeedFromConserved_IDEAL( const Real Tau, const Real V,
-                                           const Real Em_T, const Real GAMMA )
+                                           const Real Em_T )
 {
   Real Em = Em_T - 0.5 * V * V;
 

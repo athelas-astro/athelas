@@ -44,8 +44,6 @@ int main( int argc, char *argv[] )
 
   const UInt &nGuard = pin.nGhost;
 
-  const Real GAMMA_IDEAL = 1.4;
-
   Real t           = 0.0;
   Real dt          = 0.0;
   const Real t_end = pin.t_end;
@@ -71,7 +69,7 @@ int main( int argc, char *argv[] )
     if ( not Restart )
     {
       // --- Initialize fields ---
-      InitializeFields( uCF, uPF, &Grid, order, GAMMA_IDEAL, ProblemName );
+      InitializeFields( uCF, uPF, &Grid, order, ProblemName );
 
       ApplyBC_Fluid( uCF, &Grid, order, BC );
     }

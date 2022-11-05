@@ -73,10 +73,7 @@ else()
     option(ATHELAS_IMPORT_KOKKOS "If ON, attempt to link to an external Kokkos library. If OFF, build Kokkos from source and package with ATHELAS" OFF)
 endif()
 
-set(HYDRO_DIR "${PROJECT_SOURCE_DIR}/Example/Hydro")
 set(INI_DIR "${PROJECT_SOURCE_DIR}/External/simpleini")
-message(STATUS "HYDRO_DIR = ${HYDRO_DIR}")
-include_directories(HYDRO_DIR)
 include_directories(Library)
 include_directories("Library/Geometry")
 include_directories("Library/Quadrature")
@@ -97,8 +94,8 @@ include_directories(athelas PUBLIC
 
 # --- Source Files ---
 set( ATHELAS_SOURCES 
-  "${HYDRO_DIR}/Initialization.cpp" 
   "Library/PGen/ProblemIn.cpp"
+  "Library/PGen/Initialization.cpp"
   "Library/BC/BoundaryConditionsLibrary.cpp"
   "Library/Limiters/CharacteristicDecomposition.cpp"
   "Library/EoS/EquationOfStateLibrary_IDEAL.cpp"
@@ -201,7 +198,7 @@ include_directories("External/simpleini")
 
 # --- main ---
 
-add_executable( main ${HYDRO_DIR}/Driver.cpp ${ATHELAS_SOURCES} )
+add_executable( main Library/Driver.cpp ${ATHELAS_SOURCES} )
 set_target_properties(main
     PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/lib"

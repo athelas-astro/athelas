@@ -73,6 +73,10 @@ void TimeStepper::InitializeTimestepper( )
       using 1-3 stages for first-thrid order and 5 stages for second\n \
       through fourth order.\n === \n" );
   }
+  if ( tOrder > 4 )
+  {
+    throw Error( "\n ! Temporal torder > 4 not supported! \n" );
+  }
 
   // Init to zero
   for ( UInt i = 0; i < nStages; i++ )
