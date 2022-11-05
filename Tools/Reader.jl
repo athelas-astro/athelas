@@ -9,9 +9,7 @@ FastGaussQuadrature.jl
 """
 
 using HDF5
-using PyPlot
-pygui(:qt5)
-
+using CairoMakie
 using FastGaussQuadrature
 
 include("Structures.jl")
@@ -20,10 +18,7 @@ include("Basis.jl")
 """
 Simple load routine for Athelas data.
 """
-function Load_Output(Dir::AbstractString,
-                     filenumber::AbstractString;
-                     run::AbstractString = "RiemannProblem")
-  fn::String = Dir * "athelas_" * run * "_" * filenumber * ".h5"
+@views function Load_Output( fn::String  )
   println(fn)
   fid = h5open(fn, "r")
 
@@ -59,7 +54,7 @@ end
 """
 Load athelas basis
 """
-function LoadBasis(Dir::AbstractString, ProblemName::AbstractString,
+@views function LoadBasis(Dir::AbstractString, ProblemName::AbstractString,
                    order::Int64)
   fn::String = Dir * "athelas_basis_" * ProblemName * ".h5"
   println(fn)
@@ -73,3 +68,10 @@ function LoadBasis(Dir::AbstractString, ProblemName::AbstractString,
 
   return Basis
 end
+
+fn = "../bin/athelas_Sod_final.h5"
+data, grid, order = Load_Output( fn )
+
+fig = Figure()
+scatter( fig[1,1], grid.r, 1.0 ./ data.uCF[1,:,1] )
+save("sod.png", fig )
