@@ -8,34 +8,36 @@
 
 #include <math.h> /* sqrt */
 
+#include "Con2Prim.hpp"
 #include "PolynomialBasis.hpp"
 #include "EquationOfStateLibrary.hpp"
 
 #define GAMMA 1.4
 
-// Compute pressure assuming an ideal gas
-Real ComputePressureFromPrimitive_IDEAL( const Real Ev )
+Real ComputePressureFromConserved_IDEAL( const Real U0, const Real U1,
+                                         const Real U2 )
 {
-  return ( GAMMA - 1.0 ) * Ev;
+  Real P, v, em, tau;
+  Con2Prim( U0, U1, U2, tau, v, em, P );
+  return P;
 }
 
-Real ComputePressureFromConserved_IDEAL( const Real Tau, const Real V,
-                                         const Real Em_T )
+Real ComputePressureFromPrimitive_IDEAL( const Real Tau, const Real V,
+                                         const Real Em )
 {
-  Real Em = Em_T - 0.5 * V * V;
   Real Ev = Em / Tau;
   Real P  = ( GAMMA - 1.0 ) * Ev;
 
   return P;
 }
 
-Real ComputeSoundSpeedFromConserved_IDEAL( const Real Tau, const Real V,
-                                           const Real Em_T )
+Real ComputeSoundSpeedFromPrimitive_IDEAL( const Real Tau, const Real V,
+                                           const Real Em )
 {
-  Real Em = Em_T - 0.5 * V * V;
+  const Real h = ComputeEnthalpy( Tau, V, Em );
+  const Real p = ComputePressureFromPrimitive_IDEAL( Tau, V, Em );
 
-  Real Cs = sqrt( GAMMA * ( GAMMA - 1.0 ) * Em );
-  //  / ( D + GAMMA * Ev ) )
+  Real Cs = sqrt( GAMMA * p * Tau / h );
   return Cs;
 }
 
@@ -55,8 +57,12 @@ Real ComputeInternalEnergy( const Kokkos::View<Real ***> U, const UInt iX )
   return U( 2, iX, 0 ) - 0.5 * U( 1, iX, 0 ) * U( 1, iX, 0 );
 }
 
-Real ComputeEnthalpy( const Real Tau, const Real V, const Real Em_T, 
-                      const Real GAMMA  )
+//TODO This will need to be extended later. 
+// Works for initialization when initializing the Newtonian variables.
+Real ComputeEnthalpy( const Real Tau, const Real V, const Real Em_T  )
 {
-//TODO
+  Real Em = Em_T - 0.5 * V * V;
+  Real P  = ComputePressureFromConserved_IDEAL( Tau, V, Em_T );
+
+  return 1.0 + Em + P * Tau;
 }

@@ -75,6 +75,7 @@ endif()
 
 set(INI_DIR "${PROJECT_SOURCE_DIR}/External/simpleini")
 include_directories(Library)
+include_directories("Library/Con2Prim")
 include_directories("Library/Geometry")
 include_directories("Library/Quadrature")
 include_directories("Library/Utils")
@@ -98,7 +99,8 @@ set( ATHELAS_SOURCES
   "Library/PGen/Initialization.cpp"
   "Library/BC/BoundaryConditionsLibrary.cpp"
   "Library/Limiters/CharacteristicDecomposition.cpp"
-  "Library/EoS/EquationOfStateLibrary_IDEAL.cpp"
+  "Library/Con2Prim/Con2Prim.cpp"
+  "Library/EoS/EquationOfStateLibrary.cpp"
   "Library/Fluid/FluidUtilities.cpp"
   "Library/Fluid/Fluid_Discretization.cpp"
   "Library/Geometry/Grid.cpp"

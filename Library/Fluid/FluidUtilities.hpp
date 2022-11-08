@@ -16,5 +16,6 @@ void NumericalFlux_HLLC( Real vL, Real vR, Real pL, Real pR, Real cL, Real cR,
                          Real rhoL, Real rhoR, Real &Flux_U, Real &Flux_P );
 Real ComputeTimestep_Fluid( const Kokkos::View<Real ***> U,
                             const GridStructure *Grid, const Real CFL );
+Real LorentzFactor( const Real V );
 
 #endif

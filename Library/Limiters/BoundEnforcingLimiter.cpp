@@ -18,7 +18,7 @@
 #include "Error.hpp"
 #include "Utilities.hpp"
 #include "PolynomialBasis.hpp"
-#include "EquationOfStateLibrary_IDEAL.hpp"
+#include "EquationOfStateLibrary.hpp"
 #include "BoundEnforcingLimiter.hpp"
 
 void LimitDensity( Kokkos::View<Real ***> U, ModalBasis *Basis )

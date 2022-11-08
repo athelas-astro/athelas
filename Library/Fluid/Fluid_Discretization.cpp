@@ -11,12 +11,13 @@
 
 #include "Kokkos_Core.hpp"
 
+#include "Con2Prim.hpp"
 #include "Error.hpp"
 #include "Grid.hpp"
 #include "PolynomialBasis.hpp"
 #include "Fluid_Discretization.hpp"
 #include "BoundaryConditionsLibrary.hpp"
-#include "EquationOfStateLibrary_IDEAL.hpp"
+#include "EquationOfStateLibrary.hpp"
 #include "FluidUtilities.hpp"
 
 // Compute the divergence of the flux term for the update
@@ -53,25 +54,31 @@ void ComputeIncrement_Fluid_Divergence(
         auto uCF_L = Kokkos::subview( uCF_F_L, Kokkos::ALL, iX );
         auto uCF_R = Kokkos::subview( uCF_F_R, Kokkos::ALL, iX );
 
-        const Real rho_L = 1.0 / uCF_L( 0 );
-        const Real rho_R = 1.0 / uCF_R( 0 );
+        //Con2Prim
+        Real tau_L, v_L, em_L, p_L;
+        Real tau_R, v_R, em_R, p_R;
+        Con2Prim( uCF_L(0), uCF_L(1), uCF_L(2), tau_L, v_L, em_L, p_L );
+        Con2Prim( uCF_R(0), uCF_R(1), uCF_R(2), tau_R, v_R, em_R, p_R );
 
-        const Real P_L = ComputePressureFromConserved_IDEAL(
-            uCF_L( 0 ), uCF_L( 1 ), uCF_L( 2 ) );
-        const Real Cs_L = ComputeSoundSpeedFromConserved_IDEAL(
-            uCF_L( 0 ), uCF_L( 1 ), uCF_L( 2 ) );
+        const Real rho_L = 1.0 / tau_L;
+        const Real rho_R = 1.0 / tau_R;
+
+        //const Real P_L = ComputePressureFromConserved_IDEAL(
+        //    uCF_L( 0 ), uCF_L( 1 ), uCF_L( 2 ) );
+        const Real Cs_L = ComputeSoundSpeedFromPrimitive_IDEAL(
+            tau_L, v_L, em_L );
         const Real lam_L = Cs_L * rho_L;
 
-        const Real P_R = ComputePressureFromConserved_IDEAL(
-            uCF_R( 0 ), uCF_R( 1 ), uCF_R( 2 ) );
-        const Real Cs_R = ComputeSoundSpeedFromConserved_IDEAL(
-            uCF_R( 0 ), uCF_R( 1 ), uCF_R( 2 ) );
+        //const Real P_R = ComputePressureFromConserved_IDEAL(
+        //    uCF_R( 0 ), uCF_R( 1 ), uCF_R( 2 ) );
+        const Real Cs_R = ComputeSoundSpeedFromPrimitive_IDEAL(
+            tau_R, v_R, em_R );
         const Real lam_R = Cs_R * rho_R;
 
         // --- Numerical Fluxes ---
 
         // Riemann Problem
-        NumericalFlux_Gudonov( uCF_L( 1 ), uCF_R( 1 ), P_L, P_R, lam_L, lam_R,
+        NumericalFlux_Gudonov( v_L, v_R, p_L, p_R, lam_L, lam_R,
                                Flux_U( iX ), Flux_P( iX ) );
         // NumericalFlux_HLLC( uCF_L( 1 ), uCF_R( 1 ), P_L, P_R, Cs_L, Cs_R,
         //  rho_L, rho_R, Flux_U( iX ), Flux_P( iX ) );

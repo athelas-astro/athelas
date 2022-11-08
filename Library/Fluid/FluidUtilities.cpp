@@ -10,11 +10,13 @@
 #include <vector>
 #include <cstdlib>   /* abs */
 #include <algorithm> // std::min, std::max
+#include <math.h>    /* sqrt */
 
+#include "Con2Prim.hpp"
 #include "Error.hpp"
 #include "Grid.hpp"
 #include "PolynomialBasis.hpp"
-#include "EquationOfStateLibrary_IDEAL.hpp"
+#include "EquationOfStateLibrary.hpp"
 #include "FluidUtilities.hpp"
 
 /**
@@ -120,13 +122,13 @@ Real ComputeTimestep_Fluid( const Kokkos::View<Real ***> U,
       "Compute Timestep", Kokkos::RangePolicy<>( ilo, ihi + 1 ),
       KOKKOS_LAMBDA( const int &iX, Real &lmin ) {
         // --- Compute Cell Averages ---
-        Real tau_x  = U( 0, iX, 0 );
-        Real vel_x  = U( 1, iX, 0 );
-        Real eint_x = U( 2, iX, 0 );
+        //TODO: Don't need this con2prim... do it elsewhere once and pass in uPF
+        Real tau, v, em, p;
+        Con2Prim( U( 0, iX, 0 ), U(1, iX, 0), U(2, iX, 0), tau, v, em, p );
 
         Real dr = Grid->Get_Widths( iX );
 
-        Real Cs = ComputeSoundSpeedFromConserved_IDEAL( tau_x, vel_x, eint_x );
+        Real Cs = ComputeSoundSpeedFromPrimitive_IDEAL( tau, v, em );
         Real eigval = Cs;
 
         Real dt_old = std::abs( dr ) / std::abs( eigval );
@@ -145,4 +147,9 @@ Real ComputeTimestep_Fluid( const Kokkos::View<Real ***> U,
   }
 
   return dt;
+}
+
+Real LorentzFactor( const Real V )
+{
+  return 1.0 / sqrt( 1.0 - V*V );
 }
