@@ -20,40 +20,6 @@
 #include "FluidUtilities.hpp"
 
 /**
- * Compute the primitive quantities (density, momemtum, energy density)
- * from conserved quantities. Primitive quantities are stored at Gauss-Legendre
- * nodes.
- **/
-void ComputePrimitiveFromConserved( Kokkos::View<Real ***> uCF,
-                                    Kokkos::View<Real ***> uPF,
-                                    ModalBasis *Basis, GridStructure *Grid )
-{
-  const UInt nNodes = Grid->Get_nNodes( );
-  const UInt ilo    = Grid->Get_ilo( );
-  const UInt ihi    = Grid->Get_ihi( );
-
-  Real Tau = 0.0;
-  Real Vel = 0.0;
-  Real EmT = 0.0;
-
-  for ( UInt iX = ilo; iX <= ihi; iX++ )
-    for ( UInt iN = 0; iN < nNodes; iN++ )
-    {
-      // Density
-      Tau              = Basis->BasisEval( uCF, 0, iX, iN + 1, false );
-      uPF( 0, iX, iN ) = 1.0 / Tau;
-
-      // Momentum
-      Vel              = Basis->BasisEval( uCF, 1, iX, iN + 1, false );
-      uPF( 1, iX, iN ) = uPF( 0, iX, iN ) * Vel;
-
-      // Specific Total Energy
-      EmT              = Basis->BasisEval( uCF, 2, iX, iN + 1, false );
-      uPF( 2, iX, iN ) = EmT / Tau;
-    }
-}
-
-/**
  * Return a component iCF of the flux vector.
  * TODO: Flux_Fluid needs streamlining
  **/
@@ -85,8 +51,10 @@ void NumericalFlux_Gudonov( const Real vL, const Real vR, const Real pL,
                             const Real pR, const Real zL, const Real zR,
                             Real &Flux_U, Real &Flux_P )
 {
-  Flux_U = ( pL - pR + zR * vR + zL * vL ) / ( zR + zL );
-  Flux_P = ( zR * pL + zL * pR + zL * zR * ( vL - vR ) ) / ( zR + zL );
+  const Real W_L = LorentzFactor( vL ); 
+  const Real W_R = LorentzFactor( vR ); 
+  Flux_U = ( pL - pR + W_R*zR * vR + W_L*zL * vL ) / ( W_R*zR + W_L*zL );
+  Flux_P = ( W_R*zR * pL + W_L*zL * pR + W_L * W_R * zL * zR * ( vL - vR ) ) / ( W_R*zR + W_L*zL );
 }
 
 /**
@@ -95,8 +63,12 @@ void NumericalFlux_Gudonov( const Real vL, const Real vR, const Real pL,
 void NumericalFlux_HLLC( Real vL, Real vR, Real pL, Real pR, Real cL, Real cR,
                          Real rhoL, Real rhoR, Real &Flux_U, Real &Flux_P )
 {
-  Real aL = vL - cL; // left wave speed estimate
-  Real aR = vR + cR; // right wave speed estimate
+  const Real W_L = LorentzFactor( vL ); 
+  const Real W_R = LorentzFactor( vR ); 
+  const Real sigmaL = cL * cL / ( W_L * W_L * ( 1.0 - cL * cL ) );
+  const Real sigmaR = cR * cR / ( W_R * W_R * ( 1.0 - cR * cR ) );
+  const Real aL = ( vL - sqrt( sigmaL * ( 1.0 - vL + sigmaL ) ) ) / ( 1.0 + sigmaL );
+  const Real aR = ( vR - sqrt( sigmaR * ( 1.0 - vR + sigmaR ) ) ) / ( 1.0 + sigmaR );
   Flux_U  = ( rhoR * vR * ( aR - vR ) - rhoL * vL * ( aL - vL ) + pL - pR ) /
            ( rhoR * ( aR - vR ) - rhoL * ( aL - vL ) );
   Flux_P = rhoL * ( vL - aL ) * ( vL - Flux_U ) + pL;
@@ -112,7 +84,7 @@ Real ComputeTimestep_Fluid( const Kokkos::View<Real ***> U,
 {
 
   const Real MIN_DT = 0.000000005;
-  const Real MAX_DT = 1.0;
+  const Real MAX_DT = 0.1;
 
   const UInt &ilo = Grid->Get_ilo( );
   const UInt &ihi = Grid->Get_ihi( );
@@ -128,7 +100,7 @@ Real ComputeTimestep_Fluid( const Kokkos::View<Real ***> U,
 
         Real dr = Grid->Get_Widths( iX );
 
-        Real Cs = ComputeSoundSpeedFromPrimitive_IDEAL( tau, v, em );
+        Real Cs = ComputeSoundSpeedFromPrimitive_IDEAL( tau, v, em, p );
         Real eigval = Cs;
 
         Real dt_old = std::abs( dr ) / std::abs( eigval );

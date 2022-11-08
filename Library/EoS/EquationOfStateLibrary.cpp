@@ -32,12 +32,12 @@ Real ComputePressureFromPrimitive_IDEAL( const Real Tau, const Real V,
 }
 
 Real ComputeSoundSpeedFromPrimitive_IDEAL( const Real Tau, const Real V,
-                                           const Real Em )
+                                           const Real Em, const Real P )
 {
-  const Real h = ComputeEnthalpy( Tau, V, Em );
-  const Real p = ComputePressureFromPrimitive_IDEAL( Tau, V, Em );
+  const Real h = ComputeEnthalpy( Tau, V, Em + 0.5 * V * V );
+  //const Real P = ComputePressureFromPrimitive_IDEAL( Tau, V, Em );
 
-  Real Cs = sqrt( GAMMA * p * Tau / h );
+  Real Cs = sqrt( GAMMA * P * Tau / h );
   return Cs;
 }
 
@@ -62,7 +62,7 @@ Real ComputeInternalEnergy( const Kokkos::View<Real ***> U, const UInt iX )
 Real ComputeEnthalpy( const Real Tau, const Real V, const Real Em_T  )
 {
   Real Em = Em_T - 0.5 * V * V;
-  Real P  = ComputePressureFromConserved_IDEAL( Tau, V, Em_T );
+  Real P  = ComputePressureFromPrimitive_IDEAL( Tau, V, Em );
 
   return 1.0 + Em + P * Tau;
 }

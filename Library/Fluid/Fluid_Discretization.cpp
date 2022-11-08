@@ -66,21 +66,21 @@ void ComputeIncrement_Fluid_Divergence(
         //const Real P_L = ComputePressureFromConserved_IDEAL(
         //    uCF_L( 0 ), uCF_L( 1 ), uCF_L( 2 ) );
         const Real Cs_L = ComputeSoundSpeedFromPrimitive_IDEAL(
-            tau_L, v_L, em_L );
+            tau_L, v_L, em_L, p_L );
         const Real lam_L = Cs_L * rho_L;
 
         //const Real P_R = ComputePressureFromConserved_IDEAL(
         //    uCF_R( 0 ), uCF_R( 1 ), uCF_R( 2 ) );
         const Real Cs_R = ComputeSoundSpeedFromPrimitive_IDEAL(
-            tau_R, v_R, em_R );
+            tau_R, v_R, em_R, p_R );
         const Real lam_R = Cs_R * rho_R;
 
         // --- Numerical Fluxes ---
 
         // Riemann Problem
         NumericalFlux_Gudonov( v_L, v_R, p_L, p_R, lam_L, lam_R,
-                               Flux_U( iX ), Flux_P( iX ) );
-        // NumericalFlux_HLLC( uCF_L( 1 ), uCF_R( 1 ), P_L, P_R, Cs_L, Cs_R,
+                              Flux_U( iX ), Flux_P( iX ) );
+        //NumericalFlux_HLLC( v_L, v_R, p_L, p_R, Cs_L, Cs_R,
         //  rho_L, rho_R, Flux_U( iX ), Flux_P( iX ) );
 
         // TODO: Clean This Up

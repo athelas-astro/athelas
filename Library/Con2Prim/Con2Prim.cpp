@@ -20,11 +20,11 @@ void Con2Prim( Real U0, Real U1, Real U2, Real &tau, Real &v, Real &Em,
                Real &P )
 {
   const Real a = GAMMA / ( GAMMA - 1.0 );
-  const Real w = C2P_Newton( 0.1, a, U1, U2 );
+  const Real w = C2P_Newton( 0.1, a, U1, U2 + 0.0 );
 
   v = 2.0 * w / ( 1.0 + w * w );
   const Real W = LorentzFactor( v );
-  Em = W * ( U2 - W ) / ( GAMMA * ( W * W - 1.0 ) + 1.0 );
+  Em = W * ( U2 - W + 1.0 ) / ( GAMMA * ( W * W - 1.0 ) + 1.0 );
 
   tau = U0 * W;
 
@@ -57,7 +57,7 @@ Real C2P_Newton( Real x0, const Real a, const Real xi, const Real eta )
     const Real yprime = dTarget( x0, a, xi, eta );
     if ( std::abs( yprime ) < eps )
     {
-      std::printf("Derivative approaching 0 in Con2Prim. Returning at iteration %d", n);
+      std::printf("Derivative approaching 0 in Con2Prim. Returning at iteration %d\n", n);
       return x0;
     }
     
@@ -71,7 +71,7 @@ Real C2P_Newton( Real x0, const Real a, const Real xi, const Real eta )
     x0 = x1;
     n += 1;
   }
-
-  throw Error(" ! Max Iters reached in Con2Prim!");
+  
+  throw Error(" ! Max Iters reached in Con2Prim!\n");
 }
 

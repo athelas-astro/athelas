@@ -4,10 +4,8 @@
 #include "Kokkos_Core.hpp"
 
 #include "Abstractions.hpp"
+#include "Grid.hpp"
 
-void ComputePrimitiveFromConserved( Kokkos::View<Real ***> uCF,
-                                    Kokkos::View<Real ***> uPF,
-                                    ModalBasis *Basis, GridStructure *Grid );
 Real Flux_Fluid( const Real V, const Real P, const UInt iCF );
 void NumericalFlux_Gudonov( const Real vL, const Real vR, const Real pL,
                             const Real pR, const Real zL, const Real zR,
