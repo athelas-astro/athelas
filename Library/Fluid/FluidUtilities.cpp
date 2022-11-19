@@ -53,8 +53,32 @@ void NumericalFlux_Gudonov( const Real vL, const Real vR, const Real pL,
 {
   const Real W_L = LorentzFactor( vL ); 
   const Real W_R = LorentzFactor( vR ); 
-  Flux_U = ( pL - pR + W_R*zR * vR + W_L*zL * vL ) / ( W_R*zR + W_L*zL );
-  Flux_P = ( W_R*zR * pL + W_L*zL * pR + W_L * W_R * zL * zR * ( vL - vR ) ) / ( W_R*zR + W_L*zL );
+  const Real sigmaL = zL * zL / ( W_L * W_L * ( 1.0 - zL * zL ) );
+  const Real sigmaR = zR * zR / ( W_R * W_R * ( 1.0 - zR * zR ) );
+  const Real aL = sqrt( sigmaL * ( 1.0 - sigmaL ) ) / ( 1.0 + sigmaL );
+  const Real aR = sqrt( sigmaR * ( 1.0 - sigmaR ) ) / ( 1.0 + sigmaR );
+  Flux_U = ( pL - pR + aR * vR + aL * vL ) / ( aR + aL );
+  Flux_P = ( aR * pL + aL * pR + aL * aR * ( vL - vR ) ) / ( aR + aL );
+}
+
+
+// Simple, Yamada 1997 10.1086/303548
+void NumericalFlux_Simple( const Real rhoL, const Real rhoR, const Real vL, 
+                           const Real vR, const Real emL, const Real emR, 
+                           const Real pL, const Real pR, 
+                           const Real cL, const Real cR, 
+                           Real &Flux_U, Real &Flux_P )
+{
+  const Real Gm = 1.4;
+  const Real em = 0.5 * ( emL + emR );
+  const Real rhom = 0.5 * ( rhoL + rhoR );
+  const Real taum = 1.0 / rhom;
+  const Real vm = 0.5 * ( vL + vR );
+  const Real Pm = ComputePressureFromPrimitive_IDEAL( taum, vm, em );
+  const Real Cm = ComputeSoundSpeedFromPrimitive_IDEAL( taum, vm, em, Pm );
+
+  Flux_U = 0.5 * ( vR + vL ) - Cm * ( pR - pL ) / ( 2.0 * Gm * Pm );
+  Flux_P = 0.5 * ( pR + pL ) - Gm * Pm * ( vR - vL ) / ( 2.0 * Cm );
 }
 
 /**

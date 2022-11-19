@@ -229,7 +229,7 @@ void InitializeFields( Kokkos::View<Real ***> uCF, Kokkos::View<Real ***> uPF,
             uCF( iCF_V, iX, k ) = V0;
             uCF( iCF_E, iX, k ) =
                 ( P0 / 0.4 ) * uCF( iCF_Tau, iX, k ) + 0.5 * V0 * V0;
-            Real h = ComputeEnthalpy( uCF( 0, iX, 0 ), V0, uCF( 2, iX, 0 ) - 0.5 * V0 * V0 );
+            Real h = ComputeEnthalpy( uCF( 0, iX, 0 ), V0, uCF( 2, iX, 0 ) );
             uCF( 0, iX, 0 ) /= W;
             uCF( 1, iX, 0 ) *= W * h;
             uCF( 2, iX, 0 ) = h * W - P0 * uCF( 0, iX, 0 ) - 1.0;

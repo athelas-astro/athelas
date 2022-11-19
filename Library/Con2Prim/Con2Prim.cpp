@@ -20,7 +20,7 @@ void Con2Prim( Real U0, Real U1, Real U2, Real &tau, Real &v, Real &Em,
                Real &P )
 {
   const Real a = GAMMA / ( GAMMA - 1.0 );
-  const Real w = C2P_Newton( 0.1, a, U1, U2 + 0.0 );
+  const Real w = C2P_Newton( 0.1, a, U1, U2 + 1.0 );
 
   v = 2.0 * w / ( 1.0 + w * w );
   const Real W = LorentzFactor( v );
@@ -33,7 +33,7 @@ void Con2Prim( Real U0, Real U1, Real U2, Real &tau, Real &v, Real &Em,
 
 Real C2P_Newton( Real x0, const Real a, const Real xi, const Real eta )
 {
-  Real tol = 1e-12;
+  Real tol = 1e-14;
   Real eps = 1-10;
 
   UInt MAXITERS = 20;

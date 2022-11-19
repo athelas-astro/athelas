@@ -73,7 +73,6 @@ int main( int argc, char *argv[] )
 
       ApplyBC_Fluid( uCF, &Grid, order, BC );
     }
-    // WriteState( uCF, uPF, uAF, Grid, ProblemName, 0.0, order, 0 );
 
     // --- Datastructure for modal basis ---
     ModalBasis Basis( uPF, &Grid, order, nNodes, nX, nGuard );
@@ -92,19 +91,22 @@ int main( int argc, char *argv[] )
     // -- print run parameters ---
     PrintSimulationParameters( &Grid, &pin, CFL );
 
+    WriteState( uCF, uPF, uAF, &Grid, &S_Limiter, ProblemName, 0.0, order, 
+                0.0 );
+
     // --- Timer ---
     Kokkos::Timer timer;
 
     // --- Evolution loop ---
     UInt iStep   = 0;
-    UInt i_print = 100;
+    UInt i_print = 1;
     UInt i_write = -1;
     UInt i_out   = 1;
     std::cout << " ~ Step\tt\tdt" << std::endl;
     while ( t < t_end && iStep >= 0 )
     {
 
-      dt = ComputeTimestep_Fluid( uCF, &Grid, CFL );
+      dt = ComputeTimestep_Fluid( uCF, &Grid, CFL );  
 
       if ( t + dt > t_end )
       {
