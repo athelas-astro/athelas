@@ -31,16 +31,20 @@ function Load_Output( fn::String )
   dr::Array{Float64,1} = fid["/Spatial Grid/Widths"][:]
 
   uCF::Array{Float64,3} = zeros(order, nX, 3)
+  uPF::Array{Float64,3} = zeros(order, nX, 3)
 
   for i in 1:order
     uCF[i, :, 1] = fid["/Conserved Fields/Specific Volume"][((i - 1) * nX + 1):(i * nX)]
     uCF[i, :, 2] = fid["/Conserved Fields/Velocity"][((i - 1) * nX + 1):(i * nX)]
     uCF[i, :, 3] = fid["/Conserved Fields/Specific Internal Energy"][((i - 1) * nX + 1):(i * nX)]
+
+    uPF[i, :, 1] = fid["/Primitive Fields/Specific Volume"][((i - 1) * nX + 1):(i * nX)]
+    uPF[i, :, 2] = fid["/Primitive Fields/Velocity"][((i - 1) * nX + 1):(i * nX)]
+    uPF[i, :, 3] = fid["/Primitive Fields/Specific Internal Energy"][((i - 1) * nX + 1):(i * nX)]
   end
 
   SlopeLimiter::Array{Int64,1} = fid["/Diagnostic Fields/Limiter"][:]
 
-  uPF::Array{Float64,3} = zeros(order, nX, 3)
   uAF::Array{Float64,3} = zeros(order, nX, 3)
 
   state::State = State(time, uCF, uPF, uAF, SlopeLimiter)
@@ -70,6 +74,8 @@ end
 fn = "../bin/athelas_Sod_final.h5"
 data, grid, order = Load_Output( fn )
 
+
 fig = Figure()
-scatter( fig[1,1], grid.r, 1.0 ./ data.uCF[1,:,1] )
+scatter( fig[1,1], grid.r, 1.0 ./ data.uPF[1,:,1] )
+scatter!( fig[1,1], grid.r, 1.0 ./ data.uCF[1,:,1] )
 save("sod.png", fig )

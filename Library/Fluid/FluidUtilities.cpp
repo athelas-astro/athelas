@@ -57,8 +57,8 @@ void NumericalFlux_Gudonov( const Real vL, const Real vR, const Real pL,
   const Real sigmaR = zR * zR / ( W_R * W_R * ( 1.0 - zR * zR ) );
   const Real aL = sqrt( sigmaL * ( 1.0 - sigmaL ) ) / ( 1.0 + sigmaL );
   const Real aR = sqrt( sigmaR * ( 1.0 - sigmaR ) ) / ( 1.0 + sigmaR );
-  Flux_U = ( pL - pR + aR * vR + aL * vL ) / ( aR + aL );
-  Flux_P = ( aR * pL + aL * pR + aL * aR * ( vL - vR ) ) / ( aR + aL );
+  Flux_U = ( pL - pR + zR * vR + zL * vL ) / ( zR + zL );
+  Flux_P = ( zR * pL + zL * pR + zL * zR * ( vL - vR ) ) / ( zR + zL );
 }
 
 

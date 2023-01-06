@@ -69,7 +69,7 @@ void InitializeFields( Kokkos::View<Real ***> uCF, Kokkos::View<Real ***> uPF,
               Real h = ComputeEnthalpy( 1.0 / D_L, V0, uCF( 2, iX, 0 ) );
               uCF( 0, iX, 0 ) /= W;
               uCF( 1, iX, 0 ) *= W * h;
-              uCF( 2, iX, 0 ) = h * W - P_L * uCF( 0, iX, 0 ) - 1.0;
+              uCF( 2, iX, 0 ) = h * W - P_L * uCF( 0, iX, 0 ) - 0.0;
             }
 
             uPF( iPF_D, iX, iNodeX ) = D_L;
@@ -85,7 +85,7 @@ void InitializeFields( Kokkos::View<Real ***> uCF, Kokkos::View<Real ***> uPF,
               Real h = ComputeEnthalpy( 1.0 / D_R, V0, uCF( 2, iX, 0 ) );
               uCF( 0, iX, 0 ) /= W;
               uCF( 1, iX, 0 ) *= W * h;
-              uCF( 2, iX, 0 ) = h * W - P_R * uCF( 0, iX, 0 ) - 1.0;
+              uCF( 2, iX, 0 ) = h * W - P_R * uCF( 0, iX, 0 ) - 0.0;
             }
 
             uPF( iPF_D, iX, iNodeX ) = D_R;

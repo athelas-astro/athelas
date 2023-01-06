@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "Con2Prim.hpp"
 #include "Grid.hpp"
 #include "H5Cpp.h"
 #include "PolynomialBasis.hpp"
@@ -103,13 +104,17 @@ void WriteState( Kokkos::View<Real ***> uCF, Kokkos::View<Real ***> uPF,
   const H5std_string DATASET_NAME( "Grid" );
   const int size = ( nX * order ); // dataset dimensions
 
-  std::vector<DataType> tau( size );
+  std::vector<DataType> tau( size ); // conserved
   std::vector<DataType> vel( size );
   std::vector<DataType> eint( size );
+  std::vector<DataType> Ptau( size ); // primitives
+  std::vector<DataType> Pvel( size );
+  std::vector<DataType> Peint( size );
   std::vector<DataType> grid( nX );
   std::vector<DataType> dr( nX );
   std::vector<DataType> limiter( nX );
 
+  Real trash = 0.0;
   for ( UInt k = 0; k < order; k++ )
     for ( UInt iX = ilo; iX <= ihi; iX++ )
     {
@@ -119,6 +124,9 @@ void WriteState( Kokkos::View<Real ***> uCF, Kokkos::View<Real ***> uPF,
       tau[( iX - ilo ) + k * nX].x  = uCF( 0, iX, k );
       vel[( iX - ilo ) + k * nX].x  = uCF( 1, iX, k );
       eint[( iX - ilo ) + k * nX].x = uCF( 2, iX, k );
+      Con2Prim( uCF( 0, iX, 0 ), uCF( 1, iX, 0 ), uCF( 2, iX, 0 ), 
+          Ptau[( iX - ilo ) + k * nX].x, Pvel[( iX - ilo ) + k * nX].x, 
+          Peint[( iX - ilo ) + k * nX].x, trash );
     }
 
   // preparation of a dataset and a file.
@@ -142,6 +150,7 @@ void WriteState( Kokkos::View<Real ***> uCF, Kokkos::View<Real ***> uPF,
   H5::Group group_md   = file.createGroup( "/Metadata" );
   H5::Group group_grid = file.createGroup( "/Spatial Grid" );
   H5::Group group_CF   = file.createGroup( "/Conserved Fields" );
+  H5::Group group_PF   = file.createGroup( "/Primitive Fields" );
   H5::Group group_DF   = file.createGroup( "/Diagnostic Fields" );
 
   // DataSets
@@ -155,13 +164,23 @@ void WriteState( Kokkos::View<Real ***> uCF, Kokkos::View<Real ***> uPF,
       "/Spatial Grid/Grid", H5::PredType::NATIVE_DOUBLE, space_grid ) );
   H5::DataSet dataset_width( file.createDataSet(
       "/Spatial Grid/Widths", H5::PredType::NATIVE_DOUBLE, space_grid ) );
-  H5::DataSet dataset_tau(
+  H5::DataSet dataset_Ctau(
       file.createDataSet( "/Conserved Fields/Specific Volume",
                           H5::PredType::NATIVE_DOUBLE, space ) );
-  H5::DataSet dataset_vel( file.createDataSet(
+  H5::DataSet dataset_Cvel( file.createDataSet(
       "/Conserved Fields/Velocity", H5::PredType::NATIVE_DOUBLE, space ) );
-  H5::DataSet dataset_eint(
+  H5::DataSet dataset_Ceint(
       file.createDataSet( "/Conserved Fields/Specific Internal Energy",
+                          H5::PredType::NATIVE_DOUBLE, space ) );
+
+  // --- Primitives --- 
+  H5::DataSet dataset_Ptau(
+      file.createDataSet( "/Primitive Fields/Specific Volume",
+                          H5::PredType::NATIVE_DOUBLE, space ) );
+  H5::DataSet dataset_Pvel( file.createDataSet(
+      "/Primitive Fields/Velocity", H5::PredType::NATIVE_DOUBLE, space ) );
+  H5::DataSet dataset_Peint(
+      file.createDataSet( "/Primitive Fields/Specific Internal Energy",
                           H5::PredType::NATIVE_DOUBLE, space ) );
 
   H5::DataSet dataset_limiter( file.createDataSet(
@@ -175,9 +194,12 @@ void WriteState( Kokkos::View<Real ***> uCF, Kokkos::View<Real ***> uPF,
   dataset_grid.write( grid.data( ), H5::PredType::NATIVE_DOUBLE );
   dataset_width.write( dr.data( ), H5::PredType::NATIVE_DOUBLE );
   dataset_limiter.write( limiter.data( ), H5::PredType::NATIVE_DOUBLE );
-  dataset_tau.write( tau.data( ), H5::PredType::NATIVE_DOUBLE );
-  dataset_vel.write( vel.data( ), H5::PredType::NATIVE_DOUBLE );
-  dataset_eint.write( eint.data( ), H5::PredType::NATIVE_DOUBLE );
+  dataset_Ctau.write( tau.data( ), H5::PredType::NATIVE_DOUBLE );
+  dataset_Cvel.write( vel.data( ), H5::PredType::NATIVE_DOUBLE );
+  dataset_Ceint.write( eint.data( ), H5::PredType::NATIVE_DOUBLE );
+  dataset_Ptau.write( Ptau.data( ), H5::PredType::NATIVE_DOUBLE );
+  dataset_Pvel.write( Pvel.data( ), H5::PredType::NATIVE_DOUBLE );
+  dataset_Peint.write( Peint.data( ), H5::PredType::NATIVE_DOUBLE );
 }
 
 /**
