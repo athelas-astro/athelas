@@ -1,6 +1,6 @@
 [submodule "External/Kokkos"]
-	path = External/Kokkos
+	path = external/Kokkos
 	url = https://github.com/kokkos/kokkos.git
 [submodule "External/simpleini"]
-	path = External/simpleini
+	path = external/simpleini
 	url = https://github.com/brofield/simpleini.git

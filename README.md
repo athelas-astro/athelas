@@ -9,9 +9,8 @@
 
 Currently, `athelas` solves the 1D Lagrangian equation of non-relativistic hydrodynamics using a discontinuous Galerkin scheme. It includes planar geometry and spherical symmetry.
 It will be extended to special relativistic hydrodynamics.
-For now, it includes an ideal gas equation of state.
 
-Future work will implement gravity and multigroup two moment radiation.
+Future work will include two-moment radiation transport, a Saha ionization solver, and appropriate stellar equation of state.
 
 # Kokkos
 We use [Kokkos](https://github.com/kokkos) for shared memory parallelism. 
@@ -58,17 +57,19 @@ The build system may not be perfect yet. Your mileage may vary.
 # Dependencies
 * LAPACKE
 * HDF5
-* Kokkos (asavilable as a submodule)
+* Kokkos (avialable as a submodule)
 
+Hopefully `lapacke` won't be necessary forever, but at present it is needed for initializing the quadrature.
+I find that, on Arch Linux systems, `lapack`, `lapacke`, and `openblas` is sufficient for all `lapacke` needs.
 
 ## Clang-format
 
 We use clang format for code cleanliness. 
 The current version of `clang-format` used is `clang-format-13`.
-Simply call `Tools/Bash/format.sh` to format the `.h` and `.cpp` files.
+Simply call `tools/bash/format.sh` to format the `.hpp` and `.cpp` files.
 
 # TODO:
- - [ ] Initialize with input file at runtime
+ - [x] Initialize with input file at runtime
  - [x] Bound enforcing limiter
  - [ ] New TCI
  - [ ] linter

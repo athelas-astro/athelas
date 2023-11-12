@@ -4,6 +4,10 @@
 # Prerequisites
 *.d
 
+# testing
+_deps
+CMakeFiles
+
 # Compiled Object files
 *.slo
 *.lo
