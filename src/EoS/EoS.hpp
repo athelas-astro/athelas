@@ -16,10 +16,10 @@ class IdealGas : public EosBase<IdealGas> {
     IdealGas() = default;
     IdealGas( double gm ) : gamma(gm) {}
 
-    void PressureFromConserved( const Real Tau, const Real V, const Real EmT, 
-        Real &P ) const;
-    void SoundSpeedFromConserved( const Real Tau, const Real V, const Real EmT, 
-        Real &Cs ) const;
+    void PressureFromConserved( const Real Tau, const Real V, const Real Bm,
+                                const Real EmT, Real &P ) const;
+    void SoundSpeedFromConserved( const Real Tau, const Real V, const Real Bm,
+                                  const Real EmT, Real &Cs ) const;
     void TemperatureFromTauPressureAbar( const Real Tau, const Real P, 
         const Real Abar, Real &T ) const;
     void TemperatureFromTauPressure( const Real Tau, const Real P, 

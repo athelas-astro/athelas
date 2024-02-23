@@ -34,6 +34,7 @@ void ComputePrimitiveFromConserved( View3D uCF,
   Real Tau = 0.0;
   Real Vel = 0.0;
   Real EmT = 0.0;
+  Real Bm  = 0.0;
 
   for ( UInt iX = ilo; iX <= ihi; iX++ )
     for ( UInt iN = 0; iN < nNodes; iN++ )
@@ -46,9 +47,14 @@ void ComputePrimitiveFromConserved( View3D uCF,
       Vel              = Basis->BasisEval( uCF, 1, iX, iN + 1, false );
       uPF( 1, iX, iN ) = uPF( 0, iX, iN ) * Vel;
 
-      // Specific Total Energy
+      // Total Energy Density
       EmT              = Basis->BasisEval( uCF, 2, iX, iN + 1, false );
       uPF( 2, iX, iN ) = EmT / Tau;
+
+      // Magnetic field
+      Bm               = Basis->BasisEval( uCF, 3, iX, iN + 1, false );
+      uPF( 3, iX, iN ) = Bm / Tau;
+
     }
 }
 
@@ -56,7 +62,8 @@ void ComputePrimitiveFromConserved( View3D uCF,
  * Return a component iCF of the flux vector.
  * TODO: Flux_Fluid needs streamlining
  **/
-Real Flux_Fluid( const Real V, const Real P, const UInt iCF )
+Real Flux_Fluid( const Real Tau, const Real V, const Real Bm,
+                 const Real P,   const UInt iCF )
 {
   if ( iCF == 0 )
   {
@@ -64,15 +71,21 @@ Real Flux_Fluid( const Real V, const Real P, const UInt iCF )
   }
   else if ( iCF == 1 )
   {
-    return +P;
+    return +P + Bm * Bm / ( 2.0 * Tau * Tau )
+              - Bm * Bm / ( Tau * Tau ) ;
   }
   else if ( iCF == 2 )
   {
-    return +P * V;
+    return +P * V + Bm * Bm * V / ( 2.0 * Tau * Tau )
+                  - Bm * Bm * V / ( Tau * Tau );
+  }
+  else if ( iCF == 3 )
+  {
+    return -( Bm / Tau ) * V;
   }
   else
   { // Error case. Shouldn't ever trigger.
-    throw Error( " ! Please input a valid iCF! (0,1,2). " );
+    throw Error( " ! Please input a valid iCF! (0,1,2,3). " );
     return -1.0; // just a formality.
   }
 }
@@ -80,7 +93,7 @@ Real Flux_Fluid( const Real V, const Real P, const UInt iCF )
 /* Fluid radiation sources */
 Real Source_Fluid_Rad( Real D, Real V, Real T, Real X, Real kappa,
                        Real E, Real F, Real Pr, UInt iCF ) {
-  assert ( iCF == 0 || iCF == 1 || iCF == 2 );
+  assert ( iCF == 0 || iCF == 1 || iCF == 2 || iCF == 3 );
 
   Real a = constants::a;
   Real c = constants::c_cgs;
@@ -98,14 +111,16 @@ Real Source_Fluid_Rad( Real D, Real V, Real T, Real X, Real kappa,
   }
 }
 /**
- * Gudonov style numerical flux. Constucts v* and p* states.
+ * Gudonov style numerical flux. Constucts v*, p*, and B* states.
  **/
 void NumericalFlux_Gudonov( const Real vL, const Real vR, const Real pL,
-                            const Real pR, const Real zL, const Real zR,
-                            Real &Flux_U, Real &Flux_P )
+                            const Real pR,
+                            const Real zL, const Real zR,
+                            Real &Flux_U, Real &Flux_P, Real &Flux_B )
 {
-  Flux_U = ( pL - pR + zR * vR + zL * vL ) / ( zR + zL );
-  Flux_P = ( zR * pL + zL * pR + zL * zR * ( vL - vR ) ) / ( zR + zL );
+  Flux_U  = ( pL - pR + zR * vR + zL * vL ) / ( zR + zL );
+  Flux_P  = ( zR * pL + zL * pR + zL * zR * ( vL - vR ) ) / ( zR + zL );
+  Flux_B  = 0.0; // Add Flux_B (actually isn't it zero for pure 1D?)
 }
 
 /**
@@ -145,11 +160,12 @@ Real ComputeTimestep_Fluid( const View3D U,
         Real tau_x  = U( 0, iX, 0 );
         Real vel_x  = U( 1, iX, 0 );
         Real eint_x = U( 2, iX, 0 );
+        Real Bm_x   = U( 3, iX, 0 );
 
         Real dr = Grid->Get_Widths( iX );
 
         Real Cs = 0.0;
-        eos->SoundSpeedFromConserved( tau_x, vel_x, eint_x, Cs );
+        eos->SoundSpeedFromConserved( tau_x, vel_x, Bm_x, eint_x, Cs );
         Real eigval = Cs;
 
         Real dt_old = std::abs( dr ) / std::abs( eigval );

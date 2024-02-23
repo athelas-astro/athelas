@@ -25,16 +25,17 @@ TimeStepper::TimeStepper( ProblemIn *pin, GridStructure &Grid )
     : mSize( Grid.Get_nElements( ) + 2 * Grid.Get_Guard( ) ), nStages( pin->nStages ),
       tOrder( pin->tOrder ), BC( pin->BC ), a_jk( "RK a_jk", nStages, nStages ),
       b_jk( "RK b_jk", nStages, nStages ),
-      U_s( "U_s", nStages + 1, 3, mSize + 1, pin->pOrder ),
-      dU_s( "dU_s", nStages + 1, 3, mSize + 1, pin->pOrder ),
-      SumVar_U( "SumVar_U", 3, mSize + 1,pin-> pOrder ),
+      U_s( "U_s", nStages + 1, 4, mSize + 1, pin->pOrder ),
+      dU_s( "dU_s", nStages + 1, 4, mSize + 1, pin->pOrder ),
+      SumVar_U( "SumVar_U", 4, mSize + 1,pin-> pOrder ),
       Grid_s( nStages + 1,
               GridStructure( pin ) ), 
       StageData( "StageData", nStages + 1, mSize + 1 ),
-      Flux_q( "Flux_q", 3, mSize + 1, Grid.Get_nNodes( ) ),
-      dFlux_num( "Numerical Flux", 3, mSize + 1 ),
-      uCF_F_L( "Face L", 3, mSize ), uCF_F_R( "Face R", 3, mSize ),
-      Flux_U( "Flux_U", nStages + 1, mSize + 1 ), Flux_P( "Flux_P", mSize + 1 )
+      Flux_q( "Flux_q", 4, mSize + 1, Grid.Get_nNodes( ) ),
+      dFlux_num( "Numerical Flux", 4, mSize + 1 ),
+      uCF_F_L( "Face L", 4, mSize ), uCF_F_R( "Face R", 4, mSize ),
+      Flux_U( "Flux_U", nStages + 1, mSize + 1 ), Flux_P( "Flux_P", mSize + 1 ),
+      Flux_B( "Flux_B", mSize + 1 )
 {
 
   // --- Call Initialization ---
@@ -229,7 +230,7 @@ void TimeStepper::UpdateFluid( UpdateFunc ComputeIncrement, const Real dt,
   Kokkos::parallel_for(
       "Timestepper 2",
       Kokkos::MDRangePolicy<Kokkos::Rank<3>>( { 0, 0, 0 },
-                                              { order, ihi + 2, 3 } ),
+                                              { order, ihi + 2, 4 } ),
       KOKKOS_LAMBDA( const int k, const int iX, const int iCF ) {
         U_s( 0, iCF, iX, k ) = U( iCF, iX, k );
       } );
@@ -249,7 +250,7 @@ void TimeStepper::UpdateFluid( UpdateFunc ComputeIncrement, const Real dt,
     Kokkos::parallel_for(
         "Timestepper 3",
         Kokkos::MDRangePolicy<Kokkos::Rank<3>>( { 0, 0, 0 },
-                                                { order, ihi + 2, 3 } ),
+                                                { order, ihi + 2, 4 } ),
         KOKKOS_LAMBDA( const int k, const int iX, const int iCF ) {
           SumVar_U( iCF, iX, k ) = 0.0;
           StageData( iS, iX ) = 0.0;;
@@ -265,13 +266,13 @@ void TimeStepper::UpdateFluid( UpdateFunc ComputeIncrement, const Real dt,
           Kokkos::subview( dU_s, j, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL );
       auto Flux_Uj = Kokkos::subview( Flux_U, j, Kokkos::ALL );
       ComputeIncrement( Usj, uCR, Grid_s[j], Basis, eos, dUsj, Flux_q, dFlux_num,
-                        uCF_F_L, uCF_F_R, Flux_Uj, Flux_P, opts );
+                        uCF_F_L, uCF_F_R, Flux_Uj, Flux_P, Flux_B, opts );
 
       // inner sum
       Kokkos::parallel_for(
           "Timestepper 4",
           Kokkos::MDRangePolicy<Kokkos::Rank<3>>( { 0, 0, 0 },
-                                                  { order, ihi + 2, 3 } ),
+                                                  { order, ihi + 2, 4 } ),
           KOKKOS_LAMBDA( const int k, const int iX, const int iCF ) {
             SumVar_U( iCF, iX, k ) += a_jk( i, j ) * Usj( iCF, iX, k ) +
                                       dt * b_jk( i, j ) * dUsj( iCF, iX, k );
@@ -288,7 +289,7 @@ void TimeStepper::UpdateFluid( UpdateFunc ComputeIncrement, const Real dt,
     Kokkos::parallel_for(
         "Timestepper 5",
         Kokkos::MDRangePolicy<Kokkos::Rank<3>>( { 0, 0, 0 },
-                                                { order, ihi + 2, 3 } ),
+                                                { order, ihi + 2, 4 } ),
         KOKKOS_LAMBDA( const int k, const int iX, const int iCF ) {
           U_s( iS, iCF, iX, k ) = SumVar_U( iCF, iX, k );
         } );
@@ -306,7 +307,7 @@ void TimeStepper::UpdateFluid( UpdateFunc ComputeIncrement, const Real dt,
   Kokkos::parallel_for(
       "Timestepper Final",
       Kokkos::MDRangePolicy<Kokkos::Rank<3>>( { 0, 0, 0 },
-                                              { order, ihi + 2, 3 } ),
+                                              { order, ihi + 2, 4 } ),
       KOKKOS_LAMBDA( const int k, const int iX, const int iCF ) {
         U( iCF, iX, k ) = U_s( nStages, iCF, iX, k );
       } );

@@ -129,6 +129,7 @@ void WriteState( State *state,
   std::vector<DataType> tau( size );
   std::vector<DataType> vel( size );
   std::vector<DataType> eint( size );
+  std::vector<DataType> Bm( size );
   std::vector<DataType> grid( nX );
   std::vector<DataType> dr( nX );
   std::vector<DataType> limiter( nX );
@@ -143,6 +144,7 @@ void WriteState( State *state,
       tau[( iX - ilo ) + k * nX].x  = uCF( 0, iX, k );
       vel[( iX - ilo ) + k * nX].x  = uCF( 1, iX, k );
       eint[( iX - ilo ) + k * nX].x = uCF( 2, iX, k );
+      Bm[( iX - ilo ) + k * nX].x   = uCF( 3, iX, k );
     }
 
   // preparation of a dataset and a file.
@@ -187,7 +189,9 @@ void WriteState( State *state,
   H5::DataSet dataset_eint(
       file.createDataSet( "/Conserved Fields/Specific Internal Energy",
                           H5::PredType::NATIVE_DOUBLE, space ) );
-
+  H5::DataSet dataset_Bm(
+      file.createDataSet( "/Conserved Fields/Specific Magnetic Field",
+                          H5::PredType::NATIVE_DOUBLE, space ) );
   H5::DataSet dataset_limiter( file.createDataSet(
       "/Diagnostic Fields/Limiter", H5::PredType::NATIVE_DOUBLE, space_grid ) );
 
@@ -202,6 +206,7 @@ void WriteState( State *state,
   dataset_tau.write( tau.data( ), H5::PredType::NATIVE_DOUBLE );
   dataset_vel.write( vel.data( ), H5::PredType::NATIVE_DOUBLE );
   dataset_eint.write( eint.data( ), H5::PredType::NATIVE_DOUBLE );
+  dataset_Bm.write( Bm.data( ), H5::PredType::NATIVE_DOUBLE );
 }
 
 /**

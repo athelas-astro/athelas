@@ -32,6 +32,7 @@ void InitializeFields( State *state,
   const unsigned int iCF_Tau = 0;
   const unsigned int iCF_V   = 1;
   const unsigned int iCF_E   = 2;
+  const unsigned int iCF_Bm  = 3;
 
   const unsigned int iPF_D = 0;
 
@@ -282,51 +283,36 @@ void InitializeFields( State *state,
         uPF( 0, ihi + 1 + iX, iN ) = uPF( 0, ihi - iX, nNodes - iN - 1 );
       }
   }
-  else if ( ProblemName == "Noh" )
+  else if ( ProblemName == "SmoothAdvection" )
   {
-    const Real V_L = 1.0;
-    const Real D_L = 1.0;
-    const Real P_L = 0.000001;
-    const Real D_R = 1.0;
-    const Real V_R = -1.0;
-    const Real P_R = 0.000001;
+    // Smooth advection problem
+    const Real V0  = 1.0;
+    const Real P0  = 0.01;
+    const Real Amp = 1.0;
 
     Real X1 = 0.0;
     for ( unsigned int iX = ilo; iX <= ihi; iX++ )
       for ( unsigned int k = 0; k < pOrder; k++ )
         for ( unsigned int iNodeX = 0; iNodeX < nNodes; iNodeX++ )
         {
-          X1                    = Grid->NodeCoordinate( iX, iNodeX );
-          uCF( iCF_Tau, iX, k ) = 0.0;
-          uCF( iCF_V, iX, k )   = 0.0;
-          uCF( iCF_E, iX, k )   = 0.0;
+          X1 = Grid->Get_Centers( iX );
 
-          if ( X1 <= 0.5 )
+          if ( k != 0 )
           {
-            if ( k == 0 )
-            {
-              uCF( iCF_Tau, iX, 0 ) = 1.0 / D_L;
-              uCF( iCF_V, iX, 0 )   = V_L;
-              uCF( iCF_E, iX, 0 ) =
-                  ( P_L / ( GAMMA - 1.0 ) ) * uCF( iCF_Tau, iX, 0 ) +
-                  0.5 * V_L * V_L;
-            }
-
-            uPF( iPF_D, iX, iNodeX ) = D_L;
+            uCF( iCF_Tau, iX, k ) = 0.0;
+            uCF( iCF_V, iX, k )   = 0.0;
+            uCF( iCF_E, iX, k )   = 0.0;
           }
           else
-          { // right domain
-            if ( k == 0 )
-            {
-              uCF( iCF_Tau, iX, 0 ) = 1.0 / D_R;
-              uCF( iCF_V, iX, 0 )   = V_R;
-              uCF( iCF_E, iX, 0 ) =
-                  ( P_R / ( GAMMA - 1.0 ) ) * uCF( iCF_Tau, iX, 0 ) +
-                  0.5 * V_R * V_R;
-            }
-
-            uPF( iPF_D, iX, iNodeX ) = D_R;
+          {
+            uCF( iCF_Tau, iX, k ) =
+                1.0 / ( 2.0 + Amp * sin( 2.0 * constants::PI( ) * X1 ) );
+            uCF( iCF_V, iX, k ) = V0;
+            uCF( iCF_E, iX, k ) =
+                ( P0 / 0.4 ) * uCF( iCF_Tau, iX, k ) + 0.5 * V0 * V0;
           }
+          uPF( iPF_D, iX, iNodeX ) =
+              ( 2.0 + Amp * sin( 2.0 * constants::PI( ) * X1 ) );
         }
     // Fill density in guard cells
     for ( unsigned int iX = 0; iX < ilo; iX++ )
@@ -452,6 +438,44 @@ void InitializeFields( State *state,
           uPF( iPF_D, iX, iNodeX ) =
               ( 1.0 + amp * sin( constants::PI( ) * X1 ) );
         }
+    // Fill density in guard cells
+    for ( unsigned int iX = 0; iX < ilo; iX++ )
+      for ( unsigned int iN = 0; iN < nNodes; iN++ )
+      {
+        uPF( 0, ilo - 1 - iX, iN ) = uPF( 0, ilo + iX, nNodes - iN - 1 );
+        uPF( 0, ihi + 1 + iX, iN ) = uPF( 0, ihi - iX, nNodes - iN - 1 );
+      }
+  }
+  else if ( ProblemName == "ConstMagnetic" )
+  {
+    const Real B0 = 1.0;
+    const Real V0 = 0.0;
+    const Real D0 = 1.0;
+    const Real P0 = 1.0;
+
+    for ( unsigned int iX = ilo; iX <= ihi; iX++ )
+      for ( unsigned int k = 0; k < pOrder; k++ )
+        for ( unsigned int iNodeX = 0; iNodeX < nNodes; iNodeX++ )
+        {
+
+          uCF( iCF_Tau, iX, k ) = 0.0;
+          uCF( iCF_V,   iX, k ) = 0.0;
+          uCF( iCF_E,   iX, k ) = 0.0;
+          uCF( iCF_Bm,  iX, k ) = 0.0;
+
+          if ( k == 0 )
+          {
+
+            uCF( iCF_Tau, iX, 0 ) = 1.0 / D0;
+            uCF( iCF_V,   iX, 0 ) = V0;
+            uCF( iCF_E,   iX, 0 ) = ( P0 / 0.4 * D0 ) + 0.5 * B0 * B0 / D0;
+            uCF( iCF_Bm,  iX, 0 ) = B0 / D0;
+
+          }
+
+         uPF( iPF_D, iX, iNodeX ) = D0;
+
+         }
     // Fill density in guard cells
     for ( unsigned int iX = 0; iX < ilo; iX++ )
       for ( unsigned int iN = 0; iN < nNodes; iN++ )

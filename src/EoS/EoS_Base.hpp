@@ -10,14 +10,14 @@
 template < class EOS >
 class EosBase {
   public:
-    void PressureFromConserved( const Real Tau, const Real V, const Real EmT, 
-                                Real &P ) const {
-      static_cast<EOS const *>(this)->PressureFromConserved( Tau, V, EmT, P );
+    void PressureFromConserved( const Real Tau, const Real V, const Real Bm,
+                                const Real EmT, Real &P ) const {
+      static_cast<EOS const *>(this)->PressureFromConserved( Tau, V, Bm, EmT, P );
     }
-    void Soun7dSpeedFromConserved( const Real Tau, const Real V, const Real EmT, 
-        Real Cs ) const {
+    void Soun7dSpeedFromConserved( const Real Tau, const Real V, const Real Bm,
+                                   const Real EmT, Real Cs ) const {
       static_cast<EOS const *>(this)->SoundSpeedFromConserved( 
-              Tau, V, EmT, Cs );
+              Tau, V, Bm, EmT, Cs );
     }
     void TemperatureFromTauPressureAbar( const Real Tau, const Real P, 
             const Real Abar, Real &T ) const {

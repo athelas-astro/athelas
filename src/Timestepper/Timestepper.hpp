@@ -18,7 +18,7 @@ typedef void ( *UpdateFunc )( const View3D, const View3D,
                               ModalBasis *, EOS *eos, View3D,
                               View3D, View2D,
                               View2D, View2D,
-                              View1D, View1D,
+                              View1D, View1D, View1D,
                               const Options opts );
 
 class TimeStepper
@@ -63,6 +63,7 @@ class TimeStepper
 
   View2D Flux_U;
   View1D Flux_P;
+  View1D Flux_B;
 };
 
 #endif

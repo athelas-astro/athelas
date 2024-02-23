@@ -68,7 +68,7 @@ int main( int argc, char *argv[] )
    GridStructure Grid( &pin );
 
    // --- Create the data structures ---
-   const int nCF = 3;
+   const int nCF = 4;
    const int nPF = 3;
    const int nAF = 1;
    const int nCR = 2;
