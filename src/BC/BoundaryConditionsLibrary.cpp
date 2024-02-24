@@ -146,7 +146,7 @@ void ApplyBC( Kokkos::View<Real ***> uCF, GridStructure *Grid,
   }
   else
   {
-    for ( UInt iCF = 0; iCF < 3; iCF++ )
+    for ( UInt iCF = 0; iCF < 4; iCF++ )
       for ( UInt iX = 0; iX < ilo; iX++ )
         for ( UInt k = 0; k < order; k++ )
         {
