@@ -18,6 +18,8 @@
 #include "PolynomialBasis.hpp"
 #include "FluidUtilities.hpp"
 
+using namespace constants;
+
 /**
  * Compute the primitive quantities (density, momemtum, energy density)
  * from conserved quantities. Primitive quantities are stored at Gauss-Legendre
@@ -121,6 +123,39 @@ void NumericalFlux_Gudonov( const Real vL, const Real vR, const Real pL,
   Flux_U  = ( pL - pR + zR * vR + zL * vL ) / ( zR + zL );
   Flux_P  = ( zR * pL + zL * pR + zL * zR * ( vL - vR ) ) / ( zR + zL );
   Flux_B  = 0.0; // Add Flux_B (actually isn't it zero for pure 1D?)
+}
+
+/**
+ * HLL numerical flux
+ **/
+void NumericalFlux_HLL( const Real rhoL, const Real rhoR,
+                        const Real vL,   const Real vR,
+                        const Real eTL,  const Real eTR,
+                        const Real pL,   const Real pR,
+                        const Real BL,   const Real BR,
+                        const Real lamL, const Real lamR,
+                        Real &Flux_1,    Real &Flux_2,
+                        Real &Flux_3,    Real &Flux_4 )
+{
+
+  Real pTL = pL + Half * BL * BL;
+  Real pTR = pR + Half * BR * BR;
+  Real rhoDiff = rhoR - rhoL;
+  Real vDiff   = vR - vL;
+  Real eTDiff  = eTR - eTL;
+  Real BmDiff  = BR / rhoR - BL / rhoL;
+  Real lamProd = lamR * lamL;
+  Real lamDiff = lamR - lamL;
+
+  Flux_1 = ( lamR * vL - lamL * vR + lamProd * rhoDiff ) / lamDiff;
+  Flux_2 = ( lamR * ( -pTL + BL * BL ) - lamL * ( -pTR + BR * BR ) + lamProd * vDiff )
+           / lamDiff;
+  Flux_3 = ( lamR * ( -pTL + BL * BL ) * vL - lamL * ( -pTR + BR * BR ) * vR
+             + lamProd * eTDiff )
+           / lamDiff;
+  Flux_4 = ( lamR * BL * vL - lamL * BR * vR + lamProd * BmDiff )
+           / lamDiff;
+
 }
 
 /**
