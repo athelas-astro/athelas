@@ -28,8 +28,7 @@ namespace quadrature {
  *   Real* bj : matrix subdiagonal (output)
  *   Real z   : zero-th moment     (output)
  */
-Real Jacobi_Matrix( int m, Real *aj, Real *bj )
-{
+Real Jacobi_Matrix( int m, Real *aj, Real *bj ) {
 
   Real ab;
   Real zemu;
@@ -38,13 +37,11 @@ Real Jacobi_Matrix( int m, Real *aj, Real *bj )
 
   ab   = 0.0;
   zemu = 2.0 / ( ab + 1.0 );
-  for ( int i = 0; i < m; i++ )
-  {
+  for ( int i = 0; i < m; i++ ) {
     aj[i] = 0.0;
   }
 
-  for ( int i = 1; i <= m; i++ )
-  {
+  for ( int i = 1; i <= m; i++ ) {
     abi       = i + ab * ( i % 2 );
     abj       = 2 * i + ab;
     bj[i - 1] = sqrt( abi * abi / ( abj * abj - 1.0 ) );
@@ -56,8 +53,7 @@ Real Jacobi_Matrix( int m, Real *aj, Real *bj )
 /**
  * Compute Legendre-Gauss Quadrature
  **/
-void LG_Quadrature( int m, Real *nodes, Real *weights )
-{
+void LG_Quadrature( int m, Real *nodes, Real *weights ) {
   Real *aj = new Real[m];
   Real *bj = new Real[m];
 
@@ -67,22 +63,19 @@ void LG_Quadrature( int m, Real *nodes, Real *weights )
   zemu = Jacobi_Matrix( m, aj, bj );
 
   // Nodes and Weights
-  for ( int i = 0; i < m; i++ )
-  {
+  for ( int i = 0; i < m; i++ ) {
     nodes[i] = aj[i];
   }
 
   weights[0] = sqrt( zemu );
-  for ( int i = 1; i < m; i++ )
-  {
+  for ( int i = 1; i < m; i++ ) {
     weights[i] = 0.0;
   }
 
   // --- Diagonalize the Jacobi matrix. ---
   Tri_Sym_Diag( m, nodes, bj, weights ); // imtqlx
 
-  for ( int i = 0; i < m; i++ )
-  {
+  for ( int i = 0; i < m; i++ ) {
     weights[i] = weights[i] * weights[i];
 
     // Shift to interval [-0.5, 0.5]

@@ -11,14 +11,13 @@
  * sgn, minmod, minmodB
  **/
 
-#include <iostream>
-#include <limits>
 #include <algorithm> // std::min, std::max
 #include <cstdlib>   /* abs */
+#include <iostream>
+#include <limits>
 
-#include "Utilities.hpp"
 #include "SlopeLimiter_Utilities.hpp"
-
+#include "Utilities.hpp"
 
 /**
  *  Barth-Jespersen limiter
@@ -31,8 +30,7 @@
  *    alpha=1 is classical limiter, alpha=0 enforces constant solutions
  **/
 Real BarthJespersen( Real U_v_L, Real U_v_R, Real U_c_L, Real U_c_T, Real U_c_R,
-                     Real alpha )
-{
+                     Real alpha ) {
   // Get U_min, U_max
   Real U_min_L = 10000000.0 * U_c_T;
   Real U_min_R = 10000000.0 * U_c_T;
@@ -49,30 +47,20 @@ Real BarthJespersen( Real U_v_L, Real U_v_R, Real U_c_L, Real U_c_T, Real U_c_R,
   Real phi_R = 0.0;
 
   // left vertex
-  if ( U_v_L - U_c_T + 1.0 > 1.0 )
-  {
+  if ( U_v_L - U_c_T + 1.0 > 1.0 ) {
     phi_L = std::min( 1.0, alpha * ( U_max_L - U_c_T ) / ( U_v_L - U_c_T ) );
-  }
-  else if ( U_v_L - U_c_T + 1.0 < 1.0 )
-  {
+  } else if ( U_v_L - U_c_T + 1.0 < 1.0 ) {
     phi_L = std::min( 1.0, alpha * ( U_min_L - U_c_T ) / ( U_v_L - U_c_T ) );
-  }
-  else
-  {
+  } else {
     phi_L = 1.0;
   }
 
   // right vertex
-  if ( U_v_R - U_c_T + 1.0 > 1.0 )
-  {
+  if ( U_v_R - U_c_T + 1.0 > 1.0 ) {
     phi_R = std::min( 1.0, alpha * ( U_max_R - U_c_T ) / ( U_v_R - U_c_T ) );
-  }
-  else if ( U_v_R - U_c_T + 1.0 < 1.0 )
-  {
+  } else if ( U_v_R - U_c_T + 1.0 < 1.0 ) {
     phi_R = std::min( 1.0, alpha * ( U_min_R - U_c_T ) / ( U_v_R - U_c_T ) );
-  }
-  else
-  {
+  } else {
     phi_R = 1.0;
   }
 

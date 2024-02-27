@@ -28,8 +28,7 @@
  **/
 SlopeLimiter::SlopeLimiter( GridStructure *Grid, ProblemIn *pin )
     : order( pin->pOrder ), SlopeLimiter_Threshold( pin->SL_Threshold ),
-      alpha( pin->alpha ),
-      CharacteristicLimiting_Option( pin->Characteristic ),
+      alpha( pin->alpha ), CharacteristicLimiting_Option( pin->Characteristic ),
       TCI_Option( pin->TCI_Option ), TCI_Threshold( pin->TCI_Threshold ),
       R( "R Matrix" ), R_inv( "invR Matrix" ), SlopeDifference( "SlopeDiff" ),
       dU( "dU" ), d2U( "d2U" ), d2w( "d2w" ), U_c_L( "U_c_L" ),
@@ -42,28 +41,24 @@ SlopeLimiter::SlopeLimiter( GridStructure *Grid, ProblemIn *pin )
       Mult2( "Mult2" ), Mult3( "Mult3" ),
       D( "TCI", 3, Grid->Get_nElements( ) + 2 * Grid->Get_Guard( ) ),
       LimitedCell( "LimitedCell",
-                   Grid->Get_nElements( ) + 2 * Grid->Get_Guard( ) )
-{
-}
+                   Grid->Get_nElements( ) + 2 * Grid->Get_Guard( ) ) {}
 
 /**
  * Apply the Troubled Cell Indicator of Fu & Shu (2017)
  * to flag cells for limiting
  **/
-void SlopeLimiter::DetectTroubledCells( Kokkos::View<Real ***> U,
-                                        GridStructure *Grid, ModalBasis *Basis )
-{
-  const UInt ilo = Grid->Get_ilo( );
-  const UInt ihi = Grid->Get_ihi( );
+void SlopeLimiter::DetectTroubledCells( View3D U, GridStructure *Grid,
+                                        const ModalBasis *Basis ) {
+  const int ilo = Grid->Get_ilo( );
+  const int ihi = Grid->Get_ihi( );
 
   Real denominator = 0.0;
 
   // Cell averages by extrapolating L and R neighbors into current cell
 
   // TODO: Kokkos
-  for ( UInt iCF = 0; iCF < 3; iCF++ )
-    for ( UInt iX = ilo; iX <= ihi; iX++ )
-    {
+  for ( int iCF = 0; iCF < 3; iCF++ )
+    for ( int iX = ilo; iX <= ihi; iX++ ) {
 
       if ( iCF == 1 ) continue; /* skip velocit */
 
@@ -93,36 +88,32 @@ void SlopeLimiter::DetectTroubledCells( Kokkos::View<Real ***> U,
 /**
  * Apply the slope limiter. We use a vertex based, heirarchical slope limiter.
  **/
-void SlopeLimiter::ApplySlopeLimiter( Kokkos::View<Real ***> U,
-                                      GridStructure *Grid, ModalBasis *Basis )
-{
+void SlopeLimiter::ApplySlopeLimiter( View3D U, GridStructure *Grid,
+                                      const ModalBasis *Basis ) {
 
   // Do not apply for first order method. No slopes!
-  if ( order == 1 )
-  {
+  if ( order == 1 ) {
     return;
   }
 
-  const UInt &ilo    = Grid->Get_ilo( );
-  const UInt &ihi    = Grid->Get_ihi( );
-  const UInt &nNodes = Grid->Get_nNodes( );
+  const int &ilo    = Grid->Get_ilo( );
+  const int &ihi    = Grid->Get_ihi( );
+  const int &nNodes = Grid->Get_nNodes( );
+  const int nvars   = U.extent( 0 );
 
   // --- Apply troubled cell indicator ---
   // Exit if we don't need to limit slopes
 
   if ( TCI_Option ) DetectTroubledCells( U, Grid, Basis );
 
-  for ( UInt iX = ilo; iX <= ihi; iX++ )
-  {
+  for ( int iX = ilo; iX <= ihi; iX++ ) {
 
     LimitedCell( iX ) = 0;
 
     // Check if TCI val is less than TCI_Threshold
     int j = 0;
-    for ( UInt iCF = 0; iCF < 3; iCF++ )
-    {
-      if ( D( iCF, iX ) > TCI_Threshold && TCI_Option )
-      {
+    for ( int iCF = 0; iCF < nvars; iCF++ ) {
+      if ( D( iCF, iX ) > TCI_Threshold && TCI_Option ) {
         j++;
       }
     }
@@ -132,8 +123,7 @@ void SlopeLimiter::ApplySlopeLimiter( Kokkos::View<Real ***> U,
     /* Note we have limited this cell */
     LimitedCell( iX ) = 1;
 
-    for ( int i = 0; i < 3; i++ )
-    {
+    for ( int i = 0; i < 3; i++ ) {
       d2w( i )   = 0.0;
       Mult1( i ) = 0.0;
       Mult2( i ) = 0.0;
@@ -143,16 +133,12 @@ void SlopeLimiter::ApplySlopeLimiter( Kokkos::View<Real ***> U,
     // --- Characteristic Limiting Matrices ---
     // Note: using cell averages
 
-    if ( CharacteristicLimiting_Option )
-    {
-      for ( int iCF = 0; iCF < 3; iCF++ )
-      {
+    if ( CharacteristicLimiting_Option ) {
+      for ( int iCF = 0; iCF < nvars; iCF++ ) {
         Mult2( iCF ) = U( iCF, iX, 0 );
       }
       ComputeCharacteristicDecomposition( Mult2, R, R_inv );
-    }
-    else
-    {
+    } else {
       IdentityMatrix( R, 3 );
       IdentityMatrix( R_inv, 3 );
     }
@@ -160,10 +146,8 @@ void SlopeLimiter::ApplySlopeLimiter( Kokkos::View<Real ***> U,
     // ! Anything needed for boundaries? !
 
     // --- Limit Quadratic Term ---
-    if ( order >= 3 )
-    {
-      for ( int iCF = 0; iCF < 3; iCF++ )
-      {
+    if ( order >= 3 ) {
+      for ( int iCF = 0; iCF < nvars; iCF++ ) {
         Mult1( iCF ) = U( iCF, iX, 2 );
       }
       MatMul( 1.0, R_inv, Mult1, 1.0, d2w );
@@ -172,8 +156,7 @@ void SlopeLimiter::ApplySlopeLimiter( Kokkos::View<Real ***> U,
     }
 
     // --- Compute info for limiter ---
-    for ( UInt iCF = 0; iCF < 3; iCF++ )
-    {
+    for ( int iCF = 0; iCF < nvars; iCF++ ) {
       Mult1( iCF ) = 0.0;
       Mult2( iCF ) = 0.0;
       Mult3( iCF ) = 0.0;
@@ -211,8 +194,7 @@ void SlopeLimiter::ApplySlopeLimiter( Kokkos::View<Real ***> U,
     MatMul( 1.0, R_inv, dU_c_T, 1.0, dw_c_T );
 
     // Limited Slopes
-    for ( UInt iCF = 0; iCF < 3; iCF++ )
-    {
+    for ( int iCF = 0; iCF < nvars; iCF++ ) {
       Phi1 = BarthJespersen( w_v_L( iCF ), w_v_R( iCF ), w_c_L( iCF ),
                              w_c_T( iCF ), w_c_R( iCF ), alpha );
 
@@ -221,33 +203,27 @@ void SlopeLimiter::ApplySlopeLimiter( Kokkos::View<Real ***> U,
     }
 
     // Transform back to conserved quantities
-    if ( CharacteristicLimiting_Option )
-    {
+    if ( CharacteristicLimiting_Option ) {
       // dU -> R dU
       MatMul( 1.0, R, dU, 1.0, Mult1 );
       // d2U -> R d2U
-      if ( order >= 3 )
-      {
+      if ( order >= 3 ) {
         MatMul( 1.0, R, d2U, 1.0, Mult2 );
       }
-      for ( UInt iCF = 0; iCF < 3; iCF++ )
-      {
+      for ( int iCF = 0; iCF < 3; iCF++ ) {
         dU( iCF ) = Mult1( iCF );
         if ( order >= 3 ) d2U( iCF ) = Mult2( iCF );
       }
     }
 
     // --- Compare Limited to Original Slopes ---
-    for ( UInt iCF = 0; iCF < 3; iCF++ )
-    {
+    for ( int iCF = 0; iCF < 3; iCF++ ) {
       SlopeDifference( iCF ) = std::abs( U( iCF, iX, 1 ) - dU( iCF ) );
 
       // if slopes differ too much, replace
       if ( SlopeDifference( iCF ) >
-           SlopeLimiter_Threshold * std::abs( U( iCF, iX, 0 ) ) )
-      {
-        for ( UInt k = 1; k < order; k++ )
-        {
+           SlopeLimiter_Threshold * std::abs( U( iCF, iX, 0 ) ) ) {
+        for ( int k = 1; k < order; k++ ) {
           U( iCF, iX, k ) = 0.0;
         }
         U( iCF, iX, 1 ) = dU( iCF );
@@ -262,21 +238,19 @@ void SlopeLimiter::ApplySlopeLimiter( Kokkos::View<Real ***> U,
 /**
  * Limit the quadratic term.
  **/
-void SlopeLimiter::LimitQuadratic( Kokkos::View<Real ***> U, ModalBasis *Basis,
-                                   Kokkos::View<Real[3]> d2w, UInt iX,
-                                   UInt nNodes )
-{
+void SlopeLimiter::LimitQuadratic( View3D U, const ModalBasis *Basis,
+                                   Kokkos::View<Real[3]> d2w, const int iX,
+                                   const int nNodes ) {
+  const int nvars = U.extent( 0 );
 
   Real Phi2 = 0.0;
 
-  for ( UInt i = 0; i < 3; i++ )
-  {
+  for ( int i = 0; i < 3; i++ ) {
     Mult2( i ) = 0.0;
   }
 
   // --- Compute info for limiter ---
-  for ( UInt iCF = 0; iCF < 3; iCF++ )
-  {
+  for ( int iCF = 0; iCF < nvars; iCF++ ) {
     dU_c_L( iCF ) = U( iCF, iX - 1, 1 );
     dU_c_T( iCF ) = U( iCF, iX, 1 );
     dU_c_R( iCF ) = U( iCF, iX + 1, 1 );
@@ -304,27 +278,24 @@ void SlopeLimiter::LimitQuadratic( Kokkos::View<Real ***> U, ModalBasis *Basis,
   MatMul( 1.0, R_inv, dU_v_R, 1.0, dw_v_R );
 
   // Limited Slopes
-  for ( UInt iCF = 0; iCF < 3; iCF++ )
-  {
-    Phi2       = BarthJespersen( dw_v_L( iCF ), dw_v_R( iCF ), dw_c_L( iCF ),
-                                 dw_c_T( iCF ), dw_c_R( iCF ), alpha );
+  for ( int iCF = 0; iCF < nvars; iCF++ ) {
+    Phi2 = BarthJespersen( dw_v_L( iCF ), dw_v_R( iCF ), dw_c_L( iCF ),
+                           dw_c_T( iCF ), dw_c_R( iCF ), alpha );
+
     d2U( iCF ) = Phi2 * d2w( iCF ); // 2nd derivative
   }
 
   // Transform back to conserved quantities
-  if ( CharacteristicLimiting_Option )
-  {
+  if ( CharacteristicLimiting_Option ) {
     // d2U -> R d2U
     MatMul( 1.0, R, d2U, 1.0, Mult2 );
 
-    for ( UInt iCF = 0; iCF < 3; iCF++ )
-    {
+    for ( int iCF = 0; iCF < nvars; iCF++ ) {
       d2U( iCF ) = Mult2( iCF );
     }
   }
 
-  for ( UInt iCF = 0; iCF < 3; iCF++ )
-  {
+  for ( int iCF = 0; iCF < nvars; iCF++ ) {
     U( iCF, iX, 2 ) = d2U( iCF );
   }
 }
@@ -336,37 +307,32 @@ void SlopeLimiter::LimitQuadratic( Kokkos::View<Real ***> U, ModalBasis *Basis,
  *  -1 : Extrapolate polynomial from iX+1 into iX
  *  +1 : Extrapolate polynomial from iX-1 into iX
  **/
-Real SlopeLimiter::CellAverage( Kokkos::View<Real ***> U, GridStructure *Grid,
-                                ModalBasis *Basis, UInt iCF, UInt iX,
-                                int extrapolate )
-{
-  const UInt nNodes = Grid->Get_nNodes( );
+Real SlopeLimiter::CellAverage( View3D U, GridStructure *Grid,
+                                const ModalBasis *Basis, const int iCF,
+                                const int iX, const int extrapolate ) {
+  const int nNodes = Grid->Get_nNodes( );
 
   Real avg  = 0.0;
   Real mass = 0.0;
   Real X;
 
   // Used to set loop bounds
-  int mult   = 1;
-  UInt end   = nNodes;
-  UInt start = 0;
+  int mult  = 1;
+  int end   = nNodes;
+  int start = 0;
 
   if ( extrapolate == -1 ) mult = 1;
   if ( extrapolate == +0 ) mult = 0;
   if ( extrapolate == +1 ) mult = 2;
 
-  if ( extrapolate == 0 )
-  {
+  if ( extrapolate == 0 ) {
     start = 0;
-  }
-  else
-  {
+  } else {
     start = 2 + mult * nNodes;
   }
   end = start + nNodes - 1;
 
-  for ( UInt iN = start; iN < end; iN++ )
-  {
+  for ( int iN = start; iN < end; iN++ ) {
     X = Grid->NodeCoordinate( iX + extrapolate,
                               iN ); // Need the metric on target cell
     mass += Grid->Get_Weights( iN - start ) * Grid->Get_SqrtGm( X ) *
@@ -382,4 +348,4 @@ Real SlopeLimiter::CellAverage( Kokkos::View<Real ***> U, GridStructure *Grid,
 }
 
 // LimitedCell accessor
-int SlopeLimiter::Get_Limited( UInt iX ) const { return LimitedCell( iX ); }
+int SlopeLimiter::Get_Limited( int iX ) const { return LimitedCell( iX ); }

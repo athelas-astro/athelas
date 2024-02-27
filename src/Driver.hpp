@@ -1,10 +1,9 @@
-#ifndef DRIVER_H
-#define DRIVER_H
+#ifndef _DRIVER_HPP_
+#define _DRIVER_HPP_
 
 #include "Abstractions.hpp"
 
-int NumNodes( unsigned int order );
+int NumNodes( int order );
 
-Real ComputeCFL( Real CFL, unsigned int order, unsigned int nStages,
-                 unsigned int tOrder );
-#endif
+Real ComputeCFL( Real CFL, int order, int nStages, int tOrder );
+#endif // _DRIVER_HPP_

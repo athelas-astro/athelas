@@ -1,5 +1,5 @@
-#ifndef GRID_H
-#define GRID_H
+#ifndef _GRID_HPP_
+#define _GRID_HPP_
 
 /**
  * File     :  Grid.hpp
@@ -25,22 +25,20 @@
 #include "ProblemIn.hpp"
 #include "QuadratureLibrary.hpp"
 
-
-class GridStructure
-{
+class GridStructure {
  public:
   GridStructure( ProblemIn *pin );
-  Real NodeCoordinate( UInt iC, UInt iN ) const;
-  Real Get_Centers( UInt iC ) const;
-  Real Get_Widths( UInt iC ) const;
-  Real Get_Nodes( UInt nN ) const;
-  Real Get_Weights( UInt nN ) const;
-  Real Get_Mass( UInt iX ) const;
-  Real Get_CenterOfMass( UInt iX ) const;
+  Real NodeCoordinate( int iC, int iN ) const;
+  Real Get_Centers( int iC ) const;
+  Real Get_Widths( int iC ) const;
+  Real Get_Nodes( int nN ) const;
+  Real Get_Weights( int nN ) const;
+  Real Get_Mass( int iX ) const;
+  Real Get_CenterOfMass( int iX ) const;
   Real Get_xL( ) const;
   Real Get_xR( ) const;
   Real Get_SqrtGm( Real X ) const;
-  Real Get_LeftInterface( UInt iX ) const;
+  Real Get_LeftInterface( int iX ) const;
 
   bool DoGeometry( ) const;
 
@@ -56,14 +54,14 @@ class GridStructure
   void ComputeCenterOfMass( Kokkos::View<Real ***> uPF );
   void ComputeCenterOfMass_Radius( Kokkos::View<Real ***> uPF );
 
-  Real &operator( )( UInt i, UInt j );
-  Real operator( )( UInt i, UInt j ) const;
+  Real &operator( )( int i, int j );
+  Real operator( )( int i, int j ) const;
 
  private:
-  UInt nElements;
-  UInt nNodes;
-  UInt nGhost;
-  UInt mSize;
+  int nElements;
+  int nNodes;
+  int nGhost;
+  int mSize;
 
   Real xL;
   Real xR;
@@ -83,4 +81,4 @@ class GridStructure
   Kokkos::View<Real **> Grid;
 };
 
-#endif
+#endif // _GRID_HPP_

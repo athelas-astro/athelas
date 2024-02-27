@@ -10,49 +10,42 @@
 #include "Abstractions.hpp"
 #include "EoS_Base.hpp"
 
-
 class IdealGas : public EosBase<IdealGas> {
-  public:
-    IdealGas() = default;
-    IdealGas( double gm ) : gamma(gm) {}
+ public:
+  IdealGas( ) = default;
+  IdealGas( double gm ) : gamma( gm ) {}
 
-    void PressureFromConserved( const Real Tau, const Real V, const Real Bm,
-                                const Real EmT, Real &P ) const;
-    void SoundSpeedFromConserved( const Real Tau, const Real V, const Real Bm,
-                                  const Real EmT, Real &Cs ) const;
-    void TemperatureFromTauPressureAbar( const Real Tau, const Real P, 
-        const Real Abar, Real &T ) const;
-    void TemperatureFromTauPressure( const Real Tau, const Real P, 
-        Real &T ) const;
-    void RadiationPressure( const Real T, Real &Prad ) const;
-    Real ComputeInternalEnergy( const View3D U, ModalBasis *Basis, 
-        const UInt iX, const UInt iN ) const;
-    Real ComputeInternalEnergy( const View3D U, const UInt iX ) const;
+  Real PressureFromConserved( const Real Tau, const Real V, const Real Bm, const Real EmT,
+                              Real *lambda ) const;
+  Real SoundSpeedFromConserved( const Real Tau, const Real V, const Real Bm, const Real EmT,
+                                Real *lambda ) const;
+  Real TemperatureFromTauPressureAbar( const Real Tau, const Real P,
+                                       const Real Abar, Real *lambda ) const;
+  Real TemperatureFromTauPressure( const Real Tau, const Real P,
+                                   Real *lambda ) const;
+  Real RadiationPressure( const Real T, Real *lambda ) const;
 
-  private:
-    Real gamma;
+ private:
+  Real gamma;
 };
 
 /* placeholder */
 class Stellar : public EosBase<Stellar> {
-  public:
-    Stellar() = default;
+ public:
+  Stellar( ) = default;
 
-    void PressureFromConserved( const Real Tau, const Real V, const Real EmT, 
-        Real &P ) const;
-    void SoundSpeedFromConserved( const Real Tau, const Real V, const Real EmT, 
-        Real &Cs ) const;
-    void TemperatureFromTauPressureAbar( const Real Tau, const Real P, 
-        const Real Abar, Real &T ) const;
-    void TemperatureFromTauPressure( const Real Tau, const Real P, 
-        Real &T ) const;
-    void RadiationPressure( const Real T, Real &Prad ) const;
-    Real ComputeInternalEnergy( const View3D U, ModalBasis *Basis, 
-        const UInt iX, const UInt iN ) const;
-    Real ComputeInternalEnergy( const View3D U, const UInt iX ) const;
+  Real PressureFromConserved( const Real Tau, const Real V, const Real EmT,
+                              Real *lambda ) const;
+  Real SoundSpeedFromConserved( const Real Tau, const Real V, const Real EmT,
+                                Real *lambda ) const;
+  Real TemperatureFromTauPressureAbar( const Real Tau, const Real P,
+                                       const Real Abar, Real *lambda ) const;
+  Real TemperatureFromTauPressure( const Real Tau, const Real P,
+                                   Real *lambda ) const;
+  Real RadiationPressure( const Real T, Real *lambda ) const;
 
-  private:
-    Real gamma;
+ private:
+  Real gamma;
 };
 
 // TODO: adjust when we support more than one EOS

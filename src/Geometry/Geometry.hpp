@@ -1,5 +1,5 @@
-#ifndef GEOMETRY_H
-#define GEOMETRY_H
+#ifndef _GEOMETRY_HPP_
+#define _GEOMETRY_HPP_
 
 /**
  * File     :  Geometry.hpp
@@ -13,4 +13,4 @@
 namespace geometry {
 enum Geometry { Planar, Spherical };
 }
-#endif
+#endif // _GEOMETRY_HPP_

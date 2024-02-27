@@ -20,7 +20,7 @@ echo "If these differ, results may not be stable."
 
 echo "Formatting..."
 REPO=$(git rev-parse --show-toplevel)
-for f in $(git grep --untracked -ail ';' -- ':/*.h' ':/*.cpp'); do
+for f in $(git grep --untracked -ail ';' -- ':/*.hpp' ':/*.cpp'); do
     if [ ${VERBOSE} -ge 1 ]; then
        echo ${f}
     fi

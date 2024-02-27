@@ -17,9 +17,7 @@
 #include "Abstractions.hpp"
 #include "Error.hpp"
 
-
-class State
-{
+class State {
  public:
   State( const int nCF_, const int nCR_, const int nPF_, const int nAF_,
          const int nX_, const int nG_, const int nNodes_, const int pOrder_ );

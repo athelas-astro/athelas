@@ -55,7 +55,7 @@ option(ATHELAS_ENABLE_UNIT_TESTS "Enable unit tests" OFF)
 option(ATHELAS_ENABLE_INTEGRATION_TESTS "Enable integration tests" OFF) # Future
 option(ATHELAS_ENABLE_REGRESSION_TESTS "Enable regression tests" OFF)   # Future
 
-set( MACHINE "UBUNTU" CACHE STRING "Set OS")
+set( MACHINE "LINUX" CACHE STRING "Set OS")
 message( "Building On ${MACHINE} ")
 
 # Don't allow in-source builds
@@ -103,6 +103,7 @@ set( ATHELAS_SOURCES
   "src/EoS/EoS_Ideal.cpp"
   "src/Fluid/FluidUtilities.cpp"
   "src/Radiation/RadUtilities.cpp"
+  "src/Radiation/Rad_Discretization.cpp"
   "src/Fluid/Fluid_Discretization.cpp"
   "src/Geometry/Grid.cpp"
   "src/IO/IOLibrary.cpp"
@@ -119,7 +120,7 @@ set_target_properties(libathelas
     PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    ##RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     PREFIX ""
     SUFFIX ".so"
 )
@@ -190,7 +191,7 @@ if (${MACHINE} STREQUAL UBUNTU)
     target_link_libraries( libathelas ${LAPACK_LIBRARIES} )
 else()
   find_package( LAPACK REQUIRED  )
-  message(STATUS "LAPACK_LIBRARIES = ${LAPACK_LIBRARIES}")
+  message(STATUS "LAPACKE_LIBRARIES = ${LAPACK_LIBRARIES}")
   include_directories(${LAPACK_INCLUDE_DIRS})
     target_link_libraries( libathelas ${LAPACK_LIBRARIES} )
 endif()
@@ -206,7 +207,7 @@ set_target_properties(main
     PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/lib"
     LIBRARY_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/lib"
-    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin"
+    #RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin"
 )
 
 # -- finalize ---

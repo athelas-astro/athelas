@@ -8,12 +8,12 @@
  * TODO: separate pOrder_fluid and pOrder_rad
  **/
 
-#include "Constants.hpp"
 #include "state.hpp"
+#include "Constants.hpp"
 
-State::State( const int nCF_, const int nCR_, const int nPF_, 
-              const int nAF_, const int nX_, const int nG_, 
-              const int nNodes_, const int pOrder_ ) 
+State::State( const int nCF_, const int nCR_, const int nPF_, const int nAF_,
+              const int nX_, const int nG_, const int nNodes_,
+              const int pOrder_ )
     : nCF( nCF_ ), nCR( nCR_ ), nPF( nPF_ ), nAF( nAF_ ), pOrder( pOrder_ ),
       uCF( "uCF", nCF_, nX_ + 2 * nG_, pOrder_ ),
       uPF( "uPF", nPF_, nX_ + 2 * nG_, nNodes_ ),

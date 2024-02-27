@@ -14,8 +14,7 @@
 
 void ComputeCharacteristicDecomposition( Kokkos::View<Real[3]> U,
                                          Kokkos::View<Real[3][3]> R,
-                                         Kokkos::View<Real[3][3]> R_inv )
-{
+                                         Kokkos::View<Real[3][3]> R_inv ) {
 
   const Real Tau  = U( 0 );
   const Real V    = U( 1 );
@@ -67,8 +66,7 @@ void ComputeCharacteristicDecomposition( Kokkos::View<Real[3]> U,
   R_inv( 2, 2 ) = -Tau / ( 2.0 * Em );
 
   for ( int i = 0; i < 3; i++ )
-    for ( int j = 0; j < 3; j++ )
-    {
+    for ( int j = 0; j < 3; j++ ) {
       R_inv( i, j ) /= GAMMA;
     }
 }

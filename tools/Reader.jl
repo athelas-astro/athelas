@@ -70,20 +70,31 @@ end
 
 #fn = "../bin/athelas_Sod_final.h5"
 files = readdir("../bin/")
+time_array = Float64[]
+em_array = Float64[]
 @inbounds for fn in files
   n = length(fn)
-  if (fn[n-2:end] == ".h5" && fn != "athelas_basis_Sod.h5")
+  if (fn[n-2:end] == ".h5" && fn != "athelas_basis_RadEquilibrium.h5")
     println(fn)
     data, grid, order = Load_Output( "../bin/" * fn )
 
-    fig = Figure()
+    #fig = Figure()
     tau = data.uCF[1,:,1]
     v = data.uCF[1,:,2]
     em = data.uCF[1,:,3] .- 0.5 .* v .* v
+    println(v)
+    em1 = em[1]
+    push!( time_array, data.time )
+    push!( em_array, em1 )
     #scatter( fig[1,1], grid.r, 1.0 ./ data.uPF[1,:,1] )
     #scatter!( fig[1,1], grid.r, 1.0 ./ data.uCF[1,:,1] )
-    lines( fig[1,1], grid.r, 1.0 ./ tau )
-    lines!( fig[1,1], grid.r, v )
-    save(fn*".png", fig )
+    #lines( fig[1,1], grid.r, em )
+    #lines!( fig[1,1], grid.r, v )
+    #save(fn*".png", fig )
   end
 end
+
+fig = Figure()
+#println(em_array)
+lines( fig[1,1], time_array, em_array )
+save("test.png", fig)

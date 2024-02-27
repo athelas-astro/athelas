@@ -1,5 +1,5 @@
-#ifndef CHARACTERISTICDECOMPOSITION_H
-#define CHARACTERISTICDECOMPOSITION_H
+#ifndef _CHARACTERISTICDECOMPOSITION_HPP_
+#define _CHARACTERISTICDECOMPOSITION_HPP_
 
 #include "Kokkos_Core.hpp"
 
@@ -9,4 +9,4 @@ void ComputeCharacteristicDecomposition( Kokkos::View<Real[3]> U,
                                          Kokkos::View<Real[3][3]> R,
                                          Kokkos::View<Real[3][3]> R_inv );
 
-#endif
+#endif // _CHARACTERISTICDECOMPOSITION_HPP_
