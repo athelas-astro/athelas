@@ -56,35 +56,57 @@ void ComputeIncrement_Fluid_Divergence( const View3D U, GridStructure &Grid,
         const Real rho_L = 1.0 / uCF_L( 0 );
         const Real rho_R = 1.0 / uCF_R( 0 );
 
+        const Real B_L = uCF_L( 3 ) / uCF_L( 0 );
+        const Real B_R = uCF_R( 3 ) / uCF_R( 0 );
+
         auto lambda      = nullptr;
+
         const Real P_L   = eos->PressureFromConserved( uCF_L( 0 ), uCF_L( 1 ), uCF_L( 3 ),
                                                        uCF_L( 2 ), lambda );
         const Real Cs_L  = eos->SoundSpeedFromConserved( uCF_L( 0 ), uCF_L( 1 ), uCF_L( 3 ),
                                                          uCF_L( 2 ), lambda );
-        const Real lam_L = Cs_L * rho_L;
+
+        const Real Ca_L  = B_L / sqrt( rho_L );
+
+        const Real Cm_L  = sqrt( Cs_L * Cs_L + Ca_L * Ca_L );
+
+        const Real lam_L = Cm_L * rho_L;
 
         const Real P_R   = eos->PressureFromConserved( uCF_R( 0 ), uCF_R( 1 ), uCF_R( 3 ),
                                                        uCF_R( 2 ), lambda );
         const Real Cs_R  = eos->SoundSpeedFromConserved( uCF_R( 0 ), uCF_R( 1 ), uCF_R( 3 ),
                                                          uCF_R( 2 ), lambda );
-        const Real lam_R = Cs_R * rho_R;
+        const Real Ca_R  = B_R / sqrt( rho_R );
+
+        const Real Cm_R  = sqrt( Cs_R * Cs_R + Ca_R * Ca_R );
+
+        const Real lam_R = Cm_R * rho_R;
 
         // --- Numerical Fluxes ---
 
         // Riemann Problem
-        NumericalFlux_Gudonov( uCF_L( 1 ), uCF_R( 1 ), P_L, P_R, lam_L, lam_R,
-                               Flux_U( iX ), Flux_P( iX ), Flux_B( iX ) );
+        //NumericalFlux_Gudonov( uCF_L( 1 ), uCF_R( 1 ), P_L, P_R, lam_L, lam_R,
+        //                       Flux_U( iX ), Flux_P( iX ), Flux_B( iX ) );
         // NumericalFlux_HLLC( uCF_L( 1 ), uCF_R( 1 ), P_L, P_R, Cs_L, Cs_R,
         //  rho_L, rho_R, Flux_U( iX ), Flux_P( iX ) );
 
+        NumericalFlux_HLL( rho_L,      rho_R,
+                           uCF_L( 1 ), uCF_R( 1 ),
+                           uCF_L( 2 ), uCF_R( 2 ),
+                           P_L,        P_R,
+                           B_L,        B_R,
+                           lam_L,      lam_R,
+                           dFlux_num( 0, iX ), dFlux_num( 1, iX ),
+                           dFlux_num( 2, iX ), dFlux_num( 3, iX ) );
+
         // TODO: Clean This Up
-        dFlux_num( 0, iX ) = -Flux_U( iX );
-        dFlux_num( 1, iX ) = +Flux_P( iX ) + Flux_B( iX ) * Flux_B( iX ) / 2.0
-                             -Flux_B( iX ) * Flux_B( iX );
-        dFlux_num( 2, iX ) = +Flux_U( iX ) * Flux_P( iX );
-                             +Flux_U( iX ) * Flux_B( iX ) * Flux_B( iX ) / 2.0
-                             -Flux_U( iX ) * Flux_B( iX ) * Flux_B( iX );
-        dFlux_num( 3, iX ) = -Flux_B( iX ) * Flux_U( iX );
+        //dFlux_num( 0, iX ) = -Flux_U( iX );
+        //dFlux_num( 1, iX ) = +Flux_P( iX ) + Flux_B( iX ) * Flux_B( iX ) / 2.0
+        //                     -Flux_B( iX ) * Flux_B( iX );
+        //dFlux_num( 2, iX ) = +Flux_U( iX ) * Flux_P( iX );
+        //                     +Flux_U( iX ) * Flux_B( iX ) * Flux_B( iX ) / 2.0
+        //                     -Flux_U( iX ) * Flux_B( iX ) * Flux_B( iX );
+        //dFlux_num( 3, iX ) = -Flux_B( iX ) * Flux_U( iX );
       } );
 
   // --- Surface Term ---

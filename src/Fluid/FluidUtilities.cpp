@@ -183,7 +183,9 @@ Real ComputeTimestep_Fluid( const View3D U, const GridStructure *Grid, EOS *eos,
         auto lambda = nullptr;
         const Real Cs =
             eos->SoundSpeedFromConserved( tau_x, vel_x, Bm_x, eint_x, lambda );
-        Real eigval = Cs;
+        const Real Ca = Bm_x / sqrt( tau_x );
+
+        Real eigval = sqrt(Ca * Ca + Cs * Cs);
 
         Real dt_old = std::abs( dr ) / std::abs( eigval );
 
