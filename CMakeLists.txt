@@ -34,6 +34,7 @@ if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
      "Bounds checking on Kokkos views")
   set(Kokkos_ENABLE_DEBUG_DUALVIEW_MODIFY_CHECK ON CACHE BOOL
       "Sanity checks on Kokkos DualView")
+    add_compile_definitions(ATHELAS_DEBUG)
 endif()
 
 set(Kokkos_ENABLE_AGGRESSIVE_VECTORIZATION ON CACHE BOOL
