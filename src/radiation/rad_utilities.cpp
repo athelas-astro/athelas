@@ -22,6 +22,8 @@
  * radiation flux factor
  **/
 Real FluxFactor( const Real E, const Real F ) {
+  assert( E > 0.0 &&
+          "Radiation :: FluxFactor :: non positive definite energy density." );
   const Real c = constants::c_cgs;
   return std::fabs( F ) / ( c * E );
 }
@@ -31,7 +33,9 @@ Real FluxFactor( const Real E, const Real F ) {
  * Here E and F are per unit volume
  **/
 Real Flux_Rad( Real E, Real F, Real P, Real V, int iCR ) {
-  assert( iCR == 0 || iCR == 1 );
+  assert( iCR == 0 || iCR == 1 && "Radiation :: FluxFactor :: bad iCR." );
+  assert( E > 0.0 &&
+          "Radiation :: FluxFactor :: non positive definite energy density." );
 
   const Real c = constants::c_cgs;
   return ( iCR == 0 ) ? c * F - E * V : 1.0 * c * P - F * V;
@@ -39,10 +43,27 @@ Real Flux_Rad( Real E, Real F, Real P, Real V, int iCR ) {
 
 /**
  * Radiation 4 force for rad-matter interactions
+ * D : Density
+ * V : Velocity
+ * T : Temperature
+ * kappa : kappa
+ * E : radiation energy density
+ * F : radiation momentum density
+ * Pr : radiation momentum closure
  * TODO: total opacity X?
  **/
 void RadiationFourForce( Real D, Real V, Real T, Real kappa, Real E, Real F,
                          Real Pr, Real &G0, Real &G ) {
+  assert(
+      D >= 0.0 &&
+      "Radiation :: RadiationFourFource :: Non positive definite density." );
+  assert( T > 0.0 &&
+          "Radiation :: RadiationFourFource :: Non positive temperature." );
+  assert( kappa > 0.0 &&
+          "Radiation :: RadiationFourFource :: Non positive opacity." );
+  assert( E > 0.0 && "Radiation :: RadiationFourFource :: Non positive "
+                     "definite radiation energy density." );
+
   const Real a = constants::a;
   const Real c = constants::c_cgs;
 
@@ -66,7 +87,14 @@ void RadiationFourForce( Real D, Real V, Real T, Real kappa, Real E, Real F,
  **/
 Real Source_Rad( Real D, Real V, Real T, Real X, Real kappa, Real E, Real F,
                  Real Pr, int iCR ) {
-  assert( iCR == 0 || iCR == 1 );
+  assert( iCR == 0 || iCR == 1 && "Radiation :: FluxFactor :: bad iCR." );
+  assert(
+      D >= 0.0 &&
+      "Radiation :: RadiationFourFource :: Non positive definite density." );
+  assert( T > 0.0 &&
+          "Radiation :: RadiationFourFource :: Non positive temperature." );
+  assert( E > 0.0 && "Radiation :: RadiationFourFource :: Non positive "
+                     "definite radiation energy density." );
 
   const Real c = constants::c_cgs;
 
@@ -95,6 +123,8 @@ Real ComputeOpacity( const Real D, const Real V, const Real Em ) {
 /* pressure tensor closure */
 // TODO: check Closure
 Real ComputeClosure( const Real E, const Real F ) {
+  assert( E > 0.0 && "Radiation :: ComputeClosure :: Non positive definite "
+                     "radiation energy density." );
   if ( E == 0.0 ) return 0.0; // This is a hack
   const Real f = FluxFactor( E, F );
   const Real chi =

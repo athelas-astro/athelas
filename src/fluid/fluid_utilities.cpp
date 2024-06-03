@@ -55,6 +55,8 @@ void ComputePrimitiveFromConserved( View3D<Real> uCF, View3D<Real> uPF,
  * TODO: Flux_Fluid needs streamlining
  **/
 Real Flux_Fluid( const Real V, const Real P, const int iCF ) {
+  assert( iCF == 0 || iCF == 1 || iCF == 2 );
+  assert( P > 0.0 && "Flux_Flux :: negative pressure" );
   if ( iCF == 0 ) {
     return -V;
   } else if ( iCF == 1 ) {
@@ -89,6 +91,8 @@ Real Source_Fluid_Rad( Real D, Real V, Real T, Real X, Real kappa, Real E,
 void NumericalFlux_Gudonov( const Real vL, const Real vR, const Real pL,
                             const Real pR, const Real zL, const Real zR,
                             Real &Flux_U, Real &Flux_P ) {
+  assert( pL > 0.0 && pR > 0.0 &&
+          "NumericalFlux_Gudonov :: negative pressure" );
   Flux_U = ( pL - pR + zR * vR + zL * vL ) / ( zR + zL );
   Flux_P = ( zR * pL + zL * pR + zL * zR * ( vL - vR ) ) / ( zR + zL );
 }
@@ -128,6 +132,9 @@ Real ComputeTimestep_Fluid( const View3D<Real> U, const GridStructure *Grid,
         Real vel_x  = U( 1, iX, 0 );
         Real eint_x = U( 2, iX, 0 );
 
+        assert( tau_x > 0.0 && "Compute Timestep :: bad specific volume" );
+        assert( eint_x > 0.0 && "Compute Timestep :: bad specific energy" );
+
         Real dr = Grid->Get_Widths( iX );
 
         auto lambda = nullptr;
@@ -144,8 +151,8 @@ Real ComputeTimestep_Fluid( const View3D<Real> U, const GridStructure *Grid,
   dt = std::max( CFL * dt, MIN_DT );
   dt = std::min( dt, MAX_DT );
 
-  // Triggers on NaN
-  if ( dt != dt ) {
+  // could be assertion?
+  if ( std::isnan( dt ) ) {
     throw Error( " ! nan encountered in ComputeTimestep.\n" );
   }
 

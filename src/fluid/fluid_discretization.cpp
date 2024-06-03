@@ -31,13 +31,11 @@ void ComputeIncrement_Fluid_Divergence(
   const auto &ihi    = Grid.Get_ihi( );
   const int nvars    = U.extent( 0 );
 
-  // Real rho_L, rho_R, P_L, P_R, Cs_L, Cs_R, lam_L, lam_R, P;
-
   // --- Interpolate Conserved Variable to Interfaces ---
 
   // Left/Right face states
   Kokkos::parallel_for(
-      "Interface States",
+      "Fluid :: Interface States",
       Kokkos::MDRangePolicy<Kokkos::Rank<2>>( { ilo, 0 }, { ihi + 2, nvars } ),
       KOKKOS_LAMBDA( const int iX, const int iCF ) {
         uCF_F_L( iCF, iX ) = Basis->BasisEval( U, iX - 1, iCF, nNodes + 1 );
@@ -46,13 +44,23 @@ void ComputeIncrement_Fluid_Divergence(
 
   // --- Calc numerical flux at all faces
   Kokkos::parallel_for(
-      "Numerical Fluxes", Kokkos::RangePolicy<>( ilo, ihi + 2 ),
+      "Fluid :: Numerical Fluxes", Kokkos::RangePolicy<>( ilo, ihi + 2 ),
       KOKKOS_LAMBDA( int iX ) {
         auto uCF_L = Kokkos::subview( uCF_F_L, Kokkos::ALL, iX );
         auto uCF_R = Kokkos::subview( uCF_F_R, Kokkos::ALL, iX );
 
         const Real rho_L = 1.0 / uCF_L( 0 );
         const Real rho_R = 1.0 / uCF_R( 0 );
+
+        // Debug mode assertions.
+        assert( rho_L > 0.0 && !std::isnan( rho_L ) &&
+                "fluid_discretization :: Numerical Fluxes bad rho." );
+        assert( rho_R > 0.0 && !std::isnan( rho_R ) &&
+                "fluid_discretization :: Numerical Fluxes bad rho." );
+        assert( uCF_L( 2 ) > 0.0 && !std::isnan( uCF_L( 2 ) ) &&
+                "fluid_discretization :: Numerical Fluxes bad energy." );
+        assert( uCF_R( 2 ) > 0.0 && !std::isnan( uCF_R( 2 ) ) &&
+                "fluid_discretization :: Numerical Fluxes bad energy." );
 
         auto lambda      = nullptr;
         const Real P_L   = eos->PressureFromConserved( uCF_L( 0 ), uCF_L( 1 ),
@@ -85,7 +93,7 @@ void ComputeIncrement_Fluid_Divergence(
 
   // --- Surface Term ---
   Kokkos::parallel_for(
-      "Surface Term",
+      "Fluid :: Surface Term",
       Kokkos::MDRangePolicy<Kokkos::Rank<3>>( { 0, ilo, 0 },
                                               { order, ihi + 1, nvars } ),
       KOKKOS_LAMBDA( const int k, const int iX, const int iCF ) {
@@ -103,7 +111,7 @@ void ComputeIncrement_Fluid_Divergence(
   if ( order > 1 ) {
     // --- Compute Flux_q everywhere for the Volume term ---
     Kokkos::parallel_for(
-        "Flux_q",
+        "Fluid :: Flux_q",
         Kokkos::MDRangePolicy<Kokkos::Rank<3>>( { 0, ilo, 0 },
                                                 { nNodes, ihi + 1, nvars } ),
         KOKKOS_LAMBDA( const int iN, const int iX, const int iCF ) {
@@ -119,7 +127,7 @@ void ComputeIncrement_Fluid_Divergence(
     // --- Volume Term ---
     // TODO: Make Flux_q a function?
     Kokkos::parallel_for(
-        "Volume Term",
+        "Fluid :: Volume Term",
         Kokkos::MDRangePolicy<Kokkos::Rank<3>>( { 0, ilo, 0 },
                                                 { order, ihi + 1, nvars } ),
         KOKKOS_LAMBDA( const int k, const int iX, const int iCF ) {
@@ -148,7 +156,7 @@ void ComputeIncrement_Fluid_Geometry( const View3D<Real> U, GridStructure &Grid,
   const int ihi    = Grid.Get_ihi( );
 
   Kokkos::parallel_for(
-      "Geometry Term; Fluid",
+      "Fluid :: Geometry Term",
       Kokkos::MDRangePolicy<Kokkos::Rank<2>>( { 0, ilo }, { order, ihi + 1 } ),
       KOKKOS_LAMBDA( const int k, const int iX ) {
         Real local_sum = 0.0;
@@ -183,7 +191,7 @@ void ComputeIncrement_Fluid_Rad( const View3D<Real> uCF, const View3D<Real> uCR,
   const int ihi    = Grid.Get_ihi( );
 
   Kokkos::parallel_for(
-      "Fluid Source Term; Rad",
+      "Fluid :: Source Term; Rad",
       Kokkos::MDRangePolicy<Kokkos::Rank<2>>( { 0, ilo }, { order, ihi + 1 } ),
       KOKKOS_LAMBDA( const int k, const int iX ) {
         Real local_sum1 = 0.0;

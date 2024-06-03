@@ -24,6 +24,8 @@ ProblemIn::ProblemIn( const std::string fn ) {
     throw Error( " ! Issue reading input deck!" );
   }
 
+  std::printf( " ~ Loading Input Deck ...\n" );
+
   /* Grab as std::optional<type> */
 
   // problem
@@ -65,19 +67,34 @@ ProblemIn::ProblemIn( const std::string fn ) {
   if ( pn ) {
     ProblemName = pn.value( );
   } else {
-    throw Error( " ! Error: problem not supplied in input deck." );
+    throw Error(
+        " ! Initialization Error: problem not supplied in input deck." );
   }
+  // Validity of ProblemName checked in initialization.
+
   if ( bc ) {
-    BC = bc.value( );
+    BC = utilities::to_lower( bc.value( ) );
   } else {
-    throw Error( " ! Error: boundary condition not supplied in input deck." );
+    throw Error( " ! Initialization Error: boundary condition not supplied in "
+                 "input deck." );
   }
+  if ( BC != "homogenous" && BC != "reflecting" && BC != "shockless_noh" &&
+       BC != "periodic" ) {
+    throw Error(
+        " ! Initialization Error: Bad boundary condition choice. Choose: \n"
+        " - homogenous \n"
+        " - reflecting \n"
+        " - periodic \n"
+        " - shockless_noh" );
+  }
+
   if ( geom ) {
     Geometry = ( utilities::to_lower( geom.value( ) ) == "spherical" )
                    ? geometry::Spherical
                    : geometry::Planar;
   } else {
-    Geometry = geometry::Planar;
+    std::printf( "   - Defaulting to planar geometry!\n" );
+    Geometry = geometry::Planar; // default
   }
   if ( basis ) {
     Basis = ( utilities::to_lower( basis.value( ) ) == "legendre" )
@@ -85,30 +102,36 @@ ProblemIn::ProblemIn( const std::string fn ) {
                 : PolyBasis::Taylor;
   } else {
     Basis = PolyBasis::Legendre;
+    std::printf( "   - Defaulting to Legendre polynomial basis!\n" );
   }
 
   if ( x1 ) {
     xL = x1.value( );
   } else {
-    throw Error( " ! Error: xL not supplied in input deck." );
+    throw Error( " ! Initialization Error: xL not supplied in input deck." );
   }
   if ( x2 ) {
     xR = x2.value( );
   } else {
-    throw Error( " ! Error: xR not supplied in input deck." );
+    throw Error( " ! Initialization Error: xR not supplied in input deck." );
   }
+  if ( x1 >= x2 ) throw Error( " ! Initialization Error: x1 >= xz2" );
+
   if ( tf ) {
     t_end = tf.value( );
   } else {
-    throw Error( " ! Error: t_end not supplied in input deck." );
+    throw Error( " ! Initialization Error: t_end not supplied in input deck." );
   }
-  CFL = cfl.value_or( 0.5 );
+  if ( tf <= 0.0 ) throw Error( " ! Initialization Error: tf <= 0.0" );
+
   if ( nX ) {
     nElements = nX.value( );
   } else {
-    throw Error( " ! Error: nX not supplied in innput deck." );
+    throw Error( " ! Initialization Error: nX not supplied in innput deck." );
   }
 
+  // many defaults not mentioned below...
+  CFL     = cfl.value_or( 0.5 );
   Restart = rest.value_or( false );
   do_rad  = rad.value_or( false );
 
@@ -124,6 +147,17 @@ ProblemIn::ProblemIn( const std::string fn ) {
   gamma_l        = gamma1.value_or( 0.005 );
   gamma_i        = gamma2.value_or( 0.990 );
   gamma_r        = gamma3.value_or( 0.005 );
+
+  // varous checks
+  if ( CFL <= 0.0 ) throw Error( " ! Initialization : CFL <= 0.0!" );
+  if ( nGhost <= 0 ) throw Error( " ! Initialization : nGhost <= 0!" );
+  if ( pOrder <= 0 ) throw Error( " ! Initialization : pOrder <= 0!" );
+  if ( nNodes <= 0 ) throw Error( " ! Initialization : nNodes <= 0!" );
+  if ( tOrder <= 0 ) throw Error( " ! Initialization : tOrder <= 0!" );
+  if ( nStages <= 0 ) throw Error( " ! Initialization : nStages <= 0!" );
+  if ( TCI_Threshold <= 0.0 )
+    throw Error( " ! Initialization : TCI_Threshold <= 0.0!" );
+
   if ( ( gamma2 && !gamma1 ) || ( gamma2 && !gamma3 ) ) {
     gamma_i = gamma2.value( );
     gamma_l = ( 1.0 - gamma_i ) / 2.0;
@@ -133,7 +167,9 @@ ProblemIn::ProblemIn( const std::string fn ) {
   if ( std::fabs( sum_g - 1.0 ) > 1.0e-10 ) {
     std::fprintf( stderr, "{gamma}, sum gamma = { %.10f %.10f %.10f }, %.18e\n",
                   gamma_l, gamma_i, gamma_r, 1.0 - sum_g );
-    throw Error( " ! Linear weights must sum to unity." );
+    throw Error( " ! Initialization Error: Linear weights must sum to unity." );
   }
   weno_r = wenor.value_or( 2.0 );
+
+  std::printf( " ~ Configuration ... Complete\n\n" );
 }

@@ -9,11 +9,14 @@
 
 #include "abstractions.hpp"
 #include "eos_base.hpp"
+#include "error.hpp"
 
 class IdealGas : public EosBase<IdealGas> {
  public:
   IdealGas( ) = default;
-  IdealGas( double gm ) : gamma( gm ) {}
+  IdealGas( double gm ) : gamma( gm ) {
+    if ( gamma <= 0.0 ) throw Error( " ! Adiabatic gamma <= 0.0!" );
+  }
 
   Real PressureFromConserved( const Real Tau, const Real V, const Real EmT,
                               Real *lambda ) const;

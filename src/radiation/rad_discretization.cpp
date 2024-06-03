@@ -32,14 +32,12 @@ void ComputeIncrement_Rad_Divergence(
   const auto &ihi    = Grid.Get_ihi( );
   const int nvars    = uCR.extent( 0 );
 
-  // Real rho_L, rho_R, P_L, P_R, Cs_L, Cs_R, lam_L, lam_R, P;
-
   // --- Interpolate Conserved Variable to Interfaces ---
 
   // Left/Right face states
   // TODO: Can this just be moved into the below kernel with a iCF loop?
   Kokkos::parallel_for(
-      "Interface States; Rad",
+      "Radiation :: Interface States",
       Kokkos::MDRangePolicy<Kokkos::Rank<2>>( { ilo, 0 }, { ihi + 2, nvars } ),
       KOKKOS_LAMBDA( const int iX, const int iCR ) {
         uCR_F_L( iCR, iX ) = Basis->BasisEval( uCR, iX - 1, iCR, nNodes + 1 );
@@ -48,13 +46,27 @@ void ComputeIncrement_Rad_Divergence(
 
   // --- Calc numerical flux at all faces
   Kokkos::parallel_for(
-      "Numerical Fluxes; Rad", Kokkos::RangePolicy<>( ilo, ihi + 2 ),
+      "Radiation :: Numerical Fluxes", Kokkos::RangePolicy<>( ilo, ihi + 2 ),
       KOKKOS_LAMBDA( int iX ) {
         auto uCR_L = Kokkos::subview( uCR_F_L, Kokkos::ALL, iX );
         auto uCR_R = Kokkos::subview( uCR_F_R, Kokkos::ALL, iX );
 
         const Real tauR = Basis->BasisEval( uCF, iX, 0, 0 );
         const Real tauL = Basis->BasisEval( uCF, iX - 1, 0, nNodes + 1 );
+
+        // Debug mode assertions.
+        assert( tauL > 0.0 && !std::isnan( tauL ) &&
+                "rad_discretization :: Numerical Fluxes bad specific volume." );
+        assert( tauR > 0.0 && !std::isnan( tauR ) &&
+                "rad_discretization :: Numerical Fluxes bad specific volume." );
+        assert( uCR_L( 0 ) > 0.0 && !std::isnan( uCF_L( 0 ) ) &&
+                "rad_Discretization :: Numerical Fluxes bad energy." );
+        assert( uCR_R( 0 ) > 0.0 && !std::isnan( uCF_R( 0 ) ) &&
+                "rad_Discretization :: Numerical Fluxes bad energy." );
+        assert( !std::isnan( uCF_L( 1 ) ) &&
+                "rad_Discretization :: Numerical Fluxes bad flux." );
+        assert( !std::isnan( uCF_R( 1 ) ) &&
+                "rad_Discretization :: Numerical Fluxes bad flux." );
 
         const Real Em_L = uCR_L( 0 ) / tauL;
         const Real Fm_L = uCR_L( 1 ) / tauL;
@@ -87,7 +99,7 @@ void ComputeIncrement_Rad_Divergence(
 
   // --- Surface Term ---
   Kokkos::parallel_for(
-      "Surface Term; Rad",
+      "Radiation :: Surface Term",
       Kokkos::MDRangePolicy<Kokkos::Rank<3>>( { 0, ilo, 0 },
                                               { order, ihi + 1, nvars } ),
       KOKKOS_LAMBDA( const int k, const int iX, const int iCR ) {
@@ -105,7 +117,7 @@ void ComputeIncrement_Rad_Divergence(
   if ( order > 1 ) {
     // --- Compute Flux_q everywhere for the Volume term ---
     Kokkos::parallel_for(
-        "Flux_q; Rad",
+        "Radiation :: Flux_q",
         Kokkos::MDRangePolicy<Kokkos::Rank<3>>( { 0, ilo, 0 },
                                                 { nNodes, ihi + 1, nvars } ),
         KOKKOS_LAMBDA( const int iN, const int iX, const int iCR ) {
@@ -122,7 +134,7 @@ void ComputeIncrement_Rad_Divergence(
     // --- Volume Term ---
     // TODO: Make Flux_q a function?
     Kokkos::parallel_for(
-        "Volume Term; Rad",
+        "Radiation :: Volume Term",
         Kokkos::MDRangePolicy<Kokkos::Rank<3>>( { 0, ilo, 0 },
                                                 { order, ihi + 1, nvars } ),
         KOKKOS_LAMBDA( const int k, const int iX, const int iCR ) {
@@ -153,7 +165,7 @@ void ComputeIncrement_Rad_Source( const View3D<Real> uCR,
   const int nvars  = uCR.extent( 0 );
 
   Kokkos::parallel_for(
-      "Rad::Source",
+      "Rad :: Source",
       Kokkos::MDRangePolicy<Kokkos::Rank<3>>( { 0, ilo, 0 },
                                               { order, ihi + 1, nvars } ),
       KOKKOS_LAMBDA( const int k, const int iX, const int iCR ) {
@@ -221,7 +233,7 @@ void Compute_Increment_Explicit_Rad(
 
   // --- First: Zero out dU  ---
   Kokkos::parallel_for(
-      "Rad::Zero dU",
+      "Rad :: Zero dU",
       Kokkos::MDRangePolicy<Kokkos::Rank<3>>( { 0, 0, 0 },
                                               { order, ihi + 1, nvars } ),
       KOKKOS_LAMBDA( const int k, const int iX, const int iCR ) {
@@ -238,7 +250,7 @@ void Compute_Increment_Explicit_Rad(
 
   // --- Divide update by mass mastrix ---
   Kokkos::parallel_for(
-      "Rad::Divide Update / Mass Matrix",
+      "Rad :: Divide Update / Mass Matrix",
       Kokkos::MDRangePolicy<Kokkos::Rank<3>>( { 0, ilo, 0 },
                                               { order, ihi + 1, nvars } ),
       KOKKOS_LAMBDA( const int k, const int iX, const int iCR ) {

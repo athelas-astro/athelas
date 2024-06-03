@@ -13,8 +13,16 @@
 
 #include "boundary_conditions.hpp"
 #include "grid.hpp"
+#include "utilities.hpp"
 
-// Apply Boundary Conditions to fluid fields
+/**
+ * Apply Boundary Conditions to fluid fields
+ * Supported Options:
+ *  reflecting
+ *  periodic
+ *  shockless_noh
+ *  homogenous (Default)
+ **/
 void ApplyBC( View3D<Real> U, GridStructure *Grid, const int order,
               const std::string BC ) {
 
@@ -26,7 +34,7 @@ void ApplyBC( View3D<Real> U, GridStructure *Grid, const int order,
   const int nG = Grid->Get_Guard( );
 
   // ! ? How to correctly implement reflecting BC ? !
-  if ( BC == "Reflecting" ) {
+  if ( utilities::to_lower( BC ) == "reflecting" ) {
     for ( int iCF = 0; iCF < nvars; iCF++ ) {
       // Inner Boudnary
       for ( int iX = 0; iX < ilo; iX++ )
@@ -50,14 +58,15 @@ void ApplyBC( View3D<Real> U, GridStructure *Grid, const int order,
           }
         }
     }
-  } else if ( BC == "Periodic" ) {
+  } else if ( utilities::to_lower( BC ) == "periodic" ) {
     for ( int iCF = 0; iCF < nvars; iCF++ )
       for ( int iX = 0; iX < ilo; iX++ )
         for ( int k = 0; k < order; k++ ) {
           U( iCF, ilo - 1 - iX, k ) = U( iCF, ihi - iX, k );
           U( iCF, ihi + 1 + iX, k ) = U( iCF, ilo + iX, k );
         }
-  } else if ( BC == "ShocklessNoh" ) /* Special case for ShocklessNoh test */
+  } else if ( utilities::to_lower( BC ) ==
+              "shockless_noh" ) /* Special case for ShocklessNoh test */
   {
     // for ( int iCF = 0; iCF < 3; iCF++ )
     for ( int iX = 0; iX < ilo; iX++ )
@@ -121,12 +130,14 @@ void ApplyBC( View3D<Real> U, GridStructure *Grid, const int order,
           U( 2, ihi + 1 + iX, k ) = U( 2, ihi - iX, k );
         }
       }
-  } else {
+  } else if ( utilities::to_lower( BC ) == "homogenous" ) {
     for ( int iCF = 0; iCF < nvars; iCF++ )
       for ( int iX = 0; iX < ilo; iX++ )
         for ( int k = 0; k < order; k++ ) {
           U( iCF, ilo - 1 - iX, k ) = U( iCF, ilo + iX, k );
           U( iCF, ihi + 1 + iX, k ) = U( iCF, ihi - iX, k );
         }
+  } else {
+    throw Error( " ! Error: BC not supported!" );
   }
 }

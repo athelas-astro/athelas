@@ -1,5 +1,5 @@
-#ifndef _UTILITIES_HPP_
-#define _UTILITIES_HPP_
+#ifndef UTILITIES_HPP_
+#define UTILITIES_HPP_
 
 #include <algorithm>
 #include <cctype>
@@ -46,4 +46,4 @@ T to_lower( T data ) {
 
 } // namespace utilities
 
-#endif // _UTILITIES_HPP_
+#endif // UTILITIES_HPP_

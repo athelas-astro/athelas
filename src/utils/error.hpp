@@ -6,10 +6,11 @@
  * Purpose : Print error messages ...
  **/
 
-#ifndef _ERROR_HPP_
-#define _ERROR_HPP_
+#ifndef ERROR_HPP_
+#define ERROR_HPP_
 
 #include <assert.h> /* assert */
+#include <exception>
 #include <stdexcept>
 
 class Error : public std::runtime_error {
@@ -18,4 +19,4 @@ class Error : public std::runtime_error {
   Error( const std::string &message ) : std::runtime_error( message ) {}
 };
 
-#endif // _ERROR_HPP_
+#endif // ERROR_HPP_
