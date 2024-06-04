@@ -139,6 +139,10 @@ int main( int argc, char *argv[] ) {
                            &Basis, &eos, &S_Limiter, opts );
       }
 
+#ifdef ATHELAS_DEBUG
+      check_state( &state, Grid.Get_ihi( ) );
+#endif
+
       t += dt;
 
       // Write state

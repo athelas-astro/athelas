@@ -1,5 +1,5 @@
-#ifndef _GRID_HPP_
-#define _GRID_HPP_
+#ifndef GRID_HPP_
+#define GRID_HPP_
 
 /**
  * File     :  grid.hpp
@@ -81,4 +81,4 @@ class GridStructure {
   Kokkos::View<Real **> Grid;
 };
 
-#endif // _GRID_HPP_
+#endif // GRID_HPP_

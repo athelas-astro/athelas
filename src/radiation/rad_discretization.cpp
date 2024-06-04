@@ -59,13 +59,13 @@ void ComputeIncrement_Rad_Divergence(
                 "rad_discretization :: Numerical Fluxes bad specific volume." );
         assert( tauR > 0.0 && !std::isnan( tauR ) &&
                 "rad_discretization :: Numerical Fluxes bad specific volume." );
-        assert( uCR_L( 0 ) > 0.0 && !std::isnan( uCF_L( 0 ) ) &&
+        assert( uCR_L( 0 ) > 0.0 && !std::isnan( uCR_L( 0 ) ) &&
                 "rad_Discretization :: Numerical Fluxes bad energy." );
-        assert( uCR_R( 0 ) > 0.0 && !std::isnan( uCF_R( 0 ) ) &&
+        assert( uCR_R( 0 ) > 0.0 && !std::isnan( uCR_R( 0 ) ) &&
                 "rad_Discretization :: Numerical Fluxes bad energy." );
-        assert( !std::isnan( uCF_L( 1 ) ) &&
+        assert( !std::isnan( uCR_L( 1 ) ) &&
                 "rad_Discretization :: Numerical Fluxes bad flux." );
-        assert( !std::isnan( uCF_R( 1 ) ) &&
+        assert( !std::isnan( uCR_R( 1 ) ) &&
                 "rad_Discretization :: Numerical Fluxes bad flux." );
 
         const Real Em_L = uCR_L( 0 ) / tauL;
