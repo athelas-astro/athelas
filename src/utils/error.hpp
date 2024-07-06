@@ -23,7 +23,7 @@ class Error : public std::runtime_error {
 };
 
 template <typename T>
-void check_state( T state, const int ihi ) {
+void check_state( T state, const int ihi, const bool do_rad ) {
 
   auto uCR = state->Get_uCR( );
   auto uCF = state->Get_uCF( );
@@ -31,7 +31,9 @@ void check_state( T state, const int ihi ) {
   const Real c = constants::c_cgs;
 
   Kokkos::parallel_for(
-      "check_state", ihi + 2, KOKKOS_LAMBDA( const int iX ) {
+      "check_state", ihi, KOKKOS_LAMBDA( const int i ) {
+        const int iX = i + 1; // hack
+                              //
         const Real tau   = uCF( 0, iX, 0 ); // cell averages checked
         const Real vel   = uCF( 1, iX, 0 );
         const Real e_m   = uCF( 2, iX, 0 );
@@ -52,17 +54,19 @@ void check_state( T state, const int ihi ) {
         assert( !std::isnan( e_m ) &&
                 " ! Check state :: Specific energy NaN!" );
 
-        assert(
-            e_rad > 0.0 &&
-            " ! Check state :: Negative or zero radiation energy density!" );
-        assert( !std::isnan( e_rad ) &&
-                " ! Check state :: Radiation energy NaN!" );
+        if ( do_rad ) {
+          assert(
+              e_rad > 0.0 &&
+              " ! Check state :: Negative or zero radiation energy density!" );
+          assert( !std::isnan( e_rad ) &&
+                  " ! Check state :: Radiation energy NaN!" );
 
-        // TODO: radiation flux bound
-        // assert ( f_rad >= 0.0 && " Check state :: ! Negative or zero
-        // radiation energy density!" );
-        assert( !std::isnan( f_rad ) &&
-                " ! Check state :: Radiation flux NaN!" );
+          // TODO: radiation flux bound
+          // assert ( f_rad >= 0.0 && " Check state :: ! Negative or zero
+          // radiation energy density!" );
+          assert( !std::isnan( f_rad ) &&
+                  " ! Check state :: Radiation flux NaN!" );
+        }
       } );
 }
 
