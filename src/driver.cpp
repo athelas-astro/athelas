@@ -123,6 +123,7 @@ int main( int argc, char *argv[] ) {
     std::cout << " ~ Step    t       dt       zone_cycles / wall_second\n"
               << std::endl;
     while ( t < t_end && iStep >= 0 ) {
+      timer_zone_cycles.reset( );
 
       // TODO: ComputeTimestep_Rad
       dt = ComputeTimestep_Fluid( state.Get_uCF( ), &Grid, &eos, CFL );
@@ -134,6 +135,13 @@ int main( int argc, char *argv[] ) {
         dt = t_end - t;
       }
 
+<<<<<<< HEAD
+=======
+      if ( iStep % i_print == 0 ) {
+        std::printf( " ~ %d %.5e %.5e %.5e \n", iStep, t, dt, zc_ws );
+      }
+
+>>>>>>> main
       if ( !opts.do_rad ) {
         SSPRK.UpdateFluid( Compute_Increment_Explicit, dt, &state, Grid, &Basis,
                            &eos, &S_Limiter, opts );
@@ -166,6 +174,8 @@ int main( int argc, char *argv[] ) {
         time_cycle = 0.0;
       }
       iStep++;
+      Real time_cycle = timer_zone_cycles.seconds( );
+      zc_ws           = nX / time_cycle;
     }
 
     // --- Finalize timer ---
