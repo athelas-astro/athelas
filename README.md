@@ -3,9 +3,9 @@
 <p align="center">1D Lagrangian radiation-hydrodynamics solver written in C++ </p>
 
 [![Build](https://github.com/athelas-astro/athelas/actions/workflows/cmake-multi-platform.yml/badge.svg)](https://github.com/athelas-astro/athelas/actions/workflows/cmake-multi-platform.yml)
-<p align="center">
+[![Docs](https://github.com/athelas-astro/athelas/actions/workflows/docs.yml/badge.svg)](https://github.com/athelas-astro/athelas/actions/workflows/docs.yml)
 <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPL-blue.svg"></a>
-</p>
+
 
 `Athelas` solves the 1D Lagrangian equation of non-relativistic radiation hydrodynamics using a discontinuous Galerkin scheme. 
 LTE Saha ionization is included.
