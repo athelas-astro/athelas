@@ -16,7 +16,7 @@ It includes planar geometry and spherical symmetry. Self gravity is included.
 `athelas` uses submodules to include dependencies. 
 The best way to get the source is the following 
 ```sh
-git clone --recursive git@github.com:AstroBarker/athelas.git
+git clone --recursive git@github.com:athelas-astro/athelas.git
 ```
 
 # Building
