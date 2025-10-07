@@ -1,8 +1,8 @@
-# athelas (Astrophysical Transients with Hydrodynamics and Emission using a Lagrangian Adaptive-order Scheme )
+# athelas (Astrophysical Transients with Hydrodynamics and Emission using a Lagrangian Arbitrary-order Scheme )
 
 <p align="center">1D Lagrangian radiation-hydrodynamics solver written in C++ </p>
 
-[![Build](https://github.com/AstroBarker/athelas/actions/workflows/cmake-multi-platform.yml/badge.svg)](https://github.com/AstroBarker/athelas/actions/workflows/cmake-multi-platform.yml)
+[![Build](https://github.com/athelas-astro/athelas/actions/workflows/cmake-multi-platform.yml/badge.svg)](https://github.com/athelas-astro/athelas/actions/workflows/cmake-multi-platform.yml)
 <p align="center">
 <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPL-blue.svg"></a>
 </p>
@@ -10,7 +10,6 @@
 `Athelas` solves the 1D Lagrangian equation of non-relativistic radiation hydrodynamics using a discontinuous Galerkin scheme. 
 LTE Saha ionization is included.
 It includes planar geometry and spherical symmetry. Self gravity is included.
-It will be extended to special relativistic hydrodynamics.
 
 
 # Installation
