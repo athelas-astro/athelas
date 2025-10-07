@@ -3,7 +3,7 @@
 <p align="center">1D Lagrangian radiation-hydrodynamics solver written in C++ </p>
 
 [![Build](https://github.com/athelas-astro/athelas/actions/workflows/cmake-multi-platform.yml/badge.svg)](https://github.com/athelas-astro/athelas/actions/workflows/cmake-multi-platform.yml)
-[![Docs](https://github.com/athelas-astro/athelas/actions/workflows/docs.yml/badge.svg)](https://athelas-astro/athelas)
+[![Docs](https://github.com/athelas-astro/athelas/actions/workflows/docs.yml/badge.svg)](https://athelas-astro.github.io/athelas)
 <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPL-blue.svg"></a>
 
 
