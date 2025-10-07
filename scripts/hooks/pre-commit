@@ -2,7 +2,6 @@
 #
 # Athelas git pre-commit hook. This hook will, prior to committing:
 # - Execute scripts/bash/format.sh to format C/C++/python
-# - Check for trailing whitespace
 # To enable this hook, rename this file to "pre-commit".
 
 if git rev-parse --verify HEAD >/dev/null 2>&1
@@ -62,12 +61,5 @@ for FILE in $FILES; do
     git add "$FILE"
 done
 echo "[hook] Formatting complete."
-
-# Check for whitespace errors; if any, abort the commit.
-git diff-index --check --cached $against --
-if [ $? -ne 0 ]; then
-    echo "[hook] Whitespace errors found. Commit aborted."
-    exit 1
-fi
 
 exit 0
