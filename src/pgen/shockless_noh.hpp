@@ -29,7 +29,7 @@ void shockless_noh_init(State *state, GridStructure *grid, ProblemIn *pin,
   AthelasArray3D<double> uPF = state->u_pf();
 
   static const IndexRange ib(grid->domain<Domain::Interior>());
-  static const int nNodes = grid->get_n_nodes();
+  static const int nNodes = grid->n_nodes();
 
   constexpr static int q_Tau = 0;
   constexpr static int q_V = 1;

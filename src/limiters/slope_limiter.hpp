@@ -39,16 +39,15 @@ class WENO : public SlopeLimiterBase<WENO> {
       : do_limiter_(enabled), order_(order), nvars_(nvars), gamma_i_(gamma_i),
         gamma_l_(gamma_l), gamma_r_(gamma_r), weno_r_(weno_r),
         characteristic_(characteristic), tci_opt_(tci_opt), tci_val_(tci_val),
-        vars_(vars),
-        modified_polynomial_("modified_polynomial", grid->get_n_elements() + 2,
-                             nvars, order),
-        R_("R Matrix", grid->get_n_elements() + 2, nvars, nvars),
-        R_inv_("invR Matrix", grid->get_n_elements() + 2, nvars, nvars),
-        U_c_T_("U_c_T", grid->get_n_elements() + 2, nvars),
-        w_c_T_("w_c_T", grid->get_n_elements() + 2, nvars),
-        mult_("Mult", grid->get_n_elements() + 2, nvars),
-        D_("TCI", grid->get_n_elements() + 2),
-        limited_cell_("LimitedCell", grid->get_n_elements() + 2) {}
+        vars_(vars), modified_polynomial_("modified_polynomial",
+                                          grid->n_elements() + 2, nvars, order),
+        R_("R Matrix", grid->n_elements() + 2, nvars, nvars),
+        R_inv_("invR Matrix", grid->n_elements() + 2, nvars, nvars),
+        U_c_T_("U_c_T", grid->n_elements() + 2, nvars),
+        w_c_T_("w_c_T", grid->n_elements() + 2, nvars),
+        mult_("Mult", grid->n_elements() + 2, nvars),
+        D_("TCI", grid->n_elements() + 2),
+        limited_cell_("LimitedCell", grid->n_elements() + 2) {}
 
   void apply_slope_limiter(AthelasArray3D<double> U, const GridStructure *grid,
                            const basis::ModalBasis *basis, const eos::EOS *eos);
@@ -97,13 +96,13 @@ class TVDMinmod : public SlopeLimiterBase<TVDMinmod> {
       : do_limiter_(enabled), order_(order), nvars_(nvars), b_tvd_(b_tvd),
         m_tvb_(m_tvb), characteristic_(characteristic), tci_opt_(tci_opt),
         tci_val_(tci_val), vars_(vars),
-        R_("R Matrix", grid->get_n_elements() + 2, nvars, nvars),
-        R_inv_("invR Matrix", grid->get_n_elements() + 2, nvars, nvars),
-        U_c_T_("U_c_T", grid->get_n_elements() + 2, nvars),
-        w_c_T_("w_c_T", grid->get_n_elements() + 2, nvars),
-        mult_("Mult", grid->get_n_elements() + 2, nvars),
-        D_("TCI", grid->get_n_elements() + 2),
-        limited_cell_("LimitedCell", grid->get_n_elements() + 2) {}
+        R_("R Matrix", grid->n_elements() + 2, nvars, nvars),
+        R_inv_("invR Matrix", grid->n_elements() + 2, nvars, nvars),
+        U_c_T_("U_c_T", grid->n_elements() + 2, nvars),
+        w_c_T_("w_c_T", grid->n_elements() + 2, nvars),
+        mult_("Mult", grid->n_elements() + 2, nvars),
+        D_("TCI", grid->n_elements() + 2),
+        limited_cell_("LimitedCell", grid->n_elements() + 2) {}
   void apply_slope_limiter(AthelasArray3D<double> U, const GridStructure *grid,
                            const basis::ModalBasis *basis, const eos::EOS *eos);
   [[nodiscard]] auto get_limited(int ix) const -> int;

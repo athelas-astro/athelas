@@ -93,6 +93,7 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
         }); // par i
   } // end map to characteristics
 
+  const auto dr = grid->widths();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: Minmod", DevExecSpace(), ilo,
       ihi, KOKKOS_CLASS_LAMBDA(const int i) {
@@ -107,9 +108,8 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
             const double c_i = U(i, 0, v); // target cell avg
             const double c_p = U(i + 1, 0, v); // cell i + 1 avg
             const double c_m = U(i - 1, 0, v); // cell i - 1 avg
-            const double dx = grid->get_widths(i);
-            const double new_slope = MINMOD_B(s_i, b_tvd_ * (c_p - c_i),
-                                              b_tvd_ * (c_i - c_m), dx, m_tvb_);
+            const double new_slope = MINMOD_B(
+                s_i, b_tvd_ * (c_p - c_i), b_tvd_ * (c_i - c_m), dr(i), m_tvb_);
 
             // check limited slope difference vs threshold
             if (std::abs(new_slope - s_i) >

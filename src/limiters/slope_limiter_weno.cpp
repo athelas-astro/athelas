@@ -81,6 +81,7 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U,
         }); // par i
   } // end map to characteristics
 
+  const auto dr = grid->widths();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: WENO", DevExecSpace(), ib.s,
       ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
@@ -106,7 +107,7 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U,
             const double tau = weno_tau(beta_l, beta_i, beta_r, weno_r_);
 
             // nonlinear weights w
-            const double dx_i = 0.1 * grid->get_widths(i);
+            const double dx_i = 0.1 * dr(i);
             double w_l = non_linear_weight(gamma_l_, beta_l, tau, dx_i);
             double w_i = non_linear_weight(gamma_i_, beta_i, tau, dx_i);
             double w_r = non_linear_weight(gamma_r_, beta_r, tau, dx_i);

@@ -22,7 +22,7 @@ using eos::EOS;
  * Lots of structures used in discretizations live here.
  **/
 TimeStepper::TimeStepper(const ProblemIn *pin, GridStructure *grid, EOS *eos)
-    : nvars_evolved_(nvars_evolved(pin)), mSize_(grid->get_n_elements() + 2),
+    : nvars_evolved_(nvars_evolved(pin)), mSize_(grid->n_elements() + 2),
       integrator_(
           create_tableau(pin->param()->get<MethodID>("time.integrator"))),
       nStages_(integrator_.num_stages), tOrder_(integrator_.explicit_order),

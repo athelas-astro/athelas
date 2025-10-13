@@ -41,12 +41,12 @@ class EosBase {
     return static_cast<EOS const *>(this)->temperature_from_conserved(
         tau, V, EmT, lambda);
   }
-  auto get_gamma(const double tau, const double V, const double EmT,
-                 const double *const lambda) const -> double {
-    return static_cast<EOS const *>(this)->get_gamma(tau, V, EmT, lambda);
+  auto gamma1(const double tau, const double V, const double EmT,
+              const double *const lambda) const -> double {
+    return static_cast<EOS const *>(this)->gamma1(tau, V, EmT, lambda);
   }
-  [[nodiscard]] auto get_gamma() const -> double {
-    return static_cast<EOS const *>(this)->get_gamma();
+  [[nodiscard]] auto gamma1() const -> double {
+    return static_cast<EOS const *>(this)->gamma();
   }
 };
 

@@ -113,12 +113,12 @@ KOKKOS_INLINE_FUNCTION auto ratio(const A &a, const B &b) {
 
 // nodal specific internal energy
 template <class T>
-KOKKOS_INLINE_FUNCTION auto compute_internal_energy(T U,
-                                                    const ModalBasis *basis,
-                                                    const int ix, const int iN)
-    -> double {
-  const double Vel = basis->basis_eval(U, ix, 1, iN);
-  const double EmT = basis->basis_eval(U, ix, 2, iN);
+KOKKOS_INLINE_FUNCTION auto
+compute_internal_energy(T U, const AthelasArray3D<double> phi, const int ix,
+                        const int iN) -> double {
+  using basis::basis_eval;
+  const double Vel = basis_eval(phi, U, ix, 1, iN);
+  const double EmT = basis_eval(phi, U, ix, 2, iN);
 
   return EmT - (0.5 * Vel * Vel);
 }

@@ -43,37 +43,46 @@ template <GravityModel Model>
 void GravityPackage::gravity_update(const AthelasArray3D<double> state,
                                     AthelasArray3D<double> dU,
                                     const GridStructure &grid) const {
-  const int nNodes = grid.get_n_nodes();
-  const int &order = basis_->get_order();
+  using basis::basis_eval;
+  const int nNodes = grid.n_nodes();
+  const int &order = basis_->order();
   static const IndexRange ib(grid.domain<Domain::Interior>());
   static const IndexRange kb(order);
 
+  const auto r = grid.nodal_grid();
+  const auto dr = grid.widths();
+  const auto enclosed_mass = grid.enclosed_mass();
+  const auto weights = grid.weights();
+  const auto sqrt_gm = grid.sqrt_gm();
+  const auto phi = basis_->phi();
+  const auto inv_mkk = basis_->inv_mass_matrix();
+
+  const double gval = gval_;
   // This can probably be simplified.
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Gravity :: Update", DevExecSpace(), ib.s, ib.e,
-      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+      kb.s, kb.e, KOKKOS_LAMBDA(const int i, const int k) {
         double local_sum_v = 0.0;
         double local_sum_e = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double X = grid.node_coordinate(i, q);
-          const double sqrt_gm = grid.get_sqrt_gm(X);
-          const double weight = grid.get_weights(q);
+          const double X = r(i, q);
+          const double weight = weights(q);
           if constexpr (Model == GravityModel::Spherical) {
-            local_sum_v += weight * basis_->get_phi(i, q + 1, k) *
-                           grid.enclosed_mass(i, q) * sqrt_gm /
-                           ((X * X) * basis_->basis_eval(state, i, 0, q + 1));
-            local_sum_e += local_sum_v * basis_->basis_eval(state, i, 1, q + 1);
+            local_sum_v += weight * phi(i, q + 1, k) * enclosed_mass(i, q) *
+                           sqrt_gm(i, q + 1) /
+                           ((X * X) * basis_eval(phi, state, i, 0, q + 1));
+            local_sum_e += local_sum_v * basis_eval(phi, state, i, 1, q + 1);
           } else {
-            local_sum_v += sqrt_gm * weight * basis_->get_phi(i, q + 1, k) *
-                           gval_ / basis_->basis_eval(state, i, 0, q + 1);
-            local_sum_e += local_sum_v * basis_->basis_eval(state, i, 1, q + 1);
+            local_sum_v += sqrt_gm(i, q + 1) * weight * phi(i, q + 1, k) *
+                           gval / basis_eval(phi, state, i, 0, q + 1);
+            local_sum_e += local_sum_v * basis_eval(phi, state, i, 1, q + 1);
           }
         }
 
-        dU(i, k, 1) -= (constants::G_GRAV * local_sum_v * grid.get_widths(i)) /
-                       basis_->get_mass_matrix(i, k);
-        dU(i, k, 2) -= (constants::G_GRAV * local_sum_e * grid.get_widths(i)) /
-                       basis_->get_mass_matrix(i, k);
+        dU(i, k, 1) -=
+            (constants::G_GRAV * local_sum_v * dr(i)) * inv_mkk(i, k);
+        dU(i, k, 2) -=
+            (constants::G_GRAV * local_sum_e * dr(i)) * inv_mkk(i, k);
       });
 }
 

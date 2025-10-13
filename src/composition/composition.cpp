@@ -19,7 +19,7 @@ using basis::ModalBasis;
  */
 void fill_derived_comps(State *const state, const GridStructure *const grid,
                         const ModalBasis *const basis) {
-  static const auto &nnodes = grid->get_n_nodes();
+  static const auto &nnodes = grid->n_nodes();
   static const IndexRange ib(grid->domain<Domain::Entire>());
   static const IndexRange nb(nnodes + 2);
 
@@ -54,7 +54,7 @@ void fill_derived_comps(State *const state, const GridStructure *const grid,
 void fill_derived_ionization(State *const state,
                              const GridStructure *const grid,
                              const ModalBasis *const basis) {
-  static const auto &nnodes = grid->get_n_nodes();
+  static const auto &nnodes = grid->n_nodes();
   static const IndexRange ib(grid->domain<Domain::Entire>());
   static const IndexRange nb(nnodes + 2);
 

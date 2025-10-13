@@ -19,7 +19,7 @@
 namespace athelas::atom {
 
 using atom::IonLevel;
-using basis::ModalBasis;
+using basis::ModalBasis, basis::basis_eval;
 using eos::EOS;
 
 void solve_saha_ionization(State &state, const GridStructure &grid,
@@ -33,11 +33,13 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
   const auto species = comps->charge();
   auto ionization_fractions = ionization_states->ionization_fractions();
 
+  const auto phi = fluid_basis.phi();
+
   // pull out atomic data containers
   const auto ion_data = atomic_data->ion_data();
   const auto species_offsets = atomic_data->offsets();
 
-  const auto &nNodes = grid.get_n_nodes();
+  const auto &nNodes = grid.n_nodes();
   assert(ionization_fractions.extent(2) <=
          static_cast<size_t>(std::numeric_limits<int>::max()));
   const auto &ncomps = static_cast<int>(ionization_fractions.extent(2));
@@ -49,10 +51,10 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
       DEFAULT_LOOP_PATTERN, "Saha :: Solve ionization all", DevExecSpace(),
       ib.s, ib.e, nb.s, nb.e, eb.s, eb.e,
       KOKKOS_LAMBDA(const int i, const int q, const int e) {
-        const double rho = 1.0 / fluid_basis.basis_eval(uCF, i, 0, q);
+        const double rho = 1.0 / basis_eval(phi, uCF, i, 0, q);
         const double temperature = uaf(i, q, 1);
 
-        const double x_e = fluid_basis.basis_eval(mass_fractions, i, e, q);
+        const double x_e = basis_eval(phi, mass_fractions, i, e, q);
 
         const int z = e + 1;
         const double nk = element_number_density(x_e, z, rho);

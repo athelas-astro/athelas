@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include "Kokkos_Macros.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "geometry/grid.hpp"
 #include "limiters/slope_limiter.hpp"
@@ -47,9 +48,35 @@ void detect_troubled_cells(const AthelasArray3D<double> U,
                            const basis::ModalBasis *basis,
                            const std::vector<int> &vars);
 
-auto cell_average(AthelasArray3D<double> U, const GridStructure *grid,
-                  const basis::ModalBasis *basis, int q, int ix,
-                  int extrapolate) -> double;
+/**
+ * Return the cell average of a field q on cell ix.
+ * The parameter `int extrapolate` designates how the cell average is
+ *computed.
+ *  0  : Return standard cell average on ix
+ * -1 : Extrapolate left, e.g.,  polynomial from ix+1 into ix
+ * +1 : Extrapolate right, e.g.,  polynomial from ix-1 into ix
+ **/
+KOKKOS_INLINE_FUNCTION
+auto cell_average(AthelasArray3D<double> U,
+                  const AthelasArray2D<double> sqrt_gms,
+                  const AthelasArray1D<double> weights, const double dr,
+                  const AthelasArray3D<double> phi, const int v, const int ix,
+                  const int extrapolate) -> double {
+  using basis::basis_eval;
+  static const int nNodes = static_cast<int>(weights.size());
+
+  double avg = 0.0;
+  double vol = 0.0;
+
+  // NOTE: do mass or volume avg?
+  for (int q = 0; q < nNodes; ++q) {
+    const double w = weights(q);
+    const double sqrt_gm = sqrt_gms(ix + extrapolate, q + 1);
+    vol += w * sqrt_gm * dr; // TODO(astrobarker) rho
+    avg += w * basis_eval(phi, U, ix, v, q + 1) * sqrt_gm * dr;
+  }
+  return avg / vol;
+}
 
 void modify_polynomial(AthelasArray3D<double> U,
                        AthelasArray2D<double> modified_polynomial,

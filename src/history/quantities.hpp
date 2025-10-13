@@ -9,6 +9,8 @@
  */
 
 #include "geometry/grid.hpp"
+#include "kokkos_abstraction.hpp"
+#include "loop_layout.hpp"
 #include "polynomial_basis.hpp"
 #include "state/state.hpp"
 #include "utils/constants.hpp"
@@ -17,127 +19,145 @@ namespace athelas::analysis {
 
 // Perhaps the below will be more optimal by calculating
 // with cell mass
-KOKKOS_INLINE_FUNCTION
-auto total_fluid_energy(const State &state, const GridStructure &grid,
-                        const basis::ModalBasis *fluid_basis,
-                        const basis::ModalBasis * /*rad_basis*/) -> double {
-  const auto &ilo = grid.get_ilo();
-  const auto &ihi = grid.get_ihi();
-  const auto &nNodes = grid.get_n_nodes();
-
-  const auto u = state.u_cf();
-
-  double output = 0.0;
-  Kokkos::parallel_reduce(
-      "History :: TotalEnergyFluid", Kokkos::RangePolicy<>(ilo, ihi + 1),
-      KOKKOS_LAMBDA(const int &i, double &lsum) {
-        double local_sum = 0.0;
-        for (int iN = 0; iN < nNodes; ++iN) {
-          const double X = grid.node_coordinate(i, iN);
-          local_sum += fluid_basis->basis_eval(u, i, 2, iN + 1) /
-                       fluid_basis->basis_eval(u, i, 0, iN + 1) *
-                       grid.get_sqrt_gm(X) * grid.get_weights(iN);
-        }
-        lsum += local_sum * grid.get_widths(i);
-      },
-      output);
-
-  if (grid.do_geometry()) {
-    output *= constants::FOURPI;
-  }
-  return output;
-}
-
-KOKKOS_INLINE_FUNCTION
-auto total_fluid_momentum(const State &state, const GridStructure &grid,
-                          const basis::ModalBasis *fluid_basis,
-                          const basis::ModalBasis * /*rad_basis*/) -> double {
-  const auto &ilo = grid.get_ilo();
-  const auto &ihi = grid.get_ihi();
-  const auto &nNodes = grid.get_n_nodes();
-
-  const auto u = state.u_cf();
-
-  double output = 0.0;
-  Kokkos::parallel_reduce(
-      "History :: TotalMomentumFluid", Kokkos::RangePolicy<>(ilo, ihi + 1),
-      KOKKOS_LAMBDA(const int &i, double &lsum) {
-        double local_sum = 0.0;
-        for (int iN = 0; iN < nNodes; ++iN) {
-          const double X = grid.node_coordinate(i, iN);
-          local_sum += fluid_basis->basis_eval(u, i, 1, iN + 1) /
-                       fluid_basis->basis_eval(u, i, 0, iN + 1) *
-                       grid.get_sqrt_gm(X) * grid.get_weights(iN);
-        }
-        lsum += local_sum * grid.get_widths(i);
-      },
-      output);
-
-  if (grid.do_geometry()) {
-    output *= constants::FOURPI;
-  }
-  return output;
-}
-
-KOKKOS_INLINE_FUNCTION
-auto total_internal_energy(const State &state, const GridStructure &grid,
-                           const basis::ModalBasis *fluid_basis,
-                           const basis::ModalBasis * /*rad_basis*/) -> double {
-  const auto &ilo = grid.get_ilo();
-  const auto &ihi = grid.get_ihi();
-  const auto &nNodes = grid.get_n_nodes();
-
-  const auto u = state.u_cf();
-
-  double output = 0.0;
-  Kokkos::parallel_reduce(
-      "History :: TotalInternalEnergy", Kokkos::RangePolicy<>(ilo, ihi + 1),
-      KOKKOS_LAMBDA(const int &i, double &lsum) {
-        double local_sum = 0.0;
-        for (int iN = 0; iN < nNodes; ++iN) {
-          const double X = grid.node_coordinate(i, iN);
-          const double vel = fluid_basis->basis_eval(u, i, 1, iN + 1);
-          local_sum +=
-              (fluid_basis->basis_eval(u, i, 2, iN + 1) - 0.5 * vel * vel) /
-              fluid_basis->basis_eval(u, i, 0, iN + 1) * grid.get_sqrt_gm(X) *
-              grid.get_weights(iN);
-        }
-        lsum += local_sum * grid.get_widths(i);
-      },
-      output);
-
-  if (grid.do_geometry()) {
-    output *= constants::FOURPI;
-  }
-  return output;
-}
-
-KOKKOS_INLINE_FUNCTION
-auto total_gravitational_energy(const State &state, const GridStructure &grid,
-                                const basis::ModalBasis *fluid_basis,
-                                const basis::ModalBasis * /*rad_basis*/)
+inline auto total_fluid_energy(const State &state, const GridStructure &grid,
+                               const basis::ModalBasis *fluid_basis,
+                               const basis::ModalBasis * /*rad_basis*/)
     -> double {
-  const auto &ilo = grid.get_ilo();
-  const auto &ihi = grid.get_ihi();
-  const auto &nNodes = grid.get_n_nodes();
+  using basis::basis_eval;
+  const auto &nNodes = grid.n_nodes();
+  static const IndexRange ib(grid.domain<Domain::Interior>());
+  const auto dr = grid.widths();
+  const auto sqrt_gm = grid.sqrt_gm();
+  const auto weights = grid.weights();
+
+  const auto phi = fluid_basis->phi();
 
   const auto u = state.u_cf();
 
   double output = 0.0;
-  Kokkos::parallel_reduce(
-      "History :: TotalGravitationalEnergy",
-      Kokkos::RangePolicy<>(ilo, ihi + 1),
-      KOKKOS_LAMBDA(const int &i, double &lsum) {
+  athelas::par_reduce(
+      DEFAULT_FLAT_LOOP_PATTERN, "History :: TotalEnergyFluid", DevExecSpace(),
+      ib.s, ib.e,
+      KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
-        for (int iN = 0; iN < nNodes; ++iN) {
-          const double X = grid.node_coordinate(i, iN);
-          local_sum += (grid.enclosed_mass(i, iN) /
-                        (X / fluid_basis->basis_eval(u, i, 0, iN + 1))) *
-                       grid.get_sqrt_gm(X) * grid.get_weights(iN);
+        for (int q = 0; q < nNodes; ++q) {
+          local_sum += basis_eval(phi, u, i, 2, q + 1) /
+                       basis_eval(phi, u, i, 0, q + 1) * sqrt_gm(i, q + 1) *
+                       weights(q);
         }
-        lsum += local_sum * grid.get_widths(i);
+        lsum += local_sum * dr(i);
       },
-      output);
+      Kokkos::Sum<double>(output));
+
+  if (grid.do_geometry()) {
+    output *= constants::FOURPI;
+  }
+  return output;
+}
+
+inline auto total_fluid_momentum(const State &state, const GridStructure &grid,
+                                 const basis::ModalBasis *fluid_basis,
+                                 const basis::ModalBasis * /*rad_basis*/)
+    -> double {
+  using basis::basis_eval;
+  const auto &nNodes = grid.n_nodes();
+  static const IndexRange ib(grid.domain<Domain::Interior>());
+  const auto dr = grid.widths();
+  const auto sqrt_gm = grid.sqrt_gm();
+  const auto weights = grid.weights();
+
+  const auto phi = fluid_basis->phi();
+  const auto u = state.u_cf();
+
+  double output = 0.0;
+  athelas::par_reduce(
+      DEFAULT_FLAT_LOOP_PATTERN, "History :: TotalMomentumFluid",
+      DevExecSpace(), ib.s, ib.e,
+      KOKKOS_LAMBDA(const int i, double &lsum) {
+        double local_sum = 0.0;
+        for (int q = 0; q < nNodes; ++q) {
+          local_sum += basis_eval(phi, u, i, 1, q + 1) /
+                       basis_eval(phi, u, i, 0, q + 1) * sqrt_gm(i, q + 1) *
+                       weights(q);
+        }
+        lsum += local_sum * dr(i);
+      },
+      Kokkos::Sum<double>(output));
+
+  if (grid.do_geometry()) {
+    output *= constants::FOURPI;
+  }
+  return output;
+}
+
+inline auto total_internal_energy(const State &state, const GridStructure &grid,
+                                  const basis::ModalBasis *fluid_basis,
+                                  const basis::ModalBasis * /*rad_basis*/)
+    -> double {
+  using basis::basis_eval;
+  const auto &nNodes = grid.n_nodes();
+  static const IndexRange ib(grid.domain<Domain::Interior>());
+  const auto dr = grid.widths();
+  const auto sqrt_gm = grid.sqrt_gm();
+  const auto weights = grid.weights();
+
+  const auto phi = fluid_basis->phi();
+  const auto u = state.u_cf();
+
+  double output = 0.0;
+  athelas::par_reduce(
+      DEFAULT_FLAT_LOOP_PATTERN, "History :: TotalInternalEnergy",
+      DevExecSpace(), ib.s, ib.e,
+      KOKKOS_LAMBDA(const int i, double &lsum) {
+        double local_sum = 0.0;
+        for (int q = 0; q < nNodes; ++q) {
+          const double vel = basis_eval(phi, u, i, 1, q + 1);
+          local_sum += (basis_eval(phi, u, i, 2, q + 1) - 0.5 * vel * vel) /
+                       basis_eval(phi, u, i, 0, q + 1) * sqrt_gm(i, q + 1) *
+                       weights(q);
+        }
+        lsum += local_sum * dr(i);
+      },
+      Kokkos::Sum<double>(output));
+
+  if (grid.do_geometry()) {
+    output *= constants::FOURPI;
+  }
+  return output;
+}
+
+inline auto total_gravitational_energy(const State &state,
+                                       const GridStructure &grid,
+                                       const basis::ModalBasis *fluid_basis,
+                                       const basis::ModalBasis * /*rad_basis*/)
+    -> double {
+  using basis::basis_eval;
+  const auto &nNodes = grid.n_nodes();
+  static const IndexRange ib(grid.domain<Domain::Interior>());
+  const auto dr = grid.widths();
+  const auto sqrt_gm = grid.sqrt_gm();
+  const auto weights = grid.weights();
+  const auto enclosed_mass = grid.enclosed_mass();
+  const auto r = grid.nodal_grid();
+
+  const auto phi = fluid_basis->phi();
+  const auto u = state.u_cf();
+
+  double output = 0.0;
+  athelas::par_reduce(
+      DEFAULT_FLAT_LOOP_PATTERN, "History :: TotalGravitationalEnergy",
+      DevExecSpace(), ib.s, ib.e,
+      KOKKOS_LAMBDA(const int i, double &lsum) {
+        double local_sum = 0.0;
+        for (int q = 0; q < nNodes; ++q) {
+          const double X = r(i, q);
+          local_sum +=
+              (enclosed_mass(i, q) / (X / basis_eval(phi, u, i, 0, q + 1))) *
+              sqrt_gm(i, q + 1) * weights(q);
+        }
+        lsum += local_sum * dr(i);
+      },
+      Kokkos::Sum<double>(output));
 
   if (grid.do_geometry()) {
     output *= constants::FOURPI;
@@ -145,31 +165,34 @@ auto total_gravitational_energy(const State &state, const GridStructure &grid,
   return -constants::G_GRAV * output;
 }
 
-KOKKOS_INLINE_FUNCTION
-auto total_kinetic_energy(const State &state, const GridStructure &grid,
-                          const basis::ModalBasis *fluid_basis,
-                          const basis::ModalBasis * /*rad_basis*/) -> double {
-  const auto &ilo = grid.get_ilo();
-  const auto &ihi = grid.get_ihi();
-  const auto &nNodes = grid.get_n_nodes();
+inline auto total_kinetic_energy(const State &state, const GridStructure &grid,
+                                 const basis::ModalBasis *fluid_basis,
+                                 const basis::ModalBasis * /*rad_basis*/)
+    -> double {
+  using basis::basis_eval;
+  const auto &nNodes = grid.n_nodes();
+  static const IndexRange ib(grid.domain<Domain::Interior>());
+  const auto dr = grid.widths();
+  const auto sqrt_gm = grid.sqrt_gm();
+  const auto weights = grid.weights();
 
+  const auto phi = fluid_basis->phi();
   const auto u = state.u_cf();
 
   double output = 0.0;
-  Kokkos::parallel_reduce(
-      "History :: TotalKineticEnergy", Kokkos::RangePolicy<>(ilo, ihi + 1),
-      KOKKOS_LAMBDA(const int &i, double &lsum) {
+  athelas::par_reduce(
+      DEFAULT_FLAT_LOOP_PATTERN, "History :: TotalKineticEnergy",
+      DevExecSpace(), ib.s, ib.e,
+      KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
-        for (int iN = 0; iN < nNodes; ++iN) {
-          const double X = grid.node_coordinate(i, iN);
-          const double vel = fluid_basis->basis_eval(u, i, 1, iN + 1);
-          local_sum += (0.5 * vel * vel) /
-                       fluid_basis->basis_eval(u, i, 0, iN + 1) *
-                       grid.get_sqrt_gm(X) * grid.get_weights(iN);
+        for (int q = 0; q < nNodes; ++q) {
+          const double vel = basis_eval(phi, u, i, 1, q + 1);
+          local_sum += (0.5 * vel * vel) / basis_eval(phi, u, i, 0, q + 1) *
+                       sqrt_gm(i, q + 1) * weights(q);
         }
-        lsum += local_sum * grid.get_widths(i);
+        lsum += local_sum * dr(i);
       },
-      output);
+      Kokkos::Sum<double>(output));
 
   if (grid.do_geometry()) {
     output *= constants::FOURPI;
@@ -178,29 +201,32 @@ auto total_kinetic_energy(const State &state, const GridStructure &grid,
 }
 
 // This total_energy is only radiation
-KOKKOS_INLINE_FUNCTION
-auto total_rad_energy(const State &state, const GridStructure &grid,
-                      const basis::ModalBasis * /*fluid_basis*/,
-                      const basis::ModalBasis *rad_basis) -> double {
-  const auto &ilo = grid.get_ilo();
-  const auto &ihi = grid.get_ihi();
-  const auto &nNodes = grid.get_n_nodes();
+inline auto total_rad_energy(const State &state, const GridStructure &grid,
+                             const basis::ModalBasis * /*fluid_basis*/,
+                             const basis::ModalBasis *rad_basis) -> double {
+  using basis::basis_eval;
+  const auto &nNodes = grid.n_nodes();
+  static const IndexRange ib(grid.domain<Domain::Interior>());
+  const auto dr = grid.widths();
+  const auto sqrt_gm = grid.sqrt_gm();
+  const auto weights = grid.weights();
 
+  const auto phi_rad = rad_basis->phi();
   const auto u = state.u_cf();
 
   double output = 0.0;
-  Kokkos::parallel_reduce(
-      "History :: TotalEnergyRad", Kokkos::RangePolicy<>(ilo, ihi + 1),
-      KOKKOS_LAMBDA(const int &i, double &lsum) {
+  athelas::par_reduce(
+      DEFAULT_FLAT_LOOP_PATTERN, "History :: TotalEnergyRad", DevExecSpace(),
+      ib.s, ib.e,
+      KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
-        for (int iN = 0; iN < nNodes; ++iN) {
-          const double X = grid.node_coordinate(i, iN);
-          local_sum += rad_basis->basis_eval(u, i, 3, iN + 1) *
-                       grid.get_sqrt_gm(X) * grid.get_weights(iN);
+        for (int q = 0; q < nNodes; ++q) {
+          local_sum += basis_eval(phi_rad, u, i, 3, q + 1) * sqrt_gm(i, q + 1) *
+                       weights(q);
         }
-        lsum += local_sum * grid.get_widths(i);
+        lsum += local_sum * dr(i);
       },
-      output);
+      Kokkos::Sum<double>(output));
 
   if (grid.do_geometry()) {
     output *= constants::FOURPI;
@@ -209,29 +235,32 @@ auto total_rad_energy(const State &state, const GridStructure &grid,
 }
 
 // TODO(astrobarker): confirm
-KOKKOS_INLINE_FUNCTION
-auto total_rad_momentum(const State &state, const GridStructure &grid,
-                        const basis::ModalBasis * /*fluid_basis*/,
-                        const basis::ModalBasis *rad_basis) -> double {
-  const auto &ilo = grid.get_ilo();
-  const auto &ihi = grid.get_ihi();
-  const auto &nNodes = grid.get_n_nodes();
+inline auto total_rad_momentum(const State &state, const GridStructure &grid,
+                               const basis::ModalBasis * /*fluid_basis*/,
+                               const basis::ModalBasis *rad_basis) -> double {
+  using basis::basis_eval;
+  const auto &nNodes = grid.n_nodes();
+  static const IndexRange ib(grid.domain<Domain::Interior>());
+  const auto dr = grid.widths();
+  const auto sqrt_gm = grid.sqrt_gm();
+  const auto weights = grid.weights();
 
+  const auto phi_rad = rad_basis->phi();
   const auto u = state.u_cf();
 
   double output = 0.0;
-  Kokkos::parallel_reduce(
-      "History :: TotalRadMomentum", Kokkos::RangePolicy<>(ilo, ihi + 1),
-      KOKKOS_LAMBDA(const int &i, double &lsum) {
+  athelas::par_reduce(
+      DEFAULT_FLAT_LOOP_PATTERN, "History :: TotalRadMomentum", DevExecSpace(),
+      ib.s, ib.e,
+      KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
-        for (int iN = 0; iN < nNodes; ++iN) {
-          const double X = grid.node_coordinate(i, iN);
-          local_sum += rad_basis->basis_eval(u, i, 4, iN + 1) *
-                       grid.get_sqrt_gm(X) * grid.get_weights(iN);
+        for (int q = 0; q < nNodes; ++q) {
+          local_sum += basis_eval(phi_rad, u, i, 4, q + 1) * sqrt_gm(i, q + 1) *
+                       weights(q);
         }
-        lsum += local_sum * grid.get_widths(i);
+        lsum += local_sum * dr(i);
       },
-      output);
+      Kokkos::Sum<double>(output));
 
   if (grid.do_geometry()) {
     output *= constants::FOURPI;
@@ -240,31 +269,35 @@ auto total_rad_momentum(const State &state, const GridStructure &grid,
 }
 
 // This total_energy is matter and radiation
-KOKKOS_INLINE_FUNCTION
-auto total_energy(const State &state, const GridStructure &grid,
-                  const basis::ModalBasis *fluid_basis,
-                  const basis::ModalBasis *rad_basis) -> double {
-  const auto &ilo = grid.get_ilo();
-  const auto &ihi = grid.get_ihi();
-  const auto &nNodes = grid.get_n_nodes();
+inline auto total_energy(const State &state, const GridStructure &grid,
+                         const basis::ModalBasis *fluid_basis,
+                         const basis::ModalBasis *rad_basis) -> double {
+  using basis::basis_eval;
+  const auto &nNodes = grid.n_nodes();
+  static const IndexRange ib(grid.domain<Domain::Interior>());
+  const auto dr = grid.widths();
+  const auto sqrt_gm = grid.sqrt_gm();
+  const auto weights = grid.weights();
 
+  const auto phi_fluid = fluid_basis->phi();
+  const auto phi_rad = rad_basis->phi();
   const auto u = state.u_cf();
 
   double output = 0.0;
-  Kokkos::parallel_reduce(
-      "History :: TotalEnergy", Kokkos::RangePolicy<>(ilo, ihi + 1),
-      KOKKOS_LAMBDA(const int &i, double &lsum) {
+  athelas::par_reduce(
+      DEFAULT_FLAT_LOOP_PATTERN, "History :: TotalEnergy", DevExecSpace(), ib.s,
+      ib.e,
+      KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
-        for (int iN = 0; iN < nNodes; ++iN) {
-          const double X = grid.node_coordinate(i, iN);
-          local_sum += ((fluid_basis->basis_eval(u, i, 2, iN + 1) /
-                         fluid_basis->basis_eval(u, i, 0, iN + 1)) +
-                        rad_basis->basis_eval(u, i, 3, iN + 1)) *
-                       grid.get_sqrt_gm(X) * grid.get_weights(iN);
+        for (int q = 0; q < nNodes; ++q) {
+          local_sum += ((basis_eval(phi_fluid, u, i, 2, q + 1) /
+                         basis_eval(phi_fluid, u, i, 0, q + 1)) +
+                        basis_eval(phi_rad, u, i, 3, q + 1)) *
+                       sqrt_gm(i, q + 1) * weights(q);
         }
-        lsum += local_sum * grid.get_widths(i);
+        lsum += local_sum * dr(i);
       },
-      output);
+      Kokkos::Sum<double>(output));
 
   if (grid.do_geometry()) {
     output *= constants::FOURPI;
@@ -273,31 +306,35 @@ auto total_energy(const State &state, const GridStructure &grid,
 }
 
 // This total_energy is matter and radiation
-KOKKOS_INLINE_FUNCTION
-auto total_momentum(const State &state, const GridStructure &grid,
-                    const basis::ModalBasis *fluid_basis,
-                    const basis::ModalBasis *rad_basis) -> double {
-  const auto &ilo = grid.get_ilo();
-  const auto &ihi = grid.get_ihi();
-  const auto &nNodes = grid.get_n_nodes();
+inline auto total_momentum(const State &state, const GridStructure &grid,
+                           const basis::ModalBasis *fluid_basis,
+                           const basis::ModalBasis *rad_basis) -> double {
+  using basis::basis_eval;
+  const auto &nNodes = grid.n_nodes();
+  static const IndexRange ib(grid.domain<Domain::Interior>());
+  const auto dr = grid.widths();
+  const auto sqrt_gm = grid.sqrt_gm();
+  const auto weights = grid.weights();
 
+  const auto phi_fluid = fluid_basis->phi();
+  const auto phi_rad = rad_basis->phi();
   const auto u = state.u_cf();
 
   double output = 0.0;
-  Kokkos::parallel_reduce(
-      "History :: TotalMomentum", Kokkos::RangePolicy<>(ilo, ihi + 1),
-      KOKKOS_LAMBDA(const int &i, double &lsum) {
+  athelas::par_reduce(
+      DEFAULT_FLAT_LOOP_PATTERN, "History :: TotalMomentum", DevExecSpace(),
+      ib.s, ib.e,
+      KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
-        for (int iN = 0; iN < nNodes; ++iN) {
-          const double X = grid.node_coordinate(i, iN);
-          local_sum += ((fluid_basis->basis_eval(u, i, 1, iN + 1) /
-                         fluid_basis->basis_eval(u, i, 0, iN + 1)) +
-                        rad_basis->basis_eval(u, i, 4, iN + 1)) *
-                       grid.get_sqrt_gm(X) * grid.get_weights(iN);
+        for (int q = 0; q < nNodes; ++q) {
+          local_sum += ((basis_eval(phi_fluid, u, i, 1, q + 1) /
+                         basis_eval(phi_fluid, u, i, 0, q + 1)) +
+                        basis_eval(phi_rad, u, i, 4, q + 1)) *
+                       sqrt_gm(i, q + 1) * weights(q);
         }
-        lsum += local_sum * grid.get_widths(i);
+        lsum += local_sum * dr(i);
       },
-      output);
+      Kokkos::Sum<double>(output));
 
   if (grid.do_geometry()) {
     output *= constants::FOURPI;
@@ -305,29 +342,32 @@ auto total_momentum(const State &state, const GridStructure &grid,
   return output;
 }
 
-KOKKOS_INLINE_FUNCTION
-auto total_mass(const State &state, const GridStructure &grid,
-                const basis::ModalBasis *fluid_basis,
-                const basis::ModalBasis * /*rad_basis*/) -> double {
-  const auto &ilo = grid.get_ilo();
-  const auto &ihi = grid.get_ihi();
-  const auto &nNodes = grid.get_n_nodes();
+inline auto total_mass(const State &state, const GridStructure &grid,
+                       const basis::ModalBasis *fluid_basis,
+                       const basis::ModalBasis * /*rad_basis*/) -> double {
+  using basis::basis_eval;
+  const auto &nNodes = grid.n_nodes();
+  static const IndexRange ib(grid.domain<Domain::Interior>());
+  const auto dr = grid.widths();
+  const auto sqrt_gm = grid.sqrt_gm();
+  const auto weights = grid.weights();
 
+  const auto phi = fluid_basis->phi();
   const auto u = state.u_cf();
 
   double output = 0.0;
-  Kokkos::parallel_reduce(
-      "History :: TotalMass", Kokkos::RangePolicy<>(ilo, ihi + 1),
-      KOKKOS_LAMBDA(const int &i, double &lsum) {
+  athelas::par_reduce(
+      DEFAULT_FLAT_LOOP_PATTERN, "History :: TotalMass", DevExecSpace(), ib.s,
+      ib.e,
+      KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
-        for (int iN = 0; iN < nNodes; ++iN) {
-          const double X = grid.node_coordinate(i, iN);
-          local_sum += (1.0 / fluid_basis->basis_eval(u, i, 0, iN + 1)) *
-                       grid.get_sqrt_gm(X) * grid.get_weights(iN);
+        for (int q = 0; q < nNodes; ++q) {
+          local_sum += (1.0 / basis_eval(phi, u, i, 0, q + 1)) *
+                       sqrt_gm(i, q + 1) * weights(q);
         }
-        lsum += local_sum * grid.get_widths(i);
+        lsum += local_sum * dr(i);
       },
-      output);
+      Kokkos::Sum<double>(output));
 
   if (grid.do_geometry()) {
     output *= constants::FOURPI;
@@ -340,30 +380,33 @@ auto total_mass(const State &state, const GridStructure &grid,
 inline auto total_mass_ni56(const State &state, const GridStructure &grid,
                             const basis::ModalBasis *fluid_basis,
                             const basis::ModalBasis * /*rad_basis*/) {
-  static constexpr int ilo = 1;
-  const auto &ihi = grid.get_ihi();
-  const auto &nNodes = grid.get_n_nodes();
+  using basis::basis_eval;
+  const auto &nNodes = grid.n_nodes();
+  static const IndexRange ib(grid.domain<Domain::Interior>());
+  const auto dr = grid.widths();
+  const auto sqrt_gm = grid.sqrt_gm();
+  const auto weights = grid.weights();
 
+  const auto phi = fluid_basis->phi();
   const auto u = state.u_cf();
   const auto mass_fractions = state.comps()->mass_fractions();
   const auto *const species_indexer = state.comps()->species_indexer();
   const auto ind_x = species_indexer->get<int>("ni56");
 
   double output = 0.0;
-  Kokkos::parallel_reduce(
-      "History :: TotalMassNi56", Kokkos::RangePolicy<>(ilo, ihi + 1),
-      KOKKOS_LAMBDA(const int &i, double &lsum) {
+  athelas::par_reduce(
+      DEFAULT_FLAT_LOOP_PATTERN, "History :: TotalMassNi56", DevExecSpace(),
+      ib.s, ib.e,
+      KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
-        for (int iN = 0; iN < nNodes; ++iN) {
-          const double X = grid.node_coordinate(i, iN);
-          const double x_ni =
-              fluid_basis->basis_eval(mass_fractions, i, ind_x, iN + 1);
-          local_sum += x_ni * (1.0 / fluid_basis->basis_eval(u, i, 0, iN + 1)) *
-                       grid.get_sqrt_gm(X) * grid.get_weights(iN);
+        for (int q = 0; q < nNodes; ++q) {
+          const double x_ni = basis_eval(phi, mass_fractions, i, ind_x, q + 1);
+          local_sum += x_ni * (1.0 / basis_eval(phi, u, i, 0, q + 1)) *
+                       sqrt_gm(i, q + 1) * weights(q);
         }
-        lsum += local_sum * grid.get_widths(i);
+        lsum += local_sum * dr(i);
       },
-      output);
+      Kokkos::Sum<double>(output));
 
   if (grid.do_geometry()) {
     output *= constants::FOURPI;
@@ -374,30 +417,33 @@ inline auto total_mass_ni56(const State &state, const GridStructure &grid,
 inline auto total_mass_co56(const State &state, const GridStructure &grid,
                             const basis::ModalBasis *fluid_basis,
                             const basis::ModalBasis * /*rad_basis*/) {
-  static constexpr int ilo = 1;
-  const auto &ihi = grid.get_ihi();
-  const auto &nNodes = grid.get_n_nodes();
+  using basis::basis_eval;
+  const auto &nNodes = grid.n_nodes();
+  static const IndexRange ib(grid.domain<Domain::Interior>());
+  const auto dr = grid.widths();
+  const auto sqrt_gm = grid.sqrt_gm();
+  const auto weights = grid.weights();
 
+  const auto phi = fluid_basis->phi();
   const auto u = state.u_cf();
   const auto mass_fractions = state.comps()->mass_fractions();
   const auto *const species_indexer = state.comps()->species_indexer();
   const auto ind_x = species_indexer->get<int>("co56");
 
   double output = 0.0;
-  Kokkos::parallel_reduce(
-      "History :: TotalMassNi56", Kokkos::RangePolicy<>(ilo, ihi + 1),
-      KOKKOS_LAMBDA(const int &i, double &lsum) {
+  athelas::par_reduce(
+      DEFAULT_FLAT_LOOP_PATTERN, "History :: TotalMassCo56", DevExecSpace(),
+      ib.s, ib.e,
+      KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
-        for (int iN = 0; iN < nNodes; ++iN) {
-          const double X = grid.node_coordinate(i, iN);
-          const double x_co =
-              fluid_basis->basis_eval(mass_fractions, i, ind_x, iN + 1);
-          local_sum += x_co * (1.0 / fluid_basis->basis_eval(u, i, 0, iN + 1)) *
-                       grid.get_sqrt_gm(X) * grid.get_weights(iN);
+        for (int q = 0; q < nNodes; ++q) {
+          const double x_co = basis_eval(phi, mass_fractions, i, ind_x, q + 1);
+          local_sum += x_co * (1.0 / basis_eval(phi, u, i, 0, q + 1)) *
+                       sqrt_gm(i, q + 1) * weights(q);
         }
-        lsum += local_sum * grid.get_widths(i);
+        lsum += local_sum * dr(i);
       },
-      output);
+      Kokkos::Sum<double>(output));
 
   if (grid.do_geometry()) {
     output *= constants::FOURPI;
@@ -408,30 +454,33 @@ inline auto total_mass_co56(const State &state, const GridStructure &grid,
 inline auto total_mass_fe56(const State &state, const GridStructure &grid,
                             const basis::ModalBasis *fluid_basis,
                             const basis::ModalBasis * /*rad_basis*/) {
-  static constexpr int ilo = 1;
-  const auto &ihi = grid.get_ihi();
-  const auto &nNodes = grid.get_n_nodes();
+  using basis::basis_eval;
+  const auto &nNodes = grid.n_nodes();
+  static const IndexRange ib(grid.domain<Domain::Interior>());
+  const auto dr = grid.widths();
+  const auto sqrt_gm = grid.sqrt_gm();
+  const auto weights = grid.weights();
 
+  const auto phi = fluid_basis->phi();
   const auto u = state.u_cf();
   const auto mass_fractions = state.comps()->mass_fractions();
   const auto *const species_indexer = state.comps()->species_indexer();
   const auto ind_x = species_indexer->get<int>("fe56");
 
   double output = 0.0;
-  Kokkos::parallel_reduce(
-      "History :: TotalMassNi56", Kokkos::RangePolicy<>(ilo, ihi + 1),
-      KOKKOS_LAMBDA(const int &i, double &lsum) {
+  athelas::par_reduce(
+      DEFAULT_FLAT_LOOP_PATTERN, "History :: TotalMassFe56", DevExecSpace(),
+      ib.s, ib.e,
+      KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
-        for (int iN = 0; iN < nNodes; ++iN) {
-          const double X = grid.node_coordinate(i, iN);
-          const double x_fe =
-              fluid_basis->basis_eval(mass_fractions, i, ind_x, iN + 1);
-          local_sum += x_fe * (1.0 / fluid_basis->basis_eval(u, i, 0, iN + 1)) *
-                       grid.get_sqrt_gm(X) * grid.get_weights(iN);
+        for (int q = 0; q < nNodes; ++q) {
+          const double x_fe = basis_eval(phi, mass_fractions, i, ind_x, q + 1);
+          local_sum += x_fe * (1.0 / basis_eval(phi, u, i, 0, q + 1)) *
+                       sqrt_gm(i, q + 1) * weights(q);
         }
-        lsum += local_sum * grid.get_widths(i);
+        lsum += local_sum * dr(i);
       },
-      output);
+      Kokkos::Sum<double>(output));
 
   if (grid.do_geometry()) {
     output *= constants::FOURPI;

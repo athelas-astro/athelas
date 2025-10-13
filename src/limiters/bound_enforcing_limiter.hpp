@@ -39,25 +39,24 @@ void apply_bound_enforcing_limiter(AthelasArray3D<double> U,
                                    const basis::ModalBasis *basis);
 void apply_bound_enforcing_limiter_rad(AthelasArray3D<double> U,
                                        const basis::ModalBasis *basis);
-auto compute_theta_state(AthelasArray3D<double> U,
-                         const basis::ModalBasis *basis, double theta, int q,
-                         int ix, int iN) -> double;
+auto compute_theta_state(AthelasArray3D<double> U, const AthelasArray3D<double>,
+                         double theta, int q, int ix, int iN) -> double;
 auto target_func(double theta, AthelasArray3D<double> U,
-                 const basis::ModalBasis *basis, int ix, int iN) -> double;
+                 const AthelasArray3D<double> phi, int ix, int iN) -> double;
 auto target_func_deriv(double theta, AthelasArray3D<double> U,
-                       const basis::ModalBasis *basis, int ix, int iN)
+                       const AthelasArray3D<double> phi, int ix, int iN)
     -> double;
 auto target_func_rad_flux(double theta, AthelasArray3D<double> U,
-                          const basis::ModalBasis *basis, int ix, int iN)
+                          const AthelasArray3D<double> phi, int ix, int iN)
     -> double;
 auto target_func_rad_flux_deriv(double theta, AthelasArray3D<double> U,
-                                const basis::ModalBasis *basis, int ix, int iN)
-    -> double;
+                                const AthelasArray3D<double> phi, int ix,
+                                int iN) -> double;
 auto target_func_rad_energy(double theta, AthelasArray3D<double> U,
-                            const basis::ModalBasis *basis, int ix, int iN)
+                            const AthelasArray3D<double> phi, int ix, int iN)
     -> double;
 auto target_func_rad_energy_deriv(double theta, AthelasArray3D<double> U,
-                                  const basis::ModalBasis *basis, int ix,
+                                  const AthelasArray3D<double> phi, int ix,
                                   int iN) -> double;
 
 template <typename F>

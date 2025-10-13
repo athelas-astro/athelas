@@ -33,7 +33,7 @@ void hydrostatic_balance_init(State *state, GridStructure *grid, ProblemIn *pin,
   AthelasArray3D<double> uAF = state->u_af();
 
   static const IndexRange ib(grid->domain<Domain::Interior>());
-  const int nNodes = grid->get_n_nodes();
+  const int nNodes = grid->n_nodes();
 
   constexpr static int q_Tau = 0;
   constexpr static int q_V = 1;
@@ -48,7 +48,7 @@ void hydrostatic_balance_init(State *state, GridStructure *grid, ProblemIn *pin,
   const auto polytropic_k = pin->param()->get<double>("eos.k");
   const auto polytropic_n = pin->param()->get<double>("eos.n");
 
-  const double gamma = get_gamma(eos);
+  const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
 
   auto rho_from_p = [&polytropic_k, &polytropic_n](const double p) -> double {

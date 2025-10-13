@@ -27,7 +27,7 @@ void HydrostaticEquilibrium::solve(State *state, GridStructure *grid,
 
   static constexpr int ilo = 1;
   const int ihi = grid->get_ihi();
-  const int nNodes = grid->get_n_nodes();
+  const int nNodes = grid->n_nodes();
   const double rmax = grid->get_x_r();
   const double dr = rmax / ihi;
   // Subtely: do we associate rho_c_ with the inner boundary or first nodal
@@ -46,7 +46,7 @@ void HydrostaticEquilibrium::solve(State *state, GridStructure *grid,
   // host data
   auto h_uAF = Kokkos::create_mirror_view(uAF);
 
-  const int size = grid->get_n_elements() * nNodes + 2 * nNodes;
+  const int size = grid->n_elements() * nNodes + 2 * nNodes;
   AthelasArray1D<double> d_r("host radius", size);
   std::vector<double> pressure(1);
   std::vector<double> radius(1);

@@ -75,19 +75,17 @@ class NickelHeatingPackage {
   KOKKOS_INLINE_FUNCTION auto
   deposition_function(const AthelasArray3D<double> ucf,
                       const atom::CompositionData *const comps,
-                      const GridStructure &grid, const int ix,
+                      const AthelasArray3D<double> phi, const int ix,
                       const int node) const -> double {
-    double f_dep = 0.0;
+    using basis::basis_eval;
     if constexpr (Model == NiHeatingModel::FullTrapping) {
-      const auto *const species_indexer = comps->species_indexer();
-      const auto ind_ni = species_indexer->get<int>("ni56");
-      const auto ind_co = species_indexer->get<int>("co56");
+      static const auto *const species_indexer = comps->species_indexer();
+      static const auto ind_ni = species_indexer->get<int>("ni56");
+      static const auto ind_co = species_indexer->get<int>("co56");
       const auto mass_fractions = comps->mass_fractions();
-      const double x_ni =
-          basis_->basis_eval(mass_fractions, ix, ind_ni, node + 1);
-      const double x_co =
-          basis_->basis_eval(mass_fractions, ix, ind_co, node + 1);
-      f_dep = eps_nickel_cobalt(x_ni, x_co);
+      const double x_ni = basis_eval(phi, mass_fractions, ix, ind_ni, node + 1);
+      const double x_co = basis_eval(phi, mass_fractions, ix, ind_co, node + 1);
+      return eps_nickel_cobalt(x_ni, x_co);
     } else if constexpr (Model == NiHeatingModel::Swartz) {
       THROW_ATHELAS_ERROR("Swartz model not implemented!");
     } else if constexpr (Model == NiHeatingModel::Jeffery) {
@@ -96,18 +94,15 @@ class NickelHeatingPackage {
       // and the results stored in int_etau_domega_
       const double I = 1.0 - 0.5 * int_etau_domega_(ix, node);
 
-      const auto *const species_indexer = comps->species_indexer();
-      const auto ind_ni = species_indexer->get<int>("ni56");
-      const auto ind_co = species_indexer->get<int>("co56");
+      static const auto *const species_indexer = comps->species_indexer();
+      static const auto ind_ni = species_indexer->get<int>("ni56");
+      static const auto ind_co = species_indexer->get<int>("co56");
       const auto mass_fractions = comps->mass_fractions();
-      const double x_ni =
-          basis_->basis_eval(mass_fractions, ix, ind_ni, node + 1);
-      const double x_co =
-          basis_->basis_eval(mass_fractions, ix, ind_co, node + 1);
-      f_dep = eps_nickel(x_ni) * (F_PE_NI_ + F_GM_NI_ * I) +
-              eps_cobalt(x_co) * (F_PE_CO_ + F_GM_CO_ * I);
+      const double x_ni = basis_eval(phi, mass_fractions, ix, ind_ni, node + 1);
+      const double x_co = basis_eval(phi, mass_fractions, ix, ind_co, node + 1);
+      return eps_nickel(x_ni) * (F_PE_NI_ + F_GM_NI_ * I) +
+             eps_cobalt(x_co) * (F_PE_CO_ + F_GM_CO_ * I);
     }
-    return f_dep;
   }
 
   KOKKOS_FORCEINLINE_FUNCTION

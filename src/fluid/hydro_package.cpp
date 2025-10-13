@@ -6,6 +6,7 @@
  */
 #include <limits>
 
+#include "Kokkos_Macros.hpp"
 #include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "bc/boundary_conditions.hpp"
@@ -21,7 +22,7 @@
 
 namespace athelas::fluid {
 
-using basis::ModalBasis;
+using basis::ModalBasis, basis::basis_eval;
 using eos::EOS;
 
 HydroPackage::HydroPackage(const ProblemIn * /*pin*/, int n_stages, EOS *eos,
@@ -46,7 +47,7 @@ void HydroPackage::update_explicit(const State *const state,
 
   const auto uaf = state->u_af();
 
-  const auto &order = basis_->get_order();
+  const auto &order = basis_->order();
   static const IndexRange ib(grid.domain<Domain::Interior>());
   static const IndexRange kb(order);
   static const IndexRange vb(NUM_VARS_);
@@ -57,20 +58,23 @@ void HydroPackage::update_explicit(const State *const state,
   // --- Zero out dU  ---
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Hydro :: Zero dU", DevExecSpace(), ib.s, ib.e,
-      kb.s, kb.e, vb.s, vb.e,
-      KOKKOS_LAMBDA(const int i, const int k, const int v) {
-        dU(i, k, v) = 0.0;
+      kb.s, kb.e, KOKKOS_LAMBDA(const int i, const int k) {
+        for (int v = vb.s; v <= vb.e; ++v) {
+          dU(i, k, v) = 0.0;
+        }
       });
 
   // --- Fluid Increment : Dvbergence ---
   fluid_divergence(state, dU, grid, stage);
 
   // --- Dvbide update by mass mastrib ---
+  const auto inv_mkk = basis_->inv_mass_matrix();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Hydro :: dU / M_kk", DevExecSpace(), ib.s, ib.e,
-      kb.s, kb.e, vb.s, vb.e,
-      KOKKOS_CLASS_LAMBDA(const int i, const int k, const int v) {
-        dU(i, k, v) /= basis_->get_mass_matrix(i, k);
+      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+        for (int v = vb.s; v <= vb.e; ++v) {
+          dU(i, k, v) *= inv_mkk(i, k);
+        }
       });
 
   // --- Increment from Geometry ---
@@ -92,20 +96,29 @@ void HydroPackage::fluid_divergence(const State *const state,
       Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
   const auto uaf = state->u_af();
 
-  const auto &nNodes = grid.get_n_nodes();
-  const auto &order = basis_->get_order();
+  const auto &nNodes = grid.n_nodes();
+  const auto &order = basis_->order();
   static const IndexRange ib(grid.domain<Domain::Interior>());
   static const IndexRange kb(order);
   static const IndexRange vb(NUM_VARS_);
+
+  const auto x_l = grid.x_l();
+  const auto sqrt_gm = grid.sqrt_gm();
+  const auto weights = grid.weights();
+
+  const auto phi = basis_->phi();
+  const auto dphis = basis_->dphi();
 
   // --- Interpolate Conserved Variable to Interfaces ---
 
   // Left/Right face states
   par_for(
-      DEFAULT_LOOP_PATTERN, "Hydro :: Interface States", DevExecSpace(), ib.s,
-      ib.e + 1, vb.s, vb.e, KOKKOS_CLASS_LAMBDA(const int i, const int v) {
-        u_f_l_(i, v) = basis_->basis_eval(ucf, i - 1, v, nNodes + 1);
-        u_f_r_(i, v) = basis_->basis_eval(ucf, i, v, 0);
+      DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Interface States", DevExecSpace(),
+      ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
+        for (int v = vb.s; v <= vb.e; ++v) {
+          u_f_l_(i, v) = basis_eval(phi, ucf, i - 1, v, nNodes + 1);
+          u_f_r_(i, v) = basis_eval(phi, ucf, i, v, 0);
+        }
       });
 
   // --- Calc numerical flux at all faces ---
@@ -140,40 +153,33 @@ void HydroPackage::fluid_divergence(const State *const state,
   // --- Surface Term ---
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Hydro :: Surface Term", DevExecSpace(), ib.s, ib.e,
-      kb.s, kb.e, vb.s, vb.e,
-      KOKKOS_CLASS_LAMBDA(const int i, const int k, const int v) {
-        const auto &Poly_L = basis_->get_phi(i, 0, k);
-        const auto &Poly_R = basis_->get_phi(i, nNodes + 1, k);
-        const auto &X_L = grid.get_left_interface(i);
-        const auto &X_R = grid.get_left_interface(i + 1);
-        const auto &SqrtGm_L = grid.get_sqrt_gm(X_L);
-        const auto &SqrtGm_R = grid.get_sqrt_gm(X_R);
-
-        dU(i, k, v) -= (+dFlux_num_(i + 1, v) * Poly_R * SqrtGm_R -
-                        dFlux_num_(i + 0, v) * Poly_L * SqrtGm_L);
+      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+        for (int v = vb.s; v <= vb.e; ++v) {
+          dU(i, k, v) -= (+dFlux_num_(i + 1, v) * phi(i, nNodes + 1, k) *
+                              sqrt_gm(i, nNodes + 1) -
+                          dFlux_num_(i + 0, v) * phi(i, 0, k) * sqrt_gm(i, 0));
+        }
       });
 
   if (order > 1) [[likely]] {
     // --- Volume Term ---
     athelas::par_for(
         DEFAULT_LOOP_PATTERN, "Hydro :: Volume Term", DevExecSpace(), ib.s,
-        ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+        ib.e, kb.s, kb.e, KOKKOS_LAMBDA(const int i, const int k) {
           double local_sum1 = 0.0;
           double local_sum2 = 0.0;
           double local_sum3 = 0.0;
           for (int q = 0; q < nNodes; ++q) {
-            const double weight = grid.get_weights(q);
-            const double dphi = basis_->get_d_phi(i, q + 1, k);
-            const double X = grid.node_coordinate(i, q);
-            const double sqrt_gm = grid.get_sqrt_gm(X);
-
-            const double vel = basis_->basis_eval(ucf, i, 1, q + 1);
+            const double vel = basis_eval(phi, ucf, i, 1, q + 1);
             const double P = uaf(i, q + 1, 0);
             const auto [flux1, flux2, flux3] = flux_fluid(vel, P);
+            const double w = weights(q);
+            const double dphi = dphis(i, q + 1, k);
+            const double sqrtgm = sqrt_gm(i, q + 1);
 
-            local_sum1 += weight * flux1 * dphi * sqrt_gm;
-            local_sum2 += weight * flux2 * dphi * sqrt_gm;
-            local_sum3 += weight * flux3 * dphi * sqrt_gm;
+            local_sum1 += w * flux1 * dphi * sqrtgm;
+            local_sum2 += w * flux2 * dphi * sqrtgm;
+            local_sum3 += w * flux3 * dphi * sqrtgm;
           }
 
           dU(i, k, 0) += local_sum1;
@@ -188,11 +194,17 @@ void HydroPackage::fluid_geometry(const AthelasArray3D<double> ucf,
                                   const AthelasArray3D<double> uaf,
                                   AthelasArray3D<double> dU,
                                   const GridStructure &grid) const {
-  const int &nNodes = grid.get_n_nodes();
-  const int &order = basis_->get_order();
+  const int &nNodes = grid.n_nodes();
+  const int &order = basis_->order();
   static const IndexRange ib(grid.domain<Domain::Interior>());
   static const IndexRange kb(order);
 
+  const auto sqrt_gm = grid.sqrt_gm();
+  const auto dx = grid.widths();
+  const auto weights = grid.weights();
+  const auto position = grid.nodal_grid();
+  const auto phi = basis_->phi();
+  const auto inv_mkk = basis_->inv_mass_matrix();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Hydro :: Geometry Source", DevExecSpace(), ib.s,
       ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
@@ -200,14 +212,10 @@ void HydroPackage::fluid_geometry(const AthelasArray3D<double> ucf,
         for (int q = 0; q < nNodes; ++q) {
           const double P = uaf(i, q + 1, 0);
 
-          const double X = grid.node_coordinate(i, q);
-
-          local_sum +=
-              grid.get_weights(q) * P * basis_->get_phi(i, q + 1, k) * X;
+          local_sum += weights(q) * P * phi(i, q + 1, k) * position(i, q);
         }
 
-        dU(i, k, 1) += (2.0 * local_sum * grid.get_widths(i)) /
-                       basis_->get_mass_matrix(i, k);
+        dU(i, k, 1) += (2.0 * local_sum * dx(i)) * inv_mkk(i, k);
       });
 }
 /**
@@ -223,6 +231,7 @@ auto HydroPackage::min_timestep(const State *const state,
   static constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
 
   static const IndexRange ib(grid.domain<Domain::Interior>());
+  const auto dr = grid.widths();
 
   double dt_out = 0.0;
   athelas::par_reduce(
@@ -233,8 +242,6 @@ auto HydroPackage::min_timestep(const State *const state,
         const double tau_x = ucf(i, 0, 0);
         const double vel_x = ucf(i, 0, 1);
         const double eint_x = ucf(i, 0, 2);
-
-        const double dr = grid.get_widths(i);
 
         // NOTE: This is not really correct. I'm using a nodal location for
         // getting the ionization terms but cell average quantities for the
@@ -249,7 +256,7 @@ auto HydroPackage::min_timestep(const State *const state,
             sound_speed_from_conserved(eos_, tau_x, vel_x, eint_x, lambda);
         const double eigval = Cs + std::abs(vel_x);
 
-        const double dt_old = std::abs(dr) / std::abs(eigval);
+        const double dt_old = std::abs(dr(i)) / std::abs(eigval);
 
         lmin = std::min(dt_old, lmin);
       },
@@ -278,7 +285,7 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
   auto uPF = state->u_pf();
   auto uAF = state->u_af();
 
-  const int nNodes = grid.get_n_nodes();
+  const int nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Entire>());
   static const bool ionization_enabled = state->ionization_enabled();
 
@@ -293,13 +300,14 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
     atom::fill_derived_ionization(state, &grid, basis_);
   }
 
+  const auto phi = basis_->phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Fill derived", DevExecSpace(), ib.s,
       ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
         for (int q = 0; q < nNodes + 2; ++q) {
-          const double tau = basis_->basis_eval(uCF, i, 0, q);
-          const double vel = basis_->basis_eval(uCF, i, 1, q);
-          const double emt = basis_->basis_eval(uCF, i, 2, q);
+          const double tau = basis_eval(phi, uCF, i, 0, q);
+          const double vel = basis_eval(phi, uCF, i, 1, q);
+          const double emt = basis_eval(phi, uCF, i, 2, q);
 
           const double rho = 1.0 / tau;
           const double momentum = rho * vel;
@@ -308,6 +316,7 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
           double lambda[8];
           // This is probably not the cleanest logic, but setups with
           // ionization enabled and Paczynski disbled are an outlier.
+          // Maybe I can do this always?
           if (ionization_enabled) {
             atom::paczynski_terms(state, i, q, lambda);
           }
@@ -348,7 +357,7 @@ void HydroPackage::set_active(const bool active) { active_ = active; }
   return flux_u_(stage, i);
 }
 
-[[nodiscard]] KOKKOS_FUNCTION auto HydroPackage::get_basis() const
+[[nodiscard]] KOKKOS_FUNCTION auto HydroPackage::basis() const
     -> const ModalBasis * {
   return basis_;
 }

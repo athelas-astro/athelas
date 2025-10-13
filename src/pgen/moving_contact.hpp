@@ -29,7 +29,7 @@ void moving_contact_init(State *state, GridStructure *grid, ProblemIn *pin,
   AthelasArray3D<double> uPF = state->u_pf();
 
   static const IndexRange ib(grid->domain<Domain::Interior>());
-  const int nNodes = grid->get_n_nodes();
+  const int nNodes = grid->n_nodes();
 
   constexpr static int q_Tau = 0;
   constexpr static int q_V = 1;
@@ -43,7 +43,7 @@ void moving_contact_init(State *state, GridStructure *grid, ProblemIn *pin,
   const auto P_L = pin->param()->get<double>("problem.params.pL", 1.0);
   const auto P_R = pin->param()->get<double>("problem.params.pR", 1.0);
 
-  const double gamma = get_gamma(eos);
+  const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
 
   athelas::par_for(

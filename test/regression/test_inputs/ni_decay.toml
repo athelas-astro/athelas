@@ -1,13 +1,13 @@
 [problem]
 problem = "ni_decay"
 t_end = 52488.0 # 1/10 half-life of 56Ni
-nlim = -1
+nlim = 100
 geometry = "spherical"
 restart = false
 xl = 0.0
 xr = 3.622e9
 cfl = 0.5
-nx = 16
+nx = 64
 grid_type = "uniform"
 
 [problem.params]

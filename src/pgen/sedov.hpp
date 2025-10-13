@@ -32,7 +32,7 @@ void sedov_init(State *state, GridStructure *grid, ProblemIn *pin,
   AthelasArray3D<double> uPF = state->u_pf();
 
   static const IndexRange ib(grid->domain<Domain::Interior>());
-  static const int nNodes = grid->get_n_nodes();
+  static const int nNodes = grid->n_nodes();
 
   constexpr static int q_Tau = 0;
   constexpr static int q_V = 1;
@@ -47,7 +47,7 @@ void sedov_init(State *state, GridStructure *grid, ProblemIn *pin,
   const int origin = 1;
 
   // TODO(astrobarker): geometry aware volume for energy
-  const double gamma = get_gamma(eos);
+  const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
   const double volume =
       (4.0 * M_PI / 3.0) * std::pow(grid->get_left_interface(origin + 1), 3.0);

@@ -28,13 +28,13 @@ namespace athelas::eos {
 }
 
 [[nodiscard]] auto
-Polytropic::get_gamma(const double /*tau*/, const double /*V*/,
-                      const double /*EmT*/,
-                      const double *const /*lambda*/) const noexcept -> double {
-  return 1.0 + 1.0 / n_; // Gamma_2
+Polytropic::gamma1(const double /*tau*/, const double /*V*/,
+                   const double /*EmT*/,
+                   const double *const /*lambda*/) const noexcept -> double {
+  return 1.0 + 1.0 / n_;
 }
 
-[[nodiscard]] auto Polytropic::get_gamma() const noexcept -> double {
+[[nodiscard]] auto Polytropic::gamma1() const noexcept -> double {
   return 1.0 + 1.0 / n_;
 }
 
