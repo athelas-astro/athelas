@@ -32,7 +32,7 @@ void ejecta_csm_init(State *state, GridStructure *grid, ProblemIn *pin,
   AthelasArray3D<double> uPF = state->u_pf();
 
   static const IndexRange ib(grid->domain<Domain::Interior>());
-  static const int nNodes = grid->get_n_nodes();
+  static const int nNodes = grid->n_nodes();
 
   constexpr static int q_Tau = 0;
   constexpr static int q_V = 1;
@@ -46,7 +46,7 @@ void ejecta_csm_init(State *state, GridStructure *grid, ProblemIn *pin,
 
   const double rstar3 = rstar * rstar * rstar;
 
-  const double gamma = get_gamma(eos);
+  const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
 
   // Phase 1: Initialize nodal values (always done)

@@ -8,15 +8,15 @@ using eos::EOS;
 
 OperatorSplitStepper::OperatorSplitStepper(const GridStructure &grid, EOS *eos,
                                            const int nvars)
-    : nvars_evolved_(nvars), dU_("OperatorSplit::dU", grid.get_n_elements() + 2,
-                                 grid.get_n_nodes(), nvars),
+    : nvars_evolved_(nvars),
+      dU_("OperatorSplit::dU", grid.n_elements() + 2, grid.n_nodes(), nvars),
       eos_(eos) {}
 
 void OperatorSplitStepper::step(PackageManager *pkgs, State *state,
                                 const GridStructure &grid, const double t,
                                 const double dt) {
 
-  const auto &order = grid.get_n_nodes();
+  const auto &order = grid.n_nodes();
   const auto &ihi = grid.get_ihi();
 
   auto U = state->u_cf();

@@ -42,7 +42,7 @@ void fill_ghost_zones(AthelasArray3D<double> U, const GridStructure *grid,
                       const basis::ModalBasis *basis, BoundaryConditions *bcs,
                       const std::tuple<int, int> &vars) {
 
-  const int nX = grid->get_n_elements();
+  const int nX = grid->n_elements();
 
   auto this_bc = get_bc_data<N>(bcs);
 
@@ -67,7 +67,7 @@ KOKKOS_INLINE_FUNCTION void
 apply_bc(const BoundaryConditionsData<N> &bc, AthelasArray3D<double> U,
          const int v, const int ghost_cell, const int interior_cell,
          const basis::ModalBasis *basis) {
-  const int num_modes = basis->get_order();
+  const int num_modes = basis->order();
   switch (bc.type) {
   case BcType::Outflow:
     for (int k = 0; k < num_modes; k++) {

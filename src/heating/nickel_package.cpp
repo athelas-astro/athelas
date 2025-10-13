@@ -26,7 +26,7 @@ NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,
   const int nx = pin->param()->get<int>("problem.nx");
   const int nnodes = pin->param()->get<int>("fluid.nnodes");
   tau_gamma_ = AthelasArray3D<double>("tau_gamma", nx + 2, nnodes,
-                                      2); // TODO(astrobarker): make runtime
+                                      8); // TODO(astrobarker): make runtime
   int_etau_domega_ =
       AthelasArray2D<double>("int_etau_domega", nx + 2,
                              nnodes); // integration of e^-tau dOmega
@@ -77,12 +77,11 @@ void NickelHeatingPackage::ni_update(const AthelasArray3D<double> ucf,
                                      AthelasArray3D<double> dU,
                                      const GridStructure &grid,
                                      const TimeStepInfo &dt_info) const {
-  const int &nNodes = grid.get_n_nodes();
-  const int &order = basis_->get_order();
+  const int &nNodes = grid.n_nodes();
+  const int &order = basis_->order();
   static const IndexRange ib(grid.domain<Domain::Interior>());
   static const IndexRange kb(order);
 
-  const auto mass = grid.mass();
   const auto mass_fractions_stages = comps->mass_fractions_stages();
   const auto mass_fractions =
       Kokkos::subview(mass_fractions_stages, dt_info.stage, Kokkos::ALL,
@@ -95,6 +94,11 @@ void NickelHeatingPackage::ni_update(const AthelasArray3D<double> ucf,
   static const auto ind_co = species_indexer->get<int>("co56");
   static const auto ind_fe = species_indexer->get<int>("fe56");
 
+  const auto mass = grid.mass();
+  const auto weights = grid.weights();
+  const auto phi = basis_->phi();
+  const auto inv_mkk = basis_->inv_mass_matrix();
+
   // NOTE: This source term uses a mass integral instead of a volumetric one.
   // It's just simpler and natural here.
   athelas::par_for(
@@ -102,13 +106,12 @@ void NickelHeatingPackage::ni_update(const AthelasArray3D<double> ucf,
       ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double weight = grid.get_weights(q);
           const double f_dep =
-              this->template deposition_function<Model>(ucf, comps, grid, i, q);
-          local_sum += f_dep * weight * basis_->get_phi(i, q + 1, k);
+              this->template deposition_function<Model>(ucf, comps, phi, i, q);
+          local_sum += f_dep * weights(q) * phi(i, q + 1, k);
         }
 
-        const double dx_o_mkk = mass(i) / basis_->get_mass_matrix(i, k);
+        const double dx_o_mkk = mass(i) * inv_mkk(i, k);
         dU(i, k, 2) += local_sum * dx_o_mkk;
       });
 
@@ -169,15 +172,15 @@ void NickelHeatingPackage::fill_derived(State *state, const GridStructure &grid,
 
   const auto ye = state->comps()->ye();
 
-  const int nnodes = grid.get_n_nodes();
-  const int nx = grid.get_n_elements();
+  const int nnodes = grid.n_nodes();
+  const int nx = grid.n_elements();
   static const RadialGridIndexer grid_indexer(nx, nnodes);
   const auto coords = grid.nodal_grid();
   static const IndexRange ib(grid.domain<Domain::Interior>());
   static const IndexRange nb(nnodes);
 
   const int nangles = tau_gamma_.extent(2); // TODO(astrobarker): make runtime!
-  const int nr = 16; // TODO(astrobarker): make runtime!
+  const int nr = 8; // TODO(astrobarker): make runtime!
   const double inv_nr = 1.0 / nr;
   const double th_max =
       constants::PI; // Perhaps make this not go into the excised region

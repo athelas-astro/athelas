@@ -9,6 +9,7 @@
  *            - legendre
  *            - taylor
  *
+ * TODO(astrobarker): [GPU] probably form basis on host + copy
  * TODO(astrobarker): need center of mass for some probs?
  * TODO(astrobarker): derivative matrix
  */
@@ -17,6 +18,7 @@
 #include <cstdlib>
 #include <print>
 
+#include "Kokkos_Macros.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "kokkos_abstraction.hpp"
 #include "loop_layout.hpp"
@@ -35,6 +37,7 @@ ModalBasis::ModalBasis(poly_basis basis, const AthelasArray3D<double> uPF,
       mSize_((nN) * (nN + 2) * (nElements + 2)),
       density_weight_(density_weight),
       mass_matrix_("MassMatrix", nElements + 2, pOrder),
+      inv_mass_matrix_("Inverse MassMatrix", nElements + 2, pOrder),
       phi_("phi_", nElements + 2, nN + 2, pOrder),
       dphi_("dphi_", nElements + 2, nN + 2, pOrder) {
   // --- Compute grid quantities ---
@@ -179,15 +182,18 @@ auto ModalBasis::inner_product(const int m, const int n, const int ix,
                                const double eta_c,
                                const AthelasArray3D<double> uPF,
                                const GridStructure *grid) const -> double {
+  const auto weights = grid->weights();
+  const auto nodes = grid->nodes();
+  const auto dr = grid->widths();
+  const auto sqrt_gm = grid->sqrt_gm();
+
   double result = 0.0;
   for (int iN = 0; iN < nNodes_; iN++) {
     // include rho in integrand if necessary
     const double rho = density_weight_ ? uPF(ix, iN + 1, 0) : 1.0;
-    const double eta_q = grid->get_nodes(iN);
-    const double X = grid->node_coordinate(ix, iN);
-    result += func_(n, eta_q, eta_c) * phi_(ix, iN + 1, m) *
-              grid->get_weights(iN) * rho * grid->get_widths(ix) *
-              grid->get_sqrt_gm(X);
+    const double eta_q = nodes(iN);
+    result += func_(n, eta_q, eta_c) * phi_(ix, iN + 1, m) * weights(iN) * rho *
+              dr(ix) * sqrt_gm(ix, iN + 1);
   }
 
   return result;
@@ -203,14 +209,17 @@ auto ModalBasis::inner_product(const int n, const int ix,
                                const double /*eta_c*/,
                                const AthelasArray3D<double> uPF,
                                const GridStructure *grid) const -> double {
+  const auto weights = grid->weights();
+  const auto nodes = grid->nodes();
+  const auto dr = grid->widths();
+  const auto sqrt_gm = grid->sqrt_gm();
+
   double result = 0.0;
   for (int iN = 0; iN < nNodes_; iN++) {
     // include rho in integrand if necessary
     const double rho = density_weight_ ? uPF(ix, iN + 1, 0) : 1.0;
-    const double X = grid->node_coordinate(ix, iN);
-    result += phi_(ix, iN + 1, n) * phi_(ix, iN + 1, n) *
-              grid->get_weights(iN) * rho * grid->get_widths(ix) *
-              grid->get_sqrt_gm(X);
+    result += phi_(ix, iN + 1, n) * phi_(ix, iN + 1, n) * weights(iN) * rho *
+              dr(ix) * sqrt_gm(ix, iN + 1);
   }
 
   return result;
@@ -317,6 +326,10 @@ void ModalBasis::check_orthogonality(const AthelasArray3D<double> uPF,
   static const int ilo = 1;
   static const int ihi = grid->get_ihi();
 
+  const auto dr = grid->widths();
+  const auto weights = grid->weights();
+  const auto sqrt_gm = grid->sqrt_gm();
+
   for (int ix = ilo; ix <= ihi; ix++) {
     for (int k1 = 0; k1 < order_; k1++) {
       for (int k2 = 0; k2 < order_; k2++) {
@@ -324,11 +337,9 @@ void ModalBasis::check_orthogonality(const AthelasArray3D<double> uPF,
         for (int i_eta = 1; i_eta <= nNodes_; i_eta++) // loop over quadratures
         {
           const double rho = density_weight_ ? uPF(ix, i_eta, 0) : 1.0;
-          const double X = grid->node_coordinate(ix, i_eta - 1);
           // Not using an inner_product function because their API is odd..
           result += phi_(ix, i_eta, k1) * phi_(ix, i_eta, k2) * rho *
-                    grid->get_weights(i_eta - 1) * grid->get_widths(ix) *
-                    grid->get_sqrt_gm(X);
+                    weights(i_eta - 1) * dr(ix) * sqrt_gm(ix, i_eta);
         }
 
         if (k1 == k2 && result == 0.0) {
@@ -356,7 +367,11 @@ void ModalBasis::compute_mass_matrix(const AthelasArray3D<double> uPF,
                                      const GridStructure *grid) {
   static const int ilo = 1;
   static const int ihi = grid->get_ihi();
-  const int nNodes_ = grid->get_n_nodes();
+  const int nNodes_ = grid->n_nodes();
+
+  const auto dr = grid->widths();
+  const auto sqrt_gm = grid->sqrt_gm();
+  const auto weights = grid->weights();
 
   for (int ix = ilo; ix <= ihi; ix++) {
     for (int k = 0; k < order_; k++) {
@@ -364,12 +379,11 @@ void ModalBasis::compute_mass_matrix(const AthelasArray3D<double> uPF,
       for (int iN = 0; iN < nNodes_; iN++) {
         // include rho in integrand if necessary
         const double rho = density_weight_ ? uPF(ix, iN + 1, 0) : 1.0;
-        const double X = grid->node_coordinate(ix, iN);
-        result += phi_(ix, iN + 1, k) * phi_(ix, iN + 1, k) *
-                  grid->get_weights(iN) * grid->get_widths(ix) *
-                  grid->get_sqrt_gm(X) * rho;
+        result += phi_(ix, iN + 1, k) * phi_(ix, iN + 1, k) * weights(iN) *
+                  dr(ix) * sqrt_gm(ix, iN + 1) * rho;
       }
       mass_matrix_(ix, k) = result;
+      inv_mass_matrix_(ix, k) = 1.0 / result;
     }
   }
 }
@@ -408,12 +422,6 @@ auto ModalBasis::basis_eval(AthelasArray1D<double> U, const int ix,
   return result;
 }
 
-// Accessor for phi_
-auto ModalBasis::get_phi(const int ix, const int i_eta, const int k) const
-    -> double {
-  return phi_(ix, i_eta, k);
-}
-
 [[nodiscard]] auto ModalBasis::phi() const noexcept -> AthelasArray3D<double> {
   return phi_;
 }
@@ -428,17 +436,22 @@ auto ModalBasis::get_d_phi(const int ix, const int i_eta, const int k) const
   return dphi_;
 }
 
-// Accessor for mass matrix
-auto ModalBasis::get_mass_matrix(const int ix, const int k) const -> double {
-  return mass_matrix_(ix, k);
+[[nodiscard]] auto ModalBasis::mass_matrix() const noexcept
+    -> AthelasArray2D<double> {
+  return mass_matrix_;
+}
+[[nodiscard]] auto ModalBasis::inv_mass_matrix() const noexcept
+    -> AthelasArray2D<double> {
+  return inv_mass_matrix_;
 }
 
 // Accessor for Order
-auto ModalBasis::get_order() const noexcept -> int { return order_; }
+auto ModalBasis::order() const noexcept -> int { return order_; }
 
 /**
  * L2 projection from nodal function to modal representation
  * Projects nodal_func(x) onto the modal basis for cell ix, quantity q
+ * TODO(astrobarker): [GPU] move inline
  *
  * Parameters:
  * -----------
@@ -449,6 +462,7 @@ auto ModalBasis::get_order() const noexcept -> int { return order_; }
  * ix: cell index
  * nodal_func: function that takes x coordinate and returns nodal value
  **/
+KOKKOS_INLINE_FUNCTION
 void ModalBasis::project_nodal_to_modal(
     AthelasArray3D<double> uCF, AthelasArray3D<double> uPF, GridStructure *grid,
     int q, int ix,
@@ -457,6 +471,10 @@ void ModalBasis::project_nodal_to_modal(
   for (int k = 0; k < order_; k++) {
     uCF(ix, k, q) = 0.0;
   }
+
+  const auto dr = grid->widths();
+  const auto weights = grid->weights();
+  const auto sqrt_gm = grid->sqrt_gm();
 
   // Compute L2 projection: <nodal_func, phi_k> / <phi_k, phi_k>
   for (int k = 0; k < order_; k++) {
@@ -469,8 +487,8 @@ void ModalBasis::project_nodal_to_modal(
       const double nodal_val = nodal_func(X, ix, iN);
       const double rho = density_weight_ ? uPF(ix, iN + 1, 0) : 1.0;
 
-      numerator += nodal_val * phi_(ix, iN + 1, k) * grid->get_weights(iN) *
-                   grid->get_widths(ix) * grid->get_sqrt_gm(X) * rho;
+      numerator += nodal_val * phi_(ix, iN + 1, k) * weights(iN) * dr(ix) *
+                   sqrt_gm(ix, iN + 1) * rho;
     }
 
     uCF(ix, k, q) = numerator / denominator;

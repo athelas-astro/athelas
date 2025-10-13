@@ -49,16 +49,16 @@ temperature_from_conserved(const EOS *const eos, const double tau,
       *eos);
 }
 
-KOKKOS_INLINE_FUNCTION auto get_gamma(const EOS *const eos, const double tau,
-                                      const double V, const double E,
-                                      const double *const lambda) -> double {
+KOKKOS_INLINE_FUNCTION auto gamma1(const EOS *const eos, const double tau,
+                                   const double V, const double E,
+                                   const double *const lambda) -> double {
   return std::visit([&tau, &V, &E, &lambda](
-                        auto &eos) { return eos.get_gamma(tau, V, E, lambda); },
+                        auto &eos) { return eos.gamma1(tau, V, E, lambda); },
                     *eos);
 }
 
-KOKKOS_INLINE_FUNCTION auto get_gamma(const EOS *const eos) -> double {
-  return std::visit([](auto &eos) { return eos.get_gamma(); }, *eos);
+KOKKOS_INLINE_FUNCTION auto gamma1(const EOS *const eos) -> double {
+  return std::visit([](auto &eos) { return eos.gamma1(); }, *eos);
 }
 
 KOKKOS_INLINE_FUNCTION auto initialize_eos(const ProblemIn *pin) -> EOS {

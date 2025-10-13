@@ -152,16 +152,6 @@ set( ATHELAS_SOURCES
   "src/timestepper/tableau.cpp"
   "src/timestepper/timestepper.cpp" )
 
-add_library(libathelas ${ATHELAS_SOURCES})
-set_target_properties(libathelas
-    PROPERTIES
-    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    ##RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-    PREFIX ""
-    SUFFIX ".so"
-)
-
 # hack because Clang is legacy..
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++ -fopenmp=libomp --std=c++23")
@@ -308,20 +298,6 @@ include_directories(${HDF5_INCLUDE_DIRS}) # seems to be needed for compilation o
 include_directories("external/tomlplusplus")
 
 # --- main ---
-# --- libathelas ---
-target_compile_options(libathelas PRIVATE 
-    -fPIC 
-    -Wall 
-    ${OpenMP_CXX_FLAGS}
-)
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    target_compile_options(libathelas PRIVATE -stdlib=libstdc++)
-    target_link_options(libathelas PRIVATE -stdlib=libstdc++)
-
-    # Add specific Clang flags for Kokkos
-    target_compile_options(libathelas PRIVATE -fopenmp=libomp)
-endif()
-target_link_libraries(libathelas kokkos Eigen3::Eigen)
 
 # --- athelas executable ---
 add_executable(athelas src/main.cpp ${ATHELAS_SOURCES})
@@ -334,7 +310,7 @@ set_target_properties(athelas PROPERTIES
 
 # Set compile options
 target_compile_options(athelas PRIVATE 
-    -fPIC 
+        #    -fPIC 
     -Wall 
     ${OpenMP_CXX_FLAGS}
 )
@@ -351,12 +327,9 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     endif()
 endif()
 
-# Add dependencies
-add_dependencies(athelas libathelas)
-
 # Link libraries (do this only once, with all libraries)
 target_link_libraries(athelas PRIVATE
-    libathelas
+        #    libathelas
     kokkos
     Eigen3::Eigen
     git_version

@@ -34,7 +34,7 @@ void ni_decay_init(State *state, GridStructure *grid, ProblemIn *pin,
   auto uAF = state->u_af();
 
   static const IndexRange ib(grid->domain<Domain::Interior>());
-  static const int nNodes = grid->get_n_nodes();
+  static const int nNodes = grid->n_nodes();
   static const int order = nNodes;
 
   const int q_Tau = 0;
@@ -55,13 +55,13 @@ void ni_decay_init(State *state, GridStructure *grid, ProblemIn *pin,
   }
 
   const double mu = 1.0 + constants::m_e / constants::m_p;
-  const double gamma = get_gamma(eos);
+  const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
   const double sie = constants::k_B * temperature / (gm1 * mu * constants::m_p);
 
   std::shared_ptr<atom::CompositionData> comps =
       std::make_shared<atom::CompositionData>(
-          grid->get_n_elements() + 2, order, ncomps,
+          grid->n_elements() + 2, order, ncomps,
           state->params()->get<int>("n_stages"));
   auto mass_fractions = comps->mass_fractions();
   auto charges = comps->charge();

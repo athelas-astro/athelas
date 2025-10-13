@@ -29,14 +29,11 @@ namespace athelas::eos {
 }
 
 [[nodiscard]] auto
-Marshak::get_gamma(const double /*tau*/, const double /*V*/,
-                   const double /*EmT*/,
-                   const double *const /*lambda*/) const noexcept -> double {
+Marshak::gamma1(const double /*tau*/, const double /*V*/, const double /*EmT*/,
+                const double *const /*lambda*/) const noexcept -> double {
   return gamma_;
 }
 
-[[nodiscard]] auto Marshak::get_gamma() const noexcept -> double {
-  return gamma_;
-}
+[[nodiscard]] auto Marshak::gamma1() const noexcept -> double { return gamma_; }
 
 } // namespace athelas::eos

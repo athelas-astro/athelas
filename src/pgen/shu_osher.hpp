@@ -31,7 +31,7 @@ void shu_osher_init(State *state, GridStructure *grid, ProblemIn *pin,
   AthelasArray3D<double> uPF = state->u_pf();
 
   static const IndexRange ib(grid->domain<Domain::Interior>());
-  static const int nNodes = grid->get_n_nodes();
+  static const int nNodes = grid->n_nodes();
 
   constexpr static int q_Tau = 0;
   constexpr static int q_V = 1;
@@ -45,7 +45,7 @@ void shu_osher_init(State *state, GridStructure *grid, ProblemIn *pin,
       pin->param()->get<double>("problem.params.pL", 10.333333333333);
   const auto P_R = pin->param()->get<double>("problem.params.pR", 1.0);
 
-  const double gamma = get_gamma(eos);
+  const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
 
   // Phase 1: Initialize nodal values (always done)

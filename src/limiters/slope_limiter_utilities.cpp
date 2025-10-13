@@ -128,9 +128,14 @@ void detect_troubled_cells(const AthelasArray3D<double> U,
 
   // Cell averages by extrapolating L and R neighbors into current cell
 
+  const auto phi = basis->phi();
+  const auto widths = grid->widths();
+  const auto weights = grid->weights();
+  const auto sqrt_gm = grid->sqrt_gm();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: TCI", DevExecSpace(), ib.s,
       ib.e, KOKKOS_LAMBDA(const int i) {
+        const double dr = widths(i);
         for (int v : vars) {
           if (v == 1 || v == 4) {
             continue; /* skip momenta */
@@ -139,10 +144,10 @@ void detect_troubled_cells(const AthelasArray3D<double> U,
 
           // Extrapolate neighboring poly representations into current cell
           // and compute the new cell averages
-          const double cell_avg_L_T =
-              cell_average(U, grid, basis, v, i + 1, -1); // from right
-          const double cell_avg_R_T =
-              cell_average(U, grid, basis, v, i - 1, +1); // from left
+          const double cell_avg_L_T = cell_average(U, sqrt_gm, weights, dr, phi,
+                                                   v, i + 1, -1); // from right
+          const double cell_avg_R_T = cell_average(U, sqrt_gm, weights, dr, phi,
+                                                   v, i - 1, +1); // from left
           const double cell_avg_L = U(i - 1, 0, v); // native left
           const double cell_avg_R = U(i + 1, 0, v); // native right
 
@@ -155,35 +160,6 @@ void detect_troubled_cells(const AthelasArray3D<double> U,
           D(i) = std::max(D(i), result / denominator);
         } // loop v;
       }); // par_for i
-}
-
-/**
- * Return the cell average of a field q on cell ix.
- * The parameter `int extrapolate` designates how the cell average is
- *computed.
- *  0  : Return standard cell average on ix
- * -1 : Extrapolate left, e.g.,  polynomial from ix+1 into ix
- * +1 : Extrapolate right, e.g.,  polynomial from ix-1 into ix
- **/
-auto cell_average(AthelasArray3D<double> U, const GridStructure *grid,
-                  const ModalBasis *basis, const int q, const int ix,
-                  const int extrapolate) -> double {
-  const int nNodes = grid->get_n_nodes();
-
-  double avg = 0.0;
-  double vol = 0.0;
-  const double dx = grid->get_widths(ix + extrapolate);
-
-  // NOTE: do mass or volume avg?
-  for (int iN = 0; iN < nNodes; ++iN) {
-    const double X = grid->node_coordinate(ix + extrapolate, iN);
-    const double sqrt_gm = grid->get_sqrt_gm(X);
-    const double weight = grid->get_weights(iN);
-    vol += weight * sqrt_gm * dx; // TODO(astrobarker) rho
-    avg += weight * basis->basis_eval(U, ix, q, iN + 1) * sqrt_gm * dx;
-  }
-
-  return avg / vol;
 }
 
 /**
@@ -223,6 +199,7 @@ void modify_polynomial(const AthelasArray3D<double> U,
 }
 
 // WENO smoothness indicator beta
+// TODO(astrobarker): pass in views remove accessors
 auto smoothness_indicator(const AthelasArray3D<double> U,
                           const AthelasArray2D<double> modified_polynomial,
                           const GridStructure *grid, const ModalBasis *basis,
@@ -230,17 +207,21 @@ auto smoothness_indicator(const AthelasArray3D<double> U,
     -> double {
   const int k = U.extent(1);
 
+  const auto dr = grid->widths();
+  const auto weights = grid->weights();
+  const auto r = grid->nodal_grid();
+
   double beta = 0.0; // output var
   for (int s = 1; s < k; s++) { // loop over modes
     // integrate mode on cell
     double local_sum = 0.0;
-    for (int iN = 0; iN < k; iN++) {
-      auto X = grid->node_coordinate(ix, iN);
-      local_sum += grid->get_weights(iN) *
+    for (int q = 0; q < k; q++) {
+      const auto X = r(ix, q);
+      local_sum += weights(q) *
                    std::pow(modified_polynomial(s, i) *
                                 ModalBasis::d_legendre_n(k, s, X),
                             2.0) *
-                   std::pow(grid->get_widths(ix), 2.0 * s);
+                   std::pow(dr(ix), 2.0 * s);
     }
     beta += local_sum;
   }

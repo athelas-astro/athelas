@@ -38,7 +38,7 @@ void rad_shock_init(State *state, GridStructure *grid, ProblemIn *pin,
   AthelasArray3D<double> uPF = state->u_pf();
 
   static const IndexRange ib(grid->domain<Domain::Interior>());
-  static const int nNodes = grid->get_n_nodes();
+  static const int nNodes = grid->n_nodes();
 
   constexpr static int q_Tau = 0;
   constexpr static int q_V = 1;
@@ -58,7 +58,7 @@ void rad_shock_init(State *state, GridStructure *grid, ProblemIn *pin,
 
   // TODO(astrobarker): thread through
   const double mu = 1.0 + constants::m_e / constants::m_p;
-  const double gamma = get_gamma(eos);
+  const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
   const double em_gas_L = constants::k_B * T_L / (gm1 * mu * constants::m_p);
   const double em_gas_R = constants::k_B * T_R / (gm1 * mu * constants::m_p);

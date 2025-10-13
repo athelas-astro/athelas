@@ -34,7 +34,7 @@
 
 namespace athelas::bel {
 
-using basis::ModalBasis;
+using basis::ModalBasis, basis::basis_eval;
 using utilities::ratio;
 
 /**
@@ -51,12 +51,13 @@ using utilities::ratio;
 void limit_density(AthelasArray3D<double> U, const ModalBasis *basis) {
   constexpr static double EPSILON = 1.0e-30; // maybe make this smarter
 
-  const int order = basis->get_order();
+  const int order = basis->order();
 
   if (order == 1) {
     return;
   }
 
+  const auto phi = basis->phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit density", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
@@ -66,7 +67,7 @@ void limit_density(AthelasArray3D<double> U, const ModalBasis *basis) {
         const double avg = U(i, 0, 0);
 
         for (int q = 0; q <= order; ++q) {
-          nodal = basis->basis_eval(U, i, 0, q);
+          nodal = basis_eval(phi, U, i, 0, q);
           if (std::isnan(nodal)) {
             theta1 = 0.0;
             break;
@@ -109,12 +110,13 @@ void limit_density(AthelasArray3D<double> U, const ModalBasis *basis) {
 void limit_internal_energy(AthelasArray3D<double> U, const ModalBasis *basis) {
   constexpr static double EPSILON = 1.0e-10; // maybe make this smarter
 
-  const int order = basis->get_order();
+  const int order = basis->order();
 
   if (order == 1) {
     return;
   }
 
+  const auto phi = basis->phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit internal energy", DevExecSpace(),
       1, U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
@@ -123,7 +125,7 @@ void limit_internal_energy(AthelasArray3D<double> U, const ModalBasis *basis) {
         double temp = 0.0;
 
         for (int q = 0; q <= order + 1; ++q) {
-          nodal = utilities::compute_internal_energy(U, basis, i, q);
+          nodal = utilities::compute_internal_energy(U, phi, i, q);
 
           if (nodal > EPSILON) {
             temp = 1.0;
@@ -131,15 +133,15 @@ void limit_internal_energy(AthelasArray3D<double> U, const ModalBasis *basis) {
             const double theta_guess = 0.9;
             // temp = bisection(U, target_func, basis, i, q);
             temp = root_finders::newton_aa(target_func, target_func_deriv,
-                                           theta_guess, U, basis, i, q);
+                                           theta_guess, U, phi, i, q);
           }
           theta2 = std::min(theta2, temp);
         }
 
-        for (int k = 1; k < order; k++) {
-          U(i, k, 0) *= theta2;
-          U(i, k, 1) *= theta2;
-          U(i, k, 2) *= theta2;
+        for (int k = 1; k < order; ++k) {
+          for (int v = 0; v < 3; ++v) {
+            U(i, k, v) *= theta2;
+          }
         }
       });
 }
@@ -155,7 +157,7 @@ void apply_bound_enforcing_limiter(AthelasArray3D<double> U,
 // TODO(astrobarker): much more here.
 void apply_bound_enforcing_limiter_rad(AthelasArray3D<double> U,
                                        const ModalBasis *basis) {
-  if (basis->get_order() == 1) {
+  if (basis->order() == 1) {
     return;
   }
   limit_rad_energy(U, basis);
@@ -165,8 +167,9 @@ void apply_bound_enforcing_limiter_rad(AthelasArray3D<double> U,
 void limit_rad_energy(AthelasArray3D<double> U, const ModalBasis *basis) {
   constexpr static double EPSILON = 1.0e-4; // maybe make this smarter
 
-  const int order = basis->get_order();
+  const int order = basis->order();
 
+  const auto phi = basis->phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit rad energy", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
@@ -175,7 +178,7 @@ void limit_rad_energy(AthelasArray3D<double> U, const ModalBasis *basis) {
         double temp = 0.0;
 
         for (int q = 0; q <= order + 1; ++q) {
-          nodal = basis->basis_eval(U, i, 3, q);
+          nodal = basis_eval(phi, U, i, 3, q);
 
           if (nodal > EPSILON + 0 * std::abs(U(i, 0, 4)) / constants::c_cgs) {
             temp = 1.0;
@@ -184,21 +187,23 @@ void limit_rad_energy(AthelasArray3D<double> U, const ModalBasis *basis) {
             // temp = bisection(U, target_func_rad_energy, basis, ix, iN);
             temp = root_finders::newton_aa(target_func_rad_energy,
                                            target_func_rad_energy_deriv,
-                                           theta_guess, U, basis, i, q);
+                                           theta_guess, U, phi, i, q);
           }
           theta2 = std::abs(std::min(theta2, temp));
         }
 
-        for (int k = 1; k < order; k++) {
-          U(i, k, 3) *= theta2;
-          U(i, k, 4) *= theta2;
+        for (int k = 1; k < order; ++k) {
+          for (int v = 3; v < 5; ++v) {
+            U(i, k, v) *= theta2;
+          }
         }
       });
 }
 
 void limit_rad_momentum(AthelasArray3D<double> U, const ModalBasis *basis) {
-  const int order = basis->get_order();
+  const int order = basis->order();
 
+  const auto phi = basis->phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit rad momentum", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
@@ -209,7 +214,7 @@ void limit_rad_momentum(AthelasArray3D<double> U, const ModalBasis *basis) {
         constexpr static double c = constants::c_cgs;
 
         for (int q = 0; q <= order + 1; ++q) {
-          nodal = basis->basis_eval(U, i, 4, q);
+          nodal = basis_eval(phi, U, i, 4, q);
 
           if (std::abs(nodal) <= c * U(i, 0, 3)) {
             temp = 1.0;
@@ -217,7 +222,7 @@ void limit_rad_momentum(AthelasArray3D<double> U, const ModalBasis *basis) {
             const double theta_guess = 0.9;
             temp = root_finders::newton_aa(target_func_rad_flux,
                                            target_func_rad_flux_deriv,
-                                           theta_guess, U, basis, i, q) -
+                                           theta_guess, U, phi, i, q) -
                    1.0e-3;
             // temp = bisection(U, target_func_rad_flux, basis, ix, iN);
           }
@@ -234,38 +239,38 @@ void limit_rad_momentum(AthelasArray3D<double> U, const ModalBasis *basis) {
 
 // ( 1 - theta ) U_bar + theta U_q
 auto compute_theta_state(const AthelasArray3D<double> U,
-                         const ModalBasis *basis, const double theta,
+                         const AthelasArray3D<double> phi, const double theta,
                          const int q, const int ix, const int iN) -> double {
-  return theta * (basis->basis_eval(U, ix, q, iN) - U(ix, 0, q)) + U(ix, 0, q);
+  return theta * (basis_eval(phi, U, ix, q, iN) - U(ix, 0, q)) + U(ix, 0, q);
 }
 
 auto target_func(const double theta, const AthelasArray3D<double> U,
-                 const ModalBasis *basis, const int ix, const int iN)
+                 const AthelasArray3D<double> phi, const int ix, const int iN)
     -> double {
   const double w = 1.0e-13;
-  const double s1 = compute_theta_state(U, basis, theta, 1, ix, iN);
-  const double s2 = compute_theta_state(U, basis, theta, 2, ix, iN);
+  const double s1 = compute_theta_state(U, phi, theta, 1, ix, iN);
+  const double s2 = compute_theta_state(U, phi, theta, 2, ix, iN);
 
   double const e = s2 - (0.5 * s1 * s1);
 
   return e - w;
 }
 auto target_func_deriv(const double theta, const AthelasArray3D<double> U,
-                       const ModalBasis *basis, const int ix, const int iN)
-    -> double {
-  const double dE = basis->basis_eval(U, ix, 2, iN) - U(ix, 0, 2);
-  const double v_q = basis->basis_eval(U, ix, 1, iN);
+                       const AthelasArray3D<double> phi, const int ix,
+                       const int iN) -> double {
+  const double dE = basis_eval(phi, U, ix, 2, iN) - U(ix, 0, 2);
+  const double v_q = basis_eval(phi, U, ix, 1, iN);
   const double dv = v_q - U(ix, 0, 1);
   return dE - (v_q + theta * dv) * dv;
 }
 
 // TODO(astrobarker) some redundancy below
 auto target_func_rad_flux(const double theta, const AthelasArray3D<double> U,
-                          const ModalBasis *basis, const int ix, const int iN)
-    -> double {
+                          const AthelasArray3D<double> phi, const int ix,
+                          const int iN) -> double {
   const double w = 1.0e-13;
-  const double s1 = compute_theta_state(U, basis, theta, 4, ix, iN);
-  const double s2 = compute_theta_state(U, basis, theta, 3, ix, iN);
+  const double s1 = compute_theta_state(U, phi, theta, 4, ix, iN);
+  const double s2 = compute_theta_state(U, phi, theta, 3, ix, iN);
 
   const double e = std::abs(s1) / (constants::c_cgs * s2);
 
@@ -274,12 +279,12 @@ auto target_func_rad_flux(const double theta, const AthelasArray3D<double> U,
 
 auto target_func_rad_flux_deriv(const double theta,
                                 const AthelasArray3D<double> U,
-                                const ModalBasis *basis, const int ix,
+                                const AthelasArray3D<double> phi, const int ix,
                                 const int iN) -> double {
-  const double dE = basis->basis_eval(U, ix, 3, iN) - U(ix, 0, 3);
-  const double dF = basis->basis_eval(U, ix, 4, iN) - U(ix, 0, 4);
-  const double E_theta = compute_theta_state(U, basis, theta, 3, ix, iN);
-  const double F_theta = compute_theta_state(U, basis, theta, 4, ix, iN);
+  const double dE = basis_eval(phi, U, ix, 3, iN) - U(ix, 0, 3);
+  const double dF = basis_eval(phi, U, ix, 4, iN) - U(ix, 0, 4);
+  const double E_theta = compute_theta_state(U, phi, theta, 3, ix, iN);
+  const double F_theta = compute_theta_state(U, phi, theta, 4, ix, iN);
   const double dfdE = -F_theta / (E_theta * E_theta * constants::c_cgs);
   const double dfdF =
       F_theta / (std::abs(F_theta) * E_theta * constants::c_cgs);
@@ -288,16 +293,16 @@ auto target_func_rad_flux_deriv(const double theta,
 
 auto target_func_rad_energy_deriv(const double theta,
                                   const AthelasArray3D<double> U,
-                                  const ModalBasis *basis, const int ix,
-                                  const int iN) -> double {
-  return basis->basis_eval(U, ix, 3, iN) - U(ix, 0, 3);
+                                  const AthelasArray3D<double> phi,
+                                  const int ix, const int iN) -> double {
+  return basis_eval(phi, U, ix, 3, iN) - U(ix, 0, 3);
 }
 
 auto target_func_rad_energy(const double theta, const AthelasArray3D<double> U,
-                            const ModalBasis *basis, const int ix, const int iN)
-    -> double {
+                            const AthelasArray3D<double> phi, const int ix,
+                            const int iN) -> double {
   const double w = 1.0e-13;
-  const double s1 = compute_theta_state(U, basis, theta, 3, ix, iN);
+  const double s1 = compute_theta_state(U, phi, theta, 3, ix, iN);
 
   const double e = s1;
 

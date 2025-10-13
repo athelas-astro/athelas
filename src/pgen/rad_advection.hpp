@@ -34,7 +34,7 @@ void rad_advection_init(State *state, GridStructure *grid, ProblemIn *pin,
   AthelasArray3D<double> uPF = state->u_pf();
 
   static const IndexRange ib(grid->domain<Domain::Interior>());
-  static const int nNodes = grid->get_n_nodes();
+  static const int nNodes = grid->n_nodes();
 
   const int q_Tau = 0;
   const int q_V = 1;
@@ -50,7 +50,7 @@ void rad_advection_init(State *state, GridStructure *grid, ProblemIn *pin,
   const auto amp = pin->param()->get<double>("problem.params.amp", 1.0);
   const auto width = pin->param()->get<double>("problem.params.width", 0.05);
   const double mu = 1.0 + constants::m_e / constants::m_p;
-  const double gamma = get_gamma(eos);
+  const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
 
   athelas::par_for(

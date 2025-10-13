@@ -37,6 +37,7 @@ GridStructure::GridStructure(const ProblemIn *pin)
       x_l_("Left Interface", mSize_ + 1), mass_("Cell mass_", mSize_),
       mass_r_("Enclosed mass", mSize_, nNodes_),
       center_of_mass_("Center of mass_", mSize_),
+      sqrt_gm_("Sqrt Gamma", mSize_, nNodes_ + 2),
       grid_("Grid", mSize_, nNodes_) {
   std::vector<double> tmp_nodes(nNodes_);
   std::vector<double> tmp_weights(nNodes_);
@@ -57,61 +58,19 @@ GridStructure::GridStructure(const ProblemIn *pin)
   create_grid(pin);
 }
 
-// linear shape function on the reference element
-KOKKOS_INLINE_FUNCTION
-auto shape_function(const int interface, const double eta) -> double {
-  if (interface == 0) {
-    return 1.0 * (0.5 - eta);
-  }
-  if (interface == 1) {
-    return 1.0 * (0.5 + eta);
-  }
-  return 0.0; // unreachable, but silences warnings
-}
-
-// Give physical grid coordinate from a node.
-KOKKOS_FUNCTION
-auto GridStructure::node_coordinate(const int iC, const int q) const -> double {
-  return x_l_(iC) * shape_function(0, nodes_(q)) +
-         x_l_(iC + 1) * shape_function(1, nodes_(q));
-}
-
 // Return cell center
-KOKKOS_FUNCTION
 auto GridStructure::centers(int iC) const -> double { return centers_(iC); }
 
-// Return cell width
-KOKKOS_FUNCTION
-auto GridStructure::get_widths(int iC) const -> double { return widths_(iC); }
-
-// Return cell mass
-KOKKOS_FUNCTION
-auto GridStructure::get_mass(int ix) const -> double { return mass_(ix); }
-
-// Return cell reference Center of mass_
-KOKKOS_FUNCTION
-auto GridStructure::get_center_of_mass(int ix) const -> double {
-  return center_of_mass_(ix);
-}
-
 // Return given quadrature node
-KOKKOS_FUNCTION
 auto GridStructure::get_nodes(int nN) const -> double { return nodes_(nN); }
 
-// Return given quadrature weight
-KOKKOS_FUNCTION
-auto GridStructure::get_weights(int nN) const -> double { return weights_(nN); }
-
 // Accessor for xL
-KOKKOS_FUNCTION
 auto GridStructure::get_x_l() const noexcept -> double { return xL_; }
 
 // Accessor for xR
-KOKKOS_FUNCTION
 auto GridStructure::get_x_r() const noexcept -> double { return xR_; }
 
 // Accessor for SqrtGm
-KOKKOS_FUNCTION
 auto GridStructure::get_sqrt_gm(const double X) const -> double {
   if (geometry_ == Geometry::Spherical) [[likely]] {
     return X * X;
@@ -127,13 +86,11 @@ auto GridStructure::get_left_interface(int ix) const -> double {
 
 // Return nNodes_
 KOKKOS_FUNCTION
-auto GridStructure::get_n_nodes() const noexcept -> int { return nNodes_; }
+auto GridStructure::n_nodes() const noexcept -> int { return nNodes_; }
 
 // Return nElements_
 KOKKOS_FUNCTION
-auto GridStructure::get_n_elements() const noexcept -> int {
-  return nElements_;
-}
+auto GridStructure::n_elements() const noexcept -> int { return nElements_; }
 
 // Return first physical zone
 KOKKOS_FUNCTION
@@ -225,9 +182,12 @@ void GridStructure::create_uniform_grid() {
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Create uniform grid", DevExecSpace(),
       ilo, ihi, KOKKOS_CLASS_LAMBDA(const int i) {
-        for (int q = 0; q < nNodes_; q++) {
-          grid_(i, q) = node_coordinate(i, q);
+        sqrt_gm_(i, 0) = get_sqrt_gm(x_l_(i));
+        for (int q = 1; q < nNodes_ + 1; q++) {
+          grid_(i, q - 1) = node_coordinate(i, q - 1);
+          sqrt_gm_(i, q) = get_sqrt_gm(grid_(i, q - 1));
         }
+        sqrt_gm_(i, nNodes_ + 1) = get_sqrt_gm(x_l_(i));
       });
 }
 
@@ -283,9 +243,12 @@ void GridStructure::create_log_grid() {
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Create log grid", DevExecSpace(), ilo,
       ihi, KOKKOS_CLASS_LAMBDA(const int i) {
-        for (int q = 0; q < nNodes_; q++) {
-          grid_(i, q) = node_coordinate(i, q);
+        sqrt_gm_(i, 0) = get_sqrt_gm(x_l_(i));
+        for (int q = 1; q < nNodes_ + 1; q++) {
+          grid_(i, q - 1) = node_coordinate(i, q - 1);
+          sqrt_gm_(i, q) = get_sqrt_gm(grid_(i, q - 1));
         }
+        sqrt_gm_(i, nNodes_ + 1) = get_sqrt_gm(x_l_(i));
       });
 }
 
@@ -294,7 +257,7 @@ void GridStructure::create_log_grid() {
  **/
 KOKKOS_FUNCTION
 void GridStructure::compute_mass(const AthelasArray3D<double> uPF) {
-  const int nNodes_ = get_n_nodes();
+  const int nNodes_ = n_nodes();
   const int ilo = get_ilo();
   const int ihi = get_ihi();
 
@@ -328,7 +291,7 @@ void GridStructure::compute_mass(const AthelasArray3D<double> uPF) {
  **/
 KOKKOS_FUNCTION
 void GridStructure::compute_mass_r(const AthelasArray3D<double> uPF) {
-  const int nNodes_ = get_n_nodes();
+  const int nNodes_ = n_nodes();
   const int ilo = get_ilo();
   const int ihi = get_ihi();
 
@@ -385,7 +348,7 @@ auto GridStructure::enclosed_mass(const int ix, const int q) const noexcept
  **/
 KOKKOS_FUNCTION
 void GridStructure::compute_center_of_mass(const AthelasArray3D<double> uPF) {
-  const int nNodes_ = get_n_nodes();
+  const int nNodes_ = n_nodes();
   const int ilo = get_ilo();
   const int ihi = get_ihi();
 
@@ -436,6 +399,18 @@ void GridStructure::update_grid(const AthelasArray1D<double> SData) {
           grid_(i, q) = node_coordinate(i, q);
         }
       });
+
+  if (do_geometry()) {
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Update (Sqrt Gm)", DevExecSpace(),
+        ilo, ihi + 1, KOKKOS_CLASS_LAMBDA(const int i) {
+          sqrt_gm_(i, 0) = get_sqrt_gm(x_l_(i));
+          for (int q = 1; q < nNodes_ + 1; q++) {
+            sqrt_gm_(i, q) = grid_(i, q - 1) * grid_(i, q - 1);
+          }
+          sqrt_gm_(i, nNodes_ + 1) = get_sqrt_gm(x_l_(i + 1));
+        });
+  }
 }
 
 // Access by (element, node)
@@ -450,8 +425,21 @@ auto GridStructure::operator()(int i, int j) const -> double {
 [[nodiscard]] auto GridStructure::widths() const -> AthelasArray1D<double> {
   return widths_;
 }
+[[nodiscard]] auto GridStructure::weights() const -> AthelasArray1D<double> {
+  return weights_;
+}
+[[nodiscard]] auto GridStructure::nodes() const -> AthelasArray1D<double> {
+  return nodes_;
+}
+[[nodiscard]] auto GridStructure::x_l() const -> AthelasArray1D<double> {
+  return x_l_;
+}
 [[nodiscard]] auto GridStructure::mass() const -> AthelasArray1D<double> {
   return mass_;
+}
+[[nodiscard]] auto GridStructure::enclosed_mass() const
+    -> AthelasArray2D<double> {
+  return mass_r_;
 }
 [[nodiscard]] auto GridStructure::centers() const -> AthelasArray1D<double> {
   return centers_;
@@ -464,6 +452,9 @@ auto GridStructure::operator()(int i, int j) const -> double {
 }
 [[nodiscard]] auto GridStructure::nodal_grid() const -> AthelasArray2D<double> {
   return grid_;
+}
+[[nodiscard]] auto GridStructure::sqrt_gm() const -> AthelasArray2D<double> {
+  return sqrt_gm_;
 }
 
 } // namespace athelas

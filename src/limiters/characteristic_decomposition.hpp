@@ -30,7 +30,7 @@ void compute_characteristic_decomposition(T1 U, T2 R, T2 R_inv, EOS eos) {
   auto lambda = nullptr;
   const double p = pressure_from_conserved(eos, tau, v, Em_T, lambda);
 
-  const double gamma = get_gamma(eos);
+  const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
 
   const double v2 = v * v;

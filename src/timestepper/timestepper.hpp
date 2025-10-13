@@ -58,7 +58,7 @@ class TimeStepper {
                              GridStructure &grid, const double t,
                              const double dt, SlopeLimiter *sl_hydro) {
 
-    const auto &order = grid.get_n_nodes();
+    const auto &order = grid.n_nodes();
     const auto evolve_nickel = state->nickel_evolved();
 
     auto U = state->u_cf();
@@ -172,10 +172,10 @@ class TimeStepper {
       auto Us_j =
           Kokkos::subview(U_s, iS, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
       apply_slope_limiter(sl_hydro, Us_j, &grid_s_[iS],
-                          pkgs->get_package<HydroPackage>("Hydro")->get_basis(),
+                          pkgs->get_package<HydroPackage>("Hydro")->basis(),
                           eos_);
       bel::apply_bound_enforcing_limiter(
-          Us_j, pkgs->get_package<HydroPackage>("Hydro")->get_basis());
+          Us_j, pkgs->get_package<HydroPackage>("Hydro")->basis());
     } // end outer loop
 
     for (int iS = 0; iS < nStages_; ++iS) {
@@ -225,10 +225,10 @@ class TimeStepper {
 
     grid = grid_s_[nStages_ - 1];
     apply_slope_limiter(sl_hydro, U, &grid,
-                        pkgs->get_package<HydroPackage>("Hydro")->get_basis(),
+                        pkgs->get_package<HydroPackage>("Hydro")->basis(),
                         eos_);
     bel::apply_bound_enforcing_limiter(
-        U, pkgs->get_package<HydroPackage>("Hydro")->get_basis());
+        U, pkgs->get_package<HydroPackage>("Hydro")->basis());
   }
 
   /**
@@ -249,7 +249,7 @@ class TimeStepper {
                              const double dt, SlopeLimiter *sl_hydro,
                              SlopeLimiter *sl_rad) {
 
-    const auto &order = grid.get_n_nodes();
+    const auto &order = grid.n_nodes();
     const auto evolve_nickel = state->nickel_evolved();
 
     auto uCF = state->u_cf();
@@ -382,32 +382,26 @@ class TimeStepper {
       // limiting madness
       apply_slope_limiter(
           sl_hydro, Us_j, &grid_s_[iS],
-          pkgs->get_package<RadHydroPackage>("RadHydro")->get_fluid_basis(),
-          eos_);
+          pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis(), eos_);
       apply_slope_limiter(
           sl_rad, Us_j, &grid_s_[iS],
-          pkgs->get_package<RadHydroPackage>("RadHydro")->get_rad_basis(),
-          eos_);
+          pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis(), eos_);
       apply_slope_limiter(
           sl_rad, SumVar_U_, &grid_s_[iS],
-          pkgs->get_package<RadHydroPackage>("RadHydro")->get_rad_basis(),
-          eos_);
+          pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis(), eos_);
       apply_slope_limiter(
           sl_hydro, SumVar_U_, &grid_s_[iS],
-          pkgs->get_package<RadHydroPackage>("RadHydro")->get_fluid_basis(),
-          eos_);
+          pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis(), eos_);
       bel::apply_bound_enforcing_limiter(
-          Us_j,
-          pkgs->get_package<RadHydroPackage>("RadHydro")->get_fluid_basis());
+          Us_j, pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis());
       bel::apply_bound_enforcing_limiter_rad(
-          Us_j,
-          pkgs->get_package<RadHydroPackage>("RadHydro")->get_rad_basis());
+          Us_j, pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis());
       bel::apply_bound_enforcing_limiter_rad(
           SumVar_U_,
-          pkgs->get_package<RadHydroPackage>("RadHydro")->get_rad_basis());
+          pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis());
       bel::apply_bound_enforcing_limiter(
           SumVar_U_,
-          pkgs->get_package<RadHydroPackage>("RadHydro")->get_fluid_basis());
+          pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis());
 
       // implicit update
       dt_info.stage = iS;
@@ -428,18 +422,14 @@ class TimeStepper {
       // TODO(astrobarker): slope limit rad
       apply_slope_limiter(
           sl_hydro, Us_j, &grid_s_[iS],
-          pkgs->get_package<RadHydroPackage>("RadHydro")->get_fluid_basis(),
-          eos_);
+          pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis(), eos_);
       apply_slope_limiter(
           sl_rad, Us_j, &grid_s_[iS],
-          pkgs->get_package<RadHydroPackage>("RadHydro")->get_rad_basis(),
-          eos_);
+          pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis(), eos_);
       bel::apply_bound_enforcing_limiter(
-          Us_j,
-          pkgs->get_package<RadHydroPackage>("RadHydro")->get_fluid_basis());
+          Us_j, pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis());
       bel::apply_bound_enforcing_limiter_rad(
-          Us_j,
-          pkgs->get_package<RadHydroPackage>("RadHydro")->get_rad_basis());
+          Us_j, pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis());
     } // end outer loop
 
     for (int iS = 0; iS < nStages_; ++iS) {
@@ -497,15 +487,14 @@ class TimeStepper {
     grid = grid_s_[nStages_ - 1];
     apply_slope_limiter(
         sl_hydro, uCF, &grid,
-        pkgs->get_package<RadHydroPackage>("RadHydro")->get_fluid_basis(),
-        eos_);
+        pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis(), eos_);
     apply_slope_limiter(
         sl_rad, uCF, &grid,
-        pkgs->get_package<RadHydroPackage>("RadHydro")->get_rad_basis(), eos_);
+        pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis(), eos_);
     bel::apply_bound_enforcing_limiter(
-        uCF, pkgs->get_package<RadHydroPackage>("RadHydro")->get_fluid_basis());
+        uCF, pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis());
     bel::apply_bound_enforcing_limiter_rad(
-        uCF, pkgs->get_package<RadHydroPackage>("RadHydro")->get_rad_basis());
+        uCF, pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis());
   }
 
   [[nodiscard]] auto n_stages() const noexcept -> int;

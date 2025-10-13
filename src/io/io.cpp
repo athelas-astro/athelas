@@ -28,8 +28,8 @@ namespace io {
  * for the current simulation.
  **/
 void print_simulation_parameters(GridStructure &grid, ProblemIn *pin) {
-  const int nX = grid.get_n_elements();
-  const int nNodes = grid.get_n_nodes();
+  const int nX = grid.n_elements();
+  const int nNodes = grid.n_nodes();
   // NOTE: If I properly support more bases again, adjust here.
   const std::string basis_name = "Legendre";
   const bool rad_enabled = pin->param()->get<bool>("physics.rad_active");
@@ -187,26 +187,19 @@ class HDF5Writer {
 
     using value_type = typename ViewType::value_type;
 
-    // ----- 1️⃣ Build the HDF5 dataspace from the View's extents ------------
     std::vector<hsize_t> dims(view.rank());
     for (size_t r = 0; r < view.rank(); ++r) {
       dims[r] = static_cast<hsize_t>(view.extent(r));
     }
     H5::DataSpace file_space(view.rank(), dims.data());
 
-    // ----- 2️⃣ Open (or create) the file and the dataset -------------------
-    //   - H5F_ACC_TRUNC overwrites any existing file with the same name.
     H5::DataSet dataset = file_.createDataSet(
         dataset_name, h5_predtype<value_type>(), file_space);
 
-    // ----- 3️⃣ Mirror the view to host (contiguous memory) -----------------
     using HostMirror = typename ViewType::HostMirror;
     HostMirror host_view = Kokkos::create_mirror_view(view);
     Kokkos::deep_copy(host_view, view);
 
-    // ----- 4️⃣ Write the data ---------------------------------------------
-    // The memory dataspace is identical to the file dataspace because the
-    // host mirror is stored contiguously in C‑order (row‑major).
     dataset.write(host_view.data(), h5_predtype<value_type>(),
                   file_space, // mem space
                   file_space); // file space
@@ -249,7 +242,7 @@ void write_state(State *state, GridStructure &grid, SlopeLimiter *SL,
   const AthelasArray3D<double> uAF = state->u_af();
 
   // Grid parameters
-  const int nX = grid.get_n_elements();
+  const int nX = grid.n_elements();
 
   // Generate filename
   static constexpr int max_digits = 6;

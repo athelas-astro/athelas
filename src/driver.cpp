@@ -1,7 +1,6 @@
 #include "driver.hpp"
 #include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
-#include "eos/eos_variant.hpp"
 #include "fluid/hydro_package.hpp"
 #include "gravity/gravity_package.hpp"
 #include "heating/nickel_package.hpp"
@@ -10,9 +9,7 @@
 #include "interface/packages_base.hpp"
 #include "io/io.hpp"
 #include "limiters/slope_limiter.hpp"
-#include "opacity/opac_variant.hpp"
 #include "pgen/problem_in.hpp"
-#include "radiation/radhydro_package.hpp"
 #include "state/state.hpp"
 #include "timestepper/timestepper.hpp"
 #include "utils/error.hpp"
@@ -99,7 +96,7 @@ auto Driver::execute() -> int {
     if (time_ >= i_out_h5 * dt_hdf5) {
       manager_->fill_derived(state_.get(), grid_, dt_info);
       write_state(state_.get(), grid_, &sl_hydro_, pin_.get(), time_,
-                  fluid_basis_->get_order(), i_out_h5, rad_active);
+                  fluid_basis_->order(), i_out_h5, rad_active);
       i_out_h5 += 1;
     }
 

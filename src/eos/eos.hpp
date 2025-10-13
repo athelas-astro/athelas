@@ -53,9 +53,9 @@ class Paczynski : public EosBase<Paczynski> {
                                   const double *lambda) const -> double;
   auto temperature_from_conserved(double tau, double V, double E,
                                   const double *lambda) const -> double;
-  [[nodiscard]] auto get_gamma() const -> double;
-  [[nodiscard]] auto get_gamma(double tau, double V, double EmT,
-                               const double *lambda) const -> double;
+  [[nodiscard]] auto gamma1() const -> double;
+  [[nodiscard]] auto gamma1(double tau, double V, double EmT,
+                            const double *lambda) const -> double;
   [[nodiscard]] static auto p_end(double rho, double T, double ybar, double N)
       -> double;
   [[nodiscard]] static auto p_ednr(double rho, double ye) -> double;
@@ -105,9 +105,9 @@ class IdealGas : public EosBase<IdealGas> {
                                   const double *lambda) const -> double;
   auto temperature_from_conserved(double tau, double V, double E,
                                   const double *lambda) const -> double;
-  [[nodiscard]] auto get_gamma(double tau, double V, double EmT,
-                               const double *lambda) const noexcept -> double;
-  [[nodiscard]] auto get_gamma() const noexcept -> double;
+  [[nodiscard]] auto gamma1(double tau, double V, double EmT,
+                            const double *lambda) const noexcept -> double;
+  [[nodiscard]] auto gamma1() const noexcept -> double;
 
  private:
   double gamma_{};
@@ -135,9 +135,9 @@ class Polytropic : public EosBase<Polytropic> {
                                   const double *lambda) const -> double;
   auto temperature_from_conserved(double tau, double V, double E,
                                   const double *lambda) const -> double;
-  [[nodiscard]] auto get_gamma(double tau, double V, double EmT,
-                               const double *lambda) const noexcept -> double;
-  [[nodiscard]] auto get_gamma() const noexcept -> double;
+  [[nodiscard]] auto gamma1(double tau, double V, double EmT,
+                            const double *lambda) const noexcept -> double;
+  [[nodiscard]] auto gamma1() const noexcept -> double;
 
  private:
   double k_{};
@@ -168,9 +168,9 @@ class Marshak : public EosBase<Marshak> {
                                   const double *lambda) const -> double;
   auto temperature_from_conserved(double tau, double V, double E,
                                   const double *lambda) const -> double;
-  [[nodiscard]] auto get_gamma(double tau, double V, double EmT,
-                               const double *lambda) const noexcept -> double;
-  [[nodiscard]] auto get_gamma() const noexcept -> double;
+  [[nodiscard]] auto gamma1(double tau, double V, double EmT,
+                            const double *lambda) const noexcept -> double;
+  [[nodiscard]] auto gamma1() const noexcept -> double;
 
  private:
   double gamma_{};

@@ -51,9 +51,9 @@ Paczynski::pressure_from_conserved(const double tau, const double V,
 [[nodiscard]] auto Paczynski::sound_speed_from_conserved(
     const double tau, const double V, const double EmT,
     const double *const lambda) const -> double {
-  const auto gamma1 = get_gamma(tau, V, EmT, lambda);
+  const auto gamma_1 = gamma1(tau, V, EmT, lambda);
   const double pressure = pressure_from_conserved(tau, V, EmT, lambda);
-  return std::sqrt(pressure * gamma1 * tau);
+  return std::sqrt(pressure * gamma_1 * tau);
 }
 
 /**
@@ -77,10 +77,9 @@ Paczynski::pressure_from_conserved(const double tau, const double V,
                             temperature_guess, rho, lambda);
 }
 
-// NOTE: This is commonly referred to as \Gamma_1
-[[nodiscard]] auto Paczynski::get_gamma(const double tau, const double V,
-                                        const double EmT,
-                                        const double *const lambda) const
+[[nodiscard]] auto Paczynski::gamma1(const double tau, const double V,
+                                     const double EmT,
+                                     const double *const lambda) const
     -> double {
   const double N = lambda[0];
   const double ye = lambda[1];
@@ -115,8 +114,8 @@ Paczynski::pressure_from_conserved(const double tau, const double V,
   return (chi_T * chi_T * pressure) / (cv * rho * temperature) + chi_rho;
 }
 
-[[nodiscard]] auto Paczynski::get_gamma() const -> double {
-  THROW_ATHELAS_ERROR("No arg get_gamma not supported for Paczynski eos!");
+[[nodiscard]] auto Paczynski::gamma1() const -> double {
+  THROW_ATHELAS_ERROR("No arg gamma not supported for Paczynski eos!");
   return NAN;
 }
 
