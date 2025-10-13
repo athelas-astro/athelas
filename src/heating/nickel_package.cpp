@@ -151,6 +151,10 @@ auto NickelHeatingPackage::min_timestep(const State *const /*state*/,
 
 void NickelHeatingPackage::fill_derived(State *state, const GridStructure &grid,
                                         const TimeStepInfo &dt_info) const {
+
+  if (model_ != NiHeatingModel::Jeffery) {
+    return;
+  }
   using utilities::find_closest_cell;
   using utilities::LINTERP;
   // TODO(astrobarker): possibly compute r_min_ni here.
