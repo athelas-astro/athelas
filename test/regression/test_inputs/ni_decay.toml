@@ -7,7 +7,7 @@ restart = false
 xl = 0.0
 xr = 3.622e9
 cfl = 0.5
-nx = 16
+nx = 64
 grid_type = "uniform"
 
 [problem.params]
