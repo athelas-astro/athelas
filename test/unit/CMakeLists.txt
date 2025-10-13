@@ -16,6 +16,11 @@ add_executable( unit_tests
 
   test_catch_integration.cpp
   test_quadrature.cpp
+  ../../src/eos/eos_paczynski.cpp
+  ../../src/eos/eos_ideal.cpp
+  ../../src/eos/eos_polytropic.cpp
+  ../../src/eos/eos_marshak.cpp
+  ../../src/linalg/linear_algebra.cpp
   ../../src/quadrature/quadrature.cpp
   test_parser.cpp
   test_paczynski.cpp
@@ -24,6 +29,7 @@ add_executable( unit_tests
 
 target_link_libraries( unit_tests
   PRIVATE
+    Eigen3::Eigen
     Catch2::Catch2
     kokkos
 )
