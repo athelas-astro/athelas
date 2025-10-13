@@ -449,53 +449,6 @@ auto ModalBasis::get_d_phi(const int ix, const int i_eta, const int k) const
 auto ModalBasis::order() const noexcept -> int { return order_; }
 
 /**
- * L2 projection from nodal function to modal representation
- * Projects nodal_func(x) onto the modal basis for cell ix, quantity q
- * TODO(astrobarker): [GPU] move inline
- *
- * Parameters:
- * -----------
- * uCF: conserved fields (modal representation)
- * uPF: primitive fields (nodal representation)
- * grid: grid structure
- * q: conserved field index
- * ix: cell index
- * nodal_func: function that takes x coordinate and returns nodal value
- **/
-KOKKOS_INLINE_FUNCTION
-void ModalBasis::project_nodal_to_modal(
-    AthelasArray3D<double> uCF, AthelasArray3D<double> uPF, GridStructure *grid,
-    int q, int ix,
-    const std::function<double(double, int, int)> &nodal_func) const {
-  // Clear existing modal coefficients
-  for (int k = 0; k < order_; k++) {
-    uCF(ix, k, q) = 0.0;
-  }
-
-  const auto dr = grid->widths();
-  const auto weights = grid->weights();
-  const auto sqrt_gm = grid->sqrt_gm();
-
-  // Compute L2 projection: <nodal_func, phi_k> / <phi_k, phi_k>
-  for (int k = 0; k < order_; k++) {
-    double numerator = 0.0;
-    const double denominator = mass_matrix_(ix, k);
-
-    // Compute <nodal_func, phi_k> using quadrature
-    for (int iN = 0; iN < nNodes_; iN++) {
-      const double X = grid->node_coordinate(ix, iN);
-      const double nodal_val = nodal_func(X, ix, iN);
-      const double rho = density_weight_ ? uPF(ix, iN + 1, 0) : 1.0;
-
-      numerator += nodal_val * phi_(ix, iN + 1, k) * weights(iN) * dr(ix) *
-                   sqrt_gm(ix, iN + 1) * rho;
-    }
-
-    uCF(ix, k, q) = numerator / denominator;
-  }
-}
-
-/**
  * L2 projection from nodal function to modal representation for all cells
  * Projects nodal_func(x) onto the modal basis for all cells, quantity q
  *
