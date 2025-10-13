@@ -181,10 +181,10 @@ void RadHydroPackage::update_implicit_iterative(const State *const state,
           }
         }
 
-        fixed_point_radhydro_aa(R_i, dt_info.dt_a, scratch_sol_i_k,
-                                scratch_sol_i_km1, scratch_sol_i, state, dr,
-                                weights, phi_fluid, phi_rad, inv_mkk_fluid,
-                                inv_mkk_rad, eos_, opac_, i);
+        fixed_point_radhydro(R_i, dt_info.dt_a, scratch_sol_i_k,
+                             scratch_sol_i_km1, scratch_sol_i, state, dr,
+                             weights, phi_fluid, phi_rad, inv_mkk_fluid,
+                             inv_mkk_rad, eos_, opac_, i);
 
         for (int k = 0; k < order; ++k) {
           for (int v = 1; v < NUM_VARS_; ++v) {
