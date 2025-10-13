@@ -24,7 +24,6 @@ add_executable( unit_tests
 
 target_link_libraries( unit_tests
   PRIVATE
-    libathelas
     Catch2::Catch2
     kokkos
 )
