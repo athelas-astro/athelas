@@ -1,5 +1,6 @@
 #include <limits>
 
+#include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "bc/boundary_conditions.hpp"
 #include "composition/composition.hpp"
@@ -132,10 +133,10 @@ void RadHydroPackage::update_implicit(const State *const state,
         const auto [du1, du2, du3, du4] =
             radhydro_source(state, ucf_i, dr, weights, phi_fluid, phi_rad,
                             inv_mkk_fluid, inv_mkk_rad, i, k);
-        dU(i, k, 1) = du1;
-        dU(i, k, 2) = du2;
-        dU(i, k, 3) = du3;
-        dU(i, k, 4) = du4;
+        dU(i, k, vars::cons::Velocity) = du1;
+        dU(i, k, vars::cons::Energy) = du2;
+        dU(i, k, vars::cons::RadEnergy) = du3;
+        dU(i, k, vars::cons::RadFlux) = du4;
       });
 } // update_implicit
 
@@ -245,16 +246,16 @@ void RadHydroPackage::radhydro_divergence(const State *const state,
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Numerical fluxes", DevExecSpace(),
       ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
-        const double Pgas_L = uaf(i - 1, nNodes + 1, 0);
-        const double Cs_L = uaf(i - 1, nNodes + 1, 2);
+        const double Pgas_L = uaf(i - 1, nNodes + 1, vars::aux::Pressure);
+        const double Cs_L = uaf(i - 1, nNodes + 1, vars::aux::Cs);
 
-        const double Pgas_R = uaf(i, 0, 0);
-        const double Cs_R = uaf(i, 0, 2);
+        const double Pgas_R = uaf(i, 0, vars::aux::Pressure);
+        const double Cs_R = uaf(i, 0, vars::aux::Cs);
 
-        const double E_L = u_f_l_(i, 3);
-        const double F_L = u_f_l_(i, 4);
-        const double E_R = u_f_r_(i, 3);
-        const double F_R = u_f_r_(i, 4);
+        const double E_L = u_f_l_(i, vars::cons::RadEnergy);
+        const double F_L = u_f_l_(i, vars::cons::RadFlux);
+        const double E_R = u_f_r_(i, vars::cons::RadEnergy);
+        const double F_R = u_f_r_(i, vars::cons::RadFlux);
 
         const double Prad_L = compute_closure(E_L, F_L);
         const double Prad_R = compute_closure(E_R, F_R);
@@ -267,8 +268,10 @@ void RadHydroPackage::radhydro_divergence(const State *const state,
         // u_f_r_(i,  1
         // ), P_L, P_R, lam_L, lam_R);
         const auto [flux_u, flux_p] = numerical_flux_gudonov_positivity(
-            u_f_l_(i, 0), u_f_r_(i, 0), u_f_l_(i, 1), u_f_r_(i, 1), Pgas_L,
-            Pgas_R, Cs_L, Cs_R);
+            u_f_l_(i, vars::cons::SpecificVolume),
+            u_f_r_(i, vars::cons::SpecificVolume),
+            u_f_l_(i, vars::cons::Velocity), u_f_r_(i, vars::cons::Velocity),
+            Pgas_L, Pgas_R, Cs_L, Cs_R);
         flux_u_(stage, i) = flux_u;
 
         const double vstar = flux_u;
@@ -286,12 +289,12 @@ void RadHydroPackage::radhydro_divergence(const State *const state,
         const double advective_flux_f =
             (vstar >= 0) ? vstar * F_L : vstar * F_R;
 
-        dFlux_num_(i, 0) = -flux_u;
-        dFlux_num_(i, 1) = flux_p;
-        dFlux_num_(i, 2) = +flux_u * flux_p;
+        dFlux_num_(i, vars::cons::SpecificVolume) = -flux_u;
+        dFlux_num_(i, vars::cons::Velocity) = flux_p;
+        dFlux_num_(i, vars::cons::Energy) = +flux_u * flux_p;
 
-        dFlux_num_(i, 3) = flux_e - advective_flux_e;
-        dFlux_num_(i, 4) = flux_f - advective_flux_f;
+        dFlux_num_(i, vars::cons::RadEnergy) = flux_e - advective_flux_e;
+        dFlux_num_(i, vars::cons::RadFlux) = flux_f - advective_flux_f;
       });
 
   flux_u_(stage, ilo - 1) = flux_u_(stage, ilo);
@@ -326,10 +329,13 @@ void RadHydroPackage::radhydro_divergence(const State *const state,
           for (int q = 0; q < nNodes; ++q) {
             const int qp1 = q + 1;
 
-            const double P = uaf(i, qp1, 0);
-            const double vel = basis_eval(phi_fluid, ucf, i, 1, qp1);
-            const double e_rad = basis_eval(phi_rad, ucf, i, 3, qp1);
-            const double f_rad = basis_eval(phi_rad, ucf, i, 4, qp1);
+            const double P = uaf(i, qp1, vars::aux::Pressure);
+            const double vel =
+                basis_eval(phi_fluid, ucf, i, vars::cons::Velocity, qp1);
+            const double e_rad =
+                basis_eval(phi_rad, ucf, i, vars::cons::RadEnergy, qp1);
+            const double f_rad =
+                basis_eval(phi_rad, ucf, i, vars::cons::RadFlux, qp1);
             const double p_rad = compute_closure(e_rad, f_rad);
             const auto [flux1, flux2, flux3] =
                 athelas::fluid::flux_fluid(vel, P);
@@ -346,11 +352,11 @@ void RadHydroPackage::radhydro_divergence(const State *const state,
                 weights(q) * flux_f * dphi_rad(i, qp1, k) * sqrt_gm(i, qp1);
           }
 
-          dU(i, k, 0) += local_sum1;
-          dU(i, k, 1) += local_sum2;
-          dU(i, k, 2) += local_sum3;
-          dU(i, k, 3) += local_sum_e;
-          dU(i, k, 4) += local_sum_f;
+          dU(i, k, vars::cons::SpecificVolume) += local_sum1;
+          dU(i, k, vars::cons::Velocity) += local_sum2;
+          dU(i, k, vars::cons::Energy) += local_sum3;
+          dU(i, k, vars::cons::RadEnergy) += local_sum_e;
+          dU(i, k, vars::cons::RadFlux) += local_sum_f;
         });
   }
 } // radhydro_divergence
@@ -403,7 +409,8 @@ void RadHydroPackage::radhydro_geometry(const AthelasArray3D<double> ucf,
               weights(q) * uaf(i, q + 1, 0) * phi(i, q + 1, k) * r(i, q);
         }
 
-        dU(i, k, 1) += 2.0 * local_sum * dr(i) * inv_mkk(i, k);
+        dU(i, k, vars::cons::Velocity) +=
+            2.0 * local_sum * dr(i) * inv_mkk(i, k);
       });
 }
 
@@ -480,9 +487,12 @@ void RadHydroPackage::fill_derived(State *state, const GridStructure &grid,
       DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: fill derived", DevExecSpace(),
       ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
         for (int q = 0; q < nNodes + 2; ++q) {
-          const double tau = basis_eval(phi_fluid, uCF, i, 0, q);
-          const double vel = basis_eval(phi_fluid, uCF, i, 1, q);
-          const double emt = basis_eval(phi_fluid, uCF, i, 2, q);
+          const double tau =
+              basis_eval(phi_fluid, uCF, i, vars::cons::SpecificVolume, q);
+          const double vel =
+              basis_eval(phi_fluid, uCF, i, vars::cons::Velocity, q);
+          const double emt =
+              basis_eval(phi_fluid, uCF, i, vars::cons::Energy, q);
 
           // const double e_rad = rad_basis_->basis_eval(uCF, i, 3, q + 1);
           // const double f_rad = rad_basis_->basis_eval(uCF, i, 4, q + 1);
@@ -506,13 +516,13 @@ void RadHydroPackage::fill_derived(State *state, const GridStructure &grid,
           const double cs =
               sound_speed_from_conserved(eos_, tau, vel, emt, lambda);
 
-          uPF(i, q, 0) = rho;
-          uPF(i, q, 1) = momentum;
-          uPF(i, q, 2) = sie;
+          uPF(i, q, vars::prim::Rho) = rho;
+          uPF(i, q, vars::prim::Momentum) = momentum;
+          uPF(i, q, vars::prim::Sie) = sie;
 
-          uAF(i, q, 0) = pressure;
-          uAF(i, q, 1) = t_gas;
-          uAF(i, q, 2) = cs;
+          uAF(i, q, vars::aux::Pressure) = pressure;
+          uAF(i, q, vars::aux::Tgas) = t_gas;
+          uAF(i, q, vars::aux::Cs) = cs;
         }
       });
 }

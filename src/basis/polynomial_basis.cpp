@@ -190,7 +190,7 @@ auto ModalBasis::inner_product(const int m, const int n, const int ix,
   double result = 0.0;
   for (int iN = 0; iN < nNodes_; iN++) {
     // include rho in integrand if necessary
-    const double rho = density_weight_ ? uPF(ix, iN + 1, 0) : 1.0;
+    const double rho = density_weight_ ? uPF(ix, iN + 1, vars::prim::Rho) : 1.0;
     const double eta_q = nodes(iN);
     result += func_(n, eta_q, eta_c) * phi_(ix, iN + 1, m) * weights(iN) * rho *
               dr(ix) * sqrt_gm(ix, iN + 1);
@@ -217,7 +217,7 @@ auto ModalBasis::inner_product(const int n, const int ix,
   double result = 0.0;
   for (int iN = 0; iN < nNodes_; iN++) {
     // include rho in integrand if necessary
-    const double rho = density_weight_ ? uPF(ix, iN + 1, 0) : 1.0;
+    const double rho = density_weight_ ? uPF(ix, iN + 1, vars::prim::Rho) : 1.0;
     result += phi_(ix, iN + 1, n) * phi_(ix, iN + 1, n) * weights(iN) * rho *
               dr(ix) * sqrt_gm(ix, iN + 1);
   }
@@ -336,7 +336,8 @@ void ModalBasis::check_orthogonality(const AthelasArray3D<double> uPF,
         double result = 0.0;
         for (int i_eta = 1; i_eta <= nNodes_; i_eta++) // loop over quadratures
         {
-          const double rho = density_weight_ ? uPF(ix, i_eta, 0) : 1.0;
+          const double rho =
+              density_weight_ ? uPF(ix, i_eta, vars::prim::Rho) : 1.0;
           // Not using an inner_product function because their API is odd..
           result += phi_(ix, i_eta, k1) * phi_(ix, i_eta, k2) * rho *
                     weights(i_eta - 1) * dr(ix) * sqrt_gm(ix, i_eta);
@@ -378,7 +379,8 @@ void ModalBasis::compute_mass_matrix(const AthelasArray3D<double> uPF,
       double result = 0.0;
       for (int iN = 0; iN < nNodes_; iN++) {
         // include rho in integrand if necessary
-        const double rho = density_weight_ ? uPF(ix, iN + 1, 0) : 1.0;
+        const double rho =
+            density_weight_ ? uPF(ix, iN + 1, vars::prim::Rho) : 1.0;
         result += phi_(ix, iN + 1, k) * phi_(ix, iN + 1, k) * weights(iN) *
                   dr(ix) * sqrt_gm(ix, iN + 1) * rho;
       }

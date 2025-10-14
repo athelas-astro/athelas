@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "bc/boundary_conditions_base.hpp"
 #include "geometry/grid.hpp"
@@ -103,7 +104,9 @@ apply_bc(const BoundaryConditionsData<N> &bc, AthelasArray3D<double> U,
 
   // TODO(astrobarker): could need extending. FIX
   case BcType::Dirichlet:
-    U(ghost_cell, 0, v) = 2.0 * bc.dirichlet_values[v] - U(interior_cell, 0, v);
+    U(ghost_cell, vars::modes::CellAverage, v) =
+        2.0 * bc.dirichlet_values[v] -
+        U(interior_cell, vars::modes::CellAverage, v);
     // U(v, ghost_cell, 0) = bc.dirichlet_values[v];
     for (int k = 1; k < num_modes; k++) {
       U(ghost_cell, k, v) = 0.0; // slopes++ set to 0
@@ -121,8 +124,8 @@ apply_bc(const BoundaryConditionsData<N> &bc, AthelasArray3D<double> U,
         }
       } else if (v == 4) {
         constexpr static double c = constants::c_cgs;
-        const double E0 = U(interior_cell, k, 3);
-        const double F0 = U(interior_cell, k, 4);
+        const double E0 = U(interior_cell, k, vars::cons::RadEnergy);
+        const double F0 = U(interior_cell, k, vars::cons::RadFlux);
         U(ghost_cell, k, v) =
             (k == 0) ? 0.5 * c * Einc - 0.5 * (c * E0 + 2.0 * F0) : 0.0;
       }

@@ -125,11 +125,11 @@ void HydroPackage::fluid_divergence(const State *const state,
   par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Numerical Fluxes", DevExecSpace(),
       ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
-        const double P_L = uaf(i - 1, nNodes + 1, 0);
-        const double Cs_L = uaf(i - 1, nNodes + 1, 2);
+        const double P_L = uaf(i - 1, nNodes + 1, vars::aux::Pressure);
+        const double Cs_L = uaf(i - 1, nNodes + 1, vars::aux::Cs);
 
-        const double P_R = uaf(i, 0, 0);
-        const double Cs_R = uaf(i, 0, 2);
+        const double P_R = uaf(i, 0, vars::aux::Pressure);
+        const double Cs_R = uaf(i, 0, vars::aux::Cs);
 
         // --- Numerical Fluxes ---
 
@@ -138,13 +138,15 @@ void HydroPackage::fluid_divergence(const State *const state,
         // u_f_r_(ib,  1
         // ), P_L, P_R, lam_L, lam_R);
         const auto [flux_u, flux_p] = numerical_flux_gudonov_positivity(
-            u_f_l_(i, 0), u_f_r_(i, 0), u_f_l_(i, 1), u_f_r_(i, 1), P_L, P_R,
-            Cs_L, Cs_R);
+            u_f_l_(i, vars::cons::SpecificVolume),
+            u_f_r_(i, vars::cons::SpecificVolume),
+            u_f_l_(i, vars::cons::Velocity), u_f_r_(i, vars::cons::Velocity),
+            P_L, P_R, Cs_L, Cs_R);
         flux_u_(stage, i) = flux_u;
 
-        dFlux_num_(i, 0) = -flux_u;
-        dFlux_num_(i, 1) = flux_p;
-        dFlux_num_(i, 2) = flux_u * flux_p;
+        dFlux_num_(i, vars::cons::SpecificVolume) = -flux_u;
+        dFlux_num_(i, vars::cons::Velocity) = flux_p;
+        dFlux_num_(i, vars::cons::Energy) = flux_u * flux_p;
       });
 
   flux_u_(stage, 0) = flux_u_(stage, 1);
@@ -170,8 +172,9 @@ void HydroPackage::fluid_divergence(const State *const state,
           double local_sum2 = 0.0;
           double local_sum3 = 0.0;
           for (int q = 0; q < nNodes; ++q) {
-            const double vel = basis_eval(phi, ucf, i, 1, q + 1);
-            const double P = uaf(i, q + 1, 0);
+            const double vel =
+                basis_eval(phi, ucf, i, vars::cons::Velocity, q + 1);
+            const double P = uaf(i, q + 1, vars::aux::Pressure);
             const auto [flux1, flux2, flux3] = flux_fluid(vel, P);
             const double w = weights(q);
             const double dphi = dphis(i, q + 1, k);
@@ -182,9 +185,9 @@ void HydroPackage::fluid_divergence(const State *const state,
             local_sum3 += w * flux3 * dphi * sqrtgm;
           }
 
-          dU(i, k, 0) += local_sum1;
-          dU(i, k, 1) += local_sum2;
-          dU(i, k, 2) += local_sum3;
+          dU(i, k, vars::cons::SpecificVolume) += local_sum1;
+          dU(i, k, vars::cons::Velocity) += local_sum2;
+          dU(i, k, vars::cons::Energy) += local_sum3;
         });
   }
 }
@@ -210,7 +213,7 @@ void HydroPackage::fluid_geometry(const AthelasArray3D<double> ucf,
       ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double P = uaf(i, q + 1, 0);
+          const double P = uaf(i, q + 1, vars::aux::Pressure);
 
           local_sum += weights(q) * P * phi(i, q + 1, k) * position(i, q);
         }
@@ -239,9 +242,12 @@ auto HydroPackage::min_timestep(const State *const state,
       ib.e,
       KOKKOS_CLASS_LAMBDA(const int i, double &lmin) {
         // --- Using Cell Averages ---
-        const double tau_x = ucf(i, 0, 0);
-        const double vel_x = ucf(i, 0, 1);
-        const double eint_x = ucf(i, 0, 2);
+        const double tau_x =
+            ucf(i, vars::modes::CellAverage, vars::cons::SpecificVolume);
+        const double vel_x =
+            ucf(i, vars::modes::CellAverage, vars::cons::Velocity);
+        const double eint_x =
+            ucf(i, vars::modes::CellAverage, vars::cons::Energy);
 
         // NOTE: This is not really correct. I'm using a nodal location for
         // getting the ionization terms but cell average quantities for the
@@ -305,9 +311,10 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
       DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Fill derived", DevExecSpace(), ib.s,
       ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
         for (int q = 0; q < nNodes + 2; ++q) {
-          const double tau = basis_eval(phi, uCF, i, 0, q);
-          const double vel = basis_eval(phi, uCF, i, 1, q);
-          const double emt = basis_eval(phi, uCF, i, 2, q);
+          const double tau =
+              basis_eval(phi, uCF, i, vars::cons::SpecificVolume, q);
+          const double vel = basis_eval(phi, uCF, i, vars::cons::Velocity, q);
+          const double emt = basis_eval(phi, uCF, i, vars::cons::Energy, q);
 
           const double rho = 1.0 / tau;
           const double momentum = rho * vel;
@@ -327,13 +334,13 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
           const double cs =
               sound_speed_from_conserved(eos_, tau, vel, emt, lambda);
 
-          uPF(i, q, 0) = rho;
-          uPF(i, q, 1) = momentum;
-          uPF(i, q, 2) = sie;
+          uPF(i, q, vars::prim::Rho) = rho;
+          uPF(i, q, vars::prim::Momentum) = momentum;
+          uPF(i, q, vars::prim::Sie) = sie;
 
-          uAF(i, q, 0) = pressure;
-          uAF(i, q, 1) = t_gas;
-          uAF(i, q, 2) = cs;
+          uAF(i, q, vars::aux::Pressure) = pressure;
+          uAF(i, q, vars::aux::Tgas) = t_gas;
+          uAF(i, q, vars::aux::Cs) = cs;
         }
       });
 }

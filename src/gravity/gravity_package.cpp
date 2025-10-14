@@ -6,6 +6,7 @@
  **/
 #include <limits>
 
+#include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "geometry/grid.hpp"
 #include "gravity/gravity_package.hpp"
@@ -68,20 +69,27 @@ void GravityPackage::gravity_update(const AthelasArray3D<double> state,
           const double X = r(i, q);
           const double weight = weights(q);
           if constexpr (Model == GravityModel::Spherical) {
-            local_sum_v += weight * phi(i, q + 1, k) * enclosed_mass(i, q) *
-                           sqrt_gm(i, q + 1) /
-                           ((X * X) * basis_eval(phi, state, i, 0, q + 1));
-            local_sum_e += local_sum_v * basis_eval(phi, state, i, 1, q + 1);
+            local_sum_v +=
+                weight * phi(i, q + 1, k) * enclosed_mass(i, q) *
+                sqrt_gm(i, q + 1) /
+                ((X * X) *
+                 basis_eval(phi, state, i, vars::cons::SpecificVolume, q + 1));
+            local_sum_e +=
+                local_sum_v *
+                basis_eval(phi, state, i, vars::cons::Velocity, q + 1);
           } else {
-            local_sum_v += sqrt_gm(i, q + 1) * weight * phi(i, q + 1, k) *
-                           gval / basis_eval(phi, state, i, 0, q + 1);
-            local_sum_e += local_sum_v * basis_eval(phi, state, i, 1, q + 1);
+            local_sum_v +=
+                sqrt_gm(i, q + 1) * weight * phi(i, q + 1, k) * gval /
+                basis_eval(phi, state, i, vars::cons::SpecificVolume, q + 1);
+            local_sum_e +=
+                local_sum_v *
+                basis_eval(phi, state, i, vars::cons::Velocity, q + 1);
           }
         }
 
-        dU(i, k, 1) -=
+        dU(i, k, vars::cons::Velocity) -=
             (constants::G_GRAV * local_sum_v * dr(i)) * inv_mkk(i, k);
-        dU(i, k, 2) -=
+        dU(i, k, vars::cons::Energy) -=
             (constants::G_GRAV * local_sum_e * dr(i)) * inv_mkk(i, k);
       });
 }

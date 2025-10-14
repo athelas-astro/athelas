@@ -267,7 +267,7 @@ void GridStructure::compute_mass(const AthelasArray3D<double> uPF) {
         double mass = 0.0;
         for (int q = 0; q < nNodes_; q++) {
           const double X = node_coordinate(i, q);
-          mass += weights_(q) * get_sqrt_gm(X) * uPF(i, q, 0);
+          mass += weights_(q) * get_sqrt_gm(X) * uPF(i, q, vars::prim::Rho);
         }
         mass *= widths_(i);
         mass_(i) = mass;
@@ -308,7 +308,8 @@ void GridStructure::compute_mass_r(const AthelasArray3D<double> uPF) {
         const int ix = ilo + idx / nNodes_;
         const int q = idx % nNodes_;
         const double X = node_coordinate(ix, q);
-        mass_contrib(idx) = weights_(q) * get_sqrt_gm(X) * uPF(ix, q, 0);
+        mass_contrib(idx) =
+            weights_(q) * get_sqrt_gm(X) * uPF(ix, q, vars::prim::Rho);
       });
 
   // 2: Perform parallel inclusive scan (cumulative sum)
@@ -359,7 +360,8 @@ void GridStructure::compute_center_of_mass(const AthelasArray3D<double> uPF) {
 
         for (int q = 0; q < nNodes_; q++) {
           const double X = node_coordinate(i, q);
-          com += nodes_(q) * weights_(q) * get_sqrt_gm(X) * uPF(i, q, 0);
+          com += nodes_(q) * weights_(q) * get_sqrt_gm(X) *
+                 uPF(i, q, vars::prim::Rho);
         }
 
         com *= widths_(i);
