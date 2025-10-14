@@ -8,6 +8,7 @@
  * TODO(astrobarker): Loop is 4 pi
  */
 
+#include "basic_types.hpp"
 #include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
 #include "loop_layout.hpp"
@@ -41,9 +42,10 @@ inline auto total_fluid_energy(const State &state, const GridStructure &grid,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum += basis_eval(phi, u, i, 2, q + 1) /
-                       basis_eval(phi, u, i, 0, q + 1) * sqrt_gm(i, q + 1) *
-                       weights(q);
+          local_sum +=
+              basis_eval(phi, u, i, vars::cons::Energy, q + 1) /
+              basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
+              sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
       },
@@ -76,9 +78,10 @@ inline auto total_fluid_momentum(const State &state, const GridStructure &grid,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum += basis_eval(phi, u, i, 1, q + 1) /
-                       basis_eval(phi, u, i, 0, q + 1) * sqrt_gm(i, q + 1) *
-                       weights(q);
+          local_sum +=
+              basis_eval(phi, u, i, vars::cons::Velocity, q + 1) /
+              basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
+              sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
       },
@@ -111,10 +114,12 @@ inline auto total_internal_energy(const State &state, const GridStructure &grid,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double vel = basis_eval(phi, u, i, 1, q + 1);
-          local_sum += (basis_eval(phi, u, i, 2, q + 1) - 0.5 * vel * vel) /
-                       basis_eval(phi, u, i, 0, q + 1) * sqrt_gm(i, q + 1) *
-                       weights(q);
+          const double vel = basis_eval(phi, u, i, vars::cons::Velocity, q + 1);
+          local_sum +=
+              (basis_eval(phi, u, i, vars::cons::Energy, q + 1) -
+               0.5 * vel * vel) /
+              basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
+              sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
       },
@@ -152,7 +157,8 @@ inline auto total_gravitational_energy(const State &state,
         for (int q = 0; q < nNodes; ++q) {
           const double X = r(i, q);
           local_sum +=
-              (enclosed_mass(i, q) / (X / basis_eval(phi, u, i, 0, q + 1))) *
+              (enclosed_mass(i, q) /
+               (X / basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1))) *
               sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
@@ -186,9 +192,11 @@ inline auto total_kinetic_energy(const State &state, const GridStructure &grid,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double vel = basis_eval(phi, u, i, 1, q + 1);
-          local_sum += (0.5 * vel * vel) / basis_eval(phi, u, i, 0, q + 1) *
-                       sqrt_gm(i, q + 1) * weights(q);
+          const double vel = basis_eval(phi, u, i, vars::cons::Velocity, q + 1);
+          local_sum +=
+              (0.5 * vel * vel) /
+              basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
+              sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
       },
@@ -221,8 +229,8 @@ inline auto total_rad_energy(const State &state, const GridStructure &grid,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum += basis_eval(phi_rad, u, i, 3, q + 1) * sqrt_gm(i, q + 1) *
-                       weights(q);
+          local_sum += basis_eval(phi_rad, u, i, vars::cons::RadEnergy, q + 1) *
+                       sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
       },
@@ -255,8 +263,8 @@ inline auto total_rad_momentum(const State &state, const GridStructure &grid,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum += basis_eval(phi_rad, u, i, 4, q + 1) * sqrt_gm(i, q + 1) *
-                       weights(q);
+          local_sum += basis_eval(phi_rad, u, i, vars::cons::RadFlux, q + 1) *
+                       sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
       },
@@ -290,10 +298,12 @@ inline auto total_energy(const State &state, const GridStructure &grid,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum += ((basis_eval(phi_fluid, u, i, 2, q + 1) /
-                         basis_eval(phi_fluid, u, i, 0, q + 1)) +
-                        basis_eval(phi_rad, u, i, 3, q + 1)) *
-                       sqrt_gm(i, q + 1) * weights(q);
+          local_sum +=
+              ((basis_eval(phi_fluid, u, i, vars::cons::Energy, q + 1) /
+                basis_eval(phi_fluid, u, i, vars::cons::SpecificVolume,
+                           q + 1)) +
+               basis_eval(phi_rad, u, i, vars::cons::RadEnergy, q + 1)) *
+              sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
       },
@@ -327,10 +337,12 @@ inline auto total_momentum(const State &state, const GridStructure &grid,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum += ((basis_eval(phi_fluid, u, i, 1, q + 1) /
-                         basis_eval(phi_fluid, u, i, 0, q + 1)) +
-                        basis_eval(phi_rad, u, i, 4, q + 1)) *
-                       sqrt_gm(i, q + 1) * weights(q);
+          local_sum +=
+              ((basis_eval(phi_fluid, u, i, vars::cons::Velocity, q + 1) /
+                basis_eval(phi_fluid, u, i, vars::cons::SpecificVolume,
+                           q + 1)) +
+               basis_eval(phi_rad, u, i, vars::cons::RadFlux, q + 1)) *
+              sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
       },
@@ -362,8 +374,9 @@ inline auto total_mass(const State &state, const GridStructure &grid,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum += (1.0 / basis_eval(phi, u, i, 0, q + 1)) *
-                       sqrt_gm(i, q + 1) * weights(q);
+          local_sum +=
+              (1.0 / basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1)) *
+              sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
       },
@@ -401,8 +414,10 @@ inline auto total_mass_ni56(const State &state, const GridStructure &grid,
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
           const double x_ni = basis_eval(phi, mass_fractions, i, ind_x, q + 1);
-          local_sum += x_ni * (1.0 / basis_eval(phi, u, i, 0, q + 1)) *
-                       sqrt_gm(i, q + 1) * weights(q);
+          local_sum +=
+              x_ni *
+              (1.0 / basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1)) *
+              sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
       },
@@ -438,8 +453,10 @@ inline auto total_mass_co56(const State &state, const GridStructure &grid,
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
           const double x_co = basis_eval(phi, mass_fractions, i, ind_x, q + 1);
-          local_sum += x_co * (1.0 / basis_eval(phi, u, i, 0, q + 1)) *
-                       sqrt_gm(i, q + 1) * weights(q);
+          local_sum +=
+              x_co *
+              (1.0 / basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1)) *
+              sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
       },
@@ -475,8 +492,10 @@ inline auto total_mass_fe56(const State &state, const GridStructure &grid,
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
           const double x_fe = basis_eval(phi, mass_fractions, i, ind_x, q + 1);
-          local_sum += x_fe * (1.0 / basis_eval(phi, u, i, 0, q + 1)) *
-                       sqrt_gm(i, q + 1) * weights(q);
+          local_sum +=
+              x_fe *
+              (1.0 / basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1)) *
+              sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
       },

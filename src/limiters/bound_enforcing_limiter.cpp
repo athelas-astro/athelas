@@ -24,6 +24,7 @@
 #include <cmath>
 #include <cstdlib> /* abs */
 
+#include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
@@ -67,7 +68,7 @@ void limit_density(AthelasArray3D<double> U, const ModalBasis *basis) {
         const double avg = U(i, 0, 0);
 
         for (int q = 0; q <= order; ++q) {
-          nodal = basis_eval(phi, U, i, 0, q);
+          nodal = basis_eval(phi, U, i, vars::cons::SpecificVolume, q);
           if (std::isnan(nodal)) {
             theta1 = 0.0;
             break;
@@ -77,7 +78,7 @@ void limit_density(AthelasArray3D<double> U, const ModalBasis *basis) {
         }
 
         for (int k = 1; k < order; k++) {
-          U(i, k, 0) *= theta1;
+          U(i, k, vars::cons::SpecificVolume) *= theta1;
         }
       });
 }
@@ -178,9 +179,12 @@ void limit_rad_energy(AthelasArray3D<double> U, const ModalBasis *basis) {
         double temp = 0.0;
 
         for (int q = 0; q <= order + 1; ++q) {
-          nodal = basis_eval(phi, U, i, 3, q);
+          nodal = basis_eval(phi, U, i, vars::cons::RadEnergy, q);
 
-          if (nodal > EPSILON + 0 * std::abs(U(i, 0, 4)) / constants::c_cgs) {
+          if (nodal > EPSILON + 0 *
+                                    std::abs(U(i, vars::modes::CellAverage,
+                                               vars::cons::RadFlux)) /
+                                    constants::c_cgs) {
             temp = 1.0;
           } else {
             const double theta_guess = 0.9;
@@ -192,6 +196,7 @@ void limit_rad_energy(AthelasArray3D<double> U, const ModalBasis *basis) {
           theta2 = std::abs(std::min(theta2, temp));
         }
 
+        // When we limit the radiation energy we also limit the flux
         for (int k = 1; k < order; ++k) {
           for (int v = 3; v < 5; ++v) {
             U(i, k, v) *= theta2;
@@ -230,7 +235,7 @@ void limit_rad_momentum(AthelasArray3D<double> U, const ModalBasis *basis) {
         }
 
         for (int k = 1; k < order; k++) {
-          U(i, k, 4) *= theta2;
+          U(i, k, vars::cons::RadFlux) *= theta2;
         }
       });
 }
@@ -241,15 +246,19 @@ void limit_rad_momentum(AthelasArray3D<double> U, const ModalBasis *basis) {
 auto compute_theta_state(const AthelasArray3D<double> U,
                          const AthelasArray3D<double> phi, const double theta,
                          const int q, const int ix, const int iN) -> double {
-  return theta * (basis_eval(phi, U, ix, q, iN) - U(ix, 0, q)) + U(ix, 0, q);
+  return theta * (basis_eval(phi, U, ix, q, iN) -
+                  U(ix, vars::modes::CellAverage, q)) +
+         U(ix, vars::modes::CellAverage, q);
 }
 
 auto target_func(const double theta, const AthelasArray3D<double> U,
                  const AthelasArray3D<double> phi, const int ix, const int iN)
     -> double {
   const double w = 1.0e-13;
-  const double s1 = compute_theta_state(U, phi, theta, 1, ix, iN);
-  const double s2 = compute_theta_state(U, phi, theta, 2, ix, iN);
+  const double s1 =
+      compute_theta_state(U, phi, theta, vars::cons::Velocity, ix, iN);
+  const double s2 =
+      compute_theta_state(U, phi, theta, vars::cons::Energy, ix, iN);
 
   double const e = s2 - (0.5 * s1 * s1);
 
@@ -258,9 +267,10 @@ auto target_func(const double theta, const AthelasArray3D<double> U,
 auto target_func_deriv(const double theta, const AthelasArray3D<double> U,
                        const AthelasArray3D<double> phi, const int ix,
                        const int iN) -> double {
-  const double dE = basis_eval(phi, U, ix, 2, iN) - U(ix, 0, 2);
-  const double v_q = basis_eval(phi, U, ix, 1, iN);
-  const double dv = v_q - U(ix, 0, 1);
+  const double dE = basis_eval(phi, U, ix, vars::modes::CellAverage, iN) -
+                    U(ix, vars::modes::CellAverage, vars::cons::Energy);
+  const double v_q = basis_eval(phi, U, ix, vars::cons::Velocity, iN);
+  const double dv = v_q - U(ix, vars::modes::CellAverage, vars::cons::Velocity);
   return dE - (v_q + theta * dv) * dv;
 }
 
@@ -269,8 +279,10 @@ auto target_func_rad_flux(const double theta, const AthelasArray3D<double> U,
                           const AthelasArray3D<double> phi, const int ix,
                           const int iN) -> double {
   const double w = 1.0e-13;
-  const double s1 = compute_theta_state(U, phi, theta, 4, ix, iN);
-  const double s2 = compute_theta_state(U, phi, theta, 3, ix, iN);
+  const double s1 =
+      compute_theta_state(U, phi, theta, vars::cons::RadFlux, ix, iN);
+  const double s2 =
+      compute_theta_state(U, phi, theta, vars::cons::RadEnergy, ix, iN);
 
   const double e = std::abs(s1) / (constants::c_cgs * s2);
 
@@ -281,10 +293,14 @@ auto target_func_rad_flux_deriv(const double theta,
                                 const AthelasArray3D<double> U,
                                 const AthelasArray3D<double> phi, const int ix,
                                 const int iN) -> double {
-  const double dE = basis_eval(phi, U, ix, 3, iN) - U(ix, 0, 3);
-  const double dF = basis_eval(phi, U, ix, 4, iN) - U(ix, 0, 4);
-  const double E_theta = compute_theta_state(U, phi, theta, 3, ix, iN);
-  const double F_theta = compute_theta_state(U, phi, theta, 4, ix, iN);
+  const double dE = basis_eval(phi, U, ix, vars::cons::RadEnergy, iN) -
+                    U(ix, vars::modes::CellAverage, vars::cons::RadEnergy);
+  const double dF = basis_eval(phi, U, ix, vars::cons::RadFlux, iN) -
+                    U(ix, vars::modes::CellAverage, vars::cons::RadFlux);
+  const double E_theta =
+      compute_theta_state(U, phi, theta, vars::cons::RadEnergy, ix, iN);
+  const double F_theta =
+      compute_theta_state(U, phi, theta, vars::cons::RadFlux, ix, iN);
   const double dfdE = -F_theta / (E_theta * E_theta * constants::c_cgs);
   const double dfdF =
       F_theta / (std::abs(F_theta) * E_theta * constants::c_cgs);
@@ -295,14 +311,16 @@ auto target_func_rad_energy_deriv(const double theta,
                                   const AthelasArray3D<double> U,
                                   const AthelasArray3D<double> phi,
                                   const int ix, const int iN) -> double {
-  return basis_eval(phi, U, ix, 3, iN) - U(ix, 0, 3);
+  return basis_eval(phi, U, ix, vars::cons::RadEnergy, iN) -
+         U(ix, vars::modes::CellAverage, vars::cons::RadEnergy);
 }
 
 auto target_func_rad_energy(const double theta, const AthelasArray3D<double> U,
                             const AthelasArray3D<double> phi, const int ix,
                             const int iN) -> double {
   const double w = 1.0e-13;
-  const double s1 = compute_theta_state(U, phi, theta, 3, ix, iN);
+  const double s1 =
+      compute_theta_state(U, phi, theta, vars::cons::RadEnergy, ix, iN);
 
   const double e = s1;
 

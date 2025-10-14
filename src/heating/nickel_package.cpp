@@ -1,4 +1,5 @@
 #include "heating/nickel_package.hpp"
+#include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "compdata.hpp"
 #include "constants.hpp"
@@ -122,16 +123,16 @@ void NickelHeatingPackage::ni_update(const AthelasArray3D<double> ucf,
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "NickelHeating :: Decay network",
       DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-        const double x_ni = mass_fractions(i, 0, ind_ni);
-        const double x_co = mass_fractions(i, 0, ind_co);
+        const double x_ni = mass_fractions(i, vars::modes::CellAverage, ind_ni);
+        const double x_co = mass_fractions(i, vars::modes::CellAverage, ind_co);
         const double rhs_ni = -LAMBDA_NI_ * x_ni;
         const double rhs_co = LAMBDA_NI_ * x_ni - LAMBDA_CO_ * x_co;
         const double rhs_fe = LAMBDA_CO_ * x_co;
 
         // Decay only alters cell average mass fractions!
-        dU(i, 0, ind_offset + ind_ni) += rhs_ni;
-        dU(i, 0, ind_offset + ind_co) += rhs_co;
-        dU(i, 0, ind_offset + ind_fe) += rhs_fe;
+        dU(i, vars::modes::CellAverage, ind_offset + ind_ni) += rhs_ni;
+        dU(i, vars::modes::CellAverage, ind_offset + ind_co) += rhs_co;
+        dU(i, vars::modes::CellAverage, ind_offset + ind_fe) += rhs_fe;
       });
 }
 
@@ -224,9 +225,13 @@ void NickelHeatingPackage::fill_derived(State *state, const GridStructure &grid,
                 const double rx = i * dr;
                 const double rj = std::sqrt(ri2 + rx * rx + two_ri_cos * rx);
                 const int index = utilities::find_closest_cell(centers, rj, nx);
-                const double rho_interp = LINTERP(
-                    centers(index), centers(index + 1), 1.0 / uCF(index, 0, 0),
-                    1.0 / uCF(index + 1, 0, 0), rx);
+                const double rho_interp =
+                    LINTERP(centers(index), centers(index + 1),
+                            1.0 / uCF(index, vars::modes::CellAverage,
+                                      vars::cons::SpecificVolume),
+                            1.0 / uCF(index + 1, vars::modes::CellAverage,
+                                      vars::modes::Slope),
+                            rx);
                 const double ye_interp =
                     LINTERP(centers(index), centers(index + 1), ye(index, 0),
                             ye(index + 1, nnodes + 1), rx);

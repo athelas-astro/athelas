@@ -26,6 +26,7 @@ namespace athelas {
 using basis::ModalBasis;
 using eos::EOS;
 using utilities::ratio;
+using namespace vars::modes;
 
 /**
  * Apply the slope limiter. We use a compact stencil WENO-Z limiter
@@ -57,7 +58,7 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U,
           // --- Characteristic Limiting Matrices ---
           // Note: using cell averages
           for (int v = 0; v < nvars; v++) {
-            mult_(i, v) = U(i, 0, v);
+            mult_(i, v) = U(i, CellAverage, v);
           }
 
           auto R_i = Kokkos::subview(R_, i, Kokkos::ALL, Kokkos::ALL);

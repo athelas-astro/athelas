@@ -1,4 +1,5 @@
 #include "composition/composition.hpp"
+#include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
@@ -84,7 +85,8 @@ void fill_derived_ionization(State *const state,
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Ionization :: fill derived", DevExecSpace(), ib.s,
       ib.e, nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int q) {
-        const double rho = 1.0 / basis->basis_eval(ucf, i, 0, q);
+        const double rho =
+            1.0 / basis->basis_eval(ucf, i, vars::cons::SpecificVolume, q);
         // This kernel is horrible.
         // Reduce the ionization based quantities sigma1-3, e_ion_corr
         for (size_t e = 0; e < num_species; ++e) {

@@ -94,9 +94,12 @@ class TimeStepper {
             DEFAULT_FLAT_LOOP_PATTERN,
             "Timestepper :: EX :: Ni :: Reset sumvar", DevExecSpace(), ib.s,
             ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              SumVar_U_(i, 0, 3 + ind_ni) = mass_fractions(i, 0, ind_ni);
-              SumVar_U_(i, 0, 3 + ind_co) = mass_fractions(i, 0, ind_co);
-              SumVar_U_(i, 0, 3 + ind_fe) = mass_fractions(i, 0, ind_fe);
+              SumVar_U_(i, vars::modes::CellAverage, 3 + ind_ni) =
+                  mass_fractions(i, vars::modes::CellAverage, ind_ni);
+              SumVar_U_(i, vars::modes::CellAverage, 3 + ind_co) =
+                  mass_fractions(i, vars::modes::CellAverage, ind_co);
+              SumVar_U_(i, vars::modes::CellAverage, 3 + ind_fe) =
+                  mass_fractions(i, vars::modes::CellAverage, ind_fe);
             });
       }
 
@@ -125,7 +128,8 @@ class TimeStepper {
               DEFAULT_LOOP_PATTERN, "Timestepper :: EX :: Ni :: update sumvar",
               DevExecSpace(), ib.s, ib.e, 3, nvars + 2,
               KOKKOS_CLASS_LAMBDA(const int i, const int v) {
-                SumVar_U_(i, 0, v) += dt_a_ex * dUs_j(i, 0, v);
+                SumVar_U_(i, vars::modes::CellAverage, v) +=
+                    dt_a_ex * dUs_j(i, vars::modes::CellAverage, v);
               });
         }
 
@@ -156,12 +160,12 @@ class TimeStepper {
         athelas::par_for(
             DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: EX :: Ni :: Set Us",
             DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              mass_fractions_stages(iS, i, 0, ind_ni) =
-                  SumVar_U_(i, 0, 3 + ind_ni);
-              mass_fractions_stages(iS, i, 0, ind_co) =
-                  SumVar_U_(i, 0, 3 + ind_co);
-              mass_fractions_stages(iS, i, 0, ind_fe) =
-                  SumVar_U_(i, 0, 3 + ind_fe);
+              mass_fractions_stages(iS, i, vars::modes::CellAverage, ind_ni) =
+                  SumVar_U_(i, vars::modes::CellAverage, 3 + ind_ni);
+              mass_fractions_stages(iS, i, vars::modes::CellAverage, ind_co) =
+                  SumVar_U_(i, vars::modes::CellAverage, 3 + ind_co);
+              mass_fractions_stages(iS, i, vars::modes::CellAverage, ind_fe) =
+                  SumVar_U_(i, vars::modes::CellAverage, 3 + ind_fe);
             });
       }
 
@@ -205,9 +209,12 @@ class TimeStepper {
         athelas::par_for(
             DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: EX :: Ni :: Finalize",
             DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              mass_fractions(i, 0, ind_ni) += dt_b_ex * dUs_j(i, 0, 3 + ind_ni);
-              mass_fractions(i, 0, ind_co) += dt_b_ex * dUs_j(i, 0, 3 + ind_co);
-              mass_fractions(i, 0, ind_fe) += dt_b_ex * dUs_j(i, 0, 3 + ind_fe);
+              mass_fractions(i, vars::modes::CellAverage, ind_ni) +=
+                  dt_b_ex * dUs_j(i, vars::modes::CellAverage, 3 + ind_ni);
+              mass_fractions(i, vars::modes::CellAverage, ind_co) +=
+                  dt_b_ex * dUs_j(i, vars::modes::CellAverage, 3 + ind_co);
+              mass_fractions(i, vars::modes::CellAverage, ind_fe) +=
+                  dt_b_ex * dUs_j(i, vars::modes::CellAverage, 3 + ind_fe);
             });
       }
 
@@ -287,9 +294,12 @@ class TimeStepper {
             DEFAULT_FLAT_LOOP_PATTERN,
             "Timestepper :: IMEX :: Ni :: Reset sumvar", DevExecSpace(), ib.s,
             ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              SumVar_U_(i, 0, 5 + ind_ni) = mass_fractions(i, 0, ind_ni);
-              SumVar_U_(i, 0, 5 + ind_co) = mass_fractions(i, 0, ind_co);
-              SumVar_U_(i, 0, 5 + ind_fe) = mass_fractions(i, 0, ind_fe);
+              SumVar_U_(i, vars::modes::CellAverage, 5 + ind_ni) =
+                  mass_fractions(i, vars::modes::CellAverage, ind_ni);
+              SumVar_U_(i, vars::modes::CellAverage, 5 + ind_co) =
+                  mass_fractions(i, vars::modes::CellAverage, ind_co);
+              SumVar_U_(i, vars::modes::CellAverage, 5 + ind_fe) =
+                  mass_fractions(i, vars::modes::CellAverage, ind_fe);
             });
       }
 
@@ -322,7 +332,8 @@ class TimeStepper {
               "Timestepper :: IMEX :: Ni :: Update sumvar", DevExecSpace(),
               ib.s, ib.e, 5, nvars + 5,
               KOKKOS_CLASS_LAMBDA(const int ix, const int q) {
-                SumVar_U_(ix, 0, q) += dt_a * dUs_j(ix, 0, q);
+                SumVar_U_(ix, vars::modes::CellAverage, q) +=
+                    dt_a * dUs_j(ix, vars::modes::CellAverage, q);
               });
         }
 
@@ -366,12 +377,12 @@ class TimeStepper {
         athelas::par_for(
             DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: IMEX :: Ni :: Set Us",
             DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              mass_fractions_stages(iS, i, 0, ind_ni) =
-                  SumVar_U_(i, 0, 5 + ind_ni);
-              mass_fractions_stages(iS, i, 0, ind_co) =
-                  SumVar_U_(i, 0, 5 + ind_co);
-              mass_fractions_stages(iS, i, 0, ind_fe) =
-                  SumVar_U_(i, 0, 5 + ind_fe);
+              mass_fractions_stages(iS, i, vars::modes::CellAverage, ind_ni) =
+                  SumVar_U_(i, vars::modes::CellAverage, 5 + ind_ni);
+              mass_fractions_stages(iS, i, vars::modes::CellAverage, ind_co) =
+                  SumVar_U_(i, vars::modes::CellAverage, 5 + ind_co);
+              mass_fractions_stages(iS, i, vars::modes::CellAverage, ind_fe) =
+                  SumVar_U_(i, vars::modes::CellAverage, 5 + ind_fe);
             });
       }
 
@@ -448,7 +459,9 @@ class TimeStepper {
           DEFAULT_LOOP_PATTERN, "Timestepper :: IMEX :: Finalize",
           DevExecSpace(), ib.s, ib.e, kb.s, kb.e,
           KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-            uCF(i, k, 0) = std::fma(dt_b, dUs_ex_i(i, k, 0), uCF(i, k, 0));
+            uCF(i, k, vars::cons::SpecificVolume) =
+                std::fma(dt_b, dUs_ex_i(i, k, vars::cons::SpecificVolume),
+                         uCF(i, k, vars::cons::SpecificVolume));
             for (int v = 1; v < nvars; ++v) {
               uCF(i, k, v) = std::fma(dt_b, dUs_ex_i(i, k, v), uCF(i, k, v));
 
@@ -465,9 +478,12 @@ class TimeStepper {
         athelas::par_for(
             DEFAULT_FLAT_LOOP_PATTERN, "Timestepper  :: IMEX :: Ni :: Finalize",
             DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              mass_fractions(i, 0, ind_ni) += dt_b * dUs_ex_i(i, 0, 5 + ind_ni);
-              mass_fractions(i, 0, ind_co) += dt_b * dUs_ex_i(i, 0, 5 + ind_co);
-              mass_fractions(i, 0, ind_fe) += dt_b * dUs_ex_i(i, 0, 5 + ind_fe);
+              mass_fractions(i, vars::modes::CellAverage, ind_ni) +=
+                  dt_b * dUs_ex_i(i, vars::modes::CellAverage, 5 + ind_ni);
+              mass_fractions(i, vars::modes::CellAverage, ind_co) +=
+                  dt_b * dUs_ex_i(i, vars::modes::CellAverage, 5 + ind_co);
+              mass_fractions(i, vars::modes::CellAverage, ind_fe) +=
+                  dt_b * dUs_ex_i(i, vars::modes::CellAverage, 5 + ind_fe);
             });
       }
 

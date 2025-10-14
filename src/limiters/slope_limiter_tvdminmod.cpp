@@ -14,6 +14,7 @@
 #include <algorithm> /* std::min, std::max */
 #include <cstdlib> /* abs */
 
+#include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
@@ -28,6 +29,7 @@ namespace athelas {
 
 using basis::ModalBasis;
 using eos::EOS;
+using namespace vars::modes;
 
 /**
  * TVD Minmod limiter. See the Cockburn & Shu papers
@@ -69,7 +71,7 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
           // --- Characteristic Limiting Matrices ---
           // Note: using cell averages
           for (int v = 0; v < nvars; ++v) {
-            mult_(i, v) = U(i, 0, v);
+            mult_(i, v) = U(i, CellAverage, v);
           }
 
           auto R_i = Kokkos::subview(R_, i, Kokkos::ALL, Kokkos::ALL);
@@ -104,10 +106,10 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
           for (int v : vars_) {
 
             // --- Begin TVD Minmod Limiter --- //
-            const double s_i = U(i, 1, v); // target cell slope
-            const double c_i = U(i, 0, v); // target cell avg
-            const double c_p = U(i + 1, 0, v); // cell i + 1 avg
-            const double c_m = U(i - 1, 0, v); // cell i - 1 avg
+            const double s_i = U(i, Slope, v); // target cell slope
+            const double c_i = U(i, CellAverage, v); // target cell avg
+            const double c_p = U(i + 1, CellAverage, v); // cell i + 1 avg
+            const double c_m = U(i - 1, CellAverage, v); // cell i - 1 avg
             const double new_slope = MINMOD_B(
                 s_i, b_tvd_ * (c_p - c_i), b_tvd_ * (c_i - c_m), dr(i), m_tvb_);
 
@@ -115,7 +117,7 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
             if (std::abs(new_slope - s_i) >
                 sl_threshold_ * std::max(std::abs(s_i), EPS)) {
               // limit
-              U(i, 1, v) = new_slope;
+              U(i, Slope, v) = new_slope;
               // remove any higher order contributions
               for (int k = 2; k < order_; ++k) {
                 U(i, k, v) = 0.0;

@@ -1,6 +1,7 @@
 #include <cmath>
 
 #include "atom/atom.hpp"
+#include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "composition/compdata.hpp"
 #include "composition/composition.hpp"
@@ -51,7 +52,8 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
       DEFAULT_LOOP_PATTERN, "Saha :: Solve ionization all", DevExecSpace(),
       ib.s, ib.e, nb.s, nb.e, eb.s, eb.e,
       KOKKOS_LAMBDA(const int i, const int q, const int e) {
-        const double rho = 1.0 / basis_eval(phi, uCF, i, 0, q);
+        const double rho =
+            1.0 / basis_eval(phi, uCF, i, vars::cons::SpecificVolume, q);
         const double temperature = uaf(i, q, 1);
 
         const double x_e = basis_eval(phi, mass_fractions, i, e, q);

@@ -135,10 +135,12 @@ auto compute_increment_radhydro_source(
     const int qp1 = q + 1;
     // Note: basis evaluations are awkward here.
     // must be sure to use the correct basis functions.
-    const double tau = basis_eval(phi_fluid, uCRH, i, 0, qp1);
+    const double tau =
+        basis_eval(phi_fluid, uCRH, i, vars::cons::SpecificVolume, qp1);
     const double rho = 1.0 / tau;
-    const double vel = basis_eval(phi_fluid, uCRH, i, 1, qp1);
-    const double em_t = basis_eval(phi_fluid, uCRH, i, 2, qp1);
+    const double vel =
+        basis_eval(phi_fluid, uCRH, i, vars::cons::Velocity, qp1);
+    const double em_t = basis_eval(phi_fluid, uCRH, i, vars::cons::Energy, qp1);
 
     double lambda[8];
     if (ionization_enabled) {
@@ -154,8 +156,8 @@ auto compute_increment_radhydro_source(
     const double kappa_r = rosseland_mean(opac, rho, t_g, X, Y, Z, lambda);
     const double kappa_p = planck_mean(opac, rho, t_g, X, Y, Z, lambda);
 
-    const double E_r = basis_eval(phi_rad, uCRH, i, 3, qp1);
-    const double F_r = basis_eval(phi_rad, uCRH, i, 4, qp1);
+    const double E_r = basis_eval(phi_rad, uCRH, i, vars::cons::RadEnergy, qp1);
+    const double F_r = basis_eval(phi_rad, uCRH, i, vars::cons::RadFlux, qp1);
     const double P_r = compute_closure(E_r, F_r);
 
     // 4 force
@@ -224,10 +226,10 @@ KOKKOS_INLINE_FUNCTION void fixed_point_radhydro(T R, double dt_a_ii,
     for (int k = 0; k < num_modes; ++k) {
       const auto [xkp1_1_k, xkp1_2_k, xkp1_3_k, xkp1_4_k] =
           target(scratch_n, k);
-      scratch(k, 1) = xkp1_1_k; // fluid vel
-      scratch(k, 2) = xkp1_2_k; // fluid energy
-      scratch(k, 3) = xkp1_3_k; // rad energy
-      scratch(k, 4) = xkp1_4_k; // rad flux
+      scratch(k, vars::cons::Velocity) = xkp1_1_k; // fluid vel
+      scratch(k, vars::cons::Energy) = xkp1_2_k; // fluid energy
+      scratch(k, vars::cons::RadEnergy) = xkp1_3_k; // rad energy
+      scratch(k, vars::cons::RadFlux) = xkp1_4_k; // rad flux
 
       // --- update ---
       for (int v = 1; v < nvars; ++v) {
@@ -262,10 +264,10 @@ KOKKOS_INLINE_FUNCTION void fixed_point_radhydro_aa(T R, double dt_a_ii,
   // --- first fixed point iteration ---
   for (int k = 0; k < num_modes; ++k) {
     const auto [xnp1_1_k, xnp1_2_k, xnp1_3_k, xnp1_4_k] = target(scratch_n, k);
-    scratch(k, 1) = xnp1_1_k;
-    scratch(k, 2) = xnp1_2_k;
-    scratch(k, 3) = xnp1_3_k;
-    scratch(k, 4) = xnp1_4_k;
+    scratch(k, vars::cons::Velocity) = xnp1_1_k;
+    scratch(k, vars::cons::Energy) = xnp1_2_k;
+    scratch(k, vars::cons::RadEnergy) = xnp1_3_k;
+    scratch(k, vars::cons::RadFlux) = xnp1_4_k;
   }
   for (int k = 0; k < num_modes; ++k) {
     for (int v = 1; v < nvars; ++v) {
@@ -298,14 +300,18 @@ KOKKOS_INLINE_FUNCTION void fixed_point_radhydro_aa(T R, double dt_a_ii,
       const auto [s_1_nm1, s_2_nm1, s_3_nm1, s_4_nm1] = target(scratch_nm1, k);
 
       // residuals
-      const auto r_1_n = residual(s_1_n, scratch_n(k, 1));
-      const auto r_2_n = residual(s_2_n, scratch_n(k, 2));
-      const auto r_3_n = residual(s_3_n, scratch_n(k, 3));
-      const auto r_4_n = residual(s_4_n, scratch_n(k, 4));
-      const auto r_1_nm1 = residual(s_1_nm1, scratch_nm1(k, 1));
-      const auto r_2_nm1 = residual(s_2_nm1, scratch_nm1(k, 2));
-      const auto r_3_nm1 = residual(s_3_nm1, scratch_nm1(k, 3));
-      const auto r_4_nm1 = residual(s_4_nm1, scratch_nm1(k, 4));
+      const auto r_1_n = residual(s_1_n, scratch_n(k, vars::cons::Velocity));
+      const auto r_2_n = residual(s_2_n, scratch_n(k, vars::cons::Energy));
+      const auto r_3_n = residual(s_3_n, scratch_n(k, vars::cons::RadEnergy));
+      const auto r_4_n = residual(s_4_n, scratch_n(k, vars::cons::RadFlux));
+      const auto r_1_nm1 =
+          residual(s_1_nm1, scratch_nm1(k, vars::cons::Velocity));
+      const auto r_2_nm1 =
+          residual(s_2_nm1, scratch_nm1(k, vars::cons::Energy));
+      const auto r_3_nm1 =
+          residual(s_3_nm1, scratch_nm1(k, vars::cons::RadEnergy));
+      const auto r_4_nm1 =
+          residual(s_4_nm1, scratch_nm1(k, vars::cons::RadFlux));
 
       // Anderson acceleration alpha
       const auto a_1 = alpha_aa(r_1_n, r_1_nm1);
@@ -319,10 +325,10 @@ KOKKOS_INLINE_FUNCTION void fixed_point_radhydro_aa(T R, double dt_a_ii,
       const auto xnp1_3_k = a_3 * s_3_nm1 + (1.0 - a_3) * s_3_n;
       const auto xnp1_4_k = a_4 * s_4_nm1 + (1.0 - a_4) * s_4_n;
 
-      scratch(k, 1) = xnp1_1_k; // fluid vel
-      scratch(k, 2) = xnp1_2_k; // fluid energy
-      scratch(k, 3) = xnp1_3_k; // rad energy
-      scratch(k, 4) = xnp1_4_k; // rad flux
+      scratch(k, vars::cons::Velocity) = xnp1_1_k; // fluid vel
+      scratch(k, vars::cons::Energy) = xnp1_2_k; // fluid energy
+      scratch(k, vars::cons::RadEnergy) = xnp1_3_k; // rad energy
+      scratch(k, vars::cons::RadFlux) = xnp1_4_k; // rad flux
 
       // --- update ---
       for (int v = 1; v < nvars; ++v) {
