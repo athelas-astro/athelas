@@ -64,7 +64,7 @@ class TimeStepper {
     auto U = state->u_cf();
     auto U_s = state->u_cf_stages();
 
-    const int nvars = U.extent(2);
+    const int nvars = state->nvars();
     static const IndexRange ib(grid.domain<Domain::Entire>());
     static const IndexRange kb(order);
     static const IndexRange vb(nvars);
@@ -85,7 +85,6 @@ class TimeStepper {
           });
       if (evolve_nickel) {
         auto *comps = state->comps();
-        auto mass_fractions = comps->mass_fractions();
         const auto *const species_indexer = comps->species_indexer();
         static const auto ind_ni = species_indexer->get<int>("ni56");
         static const auto ind_co = species_indexer->get<int>("co56");
@@ -94,12 +93,12 @@ class TimeStepper {
             DEFAULT_FLAT_LOOP_PATTERN,
             "Timestepper :: EX :: Ni :: Reset sumvar", DevExecSpace(), ib.s,
             ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              SumVar_U_(i, vars::modes::CellAverage, 3 + ind_ni) =
-                  mass_fractions(i, vars::modes::CellAverage, ind_ni);
-              SumVar_U_(i, vars::modes::CellAverage, 3 + ind_co) =
-                  mass_fractions(i, vars::modes::CellAverage, ind_co);
-              SumVar_U_(i, vars::modes::CellAverage, 3 + ind_fe) =
-                  mass_fractions(i, vars::modes::CellAverage, ind_fe);
+              SumVar_U_(i, vars::modes::CellAverage, ind_ni) =
+                  U(i, vars::modes::CellAverage, ind_ni);
+              SumVar_U_(i, vars::modes::CellAverage, ind_co) =
+                  U(i, vars::modes::CellAverage, ind_co);
+              SumVar_U_(i, vars::modes::CellAverage, ind_fe) =
+                  U(i, vars::modes::CellAverage, ind_fe);
             });
       }
 
@@ -152,7 +151,6 @@ class TimeStepper {
 
       if (evolve_nickel) {
         auto *comps = state->comps();
-        auto mass_fractions_stages = comps->mass_fractions_stages();
         const auto *const species_indexer = comps->species_indexer();
         static const auto ind_ni = species_indexer->get<int>("ni56");
         static const auto ind_co = species_indexer->get<int>("co56");
@@ -160,12 +158,12 @@ class TimeStepper {
         athelas::par_for(
             DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: EX :: Ni :: Set Us",
             DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              mass_fractions_stages(iS, i, vars::modes::CellAverage, ind_ni) =
-                  SumVar_U_(i, vars::modes::CellAverage, 3 + ind_ni);
-              mass_fractions_stages(iS, i, vars::modes::CellAverage, ind_co) =
-                  SumVar_U_(i, vars::modes::CellAverage, 3 + ind_co);
-              mass_fractions_stages(iS, i, vars::modes::CellAverage, ind_fe) =
-                  SumVar_U_(i, vars::modes::CellAverage, 3 + ind_fe);
+              U_s(iS, i, vars::modes::CellAverage, ind_ni) =
+                  SumVar_U_(i, vars::modes::CellAverage, ind_ni);
+              U_s(iS, i, vars::modes::CellAverage, ind_co) =
+                  SumVar_U_(i, vars::modes::CellAverage, ind_co);
+              U_s(iS, i, vars::modes::CellAverage, ind_fe) =
+                  SumVar_U_(i, vars::modes::CellAverage, ind_fe);
             });
       }
 
@@ -201,7 +199,6 @@ class TimeStepper {
 
       if (evolve_nickel) {
         auto *comps = state->comps();
-        auto mass_fractions = comps->mass_fractions();
         const auto *const species_indexer = comps->species_indexer();
         static const auto ind_ni = species_indexer->get<int>("ni56");
         static const auto ind_co = species_indexer->get<int>("co56");
@@ -209,12 +206,12 @@ class TimeStepper {
         athelas::par_for(
             DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: EX :: Ni :: Finalize",
             DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              mass_fractions(i, vars::modes::CellAverage, ind_ni) +=
-                  dt_b_ex * dUs_j(i, vars::modes::CellAverage, 3 + ind_ni);
-              mass_fractions(i, vars::modes::CellAverage, ind_co) +=
-                  dt_b_ex * dUs_j(i, vars::modes::CellAverage, 3 + ind_co);
-              mass_fractions(i, vars::modes::CellAverage, ind_fe) +=
-                  dt_b_ex * dUs_j(i, vars::modes::CellAverage, 3 + ind_fe);
+              U(i, vars::modes::CellAverage, ind_ni) +=
+                  dt_b_ex * dUs_j(i, vars::modes::CellAverage, ind_ni);
+              U(i, vars::modes::CellAverage, ind_co) +=
+                  dt_b_ex * dUs_j(i, vars::modes::CellAverage, ind_co);
+              U(i, vars::modes::CellAverage, ind_fe) +=
+                  dt_b_ex * dUs_j(i, vars::modes::CellAverage, ind_fe);
             });
       }
 
@@ -262,7 +259,7 @@ class TimeStepper {
     auto uCF = state->u_cf();
     auto U_s = state->u_cf_stages();
 
-    const int nvars = uCF.extent(2);
+    const int nvars = state->nvars();
     static const IndexRange ib(grid.domain<Domain::Entire>());
     static const IndexRange kb(order);
     static const IndexRange vb(nvars);
@@ -285,7 +282,6 @@ class TimeStepper {
 
       if (evolve_nickel) {
         auto *comps = state->comps();
-        auto mass_fractions = comps->mass_fractions();
         const auto *const species_indexer = comps->species_indexer();
         static const auto ind_ni = species_indexer->get<int>("ni56");
         static const auto ind_co = species_indexer->get<int>("co56");
@@ -295,11 +291,11 @@ class TimeStepper {
             "Timestepper :: IMEX :: Ni :: Reset sumvar", DevExecSpace(), ib.s,
             ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
               SumVar_U_(i, vars::modes::CellAverage, 5 + ind_ni) =
-                  mass_fractions(i, vars::modes::CellAverage, ind_ni);
+                  uCF(i, vars::modes::CellAverage, ind_ni);
               SumVar_U_(i, vars::modes::CellAverage, 5 + ind_co) =
-                  mass_fractions(i, vars::modes::CellAverage, ind_co);
+                  uCF(i, vars::modes::CellAverage, ind_co);
               SumVar_U_(i, vars::modes::CellAverage, 5 + ind_fe) =
-                  mass_fractions(i, vars::modes::CellAverage, ind_fe);
+                  uCF(i, vars::modes::CellAverage, ind_fe);
             });
       }
 
@@ -369,7 +365,6 @@ class TimeStepper {
 
       if (evolve_nickel) {
         auto *comps = state->comps();
-        auto mass_fractions_stages = comps->mass_fractions_stages();
         const auto *const species_indexer = comps->species_indexer();
         static const auto ind_ni = species_indexer->get<int>("ni56");
         static const auto ind_co = species_indexer->get<int>("co56");
@@ -377,11 +372,11 @@ class TimeStepper {
         athelas::par_for(
             DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: IMEX :: Ni :: Set Us",
             DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              mass_fractions_stages(iS, i, vars::modes::CellAverage, ind_ni) =
+              U_s(iS, i, vars::modes::CellAverage, ind_ni) =
                   SumVar_U_(i, vars::modes::CellAverage, 5 + ind_ni);
-              mass_fractions_stages(iS, i, vars::modes::CellAverage, ind_co) =
+              U_s(iS, i, vars::modes::CellAverage, ind_co) =
                   SumVar_U_(i, vars::modes::CellAverage, 5 + ind_co);
-              mass_fractions_stages(iS, i, vars::modes::CellAverage, ind_fe) =
+              U_s(iS, i, vars::modes::CellAverage, ind_fe) =
                   SumVar_U_(i, vars::modes::CellAverage, 5 + ind_fe);
             });
       }
@@ -470,7 +465,6 @@ class TimeStepper {
           });
       if (evolve_nickel) {
         auto *comps = state->comps();
-        auto mass_fractions = comps->mass_fractions();
         const auto *const species_indexer = comps->species_indexer();
         static const auto ind_ni = species_indexer->get<int>("ni56");
         static const auto ind_co = species_indexer->get<int>("co56");
@@ -478,11 +472,11 @@ class TimeStepper {
         athelas::par_for(
             DEFAULT_FLAT_LOOP_PATTERN, "Timestepper  :: IMEX :: Ni :: Finalize",
             DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              mass_fractions(i, vars::modes::CellAverage, ind_ni) +=
+              uCF(i, vars::modes::CellAverage, ind_ni) +=
                   dt_b * dUs_ex_i(i, vars::modes::CellAverage, 5 + ind_ni);
-              mass_fractions(i, vars::modes::CellAverage, ind_co) +=
+              uCF(i, vars::modes::CellAverage, ind_co) +=
                   dt_b * dUs_ex_i(i, vars::modes::CellAverage, 5 + ind_co);
-              mass_fractions(i, vars::modes::CellAverage, ind_fe) +=
+              uCF(i, vars::modes::CellAverage, ind_fe) +=
                   dt_b * dUs_ex_i(i, vars::modes::CellAverage, 5 + ind_fe);
             });
       }

@@ -41,6 +41,10 @@ class RadHydroPackage {
                                  AthelasArray3D<double> dU,
                                  const GridStructure &grid,
                                  const TimeStepInfo &dt_info);
+
+  void apply_delta(AthelasArray3D<double> lhs,
+                   const TimeStepInfo &dt_info) const;
+
   auto
   radhydro_source(const State *const state, const AthelasArray2D<double> uCRH,
                   const AthelasArray1D<double> dx,
@@ -98,6 +102,8 @@ class RadHydroPackage {
   AthelasArray2D<double> u_f_l_; // left faces
   AthelasArray2D<double> u_f_r_; // right faces
   AthelasArray2D<double> flux_u_; // Riemann velocities
+
+  AthelasArray3D<double> delta_; // rhs delta
 
   // iterative solver storage
   AthelasArray3D<double> scratch_k_;

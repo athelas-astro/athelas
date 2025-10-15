@@ -13,7 +13,6 @@ grid_type = "uniform"
 [problem.params]
 temperature = 10000.0
 rho = 2.8e-9
-ncomps = 5
 
 [physics]
 radiation = false
@@ -25,6 +24,9 @@ heating = false
 [ionization]
 fn_ionization = "../../../data/atomic_data_ionization.dat"
 fn_degeneracy = "../../../data/atomic_data_degeneracy_factors.dat"
+ncomps = 5
+
+[composition]
 ncomps = 5
 
 [bc]

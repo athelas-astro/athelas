@@ -518,7 +518,17 @@ ProblemIn::ProblemIn(const std::string &fn) {
   // ---------------------------------
   // ---------- composition ----------
   // ---------------------------------
-  // not sure if anything goes here.
+  if (!config_["composition"].is_table() && comps.value()) {
+    THROW_ATHELAS_ERROR(
+        "Composition enabled but no [composition] block provided!");
+  }
+  std::optional<int> ncomps = config_["composition"]["ncomps"].value<int>();
+  if (!ncomps && comps.value()) {
+    THROW_ATHELAS_ERROR(
+        "Composition enabled but no ncomps in composition block!");
+  } else {
+    params_->add("composition.ncomps", ncomps.value_or(0));
+  }
 
   // --------------------------------
   // ---------- ionization ----------

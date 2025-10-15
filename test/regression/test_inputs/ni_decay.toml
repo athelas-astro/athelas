@@ -21,6 +21,9 @@ composition = true
 ionization = false
 heating = true
 
+[composition]
+ncomps = 3
+
 # Model can be full_trapping or swartz
 [heating.nickel]
 enabled = true

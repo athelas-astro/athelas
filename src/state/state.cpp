@@ -18,7 +18,12 @@ State::State(const ProblemIn *const pin, const int nstages)
       pin->param()->get<bool>("physics.heating.nickel.enabled");
   static const bool nickel_evolved =
       pin->param()->get<bool>("physics.heating.nickel.enabled");
-  static const int nvars_cons = (rad_enabled) ? 5 : 3;
+  int nvars_cons = (rad_enabled) ? 5 : 3;
+  if (composition_enabled) {
+    const int ncomps = pin->param()->get<int>("composition.ncomps");
+    nvars_cons += ncomps;
+    params_->add("ncomps", ncomps);
+  }
   static const int nvars_prim = 3; // Maybe this can be smarter
   static const int nvars_aux = (rad_enabled) ? 5 : 3;
   static const int nx = pin->param()->get<int>("problem.nx");
@@ -88,6 +93,18 @@ void State::setup_ionization(std::shared_ptr<IonizationState> ion) {
   return params_->get<bool>("nickel_evolved");
 }
 
+[[nodiscard]] auto State::mass_fractions() const noexcept
+    -> AthelasArray3D<double> {
+  return Kokkos::subview(uCF_, Kokkos::ALL, Kokkos::ALL,
+                         Kokkos::make_pair(nvars(), nvars() + ncomps()));
+}
+
+[[nodiscard]] auto State::mass_fractions_stages() const noexcept
+    -> AthelasArray4D<double> {
+  return Kokkos::subview(uCF_s_, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL,
+                         Kokkos::make_pair(nvars(), nvars() + ncomps()));
+}
+
 auto State::params() noexcept -> Params * { return params_.get(); }
 
 // num var accessors
@@ -100,6 +117,16 @@ auto State::n_pf() const noexcept -> int {
 auto State::n_af() const noexcept -> int {
   return params_->get<int>("nvars_aux");
 }
+auto State::ncomps() const noexcept -> int {
+  if (composition_enabled()) {
+    return params_->get<int>("ncomps");
+  }
+  return 0;
+}
+/**
+ * @brief return number of rad hydro variables
+ */
+auto State::nvars() const noexcept -> int { return n_cf() - ncomps(); }
 auto State::p_order() const noexcept -> int {
   return params_->get<int>("p_order");
 }
@@ -111,5 +138,9 @@ auto State::u_cf_stages() const noexcept -> AthelasArray4D<double> {
 }
 auto State::u_pf() const noexcept -> AthelasArray3D<double> { return uPF_; }
 auto State::u_af() const noexcept -> AthelasArray3D<double> { return uAF_; }
+auto State::vars() const noexcept -> AthelasArray3D<double> {
+  return Kokkos::subview(uCF_, Kokkos::ALL, Kokkos::ALL,
+                         Kokkos::make_pair(0, nvars()));
+}
 
 } // namespace athelas

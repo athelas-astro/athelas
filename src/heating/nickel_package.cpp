@@ -31,6 +31,7 @@ NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,
   int_etau_domega_ =
       AthelasArray2D<double>("int_etau_domega", nx + 2,
                              nnodes); // integration of e^-tau dOmega
+  delta_ = AthelasArray3D<double>("nickel delta", nx + 2, basis->order(), 4);
 }
 
 void NickelHeatingPackage::update_explicit(const State *const state,
@@ -47,33 +48,32 @@ void NickelHeatingPackage::update_explicit(const State *const state,
   auto *comps = state->comps();
   const auto *const species_indexer = comps->species_indexer();
   // index gymnastics. dU holds updates for all quantities including
-  // compositional. ind_offset gets us beyond radhydro species.
+  // compositional.
   static const auto ind_ni = species_indexer->get<int>("ni56");
   static const auto ind_co = species_indexer->get<int>("co56");
   static const auto ind_fe = species_indexer->get<int>("fe56");
-  static const auto ind_offset = ucf.extent(2);
 
   // --- Zero out dU  ---
   // TODO(astrobarker): perhaps care to be taken here once mixing is in.
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "NickelHeating :: Zero delta", DevExecSpace(),
       ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-        dU(i, 0, ind_offset + ind_ni) = 0.0;
-        dU(i, 0, ind_offset + ind_co) = 0.0;
-        dU(i, 0, ind_offset + ind_fe) = 0.0;
+        dU(i, vars::modes::CellAverage, ind_ni) = 0.0;
+        dU(i, vars::modes::CellAverage, ind_co) = 0.0;
+        dU(i, vars::modes::CellAverage, ind_fe) = 0.0;
       });
 
   if (model_ == NiHeatingModel::Swartz) [[likely]] {
-    ni_update<NiHeatingModel::Swartz>(ucf, comps, dU, grid, dt_info);
+    ni_update<NiHeatingModel::Swartz>(state, comps, dU, grid, dt_info);
   } else if (model_ == NiHeatingModel::Jeffery) {
-    ni_update<NiHeatingModel::Jeffery>(ucf, comps, dU, grid, dt_info);
+    ni_update<NiHeatingModel::Jeffery>(state, comps, dU, grid, dt_info);
   } else {
-    ni_update<NiHeatingModel::FullTrapping>(ucf, comps, dU, grid, dt_info);
+    ni_update<NiHeatingModel::FullTrapping>(state, comps, dU, grid, dt_info);
   }
 }
 
 template <NiHeatingModel Model>
-void NickelHeatingPackage::ni_update(const AthelasArray3D<double> ucf,
+void NickelHeatingPackage::ni_update(const State *const state,
                                      CompositionData *comps,
                                      AthelasArray3D<double> dU,
                                      const GridStructure &grid,
@@ -83,14 +83,19 @@ void NickelHeatingPackage::ni_update(const AthelasArray3D<double> ucf,
   static const IndexRange ib(grid.domain<Domain::Interior>());
   static const IndexRange kb(order);
 
-  const auto mass_fractions_stages = comps->mass_fractions_stages();
+  const auto u_stages = state->u_cf_stages();
+
+  const auto ucf = Kokkos::subview(u_stages, dt_info.stage, Kokkos::ALL,
+                                   Kokkos::ALL, Kokkos::ALL);
+
+  const auto mass_fractions_stages = state->mass_fractions_stages();
   const auto mass_fractions =
       Kokkos::subview(mass_fractions_stages, dt_info.stage, Kokkos::ALL,
                       Kokkos::ALL, Kokkos::ALL);
   const auto *const species_indexer = comps->species_indexer();
 
   // index gymnastics. dU holds updates for all quantities including
-  // compositional. ind_offset gets us beyond radhydro species.
+  // compositional.
   static const auto ind_ni = species_indexer->get<int>("ni56");
   static const auto ind_co = species_indexer->get<int>("co56");
   static const auto ind_fe = species_indexer->get<int>("fe56");
@@ -119,20 +124,39 @@ void NickelHeatingPackage::ni_update(const AthelasArray3D<double> ucf,
   // TODO(astrobarker): Should this be an option?
   // NOTE: Nickel decay chain only affects cell averages.
   // Realistically I don't need to integrate X_Fe, but oh well.
-  static const auto ind_offset = ucf.extent(2);
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "NickelHeating :: Decay network",
       DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-        const double x_ni = mass_fractions(i, vars::modes::CellAverage, ind_ni);
-        const double x_co = mass_fractions(i, vars::modes::CellAverage, ind_co);
+        const double x_ni = ucf(i, vars::modes::CellAverage, ind_ni);
+        const double x_co = ucf(i, vars::modes::CellAverage, ind_co);
         const double rhs_ni = -LAMBDA_NI_ * x_ni;
         const double rhs_co = LAMBDA_NI_ * x_ni - LAMBDA_CO_ * x_co;
         const double rhs_fe = LAMBDA_CO_ * x_co;
 
         // Decay only alters cell average mass fractions!
-        dU(i, vars::modes::CellAverage, ind_offset + ind_ni) += rhs_ni;
-        dU(i, vars::modes::CellAverage, ind_offset + ind_co) += rhs_co;
-        dU(i, vars::modes::CellAverage, ind_offset + ind_fe) += rhs_fe;
+        dU(i, vars::modes::CellAverage, ind_ni) += rhs_ni;
+        dU(i, vars::modes::CellAverage, ind_co) += rhs_co;
+        dU(i, vars::modes::CellAverage, ind_fe) += rhs_fe;
+      });
+}
+
+/**
+ * @brief apply gravity package delta
+ */
+void NickelHeatingPackage::apply_delta(AthelasArray3D<double> lhs,
+                                       const TimeStepInfo &dt_info) const {
+  static const int nx = static_cast<int>(lhs.extent(0));
+  static const int nk = static_cast<int>(lhs.extent(1));
+  static const IndexRange ib(nx);
+  static const IndexRange kb(nk);
+  static const IndexRange vb(4);
+
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "Gravity :: Apply delta", DevExecSpace(), ib.s,
+      ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+        for (int v = vb.s; v <= vb.e; ++v) {
+          lhs(i, k, v + 1) += dt_info.dt_a * delta_(i, k, v);
+        }
       });
 }
 

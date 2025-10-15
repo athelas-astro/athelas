@@ -12,9 +12,10 @@ namespace athelas {
 template <typename T>
 concept ExplicitPackage =
     requires(T &pkg, const State *const state, State *state_derived,
-             AthelasArray3D<double> uCF, AthelasArray3D<double> dU,
+             AthelasArray3D<double> lhs, AthelasArray3D<double> dU,
              const GridStructure &grid, const TimeStepInfo &dt_info) {
       { pkg.update_explicit(state, dU, grid, dt_info) } -> std::same_as<void>;
+      //      { pkg.apply_delta(lhs, dt_info) } -> std::same_as<void>;
       { pkg.min_timestep(state, grid, dt_info) } -> std::convertible_to<double>;
       { pkg.name() } -> std::convertible_to<std::string_view>;
       { pkg.is_active() } -> std::convertible_to<bool>;
@@ -24,9 +25,10 @@ concept ExplicitPackage =
 template <typename T>
 concept ImplicitPackage =
     requires(T &pkg, const State *const state, State *state_derived,
-             AthelasArray3D<double> uCF, AthelasArray3D<double> dU,
+             AthelasArray3D<double> lhs, AthelasArray3D<double> dU,
              const GridStructure &grid, const TimeStepInfo &dt_info) {
       { pkg.update_implicit(state, dU, grid, dt_info) } -> std::same_as<void>;
+      //      { pkg.apply_delta(lhs, dt_info) } -> std::same_as<void>;
       { pkg.min_timestep(state, grid, dt_info) } -> std::convertible_to<double>;
       { pkg.name() } -> std::convertible_to<std::string_view>;
       { pkg.is_active() } -> std::convertible_to<bool>;
@@ -36,13 +38,14 @@ concept ImplicitPackage =
 template <typename T>
 concept IMEXPackage =
     requires(T &pkg, const State *const state, State *state_derived,
-             AthelasArray3D<double> uCF, AthelasArray3D<double> dU,
+             AthelasArray3D<double> lhs, AthelasArray3D<double> dU,
              const GridStructure &grid, const TimeStepInfo &dt_info) {
       { pkg.update_explicit(state, dU, grid, dt_info) } -> std::same_as<void>;
       { pkg.update_implicit(state, dU, grid, dt_info) } -> std::same_as<void>;
       {
         pkg.update_implicit_iterative(state, dU, grid, dt_info)
       } -> std::same_as<void>;
+      //      { pkg.apply_delta(lhs, dt_info) } -> std::same_as<void>;
       { pkg.min_timestep(state, grid, dt_info) } -> std::convertible_to<double>;
       { pkg.name() } -> std::convertible_to<std::string_view>;
       { pkg.is_active() } -> std::convertible_to<bool>;

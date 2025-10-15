@@ -31,10 +31,10 @@ HydroPackage::HydroPackage(const ProblemIn * /*pin*/, int n_stages, EOS *eos,
     : active_(active), nx_(nx), cfl_(cfl), eos_(eos), basis_(basis), bcs_(bcs),
       dFlux_num_("hydro::dFlux_num_", nx + 2 + 1, 3),
       u_f_l_("hydro::u_f_l_", nx + 2, 3), u_f_r_("hydro::u_f_r_", nx + 2, 3),
-      flux_u_("hydro::flux_u_", n_stages + 1, nx + 2 + 1) {
+      flux_u_("hydro::flux_u_", n_stages + 1, nx + 2 + 1),
+      delta_("hydro :: delta", nx_ + 2, basis->order(), 3) {
 } // Need long term solution for flux_u_
 
-KOKKOS_FUNCTION
 void HydroPackage::update_explicit(const State *const state,
                                    AthelasArray3D<double> dU,
                                    const GridStructure &grid,
@@ -58,7 +58,7 @@ void HydroPackage::update_explicit(const State *const state,
   // --- Zero out dU  ---
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Hydro :: Zero dU", DevExecSpace(), ib.s, ib.e,
-      kb.s, kb.e, KOKKOS_LAMBDA(const int i, const int k) {
+      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         for (int v = vb.s; v <= vb.e; ++v) {
           dU(i, k, v) = 0.0;
         }
@@ -85,7 +85,6 @@ void HydroPackage::update_explicit(const State *const state,
 
 // Compute the dvbergence of the flux term for the update
 // TODO(astrobarker): dont pass in stage
-KOKKOS_FUNCTION
 void HydroPackage::fluid_divergence(const State *const state,
                                     AthelasArray3D<double> dU,
                                     const GridStructure &grid,
@@ -167,7 +166,7 @@ void HydroPackage::fluid_divergence(const State *const state,
     // --- Volume Term ---
     athelas::par_for(
         DEFAULT_LOOP_PATTERN, "Hydro :: Volume Term", DevExecSpace(), ib.s,
-        ib.e, kb.s, kb.e, KOKKOS_LAMBDA(const int i, const int k) {
+        ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
           double local_sum1 = 0.0;
           double local_sum2 = 0.0;
           double local_sum3 = 0.0;
@@ -192,7 +191,26 @@ void HydroPackage::fluid_divergence(const State *const state,
   }
 }
 
-KOKKOS_FUNCTION
+/**
+ * @brief apply fluid package delta
+ */
+void HydroPackage::apply_delta(AthelasArray3D<double> lhs,
+                               const TimeStepInfo &dt_info) const {
+  static const int nx = static_cast<int>(lhs.extent(0));
+  static const int nk = static_cast<int>(lhs.extent(1));
+  static const IndexRange ib(nx);
+  static const IndexRange kb(nk);
+  static const IndexRange vb(NUM_VARS_);
+
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "Hydro :: Apply delta", DevExecSpace(), ib.s, ib.e,
+      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+        for (int v = vb.s; v <= vb.e; ++v) {
+          lhs(i, k, v) += dt_info.dt_a * delta_(i, k, v);
+        }
+      });
+}
+
 void HydroPackage::fluid_geometry(const AthelasArray3D<double> ucf,
                                   const AthelasArray3D<double> uaf,
                                   AthelasArray3D<double> dU,
@@ -224,7 +242,6 @@ void HydroPackage::fluid_geometry(const AthelasArray3D<double> ucf,
 /**
  * @brief explicit hydrodynamic timestep restriction
  **/
-KOKKOS_FUNCTION
 auto HydroPackage::min_timestep(const State *const state,
                                 const GridStructure &grid,
                                 const TimeStepInfo & /*dt_info*/) const
@@ -345,27 +362,22 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
       });
 }
 
-[[nodiscard]] KOKKOS_FUNCTION auto HydroPackage::name() const noexcept
-    -> std::string_view {
+[[nodiscard]] auto HydroPackage::name() const noexcept -> std::string_view {
   return "Hydro";
 }
 
-[[nodiscard]] KOKKOS_FUNCTION auto HydroPackage::is_active() const noexcept
-    -> bool {
+[[nodiscard]] auto HydroPackage::is_active() const noexcept -> bool {
   return active_;
 }
 
-KOKKOS_FUNCTION
 void HydroPackage::set_active(const bool active) { active_ = active; }
 
-[[nodiscard]] KOKKOS_FUNCTION auto HydroPackage::get_flux_u(const int stage,
-                                                            const int i) const
+[[nodiscard]] auto HydroPackage::get_flux_u(const int stage, const int i) const
     -> double {
   return flux_u_(stage, i);
 }
 
-[[nodiscard]] KOKKOS_FUNCTION auto HydroPackage::basis() const
-    -> const ModalBasis * {
+[[nodiscard]] auto HydroPackage::basis() const -> const ModalBasis * {
   return basis_;
 }
 

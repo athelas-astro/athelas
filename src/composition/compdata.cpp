@@ -14,32 +14,12 @@ CompositionData::CompositionData(const int nX, const int order,
   if (n_species <= 0) {
     THROW_ATHELAS_ERROR("CompositionData :: n_species must be > 0!");
   }
-  mass_fractions_ =
-      AthelasArray3D<double>("mass_fractions", nX_, order, n_species);
-  mass_fractions_stages_ = AthelasArray4D<double>(
-      "mass_fractions_stage", n_stages, nX_, order, n_species);
   ye_ = AthelasArray2D<double>("ye", nX, order + 2);
   number_density_ = AthelasArray2D<double>("ye", nX, order + 2);
   charge_ = AthelasArray1D<int>("charge", n_species);
   neutron_number_ = AthelasArray1D<int>("neutron_number", n_species);
 }
 
-[[nodiscard]] auto CompositionData::mass_fractions() const noexcept
-    -> AthelasArray3D<double> {
-  return mass_fractions_;
-}
-[[nodiscard]] auto CompositionData::mass_fractions() noexcept
-    -> AthelasArray3D<double> {
-  return mass_fractions_;
-}
-[[nodiscard]] auto CompositionData::mass_fractions_stages() const noexcept
-    -> AthelasArray4D<double> {
-  return mass_fractions_stages_;
-}
-[[nodiscard]] auto CompositionData::mass_fractions_stages() noexcept
-    -> AthelasArray4D<double> {
-  return mass_fractions_stages_;
-}
 [[nodiscard]] auto CompositionData::charge() const noexcept
     -> AthelasArray1D<int> {
   return charge_;

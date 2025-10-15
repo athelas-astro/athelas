@@ -42,9 +42,12 @@ class NickelHeatingPackage {
                        const GridStructure &grid, const TimeStepInfo &dt_info);
 
   template <NiHeatingModel Model>
-  void ni_update(const AthelasArray3D<double> ucf, atom::CompositionData *comps,
+  void ni_update(const State *const state, atom::CompositionData *comps,
                  AthelasArray3D<double> dU, const GridStructure &grid,
                  const TimeStepInfo &dt_info) const;
+
+  void apply_delta(AthelasArray3D<double> lhs,
+                   const TimeStepInfo &dt_info) const;
 
   // NOTE: E_LAMBDA_NI etc are energy release per gram per second
   KOKKOS_FORCEINLINE_FUNCTION
@@ -82,9 +85,8 @@ class NickelHeatingPackage {
       static const auto *const species_indexer = comps->species_indexer();
       static const auto ind_ni = species_indexer->get<int>("ni56");
       static const auto ind_co = species_indexer->get<int>("co56");
-      const auto mass_fractions = comps->mass_fractions();
-      const double x_ni = basis_eval(phi, mass_fractions, ix, ind_ni, node + 1);
-      const double x_co = basis_eval(phi, mass_fractions, ix, ind_co, node + 1);
+      const double x_ni = basis_eval(phi, ucf, ix, ind_ni, node + 1);
+      const double x_co = basis_eval(phi, ucf, ix, ind_co, node + 1);
       return eps_nickel_cobalt(x_ni, x_co);
     } else if constexpr (Model == NiHeatingModel::Swartz) {
       THROW_ATHELAS_ERROR("Swartz model not implemented!");
@@ -97,9 +99,8 @@ class NickelHeatingPackage {
       static const auto *const species_indexer = comps->species_indexer();
       static const auto ind_ni = species_indexer->get<int>("ni56");
       static const auto ind_co = species_indexer->get<int>("co56");
-      const auto mass_fractions = comps->mass_fractions();
-      const double x_ni = basis_eval(phi, mass_fractions, ix, ind_ni, node + 1);
-      const double x_co = basis_eval(phi, mass_fractions, ix, ind_co, node + 1);
+      const double x_ni = basis_eval(phi, ucf, ix, ind_ni, node + 1);
+      const double x_co = basis_eval(phi, ucf, ix, ind_co, node + 1);
       return eps_nickel(x_ni) * (F_PE_NI_ + F_GM_NI_ * I) +
              eps_cobalt(x_co) * (F_PE_CO_ + F_GM_CO_ * I);
     }
@@ -116,14 +117,13 @@ class NickelHeatingPackage {
                                   const TimeStepInfo & /*dt_info*/) const
       -> double;
 
-  [[nodiscard]] KOKKOS_FUNCTION auto name() const noexcept -> std::string_view;
+  [[nodiscard]] auto name() const noexcept -> std::string_view;
 
-  [[nodiscard]] KOKKOS_FUNCTION auto is_active() const noexcept -> bool;
+  [[nodiscard]] auto is_active() const noexcept -> bool;
 
   void fill_derived(State *state, const GridStructure &grid,
                     const TimeStepInfo &dt_info) const;
 
-  KOKKOS_FUNCTION
   void set_active(bool active);
 
  private:
@@ -133,6 +133,8 @@ class NickelHeatingPackage {
   AthelasArray2D<double> int_etau_domega_; // integration of e^-tau dOmega
 
   basis::ModalBasis *basis_;
+
+  AthelasArray3D<double> delta_;
 
   // constants
   static constexpr double TAU_NI_ =

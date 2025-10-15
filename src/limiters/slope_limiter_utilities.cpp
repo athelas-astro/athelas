@@ -11,6 +11,7 @@
 #include <cstdlib> /* abs */
 #include <limits>
 
+#include "basic_types.hpp"
 #include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
@@ -171,14 +172,16 @@ void modify_polynomial(const AthelasArray3D<double> U,
                        AthelasArray2D<double> modified_polynomial,
                        const double gamma_i, const double gamma_l,
                        const double gamma_r, const int ix, const int q) {
-  const double Ubar_i = U(ix, 0, q);
+  const double Ubar_i = U(ix, vars::modes::CellAverage, q);
   const double fac = 1.0;
-  const int order = U.extent(2);
+  const int order = U.extent(1);
 
   const double modified_p_slope_mag =
-      fac * std::min({U(ix - 1, 1, 1), U(ix, 1, 1), U(ix + 1, 1, 1)});
-  const int sign_l = utilities::SGN(U(ix - 1, 1, 1));
-  const int sign_r = utilities::SGN(U(ix + 1, 1, 1));
+      fac *
+      std::min({U(ix - 1, vars::modes::Slope, q), U(ix, vars::modes::Slope, q),
+                U(ix + 1, vars::modes::Slope, q)});
+  const int sign_l = utilities::SGN(U(ix - 1, vars::modes::Slope, q));
+  const int sign_r = utilities::SGN(U(ix + 1, vars::modes::Slope, q));
 
   modified_polynomial(0, 0) = Ubar_i;
   modified_polynomial(2, 0) = Ubar_i;

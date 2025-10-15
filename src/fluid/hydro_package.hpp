@@ -25,38 +25,37 @@ class HydroPackage {
                basis::ModalBasis *basis, BoundaryConditions *bcs, double cfl,
                int nx, bool active = true);
 
-  KOKKOS_FUNCTION
   void update_explicit(const State *const state, AthelasArray3D<double> dU,
                        const GridStructure &grid,
                        const TimeStepInfo &dt_info) const;
 
-  KOKKOS_FUNCTION
+  void apply_delta(AthelasArray3D<double> lhs,
+                   const TimeStepInfo &dt_info) const;
+
   void fluid_divergence(const State *const state, AthelasArray3D<double> dU,
                         const GridStructure &grid, int stage) const;
 
-  KOKKOS_FUNCTION
   void fluid_geometry(const AthelasArray3D<double> ucf,
                       const AthelasArray3D<double> uaf,
                       AthelasArray3D<double> dU,
                       const GridStructure &grid) const;
 
-  [[nodiscard]] KOKKOS_FUNCTION auto
-  min_timestep(const State *const state, const GridStructure &grid,
-               const TimeStepInfo & /*dt_info*/) const -> double;
+  [[nodiscard]] auto min_timestep(const State *const state,
+                                  const GridStructure &grid,
+                                  const TimeStepInfo & /*dt_info*/) const
+      -> double;
 
-  [[nodiscard]] KOKKOS_FUNCTION auto name() const noexcept -> std::string_view;
+  [[nodiscard]] auto name() const noexcept -> std::string_view;
 
-  [[nodiscard]] KOKKOS_FUNCTION auto is_active() const noexcept -> bool;
+  [[nodiscard]] auto is_active() const noexcept -> bool;
 
   void fill_derived(State *state, const GridStructure &grid,
                     const TimeStepInfo &dt_info) const;
 
-  KOKKOS_FUNCTION
   void set_active(bool active);
 
-  [[nodiscard]] KOKKOS_FUNCTION auto get_flux_u(int stage, int i) const
-      -> double;
-  [[nodiscard]] KOKKOS_FUNCTION auto basis() const -> const basis::ModalBasis *;
+  [[nodiscard]] auto get_flux_u(int stage, int i) const -> double;
+  [[nodiscard]] auto basis() const -> const basis::ModalBasis *;
 
   [[nodiscard]] static constexpr auto num_vars() noexcept -> int {
     return NUM_VARS_;
@@ -77,6 +76,8 @@ class HydroPackage {
   AthelasArray2D<double> u_f_l_; // left faces
   AthelasArray2D<double> u_f_r_; // right faces
   AthelasArray2D<double> flux_u_; // Riemann velocities
+
+  AthelasArray3D<double> delta_; // rhs delta
 
   // constants
   static constexpr int NUM_VARS_ = 3;

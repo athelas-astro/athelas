@@ -27,6 +27,7 @@ RadHydroPackage::RadHydroPackage(const ProblemIn *pin, int n_stages, EOS *eos,
       dFlux_num_("hydro::dFlux_num_", nx + 2 + 1, 5),
       u_f_l_("hydro::u_f_l_", nx + 2, 5), u_f_r_("hydro::u_f_r_", nx + 2, 5),
       flux_u_("hydro::flux_u_", n_stages + 1, nx + 2 + 1),
+      delta_("radhydro delta", nx + 2, fluid_basis_->order(), 5),
       scratch_k_("scratch_k_", nx + 2, fluid_basis_->order(), 5),
       scratch_km1_("scratch_km1_", nx + 2, fluid_basis_->order(), 5),
       scratch_sol_("scratch_k_", nx + 2, fluid_basis_->order(), 5) {
@@ -195,6 +196,26 @@ void RadHydroPackage::update_implicit_iterative(const State *const state,
       });
 
 } // update_implicit_iterative
+
+/**
+ * @brief apply rad hydro package delta
+ */
+void RadHydroPackage::apply_delta(AthelasArray3D<double> lhs,
+                                  const TimeStepInfo &dt_info) const {
+  static const int nx = static_cast<int>(lhs.extent(0));
+  static const int nk = static_cast<int>(lhs.extent(1));
+  static const IndexRange ib(nx);
+  static const IndexRange kb(nk);
+  static const IndexRange vb(NUM_VARS_);
+
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "RadHydro :: Apply delta", DevExecSpace(), ib.s,
+      ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+        for (int v = vb.s; v <= vb.e; ++v) {
+          lhs(i, k, v) += dt_info.dt_a * delta_(i, k, v);
+        }
+      });
+}
 
 // Compute the divergence of the flux term for the update
 // TODO(astrobarker): dont pass in stage
