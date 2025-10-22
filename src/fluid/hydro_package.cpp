@@ -60,7 +60,7 @@ void HydroPackage::update_explicit(const State *const state,
       DEFAULT_LOOP_PATTERN, "Hydro :: Zero dU", DevExecSpace(), ib.s, ib.e,
       kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         for (int v = vb.s; v <= vb.e; ++v) {
-          dU(i, k, v) = 0.0;
+          delta_(i, k, v) = 0.0;
         }
       });
 
@@ -73,7 +73,7 @@ void HydroPackage::update_explicit(const State *const state,
       DEFAULT_LOOP_PATTERN, "Hydro :: dU / M_kk", DevExecSpace(), ib.s, ib.e,
       kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         for (int v = vb.s; v <= vb.e; ++v) {
-          dU(i, k, v) *= inv_mkk(i, k);
+          delta_(i, k, v) *= inv_mkk(i, k);
         }
       });
 
@@ -156,9 +156,10 @@ void HydroPackage::fluid_divergence(const State *const state,
       DEFAULT_LOOP_PATTERN, "Hydro :: Surface Term", DevExecSpace(), ib.s, ib.e,
       kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         for (int v = vb.s; v <= vb.e; ++v) {
-          dU(i, k, v) -= (+dFlux_num_(i + 1, v) * phi(i, nNodes + 1, k) *
-                              sqrt_gm(i, nNodes + 1) -
-                          dFlux_num_(i + 0, v) * phi(i, 0, k) * sqrt_gm(i, 0));
+          delta_(i, k, v) -=
+              (+dFlux_num_(i + 1, v) * phi(i, nNodes + 1, k) *
+                   sqrt_gm(i, nNodes + 1) -
+               dFlux_num_(i + 0, v) * phi(i, 0, k) * sqrt_gm(i, 0));
         }
       });
 
@@ -184,9 +185,9 @@ void HydroPackage::fluid_divergence(const State *const state,
             local_sum3 += w * flux3 * dphi * sqrtgm;
           }
 
-          dU(i, k, vars::cons::SpecificVolume) += local_sum1;
-          dU(i, k, vars::cons::Velocity) += local_sum2;
-          dU(i, k, vars::cons::Energy) += local_sum3;
+          delta_(i, k, vars::cons::SpecificVolume) += local_sum1;
+          delta_(i, k, vars::cons::Velocity) += local_sum2;
+          delta_(i, k, vars::cons::Energy) += local_sum3;
         });
   }
 }
@@ -198,7 +199,7 @@ void HydroPackage::apply_delta(AthelasArray3D<double> lhs,
                                const TimeStepInfo &dt_info) const {
   static const int nx = static_cast<int>(lhs.extent(0));
   static const int nk = static_cast<int>(lhs.extent(1));
-  static const IndexRange ib(nx);
+  static const IndexRange ib(std::make_pair(1, nx - 2));
   static const IndexRange kb(nk);
   static const IndexRange vb(NUM_VARS_);
 
@@ -206,7 +207,7 @@ void HydroPackage::apply_delta(AthelasArray3D<double> lhs,
       DEFAULT_LOOP_PATTERN, "Hydro :: Apply delta", DevExecSpace(), ib.s, ib.e,
       kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         for (int v = vb.s; v <= vb.e; ++v) {
-          lhs(i, k, v) += dt_info.dt_a * delta_(i, k, v);
+          lhs(i, k, v) += dt_info.dt_coef * delta_(i, k, v);
         }
       });
 }
@@ -236,7 +237,7 @@ void HydroPackage::fluid_geometry(const AthelasArray3D<double> ucf,
           local_sum += weights(q) * P * phi(i, q + 1, k) * position(i, q);
         }
 
-        dU(i, k, 1) += (2.0 * local_sum * dx(i)) * inv_mkk(i, k);
+        delta_(i, k, 1) += (2.0 * local_sum * dx(i)) * inv_mkk(i, k);
       });
 }
 /**

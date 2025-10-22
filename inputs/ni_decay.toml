@@ -6,7 +6,7 @@ geometry = "spherical"
 restart = false
 xl = 0.0
 xr = 3.622e9
-cfl = 0.8
+cfl = 0.5
 nx = 16
 grid_type = "uniform"
 
@@ -21,9 +21,13 @@ composition = true
 ionization = false
 heating = true
 
+[composition]
+ncomps = 3
+
 [heating.nickel]
 enabled = true
 model = "full_trapping"
+operator_split = false
 
 [bc]
 [bc.fluid]

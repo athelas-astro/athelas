@@ -13,6 +13,13 @@
 
 namespace athelas::nickel {
 
+namespace pkg_vars {
+constexpr int Energy = 0;
+constexpr int Nickel = 1;
+constexpr int Cobalt = 2;
+constexpr int Iron = 3;
+} // namespace pkg_vars
+
 using bc::BoundaryConditions;
 
 // FullTrapping
@@ -36,7 +43,7 @@ inline auto parse_model(const std::string &model) -> NiHeatingModel {
 class NickelHeatingPackage {
  public:
   NickelHeatingPackage(const ProblemIn *pin, basis::ModalBasis *basis,
-                       bool active = true);
+                       const Params *indexer, bool active = true);
 
   void update_explicit(const State *const state, AthelasArray3D<double> dU,
                        const GridStructure &grid, const TimeStepInfo &dt_info);
@@ -135,6 +142,12 @@ class NickelHeatingPackage {
   basis::ModalBasis *basis_;
 
   AthelasArray3D<double> delta_;
+
+  // We need to store the indices of our required species.
+  // These are indices in the "full" ucons.
+  int ind_ni_;
+  int ind_co_;
+  int ind_fe_;
 
   // constants
   static constexpr double TAU_NI_ =

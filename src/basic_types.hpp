@@ -61,7 +61,8 @@ struct IndexRange {
 struct TimeStepInfo {
   double t;
   double dt;
-  double dt_a; // dt * tableau coefficient
+  double dt_a; // dt * tableau coefficient TODO(astrobarker): remove dt_a
+  double dt_coef; // dt * tableau coefficient
   int stage;
 };
 

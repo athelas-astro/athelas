@@ -64,7 +64,7 @@ void GravityPackage::gravity_update(const AthelasArray3D<double> state,
   // This can probably be simplified.
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Gravity :: Update", DevExecSpace(), ib.s, ib.e,
-      kb.s, kb.e, KOKKOS_LAMBDA(const int i, const int k) {
+      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         double local_sum_v = 0.0;
         double local_sum_e = 0.0;
         for (int q = 0; q < nNodes; ++q) {
@@ -89,9 +89,9 @@ void GravityPackage::gravity_update(const AthelasArray3D<double> state,
           }
         }
 
-        dU(i, k, vars::cons::Velocity) -=
+        delta_(i, k, vars::cons::Velocity) -=
             (constants::G_GRAV * local_sum_v * dr(i)) * inv_mkk(i, k);
-        dU(i, k, vars::cons::Energy) -=
+        delta_(i, k, vars::cons::Energy) -=
             (constants::G_GRAV * local_sum_e * dr(i)) * inv_mkk(i, k);
       });
 }
@@ -103,7 +103,7 @@ void GravityPackage::apply_delta(AthelasArray3D<double> lhs,
                                  const TimeStepInfo &dt_info) const {
   static const int nx = static_cast<int>(lhs.extent(0));
   static const int nk = static_cast<int>(lhs.extent(1));
-  static const IndexRange ib(nx);
+  static const IndexRange ib(std::make_pair(1, nx - 2));
   static const IndexRange kb(nk);
   static const IndexRange vb(NUM_VARS_);
 
@@ -111,7 +111,7 @@ void GravityPackage::apply_delta(AthelasArray3D<double> lhs,
       DEFAULT_LOOP_PATTERN, "Gravity :: Apply delta", DevExecSpace(), ib.s,
       ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         for (int v = vb.s; v <= vb.e; ++v) {
-          lhs(i, k, v + 1) += dt_info.dt_a * delta_(i, k, v);
+          lhs(i, k, v + 1) += dt_info.dt_coef * delta_(i, k, v);
         }
       });
 }

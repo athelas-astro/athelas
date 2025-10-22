@@ -38,7 +38,7 @@ def plot_sedov(chk):
   solver = Sedov(
     geometry=3,  # spherical
     eblast=0.5,
-    gamma=1.4,
+    gamma=1.66667,
     omega=0.0,
   )
 

@@ -68,6 +68,28 @@ class PackageWrapper {
     }
   }
 
+  // apply_delta
+  void apply_delta(AthelasArray3D<double> lhs,
+                   const TimeStepInfo &dt_info) const {
+    if (package_->is_active()) {
+      package_->apply_delta(lhs, dt_info);
+    }
+  }
+
+  void apply_delta_explicit(AthelasArray3D<double> lhs,
+                            const TimeStepInfo &dt_info) const {
+    if (package_->has_explicit()) {
+      package_->apply_delta(lhs, dt_info);
+    }
+  }
+
+  void apply_delta_implicit(AthelasArray3D<double> lhs,
+                            const TimeStepInfo &dt_info) const {
+    if (package_->has_implicit()) {
+      package_->apply_delta(lhs, dt_info);
+    }
+  }
+
   [[nodiscard]] auto min_timestep(const State *const state,
                                   const GridStructure &grid,
                                   const TimeStepInfo &dt_info) const -> double {
@@ -110,6 +132,12 @@ class PackageWrapper {
                                            AthelasArray3D<double>,
                                            const GridStructure &,
                                            const TimeStepInfo &) = 0;
+    virtual void apply_delta(AthelasArray3D<double>,
+                             const TimeStepInfo &) const = 0;
+    virtual void apply_delta_explicit(AthelasArray3D<double>,
+                                      const TimeStepInfo &) const = 0;
+    virtual void apply_delta_implicit(AthelasArray3D<double>,
+                                      const TimeStepInfo &) const = 0;
     [[nodiscard]] virtual auto min_timestep(const State *const state,
                                             const GridStructure &grid,
                                             const TimeStepInfo &dt_info) const
@@ -153,6 +181,25 @@ class PackageWrapper {
                                    const TimeStepInfo &dt_info) override {
       if constexpr (has_implicit_update_v<T>) {
         package_.update_implicit_iterative(state, dU, grid, dt_info);
+      }
+    }
+
+    void apply_delta(AthelasArray3D<double> lhs,
+                     const TimeStepInfo &dt_info) const override {
+      package_.apply_delta(lhs, dt_info);
+    }
+
+    void apply_delta_explicit(AthelasArray3D<double> lhs,
+                              const TimeStepInfo &dt_info) const override {
+      if constexpr (has_explicit_update_v<T>) {
+        package_.apply_delta(lhs, dt_info);
+      }
+    }
+
+    void apply_delta_implicit(AthelasArray3D<double> lhs,
+                              const TimeStepInfo &dt_info) const override {
+      if constexpr (has_implicit_update_v<T>) {
+        package_.apply_delta(lhs, dt_info);
       }
     }
 
@@ -234,6 +281,33 @@ class PackageManager {
     for (auto *pkg : implicit_packages_) {
       if (pkg->is_active()) {
         pkg->update_implicit_iterative(state, dU, grid, dt_info);
+      }
+    }
+  }
+
+  void apply_delta(AthelasArray3D<double> lhs,
+                   const TimeStepInfo &dt_info) const {
+    for (const auto &pkg : all_packages_) {
+      if (pkg->is_active()) {
+        pkg->apply_delta(lhs, dt_info);
+      }
+    }
+  }
+
+  void apply_delta_explicit(AthelasArray3D<double> lhs,
+                            const TimeStepInfo &dt_info) const {
+    for (const auto &pkg : explicit_packages_) {
+      if (pkg->is_active()) {
+        pkg->apply_delta(lhs, dt_info);
+      }
+    }
+  }
+
+  void apply_delta_implicit(AthelasArray3D<double> lhs,
+                            const TimeStepInfo &dt_info) const {
+    for (const auto &pkg : implicit_packages_) {
+      if (pkg->is_active()) {
+        pkg->apply_delta(lhs, dt_info);
       }
     }
   }

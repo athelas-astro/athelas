@@ -17,7 +17,9 @@ using basis::ModalBasis;
 using utilities::to_lower;
 
 NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,
-                                           ModalBasis *basis, const bool active)
+                                           ModalBasis *basis,
+                                           const Params *indexer,
+                                           const bool active)
     : active_(active), basis_(basis) {
   // set up heating deposition model
   const auto model_str =
@@ -32,12 +34,18 @@ NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,
       AthelasArray2D<double>("int_etau_domega", nx + 2,
                              nnodes); // integration of e^-tau dOmega
   delta_ = AthelasArray3D<double>("nickel delta", nx + 2, basis->order(), 4);
+
+  ind_ni_ = indexer->get<int>("ni56");
+  ind_co_ = indexer->get<int>("co56");
+  ind_fe_ = indexer->get<int>("fe56");
 }
 
 void NickelHeatingPackage::update_explicit(const State *const state,
                                            AthelasArray3D<double> dU,
                                            const GridStructure &grid,
                                            const TimeStepInfo &dt_info) {
+  const int &order = basis_->order();
+  static const IndexRange kb(order);
   static const IndexRange ib(grid.domain<Domain::Interior>());
   const auto u_stages = state->u_cf_stages();
 
@@ -46,21 +54,18 @@ void NickelHeatingPackage::update_explicit(const State *const state,
       Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
 
   auto *comps = state->comps();
-  const auto *const species_indexer = comps->species_indexer();
-  // index gymnastics. dU holds updates for all quantities including
-  // compositional.
-  static const auto ind_ni = species_indexer->get<int>("ni56");
-  static const auto ind_co = species_indexer->get<int>("co56");
-  static const auto ind_fe = species_indexer->get<int>("fe56");
 
   // --- Zero out dU  ---
   // TODO(astrobarker): perhaps care to be taken here once mixing is in.
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "NickelHeating :: Zero delta", DevExecSpace(),
-      ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-        dU(i, vars::modes::CellAverage, ind_ni) = 0.0;
-        dU(i, vars::modes::CellAverage, ind_co) = 0.0;
-        dU(i, vars::modes::CellAverage, ind_fe) = 0.0;
+      ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
+        for (int k = kb.s; k <= kb.e; ++k) {
+          delta_(i, k, pkg_vars::Energy) = 0.0;
+          delta_(i, k, pkg_vars::Nickel) = 0.0;
+          delta_(i, k, pkg_vars::Cobalt) = 0.0;
+          delta_(i, k, pkg_vars::Iron) = 0.0;
+        }
       });
 
   if (model_ == NiHeatingModel::Swartz) [[likely]] {
@@ -94,12 +99,6 @@ void NickelHeatingPackage::ni_update(const State *const state,
                       Kokkos::ALL, Kokkos::ALL);
   const auto *const species_indexer = comps->species_indexer();
 
-  // index gymnastics. dU holds updates for all quantities including
-  // compositional.
-  static const auto ind_ni = species_indexer->get<int>("ni56");
-  static const auto ind_co = species_indexer->get<int>("co56");
-  static const auto ind_fe = species_indexer->get<int>("fe56");
-
   const auto mass = grid.mass();
   const auto weights = grid.weights();
   const auto phi = basis_->phi();
@@ -118,12 +117,18 @@ void NickelHeatingPackage::ni_update(const State *const state,
         }
 
         const double dx_o_mkk = mass(i) * inv_mkk(i, k);
-        dU(i, k, 2) += local_sum * dx_o_mkk;
+        delta_(i, k, pkg_vars::Energy) += local_sum * dx_o_mkk;
       });
+
+  // index gymnastics. dU holds updates for all quantities including
+  // compositional.
+  static const auto ind_ni = species_indexer->get<int>("ni56");
+  static const auto ind_co = species_indexer->get<int>("co56");
 
   // TODO(astrobarker): Should this be an option?
   // NOTE: Nickel decay chain only affects cell averages.
   // Realistically I don't need to integrate X_Fe, but oh well.
+  // TODO(astrobarker): decay slopes++ and move above
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "NickelHeating :: Decay network",
       DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
@@ -134,9 +139,9 @@ void NickelHeatingPackage::ni_update(const State *const state,
         const double rhs_fe = LAMBDA_CO_ * x_co;
 
         // Decay only alters cell average mass fractions!
-        dU(i, vars::modes::CellAverage, ind_ni) += rhs_ni;
-        dU(i, vars::modes::CellAverage, ind_co) += rhs_co;
-        dU(i, vars::modes::CellAverage, ind_fe) += rhs_fe;
+        delta_(i, vars::modes::CellAverage, pkg_vars::Nickel) += rhs_ni;
+        delta_(i, vars::modes::CellAverage, pkg_vars::Cobalt) += rhs_co;
+        delta_(i, vars::modes::CellAverage, pkg_vars::Iron) += rhs_fe;
       });
 }
 
@@ -147,16 +152,17 @@ void NickelHeatingPackage::apply_delta(AthelasArray3D<double> lhs,
                                        const TimeStepInfo &dt_info) const {
   static const int nx = static_cast<int>(lhs.extent(0));
   static const int nk = static_cast<int>(lhs.extent(1));
-  static const IndexRange ib(nx);
+  static const IndexRange ib(std::make_pair(1, nx - 2));
   static const IndexRange kb(nk);
-  static const IndexRange vb(4);
 
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Gravity :: Apply delta", DevExecSpace(), ib.s,
       ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-        for (int v = vb.s; v <= vb.e; ++v) {
-          lhs(i, k, v + 1) += dt_info.dt_a * delta_(i, k, v);
-        }
+        lhs(i, k, vars::cons::Energy) +=
+            dt_info.dt_coef * delta_(i, k, pkg_vars::Energy);
+        lhs(i, k, ind_ni_) += dt_info.dt_coef * delta_(i, k, pkg_vars::Nickel);
+        lhs(i, k, ind_co_) += dt_info.dt_coef * delta_(i, k, pkg_vars::Cobalt);
+        lhs(i, k, ind_fe_) += dt_info.dt_coef * delta_(i, k, pkg_vars::Iron);
       });
 }
 

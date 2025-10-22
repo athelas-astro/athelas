@@ -104,6 +104,7 @@ class RadHydroPackage {
   AthelasArray2D<double> flux_u_; // Riemann velocities
 
   AthelasArray3D<double> delta_; // rhs delta
+  AthelasArray3D<double> delta_im_; // rhs delta
 
   // iterative solver storage
   AthelasArray3D<double> scratch_k_;

@@ -14,7 +14,6 @@ grid_type = "uniform"
 #temperature = 10036.0
 temperature = 1000.0
 rho = 2.8e-9
-ncomps = 5
 
 [physics]
 radiation = false
@@ -26,6 +25,9 @@ heating = false
 [ionization]
 fn_ionization = "../data/atomic_data_ionization.dat"
 fn_degeneracy = "../data/atomic_data_degeneracy_factors.dat"
+ncomps = 5
+
+[composition]
 ncomps = 5
 
 [bc]
@@ -44,8 +46,8 @@ fn = "one_zone_ionization.hst"
 
 [fluid]
 basis = "legendre"
-nnodes = 2
-porder = 2
+nnodes = 1
+porder = 1
 
 [fluid.limiter]
 do_limiter = false
