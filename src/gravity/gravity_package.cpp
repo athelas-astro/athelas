@@ -18,13 +18,14 @@ namespace athelas::gravity {
 
 using basis::ModalBasis;
 
-GravityPackage::GravityPackage(const ProblemIn * /*pin*/, GravityModel model,
+GravityPackage::GravityPackage(const ProblemIn *pin, GravityModel model,
                                const double gval, ModalBasis *basis,
                                const double cfl, const bool active)
-    : active_(active), model_(model), gval_(gval), basis_(basis), cfl_(cfl) {}
+    : active_(active), model_(model), gval_(gval), basis_(basis), cfl_(cfl),
+      delta_("gravity delta", pin->param()->get<int>("problem.nx") + 2,
+             basis_->order(), 2) {}
 
 void GravityPackage::update_explicit(const State *const state,
-                                     AthelasArray3D<double> dU,
                                      const GridStructure &grid,
                                      const TimeStepInfo &dt_info) const {
   const auto u_stages = state->u_cf_stages();
@@ -34,15 +35,14 @@ void GravityPackage::update_explicit(const State *const state,
       Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
 
   if (model_ == GravityModel::Spherical) {
-    gravity_update<GravityModel::Spherical>(ucf, dU, grid);
+    gravity_update<GravityModel::Spherical>(ucf, grid);
   } else [[unlikely]] {
-    gravity_update<GravityModel::Constant>(ucf, dU, grid);
+    gravity_update<GravityModel::Constant>(ucf, grid);
   }
 }
 
 template <GravityModel Model>
 void GravityPackage::gravity_update(const AthelasArray3D<double> state,
-                                    AthelasArray3D<double> dU,
                                     const GridStructure &grid) const {
   using basis::basis_eval;
   const int nNodes = grid.n_nodes();
@@ -62,7 +62,7 @@ void GravityPackage::gravity_update(const AthelasArray3D<double> state,
   // This can probably be simplified.
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Gravity :: Update", DevExecSpace(), ib.s, ib.e,
-      kb.s, kb.e, KOKKOS_LAMBDA(const int i, const int k) {
+      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         double local_sum_v = 0.0;
         double local_sum_e = 0.0;
         for (int q = 0; q < nNodes; ++q) {
@@ -87,10 +87,30 @@ void GravityPackage::gravity_update(const AthelasArray3D<double> state,
           }
         }
 
-        dU(i, k, vars::cons::Velocity) -=
+        delta_(i, k, vars::cons::Velocity) -=
             (constants::G_GRAV * local_sum_v * dr(i)) * inv_mkk(i, k);
-        dU(i, k, vars::cons::Energy) -=
+        delta_(i, k, vars::cons::Energy) -=
             (constants::G_GRAV * local_sum_e * dr(i)) * inv_mkk(i, k);
+      });
+}
+
+/**
+ * @brief apply gravity package delta
+ */
+void GravityPackage::apply_delta(AthelasArray3D<double> lhs,
+                                 const TimeStepInfo &dt_info) const {
+  static const int nx = static_cast<int>(lhs.extent(0));
+  static const int nk = static_cast<int>(lhs.extent(1));
+  static const IndexRange ib(std::make_pair(1, nx - 2));
+  static const IndexRange kb(nk);
+  static const IndexRange vb(NUM_VARS_);
+
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "Gravity :: Apply delta", DevExecSpace(), ib.s,
+      ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+        for (int v = vb.s; v <= vb.e; ++v) {
+          lhs(i, k, v + 1) += dt_info.dt_coef * delta_(i, k, v);
+        }
       });
 }
 

@@ -402,7 +402,6 @@ inline auto total_mass_ni56(const State &state, const GridStructure &grid,
 
   const auto phi = fluid_basis->phi();
   const auto u = state.u_cf();
-  const auto mass_fractions = state.comps()->mass_fractions();
   const auto *const species_indexer = state.comps()->species_indexer();
   const auto ind_x = species_indexer->get<int>("ni56");
 
@@ -413,7 +412,7 @@ inline auto total_mass_ni56(const State &state, const GridStructure &grid,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double x_ni = basis_eval(phi, mass_fractions, i, ind_x, q + 1);
+          const double x_ni = basis_eval(phi, u, i, ind_x, q + 1);
           local_sum +=
               x_ni *
               (1.0 / basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1)) *
@@ -441,7 +440,6 @@ inline auto total_mass_co56(const State &state, const GridStructure &grid,
 
   const auto phi = fluid_basis->phi();
   const auto u = state.u_cf();
-  const auto mass_fractions = state.comps()->mass_fractions();
   const auto *const species_indexer = state.comps()->species_indexer();
   const auto ind_x = species_indexer->get<int>("co56");
 
@@ -452,7 +450,7 @@ inline auto total_mass_co56(const State &state, const GridStructure &grid,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double x_co = basis_eval(phi, mass_fractions, i, ind_x, q + 1);
+          const double x_co = basis_eval(phi, u, i, ind_x, q + 1);
           local_sum +=
               x_co *
               (1.0 / basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1)) *
@@ -480,7 +478,6 @@ inline auto total_mass_fe56(const State &state, const GridStructure &grid,
 
   const auto phi = fluid_basis->phi();
   const auto u = state.u_cf();
-  const auto mass_fractions = state.comps()->mass_fractions();
   const auto *const species_indexer = state.comps()->species_indexer();
   const auto ind_x = species_indexer->get<int>("fe56");
 
@@ -491,7 +488,7 @@ inline auto total_mass_fe56(const State &state, const GridStructure &grid,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double x_fe = basis_eval(phi, mass_fractions, i, ind_x, q + 1);
+          const double x_fe = basis_eval(phi, u, i, ind_x, q + 1);
           local_sum +=
               x_fe *
               (1.0 / basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1)) *

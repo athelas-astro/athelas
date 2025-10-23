@@ -1,6 +1,5 @@
 #pragma once
 
-#include "eos/eos_variant.hpp"
 #include "geometry/grid.hpp"
 #include "interface/packages_base.hpp"
 #include "state/state.hpp"
@@ -17,17 +16,10 @@ namespace athelas {
  */
 class OperatorSplitStepper {
  public:
-  OperatorSplitStepper(const GridStructure &grid, eos::EOS *eos, int nvars);
+  OperatorSplitStepper() = default;
 
   void step(PackageManager *pkgs, State *state, const GridStructure &grid,
             double t, double dt);
-
- private:
-  int nvars_evolved_;
-  AthelasArray3D<double> dU_;
-
-  // hold EOS ptr for convenience
-  eos::EOS *eos_;
 };
 
 } // namespace athelas

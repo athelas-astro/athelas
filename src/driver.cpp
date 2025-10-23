@@ -36,7 +36,8 @@ auto Driver::execute() -> int {
   const auto dt_hdf5 = pin_->param()->get<double>("output.dt_hdf5");
 
   dt_ = dt_init;
-  TimeStepInfo dt_info{.t = time_, .dt = dt_, .dt_a = dt_, .stage = -1};
+  TimeStepInfo dt_info{
+      .t = time_, .dt = dt_, .dt_a = dt_, .dt_coef = dt_, .stage = -1};
 
   // some startup io
   manager_->fill_derived(state_.get(), grid_, dt_info);
@@ -63,6 +64,7 @@ auto Driver::execute() -> int {
       dt_ = t_end_ - time_;
     }
 
+    // This logic could probably be cleaner..
     if (!rad_active) {
       ssprk_.step(manager_.get(), state_.get(), grid_, time_, dt_, &sl_hydro_);
     } else {
@@ -76,6 +78,13 @@ auto Driver::execute() -> int {
         std::cerr << "Library Error: " << e.what() << "\n";
         return AthelasExitCodes::FAILURE;
       }
+    }
+
+    // Call the operator split time stepper
+    // Likely will need work if implicit physics is split.
+    if (operator_split_physics_) {
+      split_stepper_->step(split_manager_.get(), state_.get(), grid_, time_,
+                           dt_);
     }
 
 #ifdef ATHELAS_DEBUG
@@ -178,31 +187,59 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   const bool ni_heating_active =
       pin->param()->get<bool>("physics.heating.nickel.enabled");
 
+  int nvars_split = 0;
+
   // --- Init physics package manager ---
   // NOTE: Hydro/RadHydro should be registered first
   if (rad_active) {
     manager_->add_package(RadHydroPackage{
         pin, ssprk_.n_stages(), eos_.get(), opac_.get(), fluid_basis_.get(),
         radiation_basis_.get(), bcs_.get(), cfl, nx, true});
-  } else {
-    [[unlikely]] // pure Hydro
+  } else [[unlikely]] {
+    // pure Hydro
     manager_->add_package(HydroPackage{pin, ssprk_.n_stages(), eos_.get(),
                                        fluid_basis_.get(), bcs_.get(), cfl, nx,
                                        true});
   }
   if (gravity_active) {
-    manager_->add_package(
-        GravityPackage{pin, pin->param()->get<GravityModel>("gravity.model"),
-                       pin->param()->get<double>("gravity.gval"),
-                       fluid_basis_.get(), cfl, true});
+    if (!pin->param()->get<bool>("physics.gravity.split")) {
+      manager_->add_package(
+          GravityPackage{pin, pin->param()->get<GravityModel>("gravity.model"),
+                         pin->param()->get<double>("gravity.gval"),
+                         fluid_basis_.get(), cfl, true});
+    } else {
+      nvars_split += 2;
+      split_manager_->add_package(
+          GravityPackage{pin, pin->param()->get<GravityModel>("gravity.model"),
+                         pin->param()->get<double>("gravity.gval"),
+                         fluid_basis_.get(), cfl, true});
+    }
   }
   if (ni_heating_active) {
-    manager_->add_package(NickelHeatingPackage{pin, fluid_basis_.get(), true});
+    if (!pin->param()->get<bool>("physics.heating.nickel.split")) {
+      manager_->add_package(NickelHeatingPackage{
+          pin, fluid_basis_.get(), state_->comps()->species_indexer(), true});
+    } else {
+      nvars_split += 4;
+      split_manager_->add_package(NickelHeatingPackage{
+          pin, fluid_basis_.get(), state_->comps()->species_indexer(), true});
+    }
   }
+
+  // set up operator split stepper
+  if (nvars_split > 0) {
+    split_stepper_ = std::make_unique<OperatorSplitStepper>();
+    operator_split_physics_ = true;
+  }
+
   auto registered_pkgs = manager_->get_package_names();
+  auto split_pkgs = split_manager_->get_package_names();
   std::print("# Registered Packages ::");
   for (auto name : registered_pkgs) {
     std::print(" {}", name);
+  }
+  for (auto name : split_pkgs) {
+    std::print(" {} (operator split)", name);
   }
   std::print("\n\n");
 

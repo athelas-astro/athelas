@@ -59,79 +59,45 @@ class TimeStepper {
                              const double dt, SlopeLimiter *sl_hydro) {
 
     const auto &order = grid.n_nodes();
-    const auto evolve_nickel = state->nickel_evolved();
 
     auto U = state->u_cf();
     auto U_s = state->u_cf_stages();
 
-    const int nvars = U.extent(2);
+    const int nvars = state->n_cf();
     static const IndexRange ib(grid.domain<Domain::Entire>());
     static const IndexRange kb(order);
     static const IndexRange vb(nvars);
 
     grid_s_[0] = grid;
 
-    TimeStepInfo dt_info{.t = t, .dt = dt, .dt_a = dt, .stage = 0};
+    TimeStepInfo dt_info{
+        .t = t, .dt = dt, .dt_a = dt, .dt_coef = dt, .stage = 0};
 
     for (int iS = 0; iS < nStages_; ++iS) {
       dt_info.stage = iS;
       // re-zero the summation variables `SumVar`
       athelas::par_for(
           DEFAULT_LOOP_PATTERN, "Timestepper :: EX :: Reset sumvar",
-          DevExecSpace(), ib.s, ib.e, kb.s, kb.e, vb.s, vb.e,
-          KOKKOS_CLASS_LAMBDA(const int i, const int k, const int v) {
-            SumVar_U_(i, k, v) = U(i, k, v);
+          DevExecSpace(), ib.s, ib.e, kb.s, kb.e,
+          KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+            for (int v = vb.s; v <= vb.e; ++v) {
+              SumVar_U_(i, k, v) = U(i, k, v);
+            }
             stage_data_(iS, i) = grid.get_left_interface(i);
           });
-      if (evolve_nickel) {
-        auto *comps = state->comps();
-        auto mass_fractions = comps->mass_fractions();
-        const auto *const species_indexer = comps->species_indexer();
-        static const auto ind_ni = species_indexer->get<int>("ni56");
-        static const auto ind_co = species_indexer->get<int>("co56");
-        static const auto ind_fe = species_indexer->get<int>("fe56");
-        athelas::par_for(
-            DEFAULT_FLAT_LOOP_PATTERN,
-            "Timestepper :: EX :: Ni :: Reset sumvar", DevExecSpace(), ib.s,
-            ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              SumVar_U_(i, vars::modes::CellAverage, 3 + ind_ni) =
-                  mass_fractions(i, vars::modes::CellAverage, ind_ni);
-              SumVar_U_(i, vars::modes::CellAverage, 3 + ind_co) =
-                  mass_fractions(i, vars::modes::CellAverage, ind_co);
-              SumVar_U_(i, vars::modes::CellAverage, 3 + ind_fe) =
-                  mass_fractions(i, vars::modes::CellAverage, ind_fe);
-            });
-      }
 
       // --- Inner update loop ---
 
       for (int j = 0; j < iS; ++j) {
         dt_info.stage = j;
         dt_info.t = t + integrator_.explicit_tableau.c_i(j);
-        auto dUs_j =
-            Kokkos::subview(dU_s_, j, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
         pkgs->fill_derived(state, grid_s_[j], dt_info);
-        pkgs->update_explicit(state, dUs_j, grid_s_[j], dt_info);
+        pkgs->update_explicit(state, grid_s_[j], dt_info);
 
         // inner sum
         const double dt_a_ex = dt * integrator_.explicit_tableau.a_ij(iS, j);
-        athelas::par_for(
-            DEFAULT_LOOP_PATTERN, "Timestepper :: EX :: update sumvar",
-            DevExecSpace(), ib.s, ib.e, kb.s, kb.e, vb.s, vb.e,
-            KOKKOS_CLASS_LAMBDA(const int i, const int k, const int v) {
-              SumVar_U_(i, k, v) += dt_a_ex * dUs_j(i, k, v);
-            });
-
-        if (evolve_nickel) {
-          // this updates mass fractions
-          athelas::par_for(
-              DEFAULT_LOOP_PATTERN, "Timestepper :: EX :: Ni :: update sumvar",
-              DevExecSpace(), ib.s, ib.e, 3, nvars + 2,
-              KOKKOS_CLASS_LAMBDA(const int i, const int v) {
-                SumVar_U_(i, vars::modes::CellAverage, v) +=
-                    dt_a_ex * dUs_j(i, vars::modes::CellAverage, v);
-              });
-        }
+        dt_info.dt_coef = dt_a_ex;
+        pkgs->apply_delta(SumVar_U_, dt_info);
 
         athelas::par_for(
             DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: EX :: grid",
@@ -150,25 +116,6 @@ class TimeStepper {
             U_s(iS, i, k, v) = SumVar_U_(i, k, v);
           });
 
-      if (evolve_nickel) {
-        auto *comps = state->comps();
-        auto mass_fractions_stages = comps->mass_fractions_stages();
-        const auto *const species_indexer = comps->species_indexer();
-        static const auto ind_ni = species_indexer->get<int>("ni56");
-        static const auto ind_co = species_indexer->get<int>("co56");
-        static const auto ind_fe = species_indexer->get<int>("fe56");
-        athelas::par_for(
-            DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: EX :: Ni :: Set Us",
-            DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              mass_fractions_stages(iS, i, vars::modes::CellAverage, ind_ni) =
-                  SumVar_U_(i, vars::modes::CellAverage, 3 + ind_ni);
-              mass_fractions_stages(iS, i, vars::modes::CellAverage, ind_co) =
-                  SumVar_U_(i, vars::modes::CellAverage, 3 + ind_co);
-              mass_fractions_stages(iS, i, vars::modes::CellAverage, ind_fe) =
-                  SumVar_U_(i, vars::modes::CellAverage, 3 + ind_fe);
-            });
-      }
-
       auto stage_data_j = Kokkos::subview(stage_data_, iS, Kokkos::ALL);
       grid_s_[iS] = grid;
       grid_s_[iS].update_grid(stage_data_j);
@@ -185,38 +132,13 @@ class TimeStepper {
     for (int iS = 0; iS < nStages_; ++iS) {
       dt_info.stage = iS;
       dt_info.t = t + integrator_.explicit_tableau.c_i(iS);
-      auto dUs_j =
-          Kokkos::subview(dU_s_, iS, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
 
       pkgs->fill_derived(state, grid_s_[iS], dt_info);
-      pkgs->update_explicit(state, dUs_j, grid_s_[iS], dt_info);
+      pkgs->update_explicit(state, grid_s_[iS], dt_info);
 
       const double dt_b_ex = dt * integrator_.explicit_tableau.b_i(iS);
-      athelas::par_for(
-          DEFAULT_LOOP_PATTERN, "Timestepper :: EX :: Finalize", DevExecSpace(),
-          ib.s, ib.e, kb.s, kb.e, vb.s, vb.e,
-          KOKKOS_CLASS_LAMBDA(const int i, const int k, const int v) {
-            U(i, k, v) += dt_b_ex * dUs_j(i, k, v);
-          });
-
-      if (evolve_nickel) {
-        auto *comps = state->comps();
-        auto mass_fractions = comps->mass_fractions();
-        const auto *const species_indexer = comps->species_indexer();
-        static const auto ind_ni = species_indexer->get<int>("ni56");
-        static const auto ind_co = species_indexer->get<int>("co56");
-        static const auto ind_fe = species_indexer->get<int>("fe56");
-        athelas::par_for(
-            DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: EX :: Ni :: Finalize",
-            DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              mass_fractions(i, vars::modes::CellAverage, ind_ni) +=
-                  dt_b_ex * dUs_j(i, vars::modes::CellAverage, 3 + ind_ni);
-              mass_fractions(i, vars::modes::CellAverage, ind_co) +=
-                  dt_b_ex * dUs_j(i, vars::modes::CellAverage, 3 + ind_co);
-              mass_fractions(i, vars::modes::CellAverage, ind_fe) +=
-                  dt_b_ex * dUs_j(i, vars::modes::CellAverage, 3 + ind_fe);
-            });
-      }
+      dt_info.dt_coef = dt_b_ex;
+      pkgs->apply_delta(U, dt_info);
 
       athelas::par_for(
           DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: EX :: Finalize grid",
@@ -257,12 +179,11 @@ class TimeStepper {
                              SlopeLimiter *sl_rad) {
 
     const auto &order = grid.n_nodes();
-    const auto evolve_nickel = state->nickel_evolved();
 
     auto uCF = state->u_cf();
     auto U_s = state->u_cf_stages();
 
-    const int nvars = uCF.extent(2);
+    const int nvars = state->n_cf();
     static const IndexRange ib(grid.domain<Domain::Entire>());
     static const IndexRange kb(order);
     static const IndexRange vb(nvars);
@@ -283,26 +204,6 @@ class TimeStepper {
             stage_data_(iS, i) = grid_s_[iS].get_left_interface(i);
           });
 
-      if (evolve_nickel) {
-        auto *comps = state->comps();
-        auto mass_fractions = comps->mass_fractions();
-        const auto *const species_indexer = comps->species_indexer();
-        static const auto ind_ni = species_indexer->get<int>("ni56");
-        static const auto ind_co = species_indexer->get<int>("co56");
-        static const auto ind_fe = species_indexer->get<int>("fe56");
-        athelas::par_for(
-            DEFAULT_FLAT_LOOP_PATTERN,
-            "Timestepper :: IMEX :: Ni :: Reset sumvar", DevExecSpace(), ib.s,
-            ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              SumVar_U_(i, vars::modes::CellAverage, 5 + ind_ni) =
-                  mass_fractions(i, vars::modes::CellAverage, ind_ni);
-              SumVar_U_(i, vars::modes::CellAverage, 5 + ind_co) =
-                  mass_fractions(i, vars::modes::CellAverage, ind_co);
-              SumVar_U_(i, vars::modes::CellAverage, 5 + ind_fe) =
-                  mass_fractions(i, vars::modes::CellAverage, ind_fe);
-            });
-      }
-
       // --- Inner update loop ---
 
       for (int j = 0; j < iS; ++j) {
@@ -310,41 +211,17 @@ class TimeStepper {
         dt_info.t = t + integrator_.explicit_tableau.c_i(j);
         const double dt_a = dt * integrator_.explicit_tableau.a_ij(iS, j);
         const double dt_a_im = dt * integrator_.implicit_tableau.a_ij(iS, j);
-        auto dUs_j =
-            Kokkos::subview(dU_s_, j, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
 
         pkgs->fill_derived(state, grid_s_[j], dt_info);
-        pkgs->update_explicit(state, dUs_j, grid_s_[j], dt_info);
+        pkgs->update_explicit(state, grid_s_[j], dt_info);
 
-        // inner sum
-        athelas::par_for(
-            DEFAULT_LOOP_PATTERN, "Timestepper :: IMEX :: Update sumvar",
-            DevExecSpace(), ib.s, ib.e, kb.s, kb.e, vb.s, vb.e,
-            KOKKOS_CLASS_LAMBDA(const int i, const int k, const int v) {
-              SumVar_U_(i, k, v) += dt_a * dUs_j(i, k, v);
-            });
+        dt_info.dt_coef = dt_a;
+        pkgs->apply_delta(SumVar_U_, dt_info);
 
-        if (evolve_nickel) {
-          // NOTE: Is this indexing going to be correct in more general
-          // settings?
-          athelas::par_for(
-              DEFAULT_LOOP_PATTERN,
-              "Timestepper :: IMEX :: Ni :: Update sumvar", DevExecSpace(),
-              ib.s, ib.e, 5, nvars + 5,
-              KOKKOS_CLASS_LAMBDA(const int ix, const int q) {
-                SumVar_U_(ix, vars::modes::CellAverage, q) +=
-                    dt_a * dUs_j(ix, vars::modes::CellAverage, q);
-              });
-        }
+        pkgs->update_implicit(state, grid_s_[j], dt_info);
 
-        pkgs->update_implicit(state, dUs_j, grid_s_[j], dt_info);
-
-        athelas::par_for(
-            DEFAULT_LOOP_PATTERN, "Timestepper :: IMEX :: Implicit delta",
-            DevExecSpace(), ib.s, ib.e, kb.s, kb.e, 1, vb.e,
-            KOKKOS_CLASS_LAMBDA(const int i, const int k, const int v) {
-              SumVar_U_(i, k, v) += dt_a_im * dUs_j(i, k, v);
-            });
+        dt_info.dt_coef = dt_a_im;
+        pkgs->apply_delta(SumVar_U_, dt_info);
 
         athelas::par_for(
             DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: IMEX :: Update grid",
@@ -366,25 +243,6 @@ class TimeStepper {
           KOKKOS_CLASS_LAMBDA(const int i, const int k, const int v) {
             U_s(iS, i, k, v) = SumVar_U_(i, k, v);
           });
-
-      if (evolve_nickel) {
-        auto *comps = state->comps();
-        auto mass_fractions_stages = comps->mass_fractions_stages();
-        const auto *const species_indexer = comps->species_indexer();
-        static const auto ind_ni = species_indexer->get<int>("ni56");
-        static const auto ind_co = species_indexer->get<int>("co56");
-        static const auto ind_fe = species_indexer->get<int>("fe56");
-        athelas::par_for(
-            DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: IMEX :: Ni :: Set Us",
-            DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              mass_fractions_stages(iS, i, vars::modes::CellAverage, ind_ni) =
-                  SumVar_U_(i, vars::modes::CellAverage, 5 + ind_ni);
-              mass_fractions_stages(iS, i, vars::modes::CellAverage, ind_co) =
-                  SumVar_U_(i, vars::modes::CellAverage, 5 + ind_co);
-              mass_fractions_stages(iS, i, vars::modes::CellAverage, ind_fe) =
-                  SumVar_U_(i, vars::modes::CellAverage, 5 + ind_fe);
-            });
-      }
 
       // NOTE: The limiting strategies in this function will fail if
       // the pkg does not have access to a rad_basis and fluid_basis
@@ -447,45 +305,17 @@ class TimeStepper {
       dt_info.stage = iS;
       const double dt_b = dt * integrator_.explicit_tableau.b_i(iS);
       const double dt_b_im = dt * integrator_.implicit_tableau.b_i(iS);
-      auto dUs_ex_i =
-          Kokkos::subview(dU_s_, iS, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
-      auto dUs_im_i = Kokkos::subview(dU_s_implicit_, iS, Kokkos::ALL,
-                                      Kokkos::ALL, Kokkos::ALL);
 
       pkgs->fill_derived(state, grid_s_[iS], dt_info);
-      pkgs->update_explicit(state, dUs_ex_i, grid_s_[iS], dt_info);
-      pkgs->update_implicit(state, dUs_im_i, grid_s_[iS], dt_info);
-      athelas::par_for(
-          DEFAULT_LOOP_PATTERN, "Timestepper :: IMEX :: Finalize",
-          DevExecSpace(), ib.s, ib.e, kb.s, kb.e,
-          KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-            uCF(i, k, vars::cons::SpecificVolume) =
-                std::fma(dt_b, dUs_ex_i(i, k, vars::cons::SpecificVolume),
-                         uCF(i, k, vars::cons::SpecificVolume));
-            for (int v = 1; v < nvars; ++v) {
-              uCF(i, k, v) = std::fma(dt_b, dUs_ex_i(i, k, v), uCF(i, k, v));
+      pkgs->update_explicit(state, grid_s_[iS], dt_info);
 
-              uCF(i, k, v) = std::fma(dt_b_im, dUs_im_i(i, k, v), uCF(i, k, v));
-            }
-          });
-      if (evolve_nickel) {
-        auto *comps = state->comps();
-        auto mass_fractions = comps->mass_fractions();
-        const auto *const species_indexer = comps->species_indexer();
-        static const auto ind_ni = species_indexer->get<int>("ni56");
-        static const auto ind_co = species_indexer->get<int>("co56");
-        static const auto ind_fe = species_indexer->get<int>("fe56");
-        athelas::par_for(
-            DEFAULT_FLAT_LOOP_PATTERN, "Timestepper  :: IMEX :: Ni :: Finalize",
-            DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              mass_fractions(i, vars::modes::CellAverage, ind_ni) +=
-                  dt_b * dUs_ex_i(i, vars::modes::CellAverage, 5 + ind_ni);
-              mass_fractions(i, vars::modes::CellAverage, ind_co) +=
-                  dt_b * dUs_ex_i(i, vars::modes::CellAverage, 5 + ind_co);
-              mass_fractions(i, vars::modes::CellAverage, ind_fe) +=
-                  dt_b * dUs_ex_i(i, vars::modes::CellAverage, 5 + ind_fe);
-            });
-      }
+      dt_info.dt_coef = dt_b;
+      pkgs->apply_delta_explicit(uCF, dt_info);
+
+      pkgs->update_implicit(state, grid_s_[iS], dt_info);
+
+      dt_info.dt_coef = dt_b_im;
+      pkgs->apply_delta_implicit(uCF, dt_info);
 
       athelas::par_for(
           DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: IMEX :: Finalize grid",
@@ -527,8 +357,6 @@ class TimeStepper {
   int tOrder_;
 
   // Hold stage data
-  AthelasArray4D<double> dU_s_;
-  AthelasArray4D<double> dU_s_implicit_;
   AthelasArray3D<double> SumVar_U_;
   std::vector<GridStructure> grid_s_;
 
@@ -536,8 +364,6 @@ class TimeStepper {
   AthelasArray2D<double> stage_data_;
 
   // Variables to pass to update step
-
-  // hold eos::EOS ptr for convenience
   eos::EOS *eos_;
 };
 

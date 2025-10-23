@@ -30,7 +30,7 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
   const auto *const comps = state.comps();
   auto *const ionization_states = state.ionization_state();
   const auto *const atomic_data = ionization_states->atomic_data();
-  const auto mass_fractions = comps->mass_fractions();
+  const auto mass_fractions = state.mass_fractions();
   const auto species = comps->charge();
   auto ionization_fractions = ionization_states->ionization_fractions();
 

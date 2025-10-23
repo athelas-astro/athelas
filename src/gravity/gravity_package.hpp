@@ -23,27 +23,28 @@ class GravityPackage {
   GravityPackage(const ProblemIn * /*pin*/, GravityModel model, double gval,
                  basis::ModalBasis *basis, double cfl, bool active = true);
 
-  void update_explicit(const State *const state, AthelasArray3D<double> dU,
-                       const GridStructure &grid,
+  void update_explicit(const State *const state, const GridStructure &grid,
                        const TimeStepInfo &dt_info) const;
 
   template <GravityModel Model>
   void gravity_update(const AthelasArray3D<double> state,
-                      AthelasArray3D<double> dU,
                       const GridStructure &grid) const;
 
-  [[nodiscard]] KOKKOS_FUNCTION auto
-  min_timestep(const State *const /*state*/, const GridStructure & /*grid*/,
-               const TimeStepInfo & /*dt_info*/) const -> double;
+  void apply_delta(AthelasArray3D<double> lhs,
+                   const TimeStepInfo &dt_info) const;
 
-  [[nodiscard]] KOKKOS_FUNCTION auto name() const noexcept -> std::string_view;
+  [[nodiscard]] auto min_timestep(const State *const /*state*/,
+                                  const GridStructure & /*grid*/,
+                                  const TimeStepInfo & /*dt_info*/) const
+      -> double;
 
-  [[nodiscard]] KOKKOS_FUNCTION auto is_active() const noexcept -> bool;
+  [[nodiscard]] auto name() const noexcept -> std::string_view;
+
+  [[nodiscard]] auto is_active() const noexcept -> bool;
 
   void fill_derived(State *state, const GridStructure &grid,
                     const TimeStepInfo &dt_info) const;
 
-  KOKKOS_FUNCTION
   void set_active(bool active);
 
  private:
@@ -55,6 +56,10 @@ class GravityPackage {
   basis::ModalBasis *basis_;
 
   double cfl_;
+
+  AthelasArray3D<double> delta_; // rhs delta
+
+  static constexpr int NUM_VARS_ = 2;
 };
 
 } // namespace athelas::gravity

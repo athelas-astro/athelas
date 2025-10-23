@@ -44,7 +44,7 @@ porder = 3
 [fluid.limiter]
 do_limiter = true
 type = "minmod"
-b_tvd = 0.0
+b_tvd = 1.0
 m_tvb = 0.0
 tci_opt = true
 tci_val = 0.25
@@ -59,7 +59,7 @@ model = "constant"
 gval = 1.0
 
 [time]
-integrator = "EX_SSPRK54"
+integrator = "EX_SSPRK22"
 
 [eos]
 type = "ideal"

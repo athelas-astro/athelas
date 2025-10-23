@@ -25,7 +25,7 @@ void fill_derived_comps(State *const state, const GridStructure *const grid,
   static const IndexRange nb(nnodes + 2);
 
   auto *const comps = state->comps();
-  const auto mass_fractions = comps->mass_fractions();
+  const auto mass_fractions = state->mass_fractions();
   const auto species = comps->charge();
   const auto neutron_number = comps->neutron_number();
   auto number_density = comps->number_density();
@@ -60,7 +60,7 @@ void fill_derived_ionization(State *const state,
   static const IndexRange nb(nnodes + 2);
 
   const auto *const comps = state->comps();
-  const auto mass_fractions = comps->mass_fractions();
+  const auto mass_fractions = state->mass_fractions();
   const auto species = comps->charge();
   const auto neutron_number = comps->neutron_number();
   const auto number_density = comps->number_density();
@@ -181,7 +181,7 @@ void paczynski_terms(const State *const state, const int ix, const int node,
   const auto uaf = state->u_af();
 
   const auto *const comps = state->comps();
-  const auto mass_fractions = comps->mass_fractions();
+  const auto mass_fractions = state->mass_fractions();
   const auto species = comps->charge();
   const auto neutron_number = comps->neutron_number();
   const auto number_density = comps->number_density();

@@ -21,11 +21,14 @@ class State {
   [[nodiscard]] auto n_pf() const noexcept -> int;
   [[nodiscard]] auto n_af() const noexcept -> int;
   [[nodiscard]] auto p_order() const noexcept -> int;
+  [[nodiscard]] auto ncomps() const noexcept -> int;
+  [[nodiscard]] auto nvars() const noexcept -> int;
 
   [[nodiscard]] auto u_cf() const noexcept -> AthelasArray3D<double>;
   [[nodiscard]] auto u_cf_stages() const noexcept -> AthelasArray4D<double>;
   [[nodiscard]] auto u_pf() const noexcept -> AthelasArray3D<double>;
   [[nodiscard]] auto u_af() const noexcept -> AthelasArray3D<double>;
+  [[nodiscard]] auto vars() const noexcept -> AthelasArray3D<double>;
 
   [[nodiscard]] auto composition_enabled() const noexcept -> bool;
   [[nodiscard]] auto ionization_enabled() const noexcept -> bool;
@@ -34,6 +37,9 @@ class State {
 
   [[nodiscard]] auto comps() const -> atom::CompositionData *;
   [[nodiscard]] auto ionization_state() const -> atom::IonizationState *;
+  [[nodiscard]] auto mass_fractions() const noexcept -> AthelasArray3D<double>;
+  [[nodiscard]] auto mass_fractions_stages() const noexcept
+      -> AthelasArray4D<double>;
 
   void setup_composition(std::shared_ptr<atom::CompositionData> comps);
   void setup_ionization(std::shared_ptr<atom::IonizationState> ion);

@@ -27,7 +27,7 @@ void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
   const int saha_ncomps =
       pin->param()->get<int>("ionization.ncomps"); // for ionization
   const auto ncomps =
-      pin->param()->get<int>("problem.params.ncomps", 1); // mass fractions
+      pin->param()->get<int>("composition.ncomps", 1); // mass fractions
   if (!ionization_active) {
     THROW_ATHELAS_ERROR("One zone ionization requires ionization enabled!");
   }
@@ -84,7 +84,7 @@ void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
       std::make_shared<atom::IonizationState>(grid->n_elements() + 2, nNodes,
                                               saha_ncomps, saha_ncomps + 1,
                                               fn_ionization, fn_deg);
-  auto mass_fractions = comps->mass_fractions();
+  auto mass_fractions = state->mass_fractions();
   auto charges = comps->charge();
   auto neutrons = comps->neutron_number();
   auto ionization_states = ionization_state->ionization_fractions();

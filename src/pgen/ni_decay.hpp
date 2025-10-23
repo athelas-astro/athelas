@@ -51,7 +51,7 @@ void ni_decay_init(State *state, GridStructure *grid, ProblemIn *pin,
   const double tau = 1.0 / rho;
 
   if (temperature <= 0.0 || rho <= 0.0) {
-    THROW_ATHELAS_ERROR("Temperature and denisty must be positive definite!");
+    THROW_ATHELAS_ERROR("Temperature and density must be positive definite!");
   }
 
   const double mu = 1.0 + constants::m_e / constants::m_p;
@@ -63,14 +63,14 @@ void ni_decay_init(State *state, GridStructure *grid, ProblemIn *pin,
       std::make_shared<atom::CompositionData>(
           grid->n_elements() + 2, order, ncomps,
           state->params()->get<int>("n_stages"));
-  auto mass_fractions = comps->mass_fractions();
+  auto mass_fractions = state->mass_fractions();
   auto charges = comps->charge();
   auto neutrons = comps->neutron_number();
   auto ye = comps->ye();
   auto *species_indexer = comps->species_indexer();
-  species_indexer->add("ni56", 0);
-  species_indexer->add("co56", 1);
-  species_indexer->add("fe56", 2);
+  species_indexer->add("ni56", 3);
+  species_indexer->add("co56", 4);
+  species_indexer->add("fe56", 5);
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: NiDecay (1)", DevExecSpace(), ib.s,
       ib.e, KOKKOS_LAMBDA(const int i) {

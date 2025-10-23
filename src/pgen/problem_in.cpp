@@ -202,6 +202,11 @@ ProblemIn::ProblemIn(const std::string &fn) {
     THROW_ATHELAS_ERROR("[fluid] block must be provided!");
   }
 
+  if (config_["fluid"]["operator_split"].is_value()) {
+    THROW_ATHELAS_ERROR("Operator split not supported for fluid! Remove option "
+                        "from [fluid] block.");
+  }
+
   std::optional<int> porder = config_["fluid"]["porder"].value<int>();
   if (!porder) {
     THROW_ATHELAS_ERROR("fluid enabled but 'porder' missing in [fluid] block!");
@@ -347,6 +352,11 @@ ProblemIn::ProblemIn(const std::string &fn) {
     if (!config_["radiation"].is_table()) {
       THROW_ATHELAS_ERROR(
           "Radiation is active but radiation block is missing!");
+    }
+
+    if (config_["radiation"]["operator_split"].is_value()) {
+      THROW_ATHELAS_ERROR("Operator split not supported for radiation! Remove "
+                          "option from [radiation] block.");
     }
 
     std::optional<int> porder = config_["radiation"]["porder"].value<int>();
@@ -501,6 +511,8 @@ ProblemIn::ProblemIn(const std::string &fn) {
       THROW_ATHELAS_ERROR(
           "Gravity is enabled but no [gravity] block exists in input deck!");
     }
+    bool split_grav = config_["fluid"]["operator_split"].value_or(false);
+    params_->add("physics.gravity.split", split_grav);
     const double gval = config_["gravity"]["gval"].value_or(1.0);
     params_->add("gravity.gval", gval); // Always present
     const std::string gmodel = config_["gravity"]["model"].value_or("constant");
@@ -518,7 +530,17 @@ ProblemIn::ProblemIn(const std::string &fn) {
   // ---------------------------------
   // ---------- composition ----------
   // ---------------------------------
-  // not sure if anything goes here.
+  if (!config_["composition"].is_table() && comps.value()) {
+    THROW_ATHELAS_ERROR(
+        "Composition enabled but no [composition] block provided!");
+  }
+  std::optional<int> ncomps = config_["composition"]["ncomps"].value<int>();
+  if (!ncomps && comps.value()) {
+    THROW_ATHELAS_ERROR(
+        "Composition enabled but no ncomps in composition block!");
+  } else {
+    params_->add("composition.ncomps", ncomps.value_or(0));
+  }
 
   // --------------------------------
   // ---------- ionization ----------
@@ -563,6 +585,10 @@ ProblemIn::ProblemIn(const std::string &fn) {
             "[heating.nickel] is requested but 'enabled' is missing!");
       }
       params_->add("physics.heating.nickel.enabled", nickel_enabled.value());
+
+      bool split_nickel =
+          config_["heating"]["nickel"]["operator_split"].value_or(false);
+      params_->add("physics.heating.nickel.split", split_nickel);
 
       std::optional<std::string> nickel_model =
           config_["heating"]["nickel"]["model"].value<std::string>();

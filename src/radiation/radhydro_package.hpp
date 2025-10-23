@@ -31,16 +31,18 @@ class RadHydroPackage {
                   basis::ModalBasis *rad_basis, BoundaryConditions *bcs,
                   double cfl, int nx, bool active = true);
 
-  void update_explicit(const State *const state, AthelasArray3D<double> dU,
-                       const GridStructure &grid,
+  void update_explicit(const State *const state, const GridStructure &grid,
                        const TimeStepInfo &dt_info) const;
-  void update_implicit(const State *const state, AthelasArray3D<double> dU,
-                       const GridStructure &grid,
+  void update_implicit(const State *const state, const GridStructure &grid,
                        const TimeStepInfo &dt_info) const;
   void update_implicit_iterative(const State *const state,
-                                 AthelasArray3D<double> dU,
+                                 AthelasArray3D<double> R,
                                  const GridStructure &grid,
                                  const TimeStepInfo &dt_info);
+
+  void apply_delta(AthelasArray3D<double> lhs,
+                   const TimeStepInfo &dt_info) const;
+
   auto
   radhydro_source(const State *const state, const AthelasArray2D<double> uCRH,
                   const AthelasArray1D<double> dx,
@@ -51,12 +53,11 @@ class RadHydroPackage {
                   const AthelasArray2D<double> inv_mkk_rad, int i, int k) const
       -> std::tuple<double, double, double, double>;
 
-  void radhydro_divergence(const State *const state, AthelasArray3D<double> dU,
-                           const GridStructure &grid, int stage) const;
+  void radhydro_divergence(const State *const state, const GridStructure &grid,
+                           int stage) const;
 
   void radhydro_geometry(const AthelasArray3D<double> ucf,
                          const AthelasArray3D<double> uaf,
-                         AthelasArray3D<double> dU,
                          const GridStructure &grid) const;
 
   [[nodiscard]] auto min_timestep(const State *const /*ucf*/,
@@ -98,6 +99,9 @@ class RadHydroPackage {
   AthelasArray2D<double> u_f_l_; // left faces
   AthelasArray2D<double> u_f_r_; // right faces
   AthelasArray2D<double> flux_u_; // Riemann velocities
+
+  AthelasArray3D<double> delta_; // rhs delta
+  AthelasArray3D<double> delta_im_; // rhs delta
 
   // iterative solver storage
   AthelasArray3D<double> scratch_k_;

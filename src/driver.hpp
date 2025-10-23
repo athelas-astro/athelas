@@ -10,6 +10,7 @@
 #include "interface/packages_base.hpp"
 #include "limiters/slope_limiter_utilities.hpp"
 #include "pgen/problem_in.hpp"
+#include "timestepper/operator_split_stepper.hpp"
 #include "timestepper/timestepper.hpp"
 
 namespace athelas {
@@ -28,6 +29,7 @@ class Driver {
   // Driver
   explicit Driver(std::shared_ptr<ProblemIn> pin) // NOLINT
       : pin_(pin), manager_(std::make_unique<PackageManager>()),
+        split_manager_(std::make_unique<PackageManager>()),
         restart_(pin->param()->get<bool>("problem.restart")),
         bcs_(std::make_unique<BoundaryConditions>(
             bc::make_boundary_conditions(pin.get()))),
@@ -57,6 +59,7 @@ class Driver {
   std::shared_ptr<ProblemIn> pin_;
 
   std::unique_ptr<PackageManager> manager_;
+  std::unique_ptr<PackageManager> split_manager_;
 
   // TODO(astrobarker): thread in run_id_
   // std::string run_id_;
@@ -78,8 +81,10 @@ class Driver {
   SlopeLimiter sl_hydro_;
   SlopeLimiter sl_rad_;
 
-  // timestepper
+  // timesteppers
   TimeStepper ssprk_;
+  std::unique_ptr<OperatorSplitStepper> split_stepper_;
+  bool operator_split_physics_ = false;
 
   // history
   std::unique_ptr<HistoryOutput> history_;
@@ -98,8 +103,8 @@ namespace {
 /**
  * Compute the CFL timestep restriction.
  **/
-KOKKOS_INLINE_FUNCTION
-auto compute_cfl(const double CFL, const int order) -> double {
+
+inline auto compute_cfl(const double CFL, const int order) -> double {
   double c = 1.0;
 
   const double max_cfl = 0.95;

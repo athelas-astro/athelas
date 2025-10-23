@@ -52,11 +52,6 @@ class CompositionData {
  public:
   CompositionData(int nX, int order, int n_species, int n_stages);
 
-  [[nodiscard]] auto mass_fractions() const noexcept -> AthelasArray3D<double>;
-  [[nodiscard]] auto mass_fractions() noexcept -> AthelasArray3D<double>;
-  [[nodiscard]] auto mass_fractions_stages() const noexcept
-      -> AthelasArray4D<double>;
-  [[nodiscard]] auto mass_fractions_stages() noexcept -> AthelasArray4D<double>;
   [[nodiscard]] auto charge() const noexcept -> AthelasArray1D<int>;
   [[nodiscard]] auto neutron_number() const noexcept -> AthelasArray1D<int>;
   [[nodiscard]] auto ye() const noexcept -> AthelasArray2D<double>;
@@ -65,7 +60,7 @@ class CompositionData {
   [[nodiscard]] auto species_indexer() const noexcept -> Params *;
 
   [[nodiscard]] auto n_species() const noexcept -> size_t {
-    return mass_fractions_.extent(2);
+    return charge_.size();
   }
 
  private:
@@ -73,12 +68,13 @@ class CompositionData {
 
   // This params object holds indices of species of interest.
   // For example, for nickel heating, I store indices "ni56" -> int etc.
+  // Note: As I am currently using this it corresponds to the index in
+  // ucons, i.e., it will never be 0, 1, 2, .. This means that if you pull
+  // out the mass_fractions view from State that these will not work!
+  // Of course you can define them however you like... but note it!
   // Put whatever you like here.
   std::unique_ptr<Params> species_indexer_;
 
-  AthelasArray3D<double> mass_fractions_; // [nX][order][n_species]
-  AthelasArray4D<double>
-      mass_fractions_stages_; // [n_stages][nX][order][n_species]
   AthelasArray2D<double> number_density_; // [nX][order] number per unit mass
   AthelasArray2D<double> ye_; // [nx][nnodes]
   AthelasArray1D<int> charge_; // n_species
