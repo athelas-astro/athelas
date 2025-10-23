@@ -11,7 +11,6 @@
 LTE Saha ionization is included.
 It includes planar geometry and spherical symmetry. Self gravity is included.
 
-
 # Installation
 `athelas` uses submodules to include dependencies. 
 The best way to get the source is the following 
