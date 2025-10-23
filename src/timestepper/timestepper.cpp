@@ -42,16 +42,17 @@ TimeStepper::TimeStepper(const ProblemIn *pin, GridStructure *grid, EOS *eos)
     -> int {
   static const int base = 3;
   static const bool rad_enabled = pin->param()->get<bool>("physics.rad_active");
-  static const bool nickel_enabled =
-      pin->param()->get<bool>("physics.heating.nickel.enabled");
+  static const bool composition_enabled =
+      pin->param()->get<bool>("physics.composition_enabled");
 
   int additional_vars = 0;
   if (rad_enabled) {
     additional_vars += 2;
   }
 
-  if (nickel_enabled) {
-    additional_vars += 3;
+  if (composition_enabled) {
+    const int ncomps = pin->param()->get<int>("composition.ncomps");
+    additional_vars += ncomps;
   }
 
   return base + additional_vars;
