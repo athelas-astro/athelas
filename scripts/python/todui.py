@@ -519,7 +519,7 @@ class TodoTUI:
       # Execute the editor and wait for it to complete
       _ = subprocess.run(cmd, stdin=None, stdout=None, stderr=None)
 
-    except Exception as e:
+    except Exception as _:
       # If editor fails, just continue
       pass
     finally:
