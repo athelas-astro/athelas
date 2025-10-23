@@ -35,7 +35,6 @@ RadHydroPackage::RadHydroPackage(const ProblemIn *pin, int n_stages, EOS *eos,
 } // Need long term solution for flux_u_
 
 void RadHydroPackage::update_explicit(const State *const state,
-                                      AthelasArray3D<double> dU,
                                       const GridStructure &grid,
                                       const TimeStepInfo &dt_info) const {
   // TODO(astrobarker) handle separate fluid and rad orders
@@ -54,23 +53,23 @@ void RadHydroPackage::update_explicit(const State *const state,
   bc::fill_ghost_zones<2>(ucf, &grid, rad_basis_, bcs_, {3, 4});
   bc::fill_ghost_zones<3>(ucf, &grid, fluid_basis_, bcs_, {0, 2});
 
-  // --- Zero out dU  ---
+  // --- Zero out delta  ---
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "RadHydro :: Zero dU", DevExecSpace(), ib.s, ib.e,
-      kb.s, kb.e, vb.s, vb.e,
+      DEFAULT_LOOP_PATTERN, "RadHydro :: Zero delta", DevExecSpace(), ib.s,
+      ib.e, kb.s, kb.e, vb.s, vb.e,
       KOKKOS_CLASS_LAMBDA(const int i, const int k, const int v) {
         delta_(i, k, v) = 0.0;
       });
 
   // --- radiation Increment : Divergence ---
-  radhydro_divergence(state, dU, grid, stage);
+  radhydro_divergence(state, grid, stage);
 
   // --- Divide update by mass matrix ---
   const auto inv_mkk_fluid = fluid_basis_->inv_mass_matrix();
   const auto inv_mkk_rad = rad_basis_->inv_mass_matrix();
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "RadHydro :: dU / M_kk", DevExecSpace(), ib.s, ib.e,
-      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+      DEFAULT_LOOP_PATTERN, "RadHydro :: delta / M_kk", DevExecSpace(), ib.s,
+      ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         const double fluid_imm = inv_mkk_fluid(i, k);
         const double rad_imm = inv_mkk_rad(i, k);
 
@@ -86,16 +85,15 @@ void RadHydroPackage::update_explicit(const State *const state,
   // --- Increment from Geometry ---
   if (grid.do_geometry()) {
     const auto uaf = state->u_af();
-    radhydro_geometry(ucf, uaf, dU, grid);
+    radhydro_geometry(ucf, uaf, grid);
   }
 } // update_explicit
 
 /**
  * @brief radiation hydrodynamic implicit term
- * Computes dU from source terms
+ * Computes delta from source terms
  **/
 void RadHydroPackage::update_implicit(const State *const state,
-                                      AthelasArray3D<double> dU,
                                       const GridStructure &grid,
                                       const TimeStepInfo &dt_info) const {
   // TODO(astrobarker) handle separate fluid and rad orders
@@ -110,13 +108,12 @@ void RadHydroPackage::update_implicit(const State *const state,
   const auto ucf =
       Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
 
-  // --- Zero out dU  ---
+  // --- Zero out delta  ---
   /*
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "RadHydro :: Implicit :: Zero dU", DevExecSpace(),
-      ib.s, ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-        for (int v = vb.s; v <= vb.e; ++v) {
-          delta_(i, k, v) = 0.0;
+      DEFAULT_LOOP_PATTERN, "RadHydro :: Implicit :: Zero delta",
+  DevExecSpace(), ib.s, ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const
+  int k) { for (int v = vb.s; v <= vb.e; ++v) { delta_(i, k, v) = 0.0;
         }
       });
   */
@@ -142,7 +139,7 @@ void RadHydroPackage::update_implicit(const State *const state,
 } // update_implicit
 
 void RadHydroPackage::update_implicit_iterative(const State *const state,
-                                                AthelasArray3D<double> dU,
+                                                AthelasArray3D<double> R,
                                                 const GridStructure &grid,
                                                 const TimeStepInfo &dt_info) {
   // TODO(astrobarker) handle separate fluid and rad orders
@@ -172,7 +169,7 @@ void RadHydroPackage::update_implicit_iterative(const State *const state,
             Kokkos::subview(scratch_k_, i, Kokkos::ALL, Kokkos::ALL);
         auto scratch_sol_i_km1 =
             Kokkos::subview(scratch_km1_, i, Kokkos::ALL, Kokkos::ALL);
-        const auto R_i = Kokkos::subview(dU, i, Kokkos::ALL, Kokkos::ALL);
+        const auto R_i = Kokkos::subview(R, i, Kokkos::ALL, Kokkos::ALL);
 
         for (int k = 0; k < order; ++k) {
           // set radhydro vars
@@ -220,7 +217,6 @@ void RadHydroPackage::apply_delta(AthelasArray3D<double> lhs,
 // Compute the divergence of the flux term for the update
 // TODO(astrobarker): dont pass in stage
 void RadHydroPackage::radhydro_divergence(const State *const state,
-                                          AthelasArray3D<double> dU,
                                           const GridStructure &grid,
                                           const int stage) const {
   const auto u_stages = state->u_cf_stages();
@@ -407,7 +403,6 @@ auto RadHydroPackage::radhydro_source(
  */
 void RadHydroPackage::radhydro_geometry(const AthelasArray3D<double> ucf,
                                         const AthelasArray3D<double> uaf,
-                                        AthelasArray3D<double> dU,
                                         const GridStructure &grid) const {
   const int &nNodes = grid.n_nodes();
   const int &order = fluid_basis_->order();

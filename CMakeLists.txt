@@ -150,7 +150,8 @@ set( ATHELAS_SOURCES
   "src/solvers/hydrostatic_equilibrium.cpp"
   "src/state/state.cpp"
   "src/timestepper/tableau.cpp"
-  "src/timestepper/timestepper.cpp" )
+  "src/timestepper/timestepper.cpp"
+  "src/timestepper/operator_split_stepper.cpp" )
 
 # hack because Clang is legacy..
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -319,7 +320,7 @@ target_compile_options(athelas PRIVATE
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(athelas PRIVATE -stdlib=libstdc++ -fopenmp=libomp)
     target_link_options(athelas PRIVATE -stdlib=libstdc++)
-    
+
     # Find and link libomp explicitly for Clang
     find_library(LIBOMP_LIBRARY NAMES omp)
     if(LIBOMP_LIBRARY)

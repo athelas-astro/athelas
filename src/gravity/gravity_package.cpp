@@ -26,7 +26,6 @@ GravityPackage::GravityPackage(const ProblemIn *pin, GravityModel model,
              basis_->order(), 2) {}
 
 void GravityPackage::update_explicit(const State *const state,
-                                     AthelasArray3D<double> dU,
                                      const GridStructure &grid,
                                      const TimeStepInfo &dt_info) const {
   const auto u_stages = state->u_cf_stages();
@@ -36,15 +35,14 @@ void GravityPackage::update_explicit(const State *const state,
       Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
 
   if (model_ == GravityModel::Spherical) {
-    gravity_update<GravityModel::Spherical>(ucf, dU, grid);
+    gravity_update<GravityModel::Spherical>(ucf, grid);
   } else [[unlikely]] {
-    gravity_update<GravityModel::Constant>(ucf, dU, grid);
+    gravity_update<GravityModel::Constant>(ucf, grid);
   }
 }
 
 template <GravityModel Model>
 void GravityPackage::gravity_update(const AthelasArray3D<double> state,
-                                    AthelasArray3D<double> dU,
                                     const GridStructure &grid) const {
   using basis::basis_eval;
   const int nNodes = grid.n_nodes();

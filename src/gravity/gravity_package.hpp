@@ -23,13 +23,11 @@ class GravityPackage {
   GravityPackage(const ProblemIn * /*pin*/, GravityModel model, double gval,
                  basis::ModalBasis *basis, double cfl, bool active = true);
 
-  void update_explicit(const State *const state, AthelasArray3D<double> dU,
-                       const GridStructure &grid,
+  void update_explicit(const State *const state, const GridStructure &grid,
                        const TimeStepInfo &dt_info) const;
 
   template <GravityModel Model>
   void gravity_update(const AthelasArray3D<double> state,
-                      AthelasArray3D<double> dU,
                       const GridStructure &grid) const;
 
   void apply_delta(AthelasArray3D<double> lhs,

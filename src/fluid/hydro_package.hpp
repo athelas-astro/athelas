@@ -25,19 +25,17 @@ class HydroPackage {
                basis::ModalBasis *basis, BoundaryConditions *bcs, double cfl,
                int nx, bool active = true);
 
-  void update_explicit(const State *const state, AthelasArray3D<double> dU,
-                       const GridStructure &grid,
+  void update_explicit(const State *const state, const GridStructure &grid,
                        const TimeStepInfo &dt_info) const;
 
   void apply_delta(AthelasArray3D<double> lhs,
                    const TimeStepInfo &dt_info) const;
 
-  void fluid_divergence(const State *const state, AthelasArray3D<double> dU,
-                        const GridStructure &grid, int stage) const;
+  void fluid_divergence(const State *const state, const GridStructure &grid,
+                        int stage) const;
 
   void fluid_geometry(const AthelasArray3D<double> ucf,
                       const AthelasArray3D<double> uaf,
-                      AthelasArray3D<double> dU,
                       const GridStructure &grid) const;
 
   [[nodiscard]] auto min_timestep(const State *const state,

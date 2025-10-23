@@ -41,7 +41,6 @@ NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,
 }
 
 void NickelHeatingPackage::update_explicit(const State *const state,
-                                           AthelasArray3D<double> dU,
                                            const GridStructure &grid,
                                            const TimeStepInfo &dt_info) {
   const int &order = basis_->order();
@@ -55,7 +54,7 @@ void NickelHeatingPackage::update_explicit(const State *const state,
 
   auto *comps = state->comps();
 
-  // --- Zero out dU  ---
+  // --- Zero out delta  ---
   // TODO(astrobarker): perhaps care to be taken here once mixing is in.
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "NickelHeating :: Zero delta", DevExecSpace(),
@@ -69,18 +68,17 @@ void NickelHeatingPackage::update_explicit(const State *const state,
       });
 
   if (model_ == NiHeatingModel::Swartz) [[likely]] {
-    ni_update<NiHeatingModel::Swartz>(state, comps, dU, grid, dt_info);
+    ni_update<NiHeatingModel::Swartz>(state, comps, grid, dt_info);
   } else if (model_ == NiHeatingModel::Jeffery) {
-    ni_update<NiHeatingModel::Jeffery>(state, comps, dU, grid, dt_info);
+    ni_update<NiHeatingModel::Jeffery>(state, comps, grid, dt_info);
   } else {
-    ni_update<NiHeatingModel::FullTrapping>(state, comps, dU, grid, dt_info);
+    ni_update<NiHeatingModel::FullTrapping>(state, comps, grid, dt_info);
   }
 }
 
 template <NiHeatingModel Model>
 void NickelHeatingPackage::ni_update(const State *const state,
                                      CompositionData *comps,
-                                     AthelasArray3D<double> dU,
                                      const GridStructure &grid,
                                      const TimeStepInfo &dt_info) const {
   const int &nNodes = grid.n_nodes();
@@ -120,8 +118,6 @@ void NickelHeatingPackage::ni_update(const State *const state,
         delta_(i, k, pkg_vars::Energy) += local_sum * dx_o_mkk;
       });
 
-  // index gymnastics. dU holds updates for all quantities including
-  // compositional.
   static const auto ind_ni = species_indexer->get<int>("ni56");
   static const auto ind_co = species_indexer->get<int>("co56");
 

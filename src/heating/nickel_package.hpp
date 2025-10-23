@@ -45,13 +45,12 @@ class NickelHeatingPackage {
   NickelHeatingPackage(const ProblemIn *pin, basis::ModalBasis *basis,
                        const Params *indexer, bool active = true);
 
-  void update_explicit(const State *const state, AthelasArray3D<double> dU,
-                       const GridStructure &grid, const TimeStepInfo &dt_info);
+  void update_explicit(const State *const state, const GridStructure &grid,
+                       const TimeStepInfo &dt_info);
 
   template <NiHeatingModel Model>
   void ni_update(const State *const state, atom::CompositionData *comps,
-                 AthelasArray3D<double> dU, const GridStructure &grid,
-                 const TimeStepInfo &dt_info) const;
+                 const GridStructure &grid, const TimeStepInfo &dt_info) const;
 
   void apply_delta(AthelasArray3D<double> lhs,
                    const TimeStepInfo &dt_info) const;

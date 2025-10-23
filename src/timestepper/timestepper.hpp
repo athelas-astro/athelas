@@ -91,10 +91,8 @@ class TimeStepper {
       for (int j = 0; j < iS; ++j) {
         dt_info.stage = j;
         dt_info.t = t + integrator_.explicit_tableau.c_i(j);
-        auto dUs_j =
-            Kokkos::subview(dU_s_, j, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
         pkgs->fill_derived(state, grid_s_[j], dt_info);
-        pkgs->update_explicit(state, dUs_j, grid_s_[j], dt_info);
+        pkgs->update_explicit(state, grid_s_[j], dt_info);
 
         // inner sum
         const double dt_a_ex = dt * integrator_.explicit_tableau.a_ij(iS, j);
@@ -134,11 +132,9 @@ class TimeStepper {
     for (int iS = 0; iS < nStages_; ++iS) {
       dt_info.stage = iS;
       dt_info.t = t + integrator_.explicit_tableau.c_i(iS);
-      auto dUs_j =
-          Kokkos::subview(dU_s_, iS, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
 
       pkgs->fill_derived(state, grid_s_[iS], dt_info);
-      pkgs->update_explicit(state, dUs_j, grid_s_[iS], dt_info);
+      pkgs->update_explicit(state, grid_s_[iS], dt_info);
 
       const double dt_b_ex = dt * integrator_.explicit_tableau.b_i(iS);
       dt_info.dt_coef = dt_b_ex;
@@ -215,27 +211,17 @@ class TimeStepper {
         dt_info.t = t + integrator_.explicit_tableau.c_i(j);
         const double dt_a = dt * integrator_.explicit_tableau.a_ij(iS, j);
         const double dt_a_im = dt * integrator_.implicit_tableau.a_ij(iS, j);
-        auto dUs_j =
-            Kokkos::subview(dU_s_, j, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
 
         pkgs->fill_derived(state, grid_s_[j], dt_info);
-        pkgs->update_explicit(state, dUs_j, grid_s_[j], dt_info);
+        pkgs->update_explicit(state, grid_s_[j], dt_info);
 
         dt_info.dt_coef = dt_a;
         pkgs->apply_delta(SumVar_U_, dt_info);
 
-        pkgs->update_implicit(state, dUs_j, grid_s_[j], dt_info);
+        pkgs->update_implicit(state, grid_s_[j], dt_info);
 
         dt_info.dt_coef = dt_a_im;
         pkgs->apply_delta(SumVar_U_, dt_info);
-        /*
-        athelas::par_for(
-            DEFAULT_LOOP_PATTERN, "Timestepper :: IMEX :: Implicit delta",
-            DevExecSpace(), ib.s, ib.e, kb.s, kb.e, 1, vb.e,
-            KOKKOS_CLASS_LAMBDA(const int i, const int k, const int v) {
-              SumVar_U_(i, k, v) += dt_a_im * dUs_j(i, k, v);
-            });
-        */
 
         athelas::par_for(
             DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: IMEX :: Update grid",
@@ -319,18 +305,14 @@ class TimeStepper {
       dt_info.stage = iS;
       const double dt_b = dt * integrator_.explicit_tableau.b_i(iS);
       const double dt_b_im = dt * integrator_.implicit_tableau.b_i(iS);
-      auto dUs_ex_i =
-          Kokkos::subview(dU_s_, iS, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
-      auto dUs_im_i = Kokkos::subview(dU_s_implicit_, iS, Kokkos::ALL,
-                                      Kokkos::ALL, Kokkos::ALL);
 
       pkgs->fill_derived(state, grid_s_[iS], dt_info);
-      pkgs->update_explicit(state, dUs_ex_i, grid_s_[iS], dt_info);
+      pkgs->update_explicit(state, grid_s_[iS], dt_info);
 
       dt_info.dt_coef = dt_b;
       pkgs->apply_delta_explicit(uCF, dt_info);
 
-      pkgs->update_implicit(state, dUs_im_i, grid_s_[iS], dt_info);
+      pkgs->update_implicit(state, grid_s_[iS], dt_info);
 
       dt_info.dt_coef = dt_b_im;
       pkgs->apply_delta_implicit(uCF, dt_info);
@@ -375,8 +357,6 @@ class TimeStepper {
   int tOrder_;
 
   // Hold stage data
-  AthelasArray4D<double> dU_s_;
-  AthelasArray4D<double> dU_s_implicit_;
   AthelasArray3D<double> SumVar_U_;
   std::vector<GridStructure> grid_s_;
 
@@ -384,8 +364,6 @@ class TimeStepper {
   AthelasArray2D<double> stage_data_;
 
   // Variables to pass to update step
-
-  // hold eos::EOS ptr for convenience
   eos::EOS *eos_;
 };
 

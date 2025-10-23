@@ -36,7 +36,6 @@ HydroPackage::HydroPackage(const ProblemIn * /*pin*/, int n_stages, EOS *eos,
 } // Need long term solution for flux_u_
 
 void HydroPackage::update_explicit(const State *const state,
-                                   AthelasArray3D<double> dU,
                                    const GridStructure &grid,
                                    const TimeStepInfo &dt_info) const {
   const int stage = dt_info.stage;
@@ -55,9 +54,9 @@ void HydroPackage::update_explicit(const State *const state,
   // --- Apply BC ---
   bc::fill_ghost_zones<3>(ucf, &grid, basis_, bcs_, {0, 2});
 
-  // --- Zero out dU  ---
+  // --- Zero out delta  ---
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Hydro :: Zero dU", DevExecSpace(), ib.s, ib.e,
+      DEFAULT_LOOP_PATTERN, "Hydro :: Zero delta", DevExecSpace(), ib.s, ib.e,
       kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         for (int v = vb.s; v <= vb.e; ++v) {
           delta_(i, k, v) = 0.0;
@@ -65,12 +64,12 @@ void HydroPackage::update_explicit(const State *const state,
       });
 
   // --- Fluid Increment : Dvbergence ---
-  fluid_divergence(state, dU, grid, stage);
+  fluid_divergence(state, grid, stage);
 
   // --- Dvbide update by mass mastrib ---
   const auto inv_mkk = basis_->inv_mass_matrix();
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Hydro :: dU / M_kk", DevExecSpace(), ib.s, ib.e,
+      DEFAULT_LOOP_PATTERN, "Hydro :: delta / M_kk", DevExecSpace(), ib.s, ib.e,
       kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         for (int v = vb.s; v <= vb.e; ++v) {
           delta_(i, k, v) *= inv_mkk(i, k);
@@ -79,14 +78,13 @@ void HydroPackage::update_explicit(const State *const state,
 
   // --- Increment from Geometry ---
   if (grid.do_geometry()) {
-    fluid_geometry(ucf, uaf, dU, grid);
+    fluid_geometry(ucf, uaf, grid);
   }
 }
 
 // Compute the dvbergence of the flux term for the update
 // TODO(astrobarker): dont pass in stage
 void HydroPackage::fluid_divergence(const State *const state,
-                                    AthelasArray3D<double> dU,
                                     const GridStructure &grid,
                                     const int stage) const {
   const auto u_stages = state->u_cf_stages();
@@ -214,7 +212,6 @@ void HydroPackage::apply_delta(AthelasArray3D<double> lhs,
 
 void HydroPackage::fluid_geometry(const AthelasArray3D<double> ucf,
                                   const AthelasArray3D<double> uaf,
-                                  AthelasArray3D<double> dU,
                                   const GridStructure &grid) const {
   const int &nNodes = grid.n_nodes();
   const int &order = basis_->order();

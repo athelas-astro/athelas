@@ -228,7 +228,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
 
   // set up operator split stepper
   if (nvars_split > 0) {
-    split_stepper_ = std::make_unique<OperatorSplitStepper>(grid_, nvars_split);
+    split_stepper_ = std::make_unique<OperatorSplitStepper>();
     operator_split_physics_ = true;
   }
 

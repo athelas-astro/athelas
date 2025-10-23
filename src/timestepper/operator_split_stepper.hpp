@@ -16,14 +16,10 @@ namespace athelas {
  */
 class OperatorSplitStepper {
  public:
-  OperatorSplitStepper(const GridStructure &grid, int nvars);
+  OperatorSplitStepper() = default;
 
   void step(PackageManager *pkgs, State *state, const GridStructure &grid,
             double t, double dt);
-
- private:
-  int nvars_evolved_;
-  AthelasArray3D<double> dU_;
 };
 
 } // namespace athelas
