@@ -256,7 +256,7 @@ void NickelHeatingPackage::fill_derived(State *state, const GridStructure &grid,
                             1.0 / uCF(index, vars::modes::CellAverage,
                                       vars::cons::SpecificVolume),
                             1.0 / uCF(index + 1, vars::modes::CellAverage,
-                                      vars::modes::Slope),
+                                      vars::cons::SpecificVolume),
                             rx);
                 const double ye_interp =
                     LINTERP(centers(index), centers(index + 1), ye(index, 0),

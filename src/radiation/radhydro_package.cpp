@@ -109,14 +109,14 @@ void RadHydroPackage::update_implicit(const State *const state,
       Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
 
   // --- Zero out delta  ---
-  /*
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "RadHydro :: Implicit :: Zero delta",
-  DevExecSpace(), ib.s, ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const
-  int k) { for (int v = vb.s; v <= vb.e; ++v) { delta_(i, k, v) = 0.0;
+      DevExecSpace(), ib.s, ib.e, kb.s, kb.e,
+      KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+        for (int v = vb.s; v <= vb.e; ++v) {
+          delta_(i, k, v) = 0.0;
         }
       });
-  */
 
   const auto phi_rad = rad_basis_->phi();
   const auto phi_fluid = fluid_basis_->phi();
