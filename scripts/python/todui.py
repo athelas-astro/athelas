@@ -32,7 +32,7 @@ class TodoItem:
 class TodoParser:
   """Parses codebase for TODO comments"""
 
-  def __init__(self, extensions=None):
+  def __init__(self, extensions=None, exclude_dirs=None):
     self.extensions = extensions or [
       ".cpp",
       ".cc",
@@ -43,6 +43,7 @@ class TodoParser:
       ".hxx",
       ".py",
     ]
+    self.exclude_dirs = exclude_dirs or []
     # Pattern for single-line comments (// and #)
     self.single_line_pattern = re.compile(
       r"(?://|#)\s*TODO\(([^)]+)\):\s*(.*)", re.IGNORECASE
@@ -110,12 +111,31 @@ class TodoParser:
       pass
     return todos
 
+  def _should_exclude_file(self, file_path: Path) -> bool:
+    """Check if a file should be excluded based on exclude directories"""
+    if not self.exclude_dirs:
+      return False
+
+    # Convert file path to string for comparison
+    file_str = str(file_path)
+
+    for exclude_dir in self.exclude_dirs:
+      # Check if the file path contains any of the exclude directories
+      if exclude_dir in file_str:
+        return True
+
+    return False
+
   def scan_directory(self, directory: Path) -> List[TodoItem]:
     """Recursively scan directory for TODO comments"""
     all_todos = []
 
     for file_path in directory.rglob("*"):
-      if file_path.is_file() and file_path.suffix in self.extensions:
+      if (
+        file_path.is_file()
+        and file_path.suffix in self.extensions
+        and not self._should_exclude_file(file_path)
+      ):
         todos = self.scan_file(file_path)
         all_todos.extend(todos)
 
@@ -620,11 +640,19 @@ def main():
   parser.add_argument(
     "--no-tui", action="store_true", help="Print summary instead of showing TUI"
   )
+  parser.add_argument(
+    "--exclude",
+    nargs="+",
+    default=["external/", "build/", ".git/"],
+    help="Directories to exclude from scanning (default: external/, build/, .git/)",
+  )
 
   args = parser.parse_args()
 
   # Parse TODOs
-  todo_parser = TodoParser(extensions=args.extensions)
+  todo_parser = TodoParser(
+    extensions=args.extensions, exclude_dirs=args.exclude
+  )
   directory = Path(args.directory)
 
   if not directory.exists():
@@ -632,6 +660,8 @@ def main():
     return os.EX_SOFTWARE
 
   print(f"Scanning {directory} for TODO comments...")
+  if args.exclude:
+    print(f"Excluding directories: {', '.join(args.exclude)}")
   todos = todo_parser.scan_directory(directory)
 
   if args.no_tui:
