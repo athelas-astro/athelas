@@ -63,17 +63,14 @@ void limit_density(AthelasArray3D<double> U, const ModalBasis *basis) {
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit density", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
         double theta1 = 100000.0; // big
-        double nodal = 0.0;
-        double frac = 0.0;
-        const double avg = U(i, 0, 0);
+        const double avg =
+            U(i, vars::modes::CellAverage, vars::cons::SpecificVolume);
 
         for (int q = 0; q <= order; ++q) {
-          nodal = basis_eval(phi, U, i, vars::cons::SpecificVolume, q);
-          if (std::isnan(nodal)) {
-            theta1 = 0.0;
-            break;
-          }
-          frac = std::abs(ratio(avg - EPSILON, avg - nodal + EPSILON));
+          const double nodal =
+              basis_eval(phi, U, i, vars::cons::SpecificVolume, q);
+          const double frac =
+              std::abs(ratio(avg - EPSILON, avg - nodal + EPSILON));
           theta1 = std::min({theta1, 1.0, frac});
         }
 
@@ -122,19 +119,20 @@ void limit_internal_energy(AthelasArray3D<double> U, const ModalBasis *basis) {
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit internal energy", DevExecSpace(),
       1, U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
         double theta2 = 10000000.0;
-        double nodal = 0.0;
         double temp = 0.0;
 
         for (int q = 0; q <= order + 1; ++q) {
-          nodal = utilities::compute_internal_energy(U, phi, i, q);
+          const double nodal = utilities::compute_internal_energy(U, phi, i, q);
 
           if (nodal > EPSILON) {
             temp = 1.0;
           } else {
-            const double theta_guess = 0.9;
+            const double theta_guess = 0.4;
             // temp = bisection(U, target_func, basis, i, q);
-            temp = root_finders::newton_aa(target_func, target_func_deriv,
-                                           theta_guess, U, phi, i, q);
+            temp = std::clamp(
+                root_finders::newton_aa(target_func, target_func_deriv,
+                                        theta_guess, U, phi, i, q),
+                0.0, 1.0);
           }
           theta2 = std::min(theta2, temp);
         }
@@ -189,9 +187,11 @@ void limit_rad_energy(AthelasArray3D<double> U, const ModalBasis *basis) {
           } else {
             const double theta_guess = 0.9;
             // temp = bisection(U, target_func_rad_energy, basis, ix, iN);
-            temp = root_finders::newton_aa(target_func_rad_energy,
-                                           target_func_rad_energy_deriv,
-                                           theta_guess, U, phi, i, q);
+            temp =
+                std::clamp(root_finders::newton_aa(target_func_rad_energy,
+                                                   target_func_rad_energy_deriv,
+                                                   theta_guess, U, phi, i, q),
+                           0.0, 1.0);
           }
           theta2 = std::abs(std::min(theta2, temp));
         }
@@ -225,10 +225,12 @@ void limit_rad_momentum(AthelasArray3D<double> U, const ModalBasis *basis) {
             temp = 1.0;
           } else {
             const double theta_guess = 0.9;
-            temp = root_finders::newton_aa(target_func_rad_flux,
-                                           target_func_rad_flux_deriv,
-                                           theta_guess, U, phi, i, q) -
-                   1.0e-3;
+            temp =
+                std::clamp(root_finders::newton_aa(target_func_rad_flux,
+                                                   target_func_rad_flux_deriv,
+                                                   theta_guess, U, phi, i, q) -
+                               1.0e-16,
+                           0.0, 1.0);
             // temp = bisection(U, target_func_rad_flux, basis, ix, iN);
           }
           theta2 = std::abs(std::min(theta2, temp));
