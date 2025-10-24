@@ -14,7 +14,7 @@ using basis::ModalBasis;
 /**
  * @brief Fill derived composition quantities
  *
- * Currently, fills number densities.
+ * Currently, fills number densities and electron fraction.
  *
  * TODO(astrobarker): Explore hierarchical parallelism for inner loops
  */
@@ -28,6 +28,7 @@ void fill_derived_comps(State *const state, const GridStructure *const grid,
   const auto mass_fractions = state->mass_fractions();
   const auto species = comps->charge();
   const auto neutron_number = comps->neutron_number();
+  auto ye = comps->ye();
   auto number_density = comps->number_density();
   const size_t num_species = comps->n_species();
 
@@ -36,12 +37,16 @@ void fill_derived_comps(State *const state, const GridStructure *const grid,
       DEFAULT_LOOP_PATTERN, "Composition :: fill derived", DevExecSpace(), ib.s,
       ib.e, nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int q) {
         double n = 0.0;
+        double ye_q = 0.0;
         for (size_t e = 0; e < num_species; ++e) {
-          const double A = species(e) + neutron_number(e);
+          const double Z = species(e);
+          const double A = Z + neutron_number(e);
           const double xk = basis->basis_eval(mass_fractions, i, e, q);
           n += xk / A;
+          ye_q += Z * xk / A;
         }
         number_density(i, q) = n * inv_m_p;
+        ye(i, q) = ye_q;
       });
 }
 
@@ -174,7 +179,6 @@ void fill_derived_ionization(State *const state,
  * TODO(astrobarker): should inputs to this be subviews?
  * Should this exist?
  */
-KOKKOS_FUNCTION
 void paczynski_terms(const State *const state, const int ix, const int node,
                      double *const lambda) {
   const auto ucf = state->u_cf();
@@ -202,18 +206,16 @@ void paczynski_terms(const State *const state, const int ix, const int node,
   lambda[4] = sigma2(ix, node);
   lambda[5] = sigma3(ix, node);
   lambda[6] = e_ion_corr(ix, node);
-  lambda[7] = uaf(ix, node, 1); // temperature
+  lambda[7] = uaf(ix, node, vars::aux::Tgas); // temperature
 }
 
 // Compute total element number density
-KOKKOS_FUNCTION
 auto element_number_density(const double mass_frac, const double atomic_mass,
                             const double rho) -> double {
   return (mass_frac * rho) / (atomic_mass * constants::amu_to_g);
 }
 
 // Compute electron number density
-KOKKOS_FUNCTION
 auto electron_density(const AthelasArray3D<double> mass_fractions,
                       const AthelasArray4D<double> ion_fractions,
                       const AthelasArray1D<int> charges, const int i,
