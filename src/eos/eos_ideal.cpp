@@ -30,6 +30,14 @@ namespace athelas::eos {
 }
 
 [[nodiscard]] auto
+IdealGas::sie_from_density_pressure(const double rho, const double pressure,
+                                    const double *const /*lambda*/) const
+    -> double {
+  const double Ev = pressure / (gamma_ - 1.0);
+  return Ev / rho;
+}
+
+[[nodiscard]] auto
 IdealGas::gamma1(const double /*tau*/, const double /*V*/, const double /*EmT*/,
                  const double *const /*lambda*/) const noexcept -> double {
   return gamma1();

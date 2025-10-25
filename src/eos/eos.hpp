@@ -53,6 +53,8 @@ class Paczynski : public EosBase<Paczynski> {
                                   const double *lambda) const -> double;
   auto temperature_from_conserved(double tau, double V, double E,
                                   const double *lambda) const -> double;
+  auto sie_from_density_pressure(double rho, double pressure,
+                                 const double *lambda) const -> double;
   [[nodiscard]] auto gamma1() const -> double;
   [[nodiscard]] auto gamma1(double tau, double V, double EmT,
                             const double *lambda) const -> double;
@@ -66,6 +68,12 @@ class Paczynski : public EosBase<Paczynski> {
   [[nodiscard]] static auto degeneracy_factor(double p_ed, double p_ednr,
                                               double p_edr) -> double;
 
+  // --- internal funcs ---
+  [[nodiscard]] static auto pressure_from_rho_temperature(double temperature,
+                                                          double rho,
+                                                          const double *lambda)
+      -> double;
+
   // TODO(astrobarker): The following 2 functions need an identical API.
   // However, I recompute some things unnecessarily. Make the arg lists bigger.
   [[nodiscard]] static auto specific_internal_energy(double T, double rho,
@@ -73,9 +81,8 @@ class Paczynski : public EosBase<Paczynski> {
       -> double;
   [[nodiscard]] static auto dsie_dt(double T, double rho, const double *lambda)
       -> double;
-  [[nodiscard]] static auto dp_dt(double T, double rho, double ybar, double pe,
-                                  double pend, double N, double sigma1,
-                                  double sigma2) -> double;
+  [[nodiscard]] static auto dp_dt(double T, double rho, const double *lambda)
+      -> double;
   [[nodiscard]] static auto dp_drho(double T, double rho, double ybar,
                                     double pend, double ped, double f, double N,
                                     double sigma1) -> double;
@@ -105,6 +112,8 @@ class IdealGas : public EosBase<IdealGas> {
                                   const double *lambda) const -> double;
   auto temperature_from_conserved(double tau, double V, double E,
                                   const double *lambda) const -> double;
+  auto sie_from_density_pressure(double rho, double pressure,
+                                 const double *lambda) const -> double;
   [[nodiscard]] auto gamma1(double tau, double V, double EmT,
                             const double *lambda) const noexcept -> double;
   [[nodiscard]] auto gamma1() const noexcept -> double;
@@ -135,6 +144,8 @@ class Polytropic : public EosBase<Polytropic> {
                                   const double *lambda) const -> double;
   auto temperature_from_conserved(double tau, double V, double E,
                                   const double *lambda) const -> double;
+  auto sie_from_density_pressure(double rho, double pressure,
+                                 const double *lambda) const -> double;
   [[nodiscard]] auto gamma1(double tau, double V, double EmT,
                             const double *lambda) const noexcept -> double;
   [[nodiscard]] auto gamma1() const noexcept -> double;
@@ -168,25 +179,11 @@ class Marshak : public EosBase<Marshak> {
                                   const double *lambda) const -> double;
   auto temperature_from_conserved(double tau, double V, double E,
                                   const double *lambda) const -> double;
+  auto sie_from_density_pressure(double rho, double pressure,
+                                 const double *lambda) const -> double;
   [[nodiscard]] auto gamma1(double tau, double V, double EmT,
                             const double *lambda) const noexcept -> double;
   [[nodiscard]] auto gamma1() const noexcept -> double;
-
- private:
-  double gamma_{};
-};
-
-/* placeholder */
-class Stellar : public EosBase<Stellar> {
- public:
-  Stellar() = default;
-
-  auto pressure_from_conserved(double tau, double V, double EmT,
-                               double *lambda) const -> double;
-  auto sound_speed_from_conserved(double tau, double V, double EmT,
-                                  double *lambda) const -> double;
-  auto temperature_from_conserved(double tau, double V, double E,
-                                  double *lambda) const -> double;
 
  private:
   double gamma_{};

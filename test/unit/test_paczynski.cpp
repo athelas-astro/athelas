@@ -30,8 +30,8 @@ TEST_CASE("Paczynski EOS", "[paczynski]") {
   const double cs_ans = std::sqrt(95956495901503152.0);
 
   // Things for eos
-  const double abstol = 1.0e-12;
-  const double reltol = 1.0e-12;
+  const double abstol = 1.0e-16;
+  const double reltol = 1.0e-16;
   const double max_iters = 100;
   const EOS eos = Paczynski(abstol, reltol, max_iters);
   const double tau = 1.0 / rho_in;
@@ -65,5 +65,13 @@ TEST_CASE("Paczynski EOS", "[paczynski]") {
   SECTION("Sound speed") {
     const double cs = sound_speed_from_conserved(&eos, tau, vel, EmT, lambda);
     REQUIRE(soft_equal(cs, cs_ans, tol));
+  }
+
+  SECTION("Sie from rho pressure") {
+    const double pressure =
+        pressure_from_conserved(&eos, tau, vel, EmT, lambda);
+    const double sie =
+        sie_from_density_pressure(&eos, rho_in, pressure, lambda);
+    REQUIRE(soft_equal(sie, e_in));
   }
 }

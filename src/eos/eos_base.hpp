@@ -16,6 +16,7 @@ namespace athelas::eos {
  *          - pressure_from_conserved
  *          - sound_speed_from_conserved
  *          - temperature_from_conserved
+ *          - sie_from_density_pressure
  *          - gamma
  *
  *          These interfaces are implemented for all EOS
@@ -40,6 +41,11 @@ class EosBase {
                                   const double *const lambda) const -> double {
     return static_cast<EOS const *>(this)->temperature_from_conserved(
         tau, V, EmT, lambda);
+  }
+  auto sie_from_density_pressure(const double rho, const double pressure,
+                                 const double *const lambda) const -> double {
+    return static_cast<EOS const *>(this)->sie_from_density_pressure(
+        rho, pressure, lambda);
   }
   auto gamma1(const double tau, const double V, const double EmT,
               const double *const lambda) const -> double {

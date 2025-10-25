@@ -28,10 +28,6 @@ Paczynski::pressure_from_conserved(const double tau, const double V,
   const double N = lambda[0];
   const double ye = lambda[1];
   const double ybar = lambda[2];
-  // const double sigma1 = lambda[3];
-  // const double sigma2 = lambda[4];
-  // const double sigma3 = lambda[5];
-  // const double e_ioncorr = lambda[6];
   const double rho = 1.0 / tau;
 
   // TODO: use an internal temperature call here instead of from_conserved
@@ -77,6 +73,32 @@ Paczynski::pressure_from_conserved(const double tau, const double V,
                             temperature_guess, rho, lambda);
 }
 
+/**
+ * @brief Paczynski specific internal energy from density and pressure
+ *
+ * Invert the eos to get the temperature from rho, p, and then compute sie
+ */
+[[nodiscard]] auto
+Paczynski::sie_from_density_pressure(const double rho, const double pressure,
+                                     const double *const lambda) const
+    -> double {
+  auto temperature_target = [pressure](double temperature, double rho,
+                                       const double *const lambda) {
+    return pressure_from_rho_temperature(temperature, rho, lambda) - pressure;
+  };
+  auto temperature_derivative = [](double temperature, double rho,
+                                   const double *const lambda) {
+    return dp_dt(temperature, rho, lambda);
+  };
+
+  const double temperature_guess = lambda[7];
+  const double temperature =
+      root_finder_.solve(temperature_target, temperature_derivative,
+                         temperature_guess, rho, lambda);
+
+  return specific_internal_energy(temperature, rho, lambda);
+}
+
 [[nodiscard]] auto Paczynski::gamma1(const double tau, const double V,
                                      const double EmT,
                                      const double *const lambda) const
@@ -85,9 +107,6 @@ Paczynski::pressure_from_conserved(const double tau, const double V,
   const double ye = lambda[1];
   const double ybar = lambda[2];
   const double sigma1 = lambda[3];
-  const double sigma2 = lambda[4];
-  // const double sigma3 = lambda[5];
-  // const double e_ioncorr = lambda[6];
   const double rho = 1.0 / tau;
 
   // TODO: use an internal temperature call here instead of from_conserved
@@ -101,14 +120,12 @@ Paczynski::pressure_from_conserved(const double tau, const double V,
   const double pedr = p_edr(rho, ye);
   const double ped = p_ed(pednr, pedr);
   const double pend = p_end(rho, temperature, ybar, N);
-  const double pe = p_e(pend, ped);
   const double f = degeneracy_factor(ped, pednr, pedr);
 
   const double chi_rho = (rho / pressure) * dp_drho(temperature, rho, ybar,
                                                     pend, ped, f, N, sigma1);
   const double chi_T =
-      (temperature / pressure) *
-      dp_dt(temperature, rho, ybar, pe, pend, N, sigma1, sigma2);
+      (temperature / pressure) * dp_dt(temperature, rho, lambda);
   const double cv = dsie_dt(temperature, rho, lambda);
 
   return (chi_T * chi_T * pressure) / (cv * rho * temperature) + chi_rho;
@@ -163,6 +180,27 @@ Paczynski::pressure_from_conserved(const double tau, const double V,
 }
 
 /**
+ * @brief internal eos function to get pressure from rho, temperature
+ */
+[[nodiscard]] auto
+Paczynski::pressure_from_rho_temperature(const double temperature,
+                                         const double rho,
+                                         const double *const lambda) -> double {
+  const double N = lambda[0];
+  const double ye = lambda[1];
+  const double ybar = lambda[2];
+  const double pion = p_ion(rho, temperature, N);
+
+  const double pednr = p_ednr(rho, ye);
+  const double pedr = p_edr(rho, ye);
+  const double ped = p_ed(pednr, pedr);
+  const double pend = p_end(rho, temperature, ybar, N);
+  const double pe = p_e(pend, ped);
+
+  return pe + pion;
+}
+
+/**
  * @brief internal (to the eos) specific internal energy function
  */
 [[nodiscard]] auto
@@ -187,6 +225,9 @@ Paczynski::specific_internal_energy(const double T, const double rho,
          1.0 * e_ion_corr;
 }
 
+/*
+ * @brief Paczynski dsie_dT
+ */
 [[nodiscard]] auto Paczynski::dsie_dt(const double T, const double rho,
                                       const double *const lambda) -> double {
   static constexpr double THREE_HALVES = 3.0 / 2.0;
@@ -214,13 +255,26 @@ Paczynski::specific_internal_energy(const double T, const double rho,
                     sigma3 / kT);
 }
 
+/*
+ * @brief Paczynski dp_dT
+ */
 [[nodiscard]] auto Paczynski::dp_dt(const double T, const double rho,
-                                    const double ybar, const double pe,
-                                    const double pend, const double N,
-                                    const double sigma1, const double sigma2)
-    -> double {
+                                    const double *const lambda) -> double {
   static constexpr double THREE_HALVES = 3.0 / 2.0;
   static constexpr double kb = constants::k_B;
+
+  const double N = lambda[0];
+  const double ye = lambda[1];
+  const double ybar = lambda[2];
+  const double sigma1 = lambda[3];
+  const double sigma2 = lambda[4];
+
+  const double pednr = p_ednr(rho, ye);
+  const double pedr = p_edr(rho, ye);
+  const double ped = p_ed(pednr, pedr);
+  const double pend = p_end(rho, T, ybar, N);
+  const double pe = p_e(pend, ped);
+
   const double kT = kb * T;
   const double sigma1_plus_ybar = sigma1 + ybar;
 
@@ -230,6 +284,10 @@ Paczynski::specific_internal_energy(const double T, const double rho,
 }
 
 // TODO(astrobarker): pass in pe instead of computing
+/*
+ * @brief Paczynski dp_drho
+ * TODO(astrobarker): pass in pe instead of computing
+ */
 [[nodiscard]] auto Paczynski::dp_drho(const double T, const double rho,
                                       const double ybar, const double pend,
                                       const double ped, const double f,
