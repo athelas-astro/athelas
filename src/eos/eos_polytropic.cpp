@@ -28,6 +28,13 @@ namespace athelas::eos {
 }
 
 [[nodiscard]] auto
+Polytropic::sie_from_density_pressure(const double rho, const double pressure,
+                                      const double *const /*lambda*/) const
+    -> double {
+  return pressure / (gamma1() - 1) / rho;
+}
+
+[[nodiscard]] auto
 Polytropic::gamma1(const double /*tau*/, const double /*V*/,
                    const double /*EmT*/,
                    const double *const /*lambda*/) const noexcept -> double {

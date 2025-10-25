@@ -49,6 +49,17 @@ temperature_from_conserved(const EOS *const eos, const double tau,
       *eos);
 }
 
+KOKKOS_INLINE_FUNCTION auto
+sie_from_density_pressure(const EOS *const eos, const double rho,
+                          const double pressure, const double *const lambda)
+    -> double {
+  return std::visit(
+      [&rho, &pressure, &lambda](auto &eos) {
+        return eos.sie_from_density_pressure(rho, pressure, lambda);
+      },
+      *eos);
+}
+
 KOKKOS_INLINE_FUNCTION auto gamma1(const EOS *const eos, const double tau,
                                    const double V, const double E,
                                    const double *const lambda) -> double {

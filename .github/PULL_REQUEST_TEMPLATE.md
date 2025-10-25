@@ -17,4 +17,4 @@ detail.  Why is this change required?  What problem does it solve?-->
 - [ ] Format your changes by calling `scripts/bash/format.sh`.
 - [ ] Explain what you did.
 - [ ] Make any necessary changes to the documentation.
-- [ ] Update `CONTRIBUTING.md`
+- [ ] Update `CHANGELOG.md`
