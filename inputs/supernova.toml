@@ -1,0 +1,66 @@
+[problem]
+problem = "supernova"
+t_end = 0.75e5
+nlim = 1
+geometry = "spherical"
+restart = false
+xl = 0.0
+xr = 7.0e8
+cfl = 0.5
+nx = 128
+grid_type = "uniform"
+
+[problem.params]
+fn_hydro = "../profiles/profile_hydro.dat"
+
+[physics]
+radiation = false
+gravity = true
+composition = true
+ionization = false
+heating = false
+
+[composition]
+ncomps = 3
+
+[bc]
+[bc.fluid]
+bc_i = "reflecting"
+bc_o = "outflow"
+
+[output]
+ncycle_out = 100
+#dt_hdf5 = 0.1
+dt_init_frac = 1.05
+
+[output.history]
+fn = "hydrostatic_balance.hst"
+#dt = 0.001 # default: dt_hdf5 / 10
+
+[fluid]
+basis = "legendre"
+nnodes = 3
+porder = 3
+
+[fluid.limiter]
+do_limiter = true
+type = "minmod"
+b_tvd = 0.0
+m_tvb = 0.0
+tci_opt = true
+tci_val = 0.25
+characteristic = false
+gamma_i = 0.9
+#gamma_r = 0.005
+#gamma_l = 0.005
+weno_r = 2.0
+
+[gravity]
+model = "spherical"
+gval = 1.0e3
+
+[time]
+integrator = "EX_SSPRK33"
+
+[eos]
+type = "paczynski"
