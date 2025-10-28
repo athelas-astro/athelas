@@ -7,7 +7,7 @@ namespace athelas::atom {
 
 // NOTE: if nodes exceeds order we have a problem here.
 CompositionData::CompositionData(const int nX, const int order,
-                                 const int n_species, const int n_stages)
+                                 const int n_species)
     : nX_(nX), order_(order), n_species_(n_species),
       species_indexer_(std::make_unique<Params>()) {
 

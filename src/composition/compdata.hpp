@@ -50,7 +50,7 @@ class IonizationState {
  */
 class CompositionData {
  public:
-  CompositionData(int nX, int order, int n_species, int n_stages);
+  CompositionData(int nX, int order, int n_species);
 
   [[nodiscard]] auto charge() const noexcept -> AthelasArray1D<int>;
   [[nodiscard]] auto neutron_number() const noexcept -> AthelasArray1D<int>;
