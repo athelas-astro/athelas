@@ -23,6 +23,7 @@
 #include "pgen/noh.hpp"
 #include "pgen/one_zone_ionization.hpp"
 #include "pgen/problem_in.hpp"
+#include "pgen/progenitor.hpp"
 #include "pgen/rad_advection.hpp"
 #include "pgen/rad_equilibrium.hpp"
 #include "pgen/rad_shock.hpp"
@@ -38,7 +39,7 @@
 namespace athelas {
 
 /**
- * Initialize the conserved Fields for various problems.
+ * Initialize the state for various problems.
  **/
 void initialize_fields(State *state, GridStructure *grid, const eos::EOS *eos,
                        ProblemIn *pin, basis::ModalBasis *fluid_basis = nullptr,
@@ -47,7 +48,9 @@ void initialize_fields(State *state, GridStructure *grid, const eos::EOS *eos,
   const auto problem_name = pin->param()->get<std::string>("problem.problem");
 
   // This is clunky and not elegant but it works.
-  if (problem_name == "sod") {
+  if (problem_name == "supernova") {
+    progenitor_init(state, grid, pin, eos, fluid_basis);
+  } else if (problem_name == "sod") {
     sod_init(state, grid, pin, eos, fluid_basis);
   } else if (problem_name == "shu_osher") {
     shu_osher_init(state, grid, pin, eos, fluid_basis);
