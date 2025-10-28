@@ -5,6 +5,10 @@ from pathlib import Path
 from typing import Optional, Union, List, Dict, Any
 
 import mesa_reader as mr
+from astropy import constants as consts
+
+# globals
+Msun = consts.M_sun.cgs.value
 
 # Dictionary of element symbols to atomic numbers
 # fmt: off
