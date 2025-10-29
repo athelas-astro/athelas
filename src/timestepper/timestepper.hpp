@@ -74,6 +74,7 @@ class TimeStepper {
         .t = t, .dt = dt, .dt_a = dt, .dt_coef = dt, .stage = 0};
 
     for (int iS = 0; iS < nStages_; ++iS) {
+      auto left_interface = grid_s_[iS].x_l();
       dt_info.stage = iS;
       // re-zero the summation variables `SumVar`
       athelas::par_for(
@@ -83,7 +84,7 @@ class TimeStepper {
             for (int v = vb.s; v <= vb.e; ++v) {
               SumVar_U_(i, k, v) = U(i, k, v);
             }
-            stage_data_(iS, i) = grid.get_left_interface(i);
+            stage_data_(iS, i) = left_interface(i);
           });
 
       // --- Inner update loop ---
@@ -194,6 +195,7 @@ class TimeStepper {
     TimeStepInfo dt_info{.t = t, .dt = dt, .dt_a = dt, .stage = 0};
 
     for (int iS = 0; iS < nStages_; ++iS) {
+      auto left_interface = grid_s_[iS].x_l();
       dt_info.stage = iS;
       dt_info.t = t + integrator_.explicit_tableau.c_i(iS);
       athelas::par_for(
@@ -201,7 +203,7 @@ class TimeStepper {
           DevExecSpace(), ib.s, ib.e, kb.s, kb.e, vb.s, vb.e,
           KOKKOS_CLASS_LAMBDA(const int i, const int k, const int v) {
             SumVar_U_(i, k, v) = uCF(i, k, v);
-            stage_data_(iS, i) = grid_s_[iS].get_left_interface(i);
+            stage_data_(iS, i) = left_interface(i);
           });
 
       // --- Inner update loop ---
