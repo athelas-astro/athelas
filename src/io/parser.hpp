@@ -25,7 +25,7 @@ namespace athelas::io {
  * - **Header support**: Automatically separates headers from data rows
  * - **Robust field parsing**: Correctly handles quoted fields, escaped quotes,
  * and embedded delimiters
- * - **Python-friendly**: Optionally strips '#' prefix from header lines
+ * - **Python-friendly**: Header must begin with '#'.
  * - **Type-safe extraction**: Template-based column extraction with automatic
  * type conversion
  * - **Modern C++23**: Uses std::expected, std::ranges, std::views for clean,
@@ -164,7 +164,12 @@ class Parser {
       // Handle header line. Extra logic to remove a # if it is
       // the first character.
       if (first_line) {
+        first_line = false;
         auto headers = std::move(parsed_row);
+        if (headers[0][0] != '#') {
+          result.rows.emplace_back(Row{headers});
+          continue;
+        }
 
         // strip # from header if possible and desired
         if (strip_hash_from_header && !headers.empty() && !headers[0].empty() &&
@@ -176,7 +181,6 @@ class Parser {
         }
 
         result.headers = std::move(headers);
-        first_line = false;
       } else {
         result.rows.emplace_back(Row{std::move(parsed_row)});
       }
