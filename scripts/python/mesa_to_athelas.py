@@ -195,12 +195,13 @@ class MESAProfile:
     density = self["rho"][::-1]
     velocity = self["velocity"][::-1]
     pressure = np.power(10.0, self["logPgas"][::-1])
+    temperature = np.power(10.0, self["logT"][::-1])
 
     # Write hydrodynamic file with units in CGS
-    hydro_data = np.column_stack([radius, density, velocity, pressure])
-    hydro_header = (
-      "# radius [cm] density [g/cm^3] velocity [cm/s] pressure [erg/cm^3]"
+    hydro_data = np.column_stack(
+      [radius, density, velocity, pressure, temperature]
     )
+    hydro_header = "# radius [cm] density [g/cm^3] velocity [cm/s] pressure [erg/cm^3] temperature [K]"
     np.savetxt(hydro_file, hydro_data, header=hydro_header, comments="")
     print(f"Wrote hydrodynamic data to {hydro_file}")
 
