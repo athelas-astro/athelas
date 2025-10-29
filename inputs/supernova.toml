@@ -4,14 +4,15 @@ t_end = 0.75e5
 nlim = 1
 geometry = "spherical"
 restart = false
-xl = 0.0
+xl = 0.01
 xr = 7.0e8
 cfl = 0.5
 nx = 128
-grid_type = "uniform"
+grid_type = "logarithmic"
 
 [problem.params]
 fn_hydro = "../profiles/profile_hydro.dat"
+fn_comps = "../profiles/profile_comps.dat"
 
 [physics]
 radiation = false
@@ -21,7 +22,7 @@ ionization = false
 heating = false
 
 [composition]
-ncomps = 3
+ncomps = 21
 
 [bc]
 [bc.fluid]
