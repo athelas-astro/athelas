@@ -19,7 +19,6 @@ class GridStructure {
   [[nodiscard]] auto get_x_l() const noexcept -> double;
   [[nodiscard]] auto get_x_r() const noexcept -> double;
   [[nodiscard]] auto get_sqrt_gm(double X) const -> double;
-  [[nodiscard]] auto get_left_interface(int ix) const -> double;
 
   [[nodiscard]] auto do_geometry() const noexcept -> bool;
 

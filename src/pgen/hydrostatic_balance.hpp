@@ -19,7 +19,7 @@
 namespace athelas {
 
 /**
- * @brief Initialize Shu Osher hydro test
+ * @brief Initialize hydrostatic balance self gravity test
  **/
 void hydrostatic_balance_init(State *state, GridStructure *grid, ProblemIn *pin,
                               const eos::EOS *eos,

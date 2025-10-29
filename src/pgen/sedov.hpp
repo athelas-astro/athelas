@@ -33,6 +33,7 @@ void sedov_init(State *state, GridStructure *grid, ProblemIn *pin,
 
   static const IndexRange ib(grid->domain<Domain::Interior>());
   static const int nNodes = grid->n_nodes();
+  auto left_interface = grid->x_l();
 
   constexpr static int q_Tau = 0;
   constexpr static int q_V = 1;
@@ -49,13 +50,13 @@ void sedov_init(State *state, GridStructure *grid, ProblemIn *pin,
   // TODO(astrobarker): geometry aware volume for energy
   const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
-  const double volume =
-      (4.0 * M_PI / 3.0) * std::pow(grid->get_left_interface(origin + 1), 3.0);
-  const double P0 = gm1 * E0 / volume;
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Sedov (1)", DevExecSpace(), ib.s,
       ib.e, KOKKOS_LAMBDA(const int i) {
+        const double volume =
+            (4.0 * M_PI / 3.0) * std::pow(left_interface(origin + 1), 3.0);
+        const double P0 = gm1 * E0 / volume;
         const int k = 0;
 
         uCF(i, k, q_Tau) = 1.0 / D0;

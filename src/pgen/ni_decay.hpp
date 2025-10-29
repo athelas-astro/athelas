@@ -60,9 +60,8 @@ void ni_decay_init(State *state, GridStructure *grid, ProblemIn *pin,
   const double sie = constants::k_B * temperature / (gm1 * mu * constants::m_p);
 
   std::shared_ptr<atom::CompositionData> comps =
-      std::make_shared<atom::CompositionData>(
-          grid->n_elements() + 2, order, ncomps,
-          state->params()->get<int>("n_stages"));
+      std::make_shared<atom::CompositionData>(grid->n_elements() + 2, order,
+                                              ncomps);
   auto mass_fractions = state->mass_fractions();
   auto charges = comps->charge();
   auto neutrons = comps->neutron_number();
