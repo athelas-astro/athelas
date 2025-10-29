@@ -8,7 +8,7 @@ import mesa_reader as mr
 from astropy import constants as consts
 
 # globals
-Msun = consts.M_sun.cgs.value
+Rsun = consts.R_sun.cgs.value
 
 # Dictionary of element symbols to atomic numbers
 # fmt: off
@@ -191,7 +191,7 @@ class MESAProfile:
         since MESA profiles start at the surface.
     """
     # Get hydrodynamic quantities and flip them (MESA goes surface->center)
-    radius = self["radius"][::-1]
+    radius = self["radius"][::-1] * Rsun
     density = self["rho"][::-1]
     velocity = self["velocity"][::-1]
     pressure = np.power(10.0, self["logPgas"][::-1])
