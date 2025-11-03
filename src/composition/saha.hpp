@@ -219,12 +219,13 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
 
   const auto &nNodes = grid.n_nodes();
   assert(ionization_fractions.extent(2) <=
-         static_cast<size_t>(std::numeric_limits<int>::max()));
-  const auto &ncomps = ionization_states->ncomps();
+         static_cast<std::size_t>(std::numeric_limits<int>::max()));
+  const auto &ncomps_saha = ionization_states->ncomps();
+  const auto &ncomps_all = comps->n_species();
 
   static const IndexRange ib(grid.domain<MeshDomain>());
   static const IndexRange nb(nNodes + 2);
-  static const IndexRange eb(ncomps + 1);
+  static const IndexRange eb(ncomps_saha + 1);
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Saha :: Solve ionization all", DevExecSpace(),
       ib.s, ib.e, nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int q) {
@@ -234,10 +235,15 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
 
         n_e(i, q) = 0.0;
         // TODO(astrobarker): Profile; faster as hierarchical reduction?
-        for (int e = eb.s + 1; e <= eb.e; ++e) {
+        // This loop is over Saha species 
+        for (int e = eb.s; e <= eb.e; ++e) {
+          const int z = species(e);
+          // TODO(astrobarker): Fix this garbage
+          if (z == 0) {
+            continue;
+          }
           const double x_e = basis_eval(phi, mass_fractions, i, e, q);
 
-          const int z = species(e);
           const double A = z + neutron_number(e);
           const double nk = element_number_density(x_e, A, rho);
 
@@ -250,6 +256,17 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
           const double zbar = saha_solve(ionization_fractions_e, z, temperature,
                                          species_atomic_data, nk);
           n_e(i, q) += zbar * n_k(i, q);
+        }
+
+        // loop over remaining species, assume complete ionization.
+        for (std::size_t e = eb.e + 1; e < ncomps_all; ++e) {
+          const int z = species(e);
+          // pull out element info
+          const auto species_atomic_data =
+              species_data(ion_data, species_offsets, z);
+          auto ionization_fractions_e =
+              Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
+          ionization_fractions_e(z) = 1.0;
         }
       });
 }

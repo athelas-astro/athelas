@@ -12,7 +12,9 @@ namespace athelas::atom {
 
 void paczynski_terms(const State *state, int ix, int node, double *lambda);
 
-// Compute total element number density
+/**
+ * @brief Number density of atomic species in particles/cm^3
+ */
 KOKKOS_INLINE_FUNCTION
 auto element_number_density(const double mass_frac, const double atomic_mass,
                             const double rho) -> double {
@@ -106,6 +108,7 @@ void fill_derived_ionization(State *const state,
   const auto ucf = state->u_cf();
 
   // NOTE: check index ranges inside here when saha ncomps =/= num_species
+  // Should we be skipping neutrons?
   auto phi = basis->phi();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Ionization :: fill derived", DevExecSpace(), ib.s,
@@ -121,32 +124,36 @@ void fill_derived_ionization(State *const state,
         ybar(i, q) = electron_number_density(i, q) / number_density(i, q);
         for (size_t e = 0; e < num_species; ++e) {
           // pull out element info
+          const int z = species(e);
+          if (z == 0) {
+					continue;
+				}
           const auto species_atomic_data =
-              species_data(ion_data, species_offsets, e);
+              species_data(ion_data, species_offsets, z);
           const auto ionization_fractions_e =
               Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
-          const size_t nstates = e + 1;
+          const int nstates = z + 1;
 
           // 1. Get lmax -- index associated with max ionization per species
-          size_t lmax = 0;
+          int lmax = 0;
           double ymax = 0;
-          for (size_t i = 0; i < nstates; ++i) {
-            const double y = ionization_fractions_e(i);
+          for (int s = 0; s < nstates; ++s) {
+            const double y = ionization_fractions_e(s);
             if (y > ymax) {
               ymax = y;
-              lmax = i;
+              lmax = s;
             }
           }
 
           // 2. Sum ionization fractions * ionization potentials for e_ion_corr
           double sum_ion_pot = 0.0;
-          for (size_t i = 0; i < nstates; ++i) {
+          for (int s = 0; s < nstates; ++s) {
             // I think that this pattern is not optimal.
             double sum_pot = 0.0;
-            for (size_t m = 0; m < i; ++m) {
-              sum_pot += species_atomic_data(i).chi;
+            for (int m = 0; m < s; ++m) {
+              sum_pot += species_atomic_data(s).chi;
             }
-            sum_ion_pot += ionization_fractions_e(i) * sum_pot;
+            sum_ion_pot += ionization_fractions_e(s) * sum_pot;
           }
 
           // 3. Find two most populated states and store the higher as y_r.
@@ -156,9 +163,9 @@ void fill_derived_ionization(State *const state,
           double y_r = 0;
           double chi_r = 0.0;
           if (lmax == 0) {
-            y_r = ionization_fractions_e(lmax);
+            y_r = ionization_fractions_e(lmax + 1);
             chi_r = species_atomic_data(lmax).chi;
-          } else if (lmax == (e + 0)) {
+          } else if (lmax == (z)) {
             y_r = ionization_fractions_e(lmax);
             chi_r = species_atomic_data(lmax - 1).chi;
           } else {
@@ -177,17 +184,14 @@ void fill_derived_ionization(State *const state,
           // and the internal energy term from partial ionization.
           // Start with constructing the abundance n_k
 
-          const double atomic_mass = species(e) + neutron_number(e);
+          const double atomic_mass = z + neutron_number(e);
           const double xk = basis->basis_eval(mass_fractions, i, e, q);
-          const double nk = element_number_density(xk, atomic_mass, rho);
-          sum1 += nk * y_r * (1 - y_r); // sigma1
-          sum2 += chi_r * sigma1(i, q); // sigma2
-          sum3 += chi_r * sigma2(i, q); // sigma3
+          const double nu_k = element_number_density(xk, atomic_mass, rho) / number_density(i, q) / rho;
+          sum1 += nu_k * y_r * (1 - y_r); // sigma1
+          sum2 += chi_r * sum1; // sigma2
+          sum3 += chi_r * sum2; // sigma3
           sum_e_ion_corr +=
-              number_density(i, q) * nk * sum_ion_pot; // e_ion_corr
-          std::println(
-              "e_ion_corr :: i N nu_j sumpot sumcorr {} {} {} {} {:.5e}", i,
-              number_density(i, q), nk, sum_ion_pot, sum_e_ion_corr);
+              nu_k * sum_ion_pot; // e_ion_corr
         }
         sigma1(i, q) = sum1;
         sigma2(i, q) = sum2;

@@ -119,11 +119,6 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
       std::make_shared<atom::CompositionData>(grid->n_elements() + 2, order,
                                               ncomps);
 
-  std::shared_ptr<atom::IonizationState> ionization_state =
-      std::make_shared<atom::IonizationState>(grid->n_elements() + 2, nNodes,
-                                              ncomps, ncomps + 1, saha_ncomps,
-                                              fn_ionization, fn_deg);
-
   auto mass_fractions = state->mass_fractions();
   auto charges = comps->charge();
   auto neutrons = comps->neutron_number();
@@ -275,6 +270,9 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
 
     // First, load the leading two rows containing isotope info.
     // We also check for and store the species indices of Ni/Co/Fe 56
+    // Also grab, if present, index for neutrons. Grab max charge/
+    int max_charge = 0;
+    bool neut_present = false;
     bool ni56_present = false;
     bool co56_present = false;
     bool fe56_present = false;
@@ -285,6 +283,10 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
       // We need to store the element index of Ni56, Co56, Fe56
       // in the species indexer. If you need to track other specific
       // species, this might be a good place to do it.
+      if (species_h(e) == 0 && neutron_number_h(e) == 1) {
+        species_indexer->add("neut", e);
+        neut_present = true;
+      }
       if (species_h(e) == 28 && neutron_number_h(e) == 28) {
         species_indexer->add("ni56", e);
         ni56_present = true;
@@ -297,10 +299,16 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
         species_indexer->add("fe56", e);
         fe56_present = true;
       }
+      if (e == ncomps - 1) {
+        max_charge = data[0];
+      }
     }
     if (!ni56_present || !co56_present || !fe56_present) {
       THROW_ATHELAS_ERROR("All of Ni/Co/Fe 56 are required to be present in "
                           "the composition profile!");
+    }
+    if (max_charge == 0) {
+      THROW_ATHELAS_ERROR("Something weird possibly happening in supernova pgen -- max charge of species thought to be 0. Crashing out.");
     }
 
     // TODO(astrobarker): should probably just make a host view directly.
@@ -367,6 +375,12 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     Kokkos::deep_copy(species, species_h);
     Kokkos::deep_copy(neutron_number, neutron_number_h);
 
+  std::shared_ptr<atom::IonizationState> ionization_state =
+      std::make_shared<atom::IonizationState>(grid->n_elements() + 2, nNodes,
+                                              ncomps, max_charge + 1, saha_ncomps,
+                                              fn_ionization, fn_deg);
+
+
     // If we want to default the ionization fractions to anything other
     // than 0, we can do it below. i.e., for species that we are not doing
     // Saha solves, what is their default ionization state?
@@ -380,6 +394,9 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
           for (int q = 0; q < nNodes + 2; ++q) {
             for (int elem = 0; elem < saha_ncomps; ++elem) {
               const int Z = charges(elem);
+              if (Z == 0) {
+                continue;
+              }
 
               ionization_states(i, q, elem, Z) = 1.0;
             }
@@ -473,9 +490,6 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
             energy_cell(q) = eos::sie_from_density_pressure(
                                  eos, 1.0 / tau_cell(q), pressure_q, lambda) +
                              0.5 * vel_cell(q) * vel_cell(q);
-            std::println("SIE :: {:.5e} | {} {:.5e} {:.5e} {:.5e}",
-                         energy_cell(q), q, tau_cell(q), vel_cell(q),
-                         pressure_q);
             // Recompute temperature given the rest of the state
           }
           // Project the nodal representation to a modal one
@@ -522,12 +536,6 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
           for (int q = 0; q < nNodes + 2; q++) {
             double lambda[8];
             atom::paczynski_terms(state, i, q, lambda);
-            const double tau = basis::basis_eval(phi_fluid, uCF, i,
-                                                 vars::cons::SpecificVolume, q);
-            const double vel =
-                basis::basis_eval(phi_fluid, uCF, i, vars::cons::Velocity, q);
-            const double ener =
-                basis::basis_eval(phi_fluid, uCF, i, vars::cons::Energy, q);
             uAF(i, q, vars::aux::Tgas) = eos::temperature_from_conserved(
                 eos,
                 basis::basis_eval(phi_fluid, uCF, i, vars::cons::SpecificVolume,
@@ -535,8 +543,6 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
                 basis::basis_eval(phi_fluid, uCF, i, vars::cons::Velocity, q),
                 basis::basis_eval(phi_fluid, uCF, i, vars::cons::Energy, q),
                 lambda);
-            std::println("new T :: {} {} {:.5e} | {:.5e} {:.5e} {:.5e}", i, q,
-                         uAF(i, q, vars::aux::Tgas), tau, vel, ener);
           }
         });
 
