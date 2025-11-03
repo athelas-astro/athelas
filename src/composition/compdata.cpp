@@ -16,6 +16,7 @@ CompositionData::CompositionData(const int nX, const int order,
   }
   ye_ = AthelasArray2D<double>("ye", nX, order + 2);
   number_density_ = AthelasArray2D<double>("ye", nX, order + 2);
+  electron_number_density_ = AthelasArray2D<double>("ye", nX, order + 2);
   charge_ = AthelasArray1D<int>("charge", n_species);
   neutron_number_ = AthelasArray1D<int>("neutron_number", n_species);
 }
@@ -36,6 +37,10 @@ CompositionData::CompositionData(const int nX, const int order,
     -> AthelasArray2D<double> {
   return number_density_;
 }
+[[nodiscard]] auto CompositionData::electron_number_density() const noexcept
+    -> AthelasArray2D<double> {
+  return electron_number_density_;
+}
 [[nodiscard]] auto CompositionData::species_indexer() noexcept -> Params * {
   return species_indexer_.get();
 }
@@ -54,12 +59,15 @@ CompositionData::CompositionData(const int nX, const int order,
  *
  * TODO(astrobarker): flatten last two dimensions to reduce memory footprint.
  * See atom.hpp
+ * TODO(astrobarker): We can now just construct this with state.
  */
 IonizationState::IonizationState(const int nX, const int nNodes,
                                  const int n_species, const int n_states,
+                                 const int saha_ncomps,
                                  const std::string &fn_ionization,
                                  const std::string &fn_degeneracy)
-    : ionization_fractions_("ionization_fractions", nX, nNodes + 2, n_species,
+    : saha_ncomps_(saha_ncomps),
+      ionization_fractions_("ionization_fractions", nX, nNodes + 2, n_species,
                             n_states),
       atomic_data_(std::make_unique<AtomicData>(fn_ionization, fn_degeneracy)),
       ybar_("ybar", nX, nNodes + 2), e_ion_corr_("e_ion_corr", nX, nNodes + 2),
@@ -71,6 +79,10 @@ IonizationState::IonizationState(const int nX, const int nNodes,
   if (n_states <= 0) {
     THROW_ATHELAS_ERROR("IonizationState :: n_states must be > 0!");
   }
+}
+
+[[nodiscard]] auto IonizationState::ncomps() const noexcept -> int {
+  return saha_ncomps_;
 }
 
 [[nodiscard]] auto IonizationState::ionization_fractions() const noexcept

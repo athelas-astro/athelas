@@ -87,9 +87,9 @@ void GravityPackage::gravity_update(const AthelasArray3D<double> state,
           }
         }
 
-        delta_(i, k, vars::cons::Velocity) -=
+        delta_(i, k, pkg_vars::Velocity) -=
             (constants::G_GRAV * local_sum_v * dr(i)) * inv_mkk(i, k);
-        delta_(i, k, vars::cons::Energy) -=
+        delta_(i, k, pkg_vars::Energy) -=
             (constants::G_GRAV * local_sum_e * dr(i)) * inv_mkk(i, k);
       });
 }

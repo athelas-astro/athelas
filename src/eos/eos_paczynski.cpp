@@ -91,7 +91,7 @@ Paczynski::sie_from_density_pressure(const double rho, const double pressure,
     return dp_dt(temperature, rho, lambda);
   };
 
-  const double temperature_guess = lambda[7];
+  const double temperature_guess = lambda[7] / 250.0;
   const double temperature =
       root_finder_.solve(temperature_target, temperature_derivative,
                          temperature_guess, rho, lambda);
@@ -221,8 +221,11 @@ Paczynski::specific_internal_energy(const double T, const double rho,
   const double pe = p_e(pend, ped);
   const double f = degeneracy_factor(ped, pednr, pedr);
 
+  std::println("SIE :: N ye ybar e_ion_corr pe f {} {} {} {} {} {}", N, ye,
+               ybar, e_ion_corr, pe, f);
+
   return THREE_HALVES * N * constants::k_B * T + pe / (rho * (f - 1.0)) +
-         1.0 * e_ion_corr;
+         e_ion_corr;
 }
 
 /*

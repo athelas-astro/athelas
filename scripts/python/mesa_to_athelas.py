@@ -207,6 +207,7 @@ class MESAProfile:
 
     # Get mass fractions
     mass_frac_cols = self.get_mass_fraction_columns()
+    print(mass_frac_cols)
     if not mass_frac_cols:
       print("Warning: No mass fraction columns found")
       return
@@ -231,6 +232,8 @@ class MESAProfile:
     mass_frac_data = np.column_stack(
       [self[col][::-1] for col in mass_frac_cols]
     )
+    SMALL = 1.0e-90
+    mass_frac_data[mass_frac_data == 0.0] = SMALL
     comps_header = Z_line + "\n" + N_line
     np.savetxt(comps_file, mass_frac_data, header=comps_header, comments="")
     print(
@@ -298,14 +301,11 @@ def main() -> None:
   density: np.ndarray = profile["rho"]
   pressure: np.ndarray = profile["pressure"]
 
-  # Velocity (might be 'v' or 'velocity' depending on MESA version)
   velocity: np.ndarray = profile["velocity"]
 
-  # Mass fractions (common ones)
   h1: np.ndarray = profile["h1"]
   he4: np.ndarray = profile["he4"]
 
-  # You can also access mass coordinate
   mass: np.ndarray = profile["mass"]  # enclosed mass
 
   print(

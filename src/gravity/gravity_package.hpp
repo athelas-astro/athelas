@@ -15,6 +15,10 @@
 #include "state/state.hpp"
 
 namespace athelas::gravity {
+namespace pkg_vars {
+constexpr int Velocity = 0;
+constexpr int Energy = 1;
+} // namespace pkg_vars
 
 using bc::BoundaryConditions;
 

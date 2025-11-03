@@ -50,6 +50,11 @@ class Athelas:
     "rad_flux": 4,
   }
 
+  AUXILIARY = {
+    "pressure": 0,
+    "t_gas": 1,
+  }
+
   def __init__(
     self,
     filename: Union[str, Path],
@@ -84,7 +89,7 @@ class Athelas:
     self.idx = (
       variable_indices
       if variable_indices is not None
-      else self.DEFAULT_VARIABLES.copy()
+      else self.DEFAULT_VARIABLES.copy() | self.AUXILIARY.copy()
     )
 
     # Load data
@@ -240,7 +245,6 @@ class Athelas:
 
     return data[:, mode, var_idx]
 
-  # Convenience method for backward compatibility
   def get(self, var: str, k: int = 0) -> np.ndarray:
     """Get conserved variable (backward compatibility method)."""
     return self.get_variable(var, mode=k, var_type="conserved")

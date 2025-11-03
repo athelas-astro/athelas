@@ -17,6 +17,7 @@ namespace athelas::constants {
 
 static constexpr double PI = std::numbers::pi;
 static constexpr double FOURPI = 4.0 * std::numbers::pi;
+static constexpr double FOUR_THIRDS_PI = FOURPI / 3.0;
 static constexpr double G_GRAV = 6.674299999999999e-8; // cgs
 static constexpr double L_sun = 3.828e33; // cgs
 static constexpr double M_sun = 1.98840987e+33; // cgs

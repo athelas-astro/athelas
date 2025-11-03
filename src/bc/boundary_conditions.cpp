@@ -14,10 +14,25 @@
 
 #include <string>
 
-#include "boundary_conditions_base.hpp"
+#include "bc/boundary_conditions.hpp"
+#include "bc/boundary_conditions_base.hpp"
 #include "utils/error.hpp"
 
 namespace athelas::bc {
+
+void fill_ghost_zones_composition(AthelasArray3D<double> U,
+                                  const IndexRange &vb) {
+  const std::size_t num_modes = U.extent(1);
+  static const std::size_t nx = U.extent(0) - 2;
+  athelas::par_for(
+      DEFAULT_FLAT_LOOP_PATTERN, "Fill ghosts comps", DevExecSpace(), vb.s,
+      vb.e, KOKKOS_LAMBDA(const int v) {
+        for (std::size_t k = 0; k < num_modes; k++) {
+          U(0, k, v) = U(1, k, v); // inner ghost
+          U(nx + 1, k, v) = U(nx, k, v); // inner ghost
+        }
+      });
+}
 
 auto parse_bc_type(const std::string &name) -> BcType {
   if (name == "outflow") {

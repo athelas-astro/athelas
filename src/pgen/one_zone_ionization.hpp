@@ -8,6 +8,8 @@
 #pragma once
 
 #include "basis/polynomial_basis.hpp"
+#include "bc/boundary_conditions.hpp"
+#include "composition/composition.hpp"
 #include "composition/saha.hpp"
 #include "eos/eos_variant.hpp"
 #include "geometry/grid.hpp"
@@ -37,7 +39,7 @@ void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
   // Don't try to track ionization for more species than we use.
   // We will track ionization for the first saha_ncomps species
   if (saha_ncomps > ncomps) {
-    THROW_ATHELAS_ERROR("One zone ionization requires [ionization.ncomps] >= "
+    THROW_ATHELAS_ERROR("One zone ionization requires [ionization.ncomps] <= "
                         "[problem.params.ncomps]!");
   }
 
@@ -81,7 +83,7 @@ void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
                                               ncomps);
   std::shared_ptr<atom::IonizationState> ionization_state =
       std::make_shared<atom::IonizationState>(grid->n_elements() + 2, nNodes,
-                                              saha_ncomps, saha_ncomps + 1,
+                                              ncomps, ncomps + 1, saha_ncomps,
                                               fn_ionization, fn_deg);
   auto mass_fractions = state->mass_fractions();
   auto charges = comps->charge();
@@ -128,16 +130,28 @@ void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
   state->setup_composition(comps);
   state->setup_ionization(ionization_state);
   if (fluid_basis != nullptr) {
-    atom::solve_saha_ionization(*state, *grid, *eos, *fluid_basis);
+    atom::fill_derived_comps<Domain::Interior>(state, grid, fluid_basis);
+    atom::fill_derived_ionization<Domain::Interior>(state, grid, fluid_basis);
+    atom::solve_saha_ionization<Domain::Interior>(*state, *grid, *eos,
+                                                  *fluid_basis);
+    // composition boundary condition
+    static const IndexRange vb_comps(std::make_pair(3, 3 + ncomps - 1));
+    bc::fill_ghost_zones_composition(uCF, vb_comps);
   }
 
-  // Fill density in guard cells
+  // Fill density and temperature in guard cells
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: OneZoneIonization (ghost)",
       DevExecSpace(), 0, ib.s - 1, KOKKOS_LAMBDA(const int i) {
         for (int iN = 0; iN < nNodes + 2; iN++) {
-          uPF(ib.s - 1 - i, iN, 0) = uPF(ib.s + i, (nNodes + 2) - iN - 1, 0);
-          uPF(ib.s + 1 + i, iN, 0) = uPF(ib.s - i, (nNodes + 2) - iN - 1, 0);
+          uPF(ib.s - 1 - i, iN, vars::prim::Rho) =
+              uPF(ib.s + i, (nNodes + 2) - iN - 1, vars::prim::Rho);
+          uPF(ib.e + 1 + i, iN, vars::prim::Rho) =
+              uPF(ib.e - i, (nNodes + 2) - iN - 1, vars::prim::Rho);
+          uAF(ib.s - 1 - i, iN, vars::aux::Tgas) =
+              uAF(ib.s + i, (nNodes + 2) - iN - 1, vars::aux::Tgas);
+          uAF(ib.e + 1 + i, iN, vars::aux::Tgas) =
+              uAF(ib.e - i, (nNodes + 2) - iN - 1, vars::aux::Tgas);
         }
       });
 }

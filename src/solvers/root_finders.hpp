@@ -550,7 +550,7 @@ class AANewtonAlgorithm {
     }
     T x_prev = x0;
     x = x_new;
-    for (int i = 1; i < config.max_iterations; ++i) {
+    for (int i = 1; i <= config.max_iterations; ++i) {
       const T h_new = target(x, std::forward<Args>(args)...) /
                       d_target(x, std::forward<Args>(args)...);
       const T gamma = alpha_aa(h_new, h);

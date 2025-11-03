@@ -18,7 +18,7 @@ namespace athelas::atom {
 class IonizationState {
  public:
   IonizationState(int nX, int nNodes, int n_species, int n_states,
-                  const std::string &fn_ionization,
+                  int saha_ncomps, const std::string &fn_ionization,
                   const std::string &fn_degeneracy);
 
   [[nodiscard]] auto ionization_fractions() const noexcept
@@ -29,8 +29,10 @@ class IonizationState {
   [[nodiscard]] auto sigma1() const noexcept -> AthelasArray2D<double>;
   [[nodiscard]] auto sigma2() const noexcept -> AthelasArray2D<double>;
   [[nodiscard]] auto sigma3() const noexcept -> AthelasArray2D<double>;
+  [[nodiscard]] auto ncomps() const noexcept -> int;
 
  private:
+  int saha_ncomps_;
   AthelasArray4D<double>
       ionization_fractions_; // [nX][nNodes][n_species][max_charge+1]
   std::unique_ptr<AtomicData> atomic_data_;
@@ -56,6 +58,8 @@ class CompositionData {
   [[nodiscard]] auto neutron_number() const noexcept -> AthelasArray1D<int>;
   [[nodiscard]] auto ye() const noexcept -> AthelasArray2D<double>;
   [[nodiscard]] auto number_density() const noexcept -> AthelasArray2D<double>;
+  [[nodiscard]] auto electron_number_density() const noexcept
+      -> AthelasArray2D<double>;
   [[nodiscard]] auto species_indexer() noexcept -> Params *;
   [[nodiscard]] auto species_indexer() const noexcept -> Params *;
 
@@ -76,6 +80,8 @@ class CompositionData {
   std::unique_ptr<Params> species_indexer_;
 
   AthelasArray2D<double> number_density_; // [nX][order] number per unit mass
+  AthelasArray2D<double>
+      electron_number_density_; // [nX][nNodes + 2] number per unit mass
   AthelasArray2D<double> ye_; // [nx][nnodes]
   AthelasArray1D<int> charge_; // n_species
   AthelasArray1D<int> neutron_number_;
