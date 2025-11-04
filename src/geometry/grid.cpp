@@ -302,8 +302,8 @@ void GridStructure::compute_mass_r(const AthelasArray3D<double> uPF) {
         const int ix = ilo + idx / nNodes_;
         const int q = idx % nNodes_;
         const double X = node_coordinate(ix, q);
-        mass_contrib(idx) =
-            weights_(q) * get_sqrt_gm(X) * uPF(ix, q, vars::prim::Rho);
+        mass_contrib(idx) = weights_(q) * get_sqrt_gm(X) *
+                            uPF(ix, q, vars::prim::Rho) * widths_(ix);
       });
 
   // 2: Perform parallel inclusive scan (cumulative sum)
@@ -323,7 +323,7 @@ void GridStructure::compute_mass_r(const AthelasArray3D<double> uPF) {
       0, total_points - 1, KOKKOS_CLASS_LAMBDA(const int idx) {
         const int ix = ilo + idx / nNodes_;
         const int q = idx % nNodes_;
-        mass_r_(ix, q) = cumulative_mass(idx) * widths_(ix) * geom_fac;
+        mass_r_(ix, q) = cumulative_mass(idx) * geom_fac;
       });
 
   // Get total mass

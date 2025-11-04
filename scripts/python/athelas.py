@@ -139,6 +139,7 @@ class Athelas:
         self.r = f["grid/x"][slice_idx]  # type: ignore
         self.r_nodal = f["grid/x_nodal"][slice_idx]  # type: ignore
         self.dr = f["grid/dx"][slice_idx]  # type: ignore
+        self.mass_coordinate = f["grid/enclosed_mass"][slice_idx]  # type: ignore
 
         # Load variable data
         self.uCF = f["variables/conserved"][slice_idx, ...]  # type: ignore

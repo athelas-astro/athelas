@@ -23,6 +23,9 @@
  * profile, 2) in the interpolation from the progenitor grid to Athelas's grid,
  * and 3) when Ni56 is placed by hand.
  *
+ * NOTE: Currently injected ni56 is distributed uniformly out to a
+ * prescribed mass.
+ *
  * The radiation energy density is set by assuming that the (new) gas and
  * radiation temperatures are equal. The radiation flux comes from the
  * luminosity in the stellar profile.
@@ -90,7 +93,22 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
       pin->param()->get<std::string>("ionization.fn_ionization");
   const auto fn_deg =
       pin->param()->get<std::string>("ionization.fn_degeneracy");
-  const int saha_ncomps = pin->param()->get<int>("ionization.ncomps");
+  const auto saha_ncomps = pin->param()->get<int>("ionization.ncomps");
+  const auto ni_injection_mass =
+      pin->param()->get<double>("problem.params.ni_mass", 0.0);
+  const auto ni_injection_bndry =
+      pin->param()->get<double>("problem.params.ni_boundary", 0.0);
+
+  // sanity checks
+  if (ni_injection_mass < 0.0 || ni_injection_bndry < 0.0) {
+    THROW_ATHELAS_ERROR(
+        "The nickel injection mass and boundry must be >= 0.0!");
+  }
+
+  bool inject_ni = false;
+  if (ni_injection_mass > 0.0 && ni_injection_bndry > 0.0) {
+    inject_ni = true;
+  }
 
   if (saha_ncomps > ncomps) {
     THROW_ATHELAS_ERROR("One zone ionization requires [ionization.ncomps] <= "
@@ -103,6 +121,10 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     mass_cut = pin->param()->get<double>("problem.params.mass_cut");
     if (mass_cut < 0.0) {
       THROW_ATHELAS_ERROR("The mass cut cannot be negative!");
+    }
+    if (mass_cut > ni_injection_bndry && inject_ni) {
+      THROW_ATHELAS_ERROR(
+          "The mass cut should be smaller than the nickel injection boundary!");
     }
   } else {
     WARNING_ATHELAS(
@@ -355,6 +377,30 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
       }
     }
 
+    // Handle Ni56 injection
+    if (inject_ni) {
+      const int ind_ni = species_indexer->get<int>("ni56");
+      int ncells_spread = 0;
+      double mass_enc = 0.0;
+      for (int i = 0; i < n_zones_prog - 1; ++i) {
+        mass_enc += constants::FOURPI * density_host(i) * radius_host(i) *
+                    radius_host(i) * (radius_host(i + 1) - radius_host(i)) /
+                    constants::M_sun;
+        if (mass_enc > ni_injection_bndry) {
+          break;
+        }
+        ncells_spread++;
+      }
+
+      for (int i = 2; i < n_zones_prog + 2; ++i) {
+        const int i_cell = i - 2;
+        if (i_cell <= ncells_spread) {
+          comps_star_host(i_cell, ind_ni) =
+              ni_injection_mass / (ni_injection_bndry - mass_cut);
+        }
+      }
+    }
+
     // Now we need to do a nodal to modal projection of the mass fractions.
     // Before we can do that we need to interpolate them to our grid.
     // TODO(astrobarker): this can be device side.
@@ -432,8 +478,6 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
             }
           }
         });
-
-    // TODO(astrobarker): ni56 injection
 
     // Renormalize mass fractions. I try to enforce nodal conservation.
     // I compute the sum of all mass fractions on every nodal location
