@@ -126,8 +126,8 @@ void fill_derived_ionization(State *const state,
           // pull out element info
           const int z = species(e);
           if (z == 0) {
-					continue;
-				}
+            continue;
+          }
           const auto species_atomic_data =
               species_data(ion_data, species_offsets, z);
           const auto ionization_fractions_e =
@@ -186,12 +186,12 @@ void fill_derived_ionization(State *const state,
 
           const double atomic_mass = z + neutron_number(e);
           const double xk = basis->basis_eval(mass_fractions, i, e, q);
-          const double nu_k = element_number_density(xk, atomic_mass, rho) / number_density(i, q) / rho;
+          const double nu_k = element_number_density(xk, atomic_mass, rho) /
+                              number_density(i, q) / rho;
           sum1 += nu_k * y_r * (1 - y_r); // sigma1
           sum2 += chi_r * sum1; // sigma2
           sum3 += chi_r * sum2; // sigma3
-          sum_e_ion_corr +=
-              nu_k * sum_ion_pot; // e_ion_corr
+          sum_e_ion_corr += nu_k * sum_ion_pot; // e_ion_corr
         }
         sigma1(i, q) = sum1;
         sigma2(i, q) = sum2;

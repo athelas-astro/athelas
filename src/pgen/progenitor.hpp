@@ -5,16 +5,9 @@
  * @brief Supernova progenitor initialization
  *
  * This one is the most involved of all pgens.
- * We have to:
- *  - read the profiles
- *  - apply any mass cut
- *  - reform our mesh to conform to the progenitor domain
- *  - interpolate data to our mesh
- *  - project nodal fields to a modal basis.
- *  - apply an exponential filter
  *
- *  Due to the complexity (and low cost, relatively), much of this
- *  is designed to be done on the host.
+ * Due to the complexity (and low cost, relatively), much of this
+ * is designed to be done on the host.
  *
  * As elsewhere, because the pgen generally needs the basis,
  * and the basis needs the density field for its inner product, have to
@@ -25,7 +18,7 @@
  * Here we load, interpolate, and project the mass fractions and then
  * the rest of the conserved quantities.
  *
- * Mass fractions are renormalized at the end. This helps to maintain
+ * Mass fractions are renormalized. This helps to maintain
  * conservation. Errors can be accumulated 1) in the construction of the
  * profile, 2) in the interpolation from the progenitor grid to Athelas's grid,
  * and 3) when Ni56 is placed by hand.
@@ -118,9 +111,9 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
         "input profile. If not, bad things may happen.");
   }
 
-  static const IndexRange ib(grid->domain<Domain::Interior>());
   static const int nNodes = grid->n_nodes();
   static const int order = nNodes;
+  static const IndexRange ib(grid->domain<Domain::Interior>());
 
   auto uCF = state->u_cf();
   auto uPF = state->u_pf();
@@ -400,12 +393,13 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     // If we want to default the ionization fractions to anything other
     // than 0, we can do it below. i.e., for species that we are not doing
     // Saha solves, what is their default ionization state?
+    // This can probably be removed.
     auto mass_fractions = state->mass_fractions();
     auto charges = comps->charge();
     auto neutrons = comps->neutron_number();
     auto ionization_states = ionization_state->ionization_fractions();
     athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova (Ionization)",
+        DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Default Ionization",
         DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
           for (int q = 0; q < nNodes + 2; ++q) {
             for (int elem = 0; elem < saha_ncomps; ++elem) {
@@ -416,6 +410,28 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
 
               ionization_states(i, q, elem, Z) = 1.0;
             }
+          }
+        });
+
+    // TODO(astrobarker): ni56 injection
+
+    // Renormalize mass fractions. I try to enforce nodal conservation.
+    // I compute the sum of all mass fractions on every nodal location
+    // and then use it to renormalize the cell average of each species.
+    // It is unclear if this is the most DG way to do it, but it seems to work.
+    auto phi_fluid = fluid_basis->phi();
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN,
+        "Pgen :: Supernova :: Renormalize mass fractions", DevExecSpace(), ib.s,
+        ib.e, 0, nNodes - 1, KOKKOS_LAMBDA(const int i, const int q) {
+          double sum_x = 0.0;
+          for (int e = 0; e < ncomps; ++e) {
+            const double x_q =
+                basis::basis_eval(phi_fluid, mass_fractions, i, e, q);
+            sum_x += x_q;
+          }
+          for (int e = 0; e < ncomps; ++e) {
+            mass_fractions(i, vars::modes::CellAverage, e) /= sum_x;
           }
         });
 
@@ -484,7 +500,6 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     // Per cell nodal storage
     AthelasArray1D<double> vel_cell("supernova :: vel cell", nNodes);
     AthelasArray1D<double> energy_cell("supernova :: energy cell", nNodes);
-    auto phi_fluid = fluid_basis->phi();
     auto mkk_fluid = fluid_basis->mass_matrix();
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova (2)", DevExecSpace(),
@@ -569,7 +584,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     // composition boundary condition
     static const IndexRange vb_comps(std::make_pair(3, 3 + ncomps - 1));
     bc::fill_ghost_zones_composition(uCF, vb_comps);
-  }
+  } // second pgen call
 
   // Fill density and temperature in guard cells.
   // Temperature must be filled in when ionization is active.

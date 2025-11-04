@@ -235,7 +235,7 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
 
         n_e(i, q) = 0.0;
         // TODO(astrobarker): Profile; faster as hierarchical reduction?
-        // This loop is over Saha species 
+        // This loop is over Saha species
         for (int e = eb.s; e <= eb.e; ++e) {
           const int z = species(e);
           // TODO(astrobarker): Fix this garbage
