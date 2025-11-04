@@ -91,6 +91,10 @@ void fill_derived_ionization(State *const state,
   const auto number_density = comps->number_density();
   const auto electron_number_density = comps->electron_number_density();
   const size_t num_species = comps->n_species();
+  auto *species_indexer = comps->species_indexer();
+  static const bool has_neuts = species_indexer->contains("neut");
+  static const int start_elem = (has_neuts) ? 1 : 0;
+  static const IndexRange eb(std::make_pair(start_elem, num_species - 1));
 
   auto *const ionization_states = state->ionization_state();
   const auto ionization_fractions = ionization_states->ionization_fractions();
@@ -122,12 +126,9 @@ void fill_derived_ionization(State *const state,
         // This kernel is horrible.
         // Reduce the ionization based quantities sigma1-3, e_ion_corr
         ybar(i, q) = electron_number_density(i, q) / number_density(i, q);
-        for (size_t e = 0; e < num_species; ++e) {
+        for (int e = eb.s; e <= eb.e; ++e) {
           // pull out element info
           const int z = species(e);
-          if (z == 0) {
-            continue;
-          }
           const auto species_atomic_data =
               species_data(ion_data, species_offsets, z);
           const auto ionization_fractions_e =

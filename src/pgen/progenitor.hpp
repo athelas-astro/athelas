@@ -336,8 +336,28 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
       }
     }
 
+    // Now we make sure that is neutrons are in our composition data
+    // then they are the first species.
+    if (neut_present) {
+      const int ind_neut = species_indexer->get<int>("neut");
+      if (ind_neut != 0) {
+        species(ind_neut) = species(0);
+        species(0) = 0; // Z
+        neutron_number(ind_neut) = neutron_number(0);
+        neutron_number(0) = 1;
+
+        for (int i = 2; i < n_zones_prog + 2; ++i) {
+          const size_t i_cell = i - 2;
+          double x_0 = comps_star_host(i_cell, 0);
+          comps_star_host(i_cell, 0) = comps_star_host(i_cell, ind_neut);
+          comps_star_host(i_cell, ind_neut) = x_0;
+        }
+      }
+    }
+
     // Now we need to do a nodal to modal projection of the mass fractions.
     // Before we can do that we need to interpolate them to our grid.
+    // TODO(astrobarker): this can be device side.
     auto mass_fractions_h = Kokkos::create_mirror_view(state->mass_fractions());
     auto r = grid->nodal_grid();
     auto r_h = Kokkos::create_mirror_view(r);
@@ -375,7 +395,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
           }
           mass_fractions_h(i, k, e) = numerator / denominator;
           if (k > 0) {
-            mass_fractions(i, k, e) *= std::exp(-k);
+            mass_fractions_h(i, k, e) *= std::exp(-k);
           }
         }
       }

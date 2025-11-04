@@ -209,6 +209,7 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
   const auto neutron_number = comps->neutron_number();
   auto n_e = comps->electron_number_density();
   auto n_k = comps->number_density();
+  auto species_indexer = comps->species_indexer();
   auto ionization_fractions = ionization_states->ionization_fractions();
 
   const auto phi = fluid_basis.phi();
@@ -223,9 +224,11 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
   const auto &ncomps_saha = ionization_states->ncomps();
   const auto &ncomps_all = comps->n_species();
 
+  static const bool has_neuts = species_indexer->contains("neut");
+  static const int start_elem = (has_neuts) ? 1 : 0;
   static const IndexRange ib(grid.domain<MeshDomain>());
   static const IndexRange nb(nNodes + 2);
-  static const IndexRange eb(ncomps_saha + 1);
+  static const IndexRange eb(std::make_pair(start_elem, ncomps_saha));
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Saha :: Solve ionization all", DevExecSpace(),
       ib.s, ib.e, nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int q) {
@@ -238,10 +241,6 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
         // This loop is over Saha species
         for (int e = eb.s; e <= eb.e; ++e) {
           const int z = species(e);
-          // TODO(astrobarker): Fix this garbage
-          if (z == 0) {
-            continue;
-          }
           const double x_e = basis_eval(phi, mass_fractions, i, e, q);
 
           const double A = z + neutron_number(e);
