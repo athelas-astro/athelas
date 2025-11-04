@@ -11,6 +11,7 @@
  *  - reform our mesh to conform to the progenitor domain
  *  - interpolate data to our mesh
  *  - project nodal fields to a modal basis.
+ *  - apply an exponential filter
  *
  *  Due to the complexity (and low cost, relatively), much of this
  *  is designed to be done on the host.
@@ -28,6 +29,16 @@
  * conservation. Errors can be accumulated 1) in the construction of the
  * profile, 2) in the interpolation from the progenitor grid to Athelas's grid,
  * and 3) when Ni56 is placed by hand.
+ *
+ * The radiation energy density is set by assuming that the (new) gas and
+ * radiation temperatures are equal. The radiation flux comes from the
+ * luminosity in the stellar profile.
+ *
+ * All conserved/evolved fields have their higher modes (slopes / k > 0)
+ * decayed with an exponential filter: U_K *= exp(-k).
+ * This is because the nodal -> modal projection can lead to artificially
+ * large modes if the element contains a sharp feature, such as at
+ * compositional interfaces. The cell average is not modified.
  */
 
 #pragma once
@@ -57,7 +68,7 @@ namespace athelas {
 void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
                      const eos::EOS *eos,
                      basis::ModalBasis *fluid_basis = nullptr) {
-  static constexpr int NUM_COLS_HYDRO = 5;
+  static constexpr int NUM_COLS_HYDRO = 6;
 
   // Perform a number of sanity checks
   if (pin->param()->get<std::string>("eos.type") != "paczynski") {
@@ -142,9 +153,9 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
   }
 
   auto [radius_star, density_star, velocity_star, pressure_star,
-        temperature_star] =
-      io::get_columns_by_indices<double, double, double, double, double>(
-          *hydro_data, 0, 1, 2, 3, 4);
+        temperature_star, luminosity_star] =
+      io::get_columns_by_indices<double, double, double, double, double,
+                                 double>(*hydro_data, 0, 1, 2, 3, 4, 5);
 
   const double rstar = radius_star.back();
   const int n_zones_prog = static_cast<int>(radius_star.size());
@@ -156,6 +167,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
   AthelasArray1D<double> pressure_view("progenitor pressure", n_zones_prog);
   AthelasArray1D<double> temperature_view("progenitor temperature",
                                           n_zones_prog);
+  AthelasArray1D<double> luminosity_view("progenitor luminosity", n_zones_prog);
 
   // Create host mirrors for data transfer
   auto radius_host = Kokkos::create_mirror_view(radius_view);
@@ -163,6 +175,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
   auto velocity_host = Kokkos::create_mirror_view(velocity_view);
   auto pressure_host = Kokkos::create_mirror_view(pressure_view);
   auto temperature_host = Kokkos::create_mirror_view(temperature_view);
+  auto luminosity_host = Kokkos::create_mirror_view(luminosity_view);
 
   // Copy data from vectors to host mirrors
   for (int i = 0; i < n_zones_prog; ++i) {
@@ -171,6 +184,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     velocity_host(i) = velocity_star[i];
     pressure_host(i) = pressure_star[i];
     temperature_host(i) = temperature_star[i];
+    luminosity_host(i) = luminosity_star[i];
   }
 
   // Deep copy from host to device
@@ -179,6 +193,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
   Kokkos::deep_copy(velocity_view, velocity_host);
   Kokkos::deep_copy(pressure_view, pressure_host);
   Kokkos::deep_copy(temperature_view, temperature_host);
+  Kokkos::deep_copy(luminosity_view, luminosity_host);
 
   if (fluid_basis == nullptr) {
     // Phase 1: Initialize nodal values
@@ -308,7 +323,9 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
                           "the composition profile!");
     }
     if (max_charge == 0) {
-      THROW_ATHELAS_ERROR("Something weird possibly happening in supernova pgen -- max charge of species thought to be 0. Crashing out.");
+      THROW_ATHELAS_ERROR(
+          "Something weird possibly happening in supernova pgen -- max charge "
+          "of species thought to be 0. Crashing out.");
     }
 
     // TODO(astrobarker): should probably just make a host view directly.
@@ -375,11 +392,10 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     Kokkos::deep_copy(species, species_h);
     Kokkos::deep_copy(neutron_number, neutron_number_h);
 
-  std::shared_ptr<atom::IonizationState> ionization_state =
-      std::make_shared<atom::IonizationState>(grid->n_elements() + 2, nNodes,
-                                              ncomps, max_charge + 1, saha_ncomps,
-                                              fn_ionization, fn_deg);
-
+    std::shared_ptr<atom::IonizationState> ionization_state =
+        std::make_shared<atom::IonizationState>(
+            grid->n_elements() + 2, nNodes, ncomps, max_charge + 1, saha_ncomps,
+            fn_ionization, fn_deg);
 
     // If we want to default the ionization fractions to anything other
     // than 0, we can do it below. i.e., for species that we are not doing

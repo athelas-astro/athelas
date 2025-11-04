@@ -132,7 +132,7 @@ class MESAProfile:
     return self.profile.data(column_name)
 
   def __getitem__(self, key: str) -> np.ndarray:
-    """Allow dictionary-style access to columns."""
+    """Allow dictionary-style string access to columns."""
     return self.get(key)
 
   @property
@@ -191,30 +191,32 @@ class MESAProfile:
         since MESA profiles start at the surface.
     """
     # Get hydrodynamic quantities and flip them (MESA goes surface->center)
+    # Here we access data using the __getitem__ accessors.
+    # We can equivalently do density = self.get("density")
     radius = self["radius"][::-1] * Rsun
     density = self["rho"][::-1]
     velocity = self["velocity"][::-1]
     pressure = np.power(10.0, self["logPgas"][::-1])
     temperature = np.power(10.0, self["logT"][::-1])
+    luminosity = self["luminosity"][::-1]
 
     # Write hydrodynamic file with units in CGS
     hydro_data = np.column_stack(
-      [radius, density, velocity, pressure, temperature]
+      [radius, density, velocity, pressure, temperature, luminosity]
     )
-    hydro_header = "# radius [cm] density [g/cm^3] velocity [cm/s] pressure [erg/cm^3] temperature [K]"
+    hydro_header = "# radius [cm] density [g/cm^3] velocity [cm/s] pressure [erg/cm^3] temperature [K] luminosity [erg/cm^3/s]"
     np.savetxt(hydro_file, hydro_data, header=hydro_header, comments="")
     print(f"Wrote hydrodynamic data to {hydro_file}")
 
     # Get mass fractions
     mass_frac_cols = self.get_mass_fraction_columns()
-    print(mass_frac_cols)
     if not mass_frac_cols:
       print("Warning: No mass fraction columns found")
       return
 
     # Build composition array and flip
 
-    # combine rot into h1
+    # combine prot into h1
     if "prot" in mass_frac_cols:
       self["h1"][::-1] += self["prot"][::-1]
       mass_frac_cols.remove("prot")
@@ -232,6 +234,10 @@ class MESAProfile:
     mass_frac_data = np.column_stack(
       [self[col][::-1] for col in mass_frac_cols]
     )
+
+    # We replace 0.0 mass fractions with a small, effectively zero value.
+    # There are some places in the code (Saha ionization) where these values
+    # can be prolematic
     SMALL = 1.0e-90
     mass_frac_data[mass_frac_data == 0.0] = SMALL
     comps_header = Z_line + "\n" + N_line
@@ -299,6 +305,7 @@ def main() -> None:
   # Access specific columns
   radius: np.ndarray = profile["radius"]
   density: np.ndarray = profile["rho"]
+  print(density)
   pressure: np.ndarray = profile["pressure"]
 
   velocity: np.ndarray = profile["velocity"]
@@ -314,8 +321,8 @@ def main() -> None:
   print(f"\nFirst few columns: {profile.columns[:]}")
 
   # Example: print central vs surface values
-  print(f"\nCentral density: {density[0]:.3e} g/cm^3")
-  print(f"Surface density: {density[-1]:.3e} g/cm^3")
+  print(f"\nCentral density: {density[-1]:.3e} g/cm^3")
+  print(f"Surface density: {density[0]:.3e} g/cm^3")
 
   # Write output files if requested
   if args.write:
