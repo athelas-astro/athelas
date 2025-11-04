@@ -66,7 +66,7 @@ auto find_closest_cell(T r_view, const double target_r, int num_cells) -> int {
     return 0;
   }
 
-  return left;
+  return (r_view[left] < target_r) ? left : left - 1;
 }
 
 // [[x]]_+ = -.5 * (x + |x|) is positive part of x
