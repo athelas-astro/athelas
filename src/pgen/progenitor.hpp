@@ -479,10 +479,13 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
           }
         });
 
-    // Renormalize mass fractions. I try to enforce nodal conservation.
+    // Renormalize mass fractions. We try to enforce nodal conservation.
     // I compute the sum of all mass fractions on every nodal location
     // and then use it to renormalize the cell average of each species.
     // It is unclear if this is the most DG way to do it, but it seems to work.
+    // We demand that the mass fractions of ni56 remain unchanged. The
+    // normalization factor is (1 - X_Ni) / (Sum_X - X_Ni) and applied
+    // to all species except Ni56.
     auto phi_fluid = fluid_basis->phi();
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN,
@@ -494,8 +497,16 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
                 basis::basis_eval(phi_fluid, mass_fractions, i, e, q);
             sum_x += x_q;
           }
+
+          // Normalize all species except Ni56
+          const int ind_ni = species_indexer->get<int>("ni56");
+          const double x_ni =
+              mass_fractions(i, vars::modes::CellAverage, ind_ni);
           for (int e = 0; e < ncomps; ++e) {
-            mass_fractions(i, vars::modes::CellAverage, e) /= sum_x;
+            if (e != ind_ni) {
+              mass_fractions(i, vars::modes::CellAverage, e) *=
+                  (1.0 - x_ni) / (sum_x - x_ni);
+            }
           }
         });
 
@@ -566,8 +577,8 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     AthelasArray1D<double> energy_cell("supernova :: energy cell", nNodes);
     auto mkk_fluid = fluid_basis->mass_matrix();
     athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova (2)", DevExecSpace(),
-        ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
+        DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Project RadHydro vars",
+        DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
           double lambda[8];
           // Project each conserved variable
           // loop over nodes on an element, interpolate to nodal positions
@@ -585,8 +596,8 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
             energy_cell(q) = eos::sie_from_density_pressure(
                                  eos, 1.0 / tau_cell(q), pressure_q, lambda) +
                              0.5 * vel_cell(q) * vel_cell(q);
-            // Recompute temperature given the rest of the state
           }
+
           // Project the nodal representation to a modal one
           // Compute L2 projection: <f_q, phi_k> / <phi_k, phi_k>
           // This should probably be a function.
@@ -609,14 +620,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
             }
             uCF(i, k, vars::cons::Velocity) = numerator_vel / denominator;
             uCF(i, k, vars::cons::Energy) = numerator_energy / denominator;
-            // We apply a simple exponential filter to modes
-            // This is critical as any discontinuities or non-smooth features
-            // in the nodal density (specific volume) profile can result in
-            // artificially high slopes etc. This smooths those higher modes
-            // so that we don't experience that. We need to do this here as
-            // the following fill_derived_ calls evaluate tau at nodal locations
-            // and it can be unphysical. We will also apply this to the
-            // other fields.
+            // Exponential filter
             if (k > 0) {
               uCF(i, k, vars::cons::Velocity) *= std::exp(-k);
               uCF(i, k, vars::cons::Energy) *= std::exp(-k);
