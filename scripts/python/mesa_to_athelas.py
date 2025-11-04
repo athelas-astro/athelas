@@ -238,7 +238,7 @@ class MESAProfile:
     # We replace 0.0 mass fractions with a small, effectively zero value.
     # There are some places in the code (Saha ionization) where these values
     # can be prolematic
-    SMALL = 1.0e-90
+    SMALL = 1.0e-50
     mass_frac_data[mass_frac_data == 0.0] = SMALL
     comps_header = Z_line + "\n" + N_line
     np.savetxt(comps_file, mass_frac_data, header=comps_header, comments="")
