@@ -1,7 +1,7 @@
 [problem]
 problem = "supernova"
 t_end = 86400.0
-nlim = 1
+nlim = 200
 geometry = "spherical"
 restart = false
 xl = 100.0
@@ -15,8 +15,12 @@ fn_hydro = "../profiles/profile_hydro.dat"
 fn_comps = "../profiles/profile_comps.dat"
 mass_cut = 1.4
 
+# Note: Set the following both to 0.0 to disable Ni56 injection
+ni_mass = 0.07 # Msun
+ni_boundary = 3.0 # Msun; > mass_cut
+
 [physics]
-radiation = false
+radiation = true 
 gravity = true
 composition = true
 ionization = true
@@ -33,6 +37,9 @@ ncomps = 4
 [bc]
 [bc.fluid]
 bc_i = "reflecting"
+bc_o = "outflow"
+[bc.radiation]
+bc_i = "outflow"
 bc_o = "outflow"
 
 [output]
@@ -57,6 +64,23 @@ m_tvb = 0.0
 tci_opt = false
 tci_val = 0.25
 
+[radiation]
+basis = "legendre"
+nnodes = 1
+porder = 1
+
+[radiation.limiter]
+type = "minmod"
+m_tvb = 0.0
+b_tvd = 1.0
+tci_opt = false
+tci_val = 0.1
+
+[heating.nickel]
+enabled = true
+model = "jeffery"
+operator_split = true
+
 [gravity]
 model = "spherical"
 
@@ -65,3 +89,8 @@ integrator = "EX_SSPRK11"
 
 [eos]
 type = "paczynski"
+
+[opacity]
+type = "constant"
+kP = 0.4 # cm^2 / g
+kR = 0.4 # cm^2 / g

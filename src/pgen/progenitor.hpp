@@ -53,6 +53,7 @@
 #include "geometry/grid.hpp"
 #include "io/parser.hpp"
 #include "kokkos_abstraction.hpp"
+#include "radiation/rad_utilities.hpp"
 #include "state/state.hpp"
 #include "utilities.hpp"
 
@@ -63,7 +64,8 @@ namespace athelas {
  **/
 void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
                      const eos::EOS *eos,
-                     basis::ModalBasis *fluid_basis = nullptr) {
+                     basis::ModalBasis *fluid_basis = nullptr,
+                     basis::ModalBasis *rad_basis = nullptr) {
   static constexpr int NUM_COLS_HYDRO = 6;
 
   // Perform a number of sanity checks
@@ -86,9 +88,11 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
   if (pin->param()->get<std::string>("problem.geometry") != "spherical") {
     THROW_ATHELAS_ERROR("Problem 'supernova' requires spherical geometry!");
   }
+  if (!grid->do_geometry()) {
+    THROW_ATHELAS_ERROR("Supernova problem requires spherical symmetry.");
+  }
 
   const auto ncomps = pin->param()->get<int>("composition.ncomps");
-
   const auto fn_ionization =
       pin->param()->get<std::string>("ionization.fn_ionization");
   const auto fn_deg =
@@ -98,6 +102,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
       pin->param()->get<double>("problem.params.ni_mass", 0.0);
   const auto ni_injection_bndry =
       pin->param()->get<double>("problem.params.ni_boundary", 0.0);
+  const auto rad_enabled = pin->param()->get<bool>("physics.rad_active");
 
   // sanity checks
   if (ni_injection_mass < 0.0 || ni_injection_bndry < 0.0) {
@@ -397,6 +402,10 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
         if (i_cell <= ncells_spread) {
           comps_star_host(i_cell, ind_ni) =
               ni_injection_mass / (ni_injection_bndry - mass_cut);
+        } else {
+          // Should we just set it to 0.0? Will cause problems if ever we
+          // do ionization of ni56.
+          comps_star_host(i_cell, ind_ni) = utilities::SMALL();
         }
       }
     }
@@ -411,7 +420,8 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     auto phi_h = Kokkos::create_mirror_view(fluid_basis->phi());
     auto sqrt_gm_h = Kokkos::create_mirror_view(grid->sqrt_gm());
     auto dr_h = Kokkos::create_mirror_view(grid->widths());
-    auto weights_h = Kokkos::create_mirror_view(grid->weights());
+    auto weights = grid->weights();
+    auto weights_h = Kokkos::create_mirror_view(weights);
     std::vector<double> x_cell(nNodes); // holds per element nodal data
     for (int i = ib.s; i <= ib.e; ++i) {
       for (int e = 0; e < ncomps; ++e) {
@@ -570,7 +580,8 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     // and projection from nodal to modal representation.
     // For the fluid energy we use the progenitor pressure and invert
     // the eos to get a specific internal energy. This helps maintain
-    // any pressure based structure.
+    // any pressure based structure. We do the radiation energy at the end,
+    // once we have recomputed the gas temperature
 
     // Per cell nodal storage
     AthelasArray1D<double> vel_cell("supernova :: vel cell", nNodes);
@@ -612,11 +623,10 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
               const double nodal_energy = energy_cell(q);
               const double rho = uPF(i, q + 1, vars::prim::Rho);
 
-              numerator_vel += nodal_vel * phi_h(i, q + 1, k) * weights_h(q) *
+              numerator_vel += nodal_vel * phi_fluid(i, q + 1, k) * weights(q) *
                                dr(i) * sqrt_gm(i, q + 1) * rho;
-              numerator_energy += nodal_energy * phi_h(i, q + 1, k) *
-                                  weights_h(q) * dr(i) * sqrt_gm(i, q + 1) *
-                                  rho;
+              numerator_energy += nodal_energy * phi_fluid(i, q + 1, k) *
+                                  weights(q) * dr(i) * sqrt_gm(i, q + 1) * rho;
             }
             uCF(i, k, vars::cons::Velocity) = numerator_vel / denominator;
             uCF(i, k, vars::cons::Energy) = numerator_energy / denominator;
@@ -644,6 +654,60 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
                 lambda);
           }
         });
+
+    // Setup radiation variables as needed
+    // Note: the inner product used here is different than for the fluid:
+    // we don't use density.
+    if (rad_enabled) {
+      AthelasArray1D<double> rad_energy_cell("supernova :: rad energy cell",
+                                             nNodes);
+      AthelasArray1D<double> rad_flux_cell("supernova :: rad flux cell",
+                                           nNodes);
+      auto phi_rad = rad_basis->phi();
+      auto mkk_rad = rad_basis->mass_matrix();
+      athelas::par_for(
+          DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Project Rad energy",
+          DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
+            // Project each conserved variable
+            // loop over nodes on an element, interpolate to nodal positions
+            for (int q = 0; q < nNodes; ++q) {
+              const double rq = r(i, q);
+              const int idx =
+                  utilities::find_closest_cell(radius_view, rq, n_zones_prog);
+              rad_energy_cell(q) =
+                  radiation::rad_energy(uAF(i, q, vars::aux::Tgas));
+              rad_flux_cell(q) =
+                  utilities::LINTERP(radius_view(idx), radius_view(idx + 1),
+                                     luminosity_view(idx),
+                                     luminosity_view(idx + 1), rq) /
+                  (constants::FOURPI * rq * rq);
+            }
+
+            // Project the nodal representation to a modal one
+            for (int k = 0; k < order; k++) {
+              double numerator_energy = 0.0;
+              double numerator_flux = 0.0;
+              const double denominator = mkk_rad(i, k);
+
+              // Compute <f_q, phi_k>
+              for (int q = 0; q < nNodes; q++) {
+                const double rho = uPF(i, q + 1, vars::prim::Rho);
+
+                numerator_energy += rad_energy_cell(q) * phi_rad(i, q + 1, k) *
+                                    weights(q) * dr(i) * sqrt_gm(i, q + 1);
+                numerator_flux += rad_flux_cell(q) * phi_rad(i, q + 1, k) *
+                                  weights(q) * dr(i) * sqrt_gm(i, q + 1);
+              }
+              uCF(i, k, vars::cons::RadEnergy) = numerator_energy / denominator;
+              uCF(i, k, vars::cons::RadFlux) = numerator_flux / denominator;
+              // Exponential filter
+              if (k > 0) {
+                uCF(i, k, vars::cons::RadEnergy) *= std::exp(-k);
+                uCF(i, k, vars::cons::RadFlux) *= std::exp(-k);
+              }
+            }
+          });
+    }
 
     atom::fill_derived_comps<Domain::Interior>(state, grid, fluid_basis);
     atom::solve_saha_ionization<Domain::Interior>(*state, *grid, *eos,

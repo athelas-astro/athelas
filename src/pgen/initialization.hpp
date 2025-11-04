@@ -49,7 +49,7 @@ void initialize_fields(State *state, GridStructure *grid, const eos::EOS *eos,
 
   // This is clunky and not elegant but it works.
   if (problem_name == "supernova") {
-    progenitor_init(state, grid, pin, eos, fluid_basis);
+    progenitor_init(state, grid, pin, eos, fluid_basis, radiation_basis);
   } else if (problem_name == "sod") {
     sod_init(state, grid, pin, eos, fluid_basis);
   } else if (problem_name == "shu_osher") {
