@@ -140,6 +140,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
 
   static const int nNodes = grid->n_nodes();
   static const int order = nNodes;
+  static const int nx = grid->n_elements();
   static const IndexRange ib(grid->domain<Domain::Interior>());
 
   auto uCF = state->u_cf();
@@ -147,8 +148,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
   auto uAF = state->u_af();
 
   std::shared_ptr<atom::CompositionData> comps =
-      std::make_shared<atom::CompositionData>(grid->n_elements() + 2, order,
-                                              ncomps);
+      std::make_shared<atom::CompositionData>(nx + 2, order, ncomps);
 
   auto mass_fractions = state->mass_fractions();
   auto charges = comps->charge();
@@ -528,13 +528,13 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     // for doing the Saha solve.
     auto sqrt_gm = grid->sqrt_gm();
     auto dr = grid->widths();
-    AthelasArray1D<double> tau_cell("supernova :: tau cell", nNodes);
+    AthelasArray2D<double> tau_cell("supernova :: tau cell", nx + 2, nNodes);
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Project tau",
         DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
           // loop over nodes on an element, interpolate to nodal positions
           for (int q = 0; q < nNodes; ++q) {
-            tau_cell(q) = 1.0 / uPF(i, q, vars::prim::Rho);
+            tau_cell(i, q) = 1.0 / uPF(i, q, vars::prim::Rho);
           }
           // Project the nodal representation to a modal one
           // Compute L2 projection: <f_q, phi_k> / <phi_k, phi_k>
@@ -545,7 +545,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
 
             // Compute <f_q, phi_k>
             for (int q = 0; q < nNodes; q++) {
-              const double nodal_val = tau_cell(q);
+              const double nodal_val = tau_cell(i, q);
               const double rho = uPF(i, q + 1, vars::prim::Rho);
 
               numerator += nodal_val * phi_h(i, q + 1, k) * weights_h(q) *
@@ -584,8 +584,9 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     // once we have recomputed the gas temperature
 
     // Per cell nodal storage
-    AthelasArray1D<double> vel_cell("supernova :: vel cell", nNodes);
-    AthelasArray1D<double> energy_cell("supernova :: energy cell", nNodes);
+    AthelasArray2D<double> vel_cell("supernova :: vel cell", nx + 2, nNodes);
+    AthelasArray2D<double> energy_cell("supernova :: energy cell", nx + 2,
+                                       nNodes);
     auto mkk_fluid = fluid_basis->mass_matrix();
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Project RadHydro vars",
@@ -597,16 +598,17 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
             const double rq = r(i, q);
             const int idx =
                 utilities::find_closest_cell(radius_view, rq, n_zones_prog);
-            tau_cell(q) = basis::basis_eval(phi_fluid, uCF, i,
-                                            vars::cons::SpecificVolume, q);
-            vel_cell(q) = utilities::LINTERP(
+            tau_cell(i, q) = basis::basis_eval(phi_fluid, uCF, i,
+                                               vars::cons::SpecificVolume, q);
+            vel_cell(i, q) = utilities::LINTERP(
                 radius_view(idx), radius_view(idx + 1), velocity_view(idx),
                 velocity_view(idx + 1), rq);
             const double pressure_q = uAF(i, q + 1, vars::aux::Pressure);
             atom::paczynski_terms(state, i, q, lambda);
-            energy_cell(q) = eos::sie_from_density_pressure(
-                                 eos, 1.0 / tau_cell(q), pressure_q, lambda) +
-                             0.5 * vel_cell(q) * vel_cell(q);
+            energy_cell(i, q) =
+                eos::sie_from_density_pressure(eos, 1.0 / tau_cell(i, q),
+                                               pressure_q, lambda) +
+                0.5 * vel_cell(i, q) * vel_cell(i, q);
           }
 
           // Project the nodal representation to a modal one
@@ -619,8 +621,8 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
 
             // Compute <f_q, phi_k>
             for (int q = 0; q < nNodes; q++) {
-              const double nodal_vel = vel_cell(q);
-              const double nodal_energy = energy_cell(q);
+              const double nodal_vel = vel_cell(i, q);
+              const double nodal_energy = energy_cell(i, q);
               const double rho = uPF(i, q + 1, vars::prim::Rho);
 
               numerator_vel += nodal_vel * phi_fluid(i, q + 1, k) * weights(q) *
@@ -659,9 +661,9 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     // Note: the inner product used here is different than for the fluid:
     // we don't use density.
     if (rad_enabled) {
-      AthelasArray1D<double> rad_energy_cell("supernova :: rad energy cell",
-                                             nNodes);
-      AthelasArray1D<double> rad_flux_cell("supernova :: rad flux cell",
+      AthelasArray2D<double> rad_energy_cell("supernova :: rad energy cell",
+                                             nx + 2, nNodes);
+      AthelasArray2D<double> rad_flux_cell("supernova :: rad flux cell", nx + 2,
                                            nNodes);
       auto phi_rad = rad_basis->phi();
       auto mkk_rad = rad_basis->mass_matrix();
@@ -674,9 +676,9 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
               const double rq = r(i, q);
               const int idx =
                   utilities::find_closest_cell(radius_view, rq, n_zones_prog);
-              rad_energy_cell(q) =
+              rad_energy_cell(i, q) =
                   radiation::rad_energy(uAF(i, q, vars::aux::Tgas));
-              rad_flux_cell(q) =
+              rad_flux_cell(i, q) =
                   utilities::LINTERP(radius_view(idx), radius_view(idx + 1),
                                      luminosity_view(idx),
                                      luminosity_view(idx + 1), rq) /
@@ -691,11 +693,10 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
 
               // Compute <f_q, phi_k>
               for (int q = 0; q < nNodes; q++) {
-                const double rho = uPF(i, q + 1, vars::prim::Rho);
-
-                numerator_energy += rad_energy_cell(q) * phi_rad(i, q + 1, k) *
-                                    weights(q) * dr(i) * sqrt_gm(i, q + 1);
-                numerator_flux += rad_flux_cell(q) * phi_rad(i, q + 1, k) *
+                numerator_energy += rad_energy_cell(i, q) *
+                                    phi_rad(i, q + 1, k) * weights(q) * dr(i) *
+                                    sqrt_gm(i, q + 1);
+                numerator_flux += rad_flux_cell(i, q) * phi_rad(i, q + 1, k) *
                                   weights(q) * dr(i) * sqrt_gm(i, q + 1);
               }
               uCF(i, k, vars::cons::RadEnergy) = numerator_energy / denominator;
