@@ -46,22 +46,26 @@ void HydrostaticEquilibrium::solve(State *state, GridStructure *grid,
   // host data
   auto h_uAF = Kokkos::create_mirror_view(uAF);
 
-  const int size = grid->n_elements() * nNodes + 2 * nNodes;
+  const int size = grid->n_elements() * (nNodes + 2) + 2 * nNodes;
   AthelasArray1D<double> d_r("host radius", size);
   std::vector<double> pressure(1);
   std::vector<double> radius(1);
+  auto x_l = grid->x_l();
+  auto r = grid->nodal_grid();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Solvers :: Hydrostatic :: copy grid",
-      DevExecSpace(), 0, ihi, KOKKOS_LAMBDA(const int i) {
-        for (int q = 0; q < nNodes; ++q) {
-          const double r = grid->node_coordinate(i + 1, q);
-          d_r(i * nNodes + q) = r;
+      DevExecSpace(), 1, ihi, KOKKOS_LAMBDA(const int i) {
+        for (int q = 0; q < nNodes + 2; ++q) {
+          const double rq =
+              (q == 0) ? x_l(i)
+                       : ((q == nNodes + 1) ? x_l(i + 1) : r(i, q - 1));
+          d_r(i * (nNodes + 2) + q) = rq;
         }
       });
   auto h_r = Kokkos::create_mirror_view(d_r);
   Kokkos::deep_copy(h_r, d_r);
   pressure[0] = p_c;
-  radius[0] = r_c;
+  radius[0] = h_r[nNodes + 3];
 
   int i = 0;
   while (pressure.back() > p_threshold_) {
@@ -77,14 +81,14 @@ void HydrostaticEquilibrium::solve(State *state, GridStructure *grid,
     const double k4 = dr * rhs(m_enc, p + k3, r + dr);
 
     m_enc += constants::FOURPI * rho * r * r * dr;
-    const double new_p = p + (1.0 / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4);
+    const double dp = (1.0 / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4);
+    const double new_p = p + dp;
     // safety first
     if (std::isnan(new_p)) {
       std::println("NaN pressure found in hydrostatic equilibrium solve!");
       break;
     }
     pressure.push_back(new_p);
-    ;
     radius.push_back(r + dr);
 
     i++;
@@ -95,6 +99,8 @@ void HydrostaticEquilibrium::solve(State *state, GridStructure *grid,
   std::println("# Dynamical time = {:.5e}",
                std::sqrt((radius.back() * radius.back() * radius.back()) /
                          (constants::G_GRAV * m_enc)));
+  std::println("# Free-fall time = {:.5e}",
+               1.0 / std::sqrt(constants::G_GRAV * rho_c_));
 
   // update domain boundary and grid
   auto &xr = pin->param()->get_mutable_ref<double>("problem.xr");
@@ -105,25 +111,27 @@ void HydrostaticEquilibrium::solve(State *state, GridStructure *grid,
   *grid = newgrid;
 
   // refill host radius array
-  for (int ix = 0; ix <= ihi; ++ix) {
-    for (int q = 0; q < nNodes; ++q) {
-      h_r(ix * nNodes + q) = grid->node_coordinate(ix, q);
+  auto r_new = grid->nodal_grid();
+  auto x_l_new = grid->x_l();
+  auto node_r_h = Kokkos::create_mirror_view(r_new);
+  auto x_l_h = Kokkos::create_mirror_view(x_l_new);
+  for (int i = 1; i <= ihi; ++i) {
+    for (int q = 0; q < nNodes + 2; ++q) {
+      const double rq =
+          (q == 0) ? x_l_h(i)
+                   : ((q == nNodes + 1) ? x_l_h(i + 1) : node_r_h(i, q - 1));
+      h_r(i * (nNodes + 2) + q) = rq;
     }
   }
 
   // now we have to interpolate onto our grid
-  // This is horrible but it's fine, only happens once.
-  for (int ix = 0; ix <= ihi; ++ix) {
-    for (int q = 0; q < nNodes; ++q) {
-      const double r = h_r(ix * nNodes + q);
-      for (size_t i = 0; i < pressure.size() - 2; ++i) {
-        if (radius[i] <= r && radius[i + 1] >= r) { // search
-          const double y = LINTERP(radius[i], radius[i + 1], pressure[i],
-                                   pressure[i + 1], r);
-          h_uAF(ix, q, iP_) = y;
-          break;
-        }
-      }
+  for (int ix = 1; ix <= ihi; ++ix) {
+    for (int q = 0; q < nNodes + 2; ++q) {
+      const double rq = h_r(ix * (nNodes + 2) + q);
+      const int idx = utilities::find_closest_cell(radius, rq, radius.size());
+      const double y = LINTERP(radius[idx], radius[idx + 1], pressure[idx],
+                               pressure[idx + 1], rq);
+      h_uAF(ix, q, iP_) = y;
     }
   }
 
