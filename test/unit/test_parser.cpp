@@ -7,13 +7,13 @@
 TEST_CASE("Parser parses valid text file correctly", "[parser]") {
 
   SECTION("Parsing CSV data") {
-    std::string sample_csv = R"(Name,Age,City
+    std::string sample_csv = R"(# Name,Age,City
   "John Doe",30,"New York"
   "Jane Smith",25,Los Angeles
   "Bob",35,"Underworld"
   "A",200,Boston)";
 
-    auto result = Parser::parse_string(sample_csv);
+    auto result = Parser::parse_string(sample_csv, ',');
 
     SECTION("Comma separated text successfully parsed") {
       REQUIRE(result);
@@ -62,8 +62,9 @@ TEST_CASE("Parser parses valid text file correctly", "[parser]") {
       std::cout << "Failed to parse CSV\n";
     }
   }
+
   SECTION("Parsing space delimited data") {
-    std::string sample_csv = R"(Name Age City
+    std::string sample_csv = R"(# Name Age City
   "Aragorn" 87 "Rivendell"
   "Frodo Baggins" 50 Hobbiton
   "Meriadoc Brandybuck" 37 "The Shire"
@@ -101,7 +102,6 @@ TEST_CASE("Parser parses valid text file correctly", "[parser]") {
           result->rows | std::views::filter([age_header_idx](const auto &row) {
             if (age_header_idx < row.size()) {
               try {
-                std::println("test {}", std::stoi(row[age_header_idx]));
                 return std::stoi(row[age_header_idx]) > 28;
               } catch (...) {
                 return false;

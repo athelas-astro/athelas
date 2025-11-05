@@ -116,7 +116,7 @@ class Parser {
   enum class ParseError { FileNotFound, InvalidFormat, EmptyFile };
 
   // Parse from file
-  static auto parse_file(const std::string &filename, char delimiter = ',',
+  static auto parse_file(const std::string &filename, char delimiter = ' ',
                          char quote_char = '"')
       -> std::expected<ParseResult, ParseError> {
     std::ifstream file(filename);
@@ -135,9 +135,8 @@ class Parser {
   }
 
   // Parse from string
-  static auto parse_string(const std::string &csv_content, char delimiter = ',',
-                           char quote_char = '"',
-                           bool strip_hash_from_header = true)
+  static auto parse_string(const std::string &csv_content, char delimiter = ' ',
+                           char quote_char = '"')
       -> std::expected<ParseResult, ParseError> {
     if (csv_content.empty()) {
       return std::unexpected(ParseError::EmptyFile);
@@ -159,29 +158,42 @@ class Parser {
         line.remove_suffix(1);
       }
 
-      auto parsed_row = parse_line(line, delimiter, quote_char);
-
-      // Handle header line. Extra logic to remove a # if it is
-      // the first character.
       if (first_line) {
         first_line = false;
-        auto headers = std::move(parsed_row);
-        if (headers[0][0] != '#') {
-          result.rows.emplace_back(Row{headers});
+
+        // Determine if this is a header line by inspecting the raw line.
+        auto raw = trim_view(line);
+        bool is_header = (!raw.empty() && raw.front() == '#');
+
+        if (!is_header) {
+          // Not a header: parse as data row
+          auto parsed_row = parse_line(line, delimiter, quote_char);
+          result.rows.emplace_back(Row{std::move(parsed_row)});
           continue;
         }
 
-        // strip # from header if possible and desired
-        if (strip_hash_from_header && !headers.empty() && !headers[0].empty() &&
-            headers[0][0] == '#') {
-          headers[0] = headers[0].substr(1);
-
-          // trim any whitespace that may have been left
-          headers[0] = trim(headers[0]);
+        // Strip leading '#'+whitespace from the raw line before parsing
+        // Advance past any leading whitespace
+        size_t start = 0;
+        while (start < line.size() &&
+               (line[start] == ' ' || line[start] == '\t')) {
+          ++start;
         }
-
+        // If there is a '#', skip it
+        if (start < line.size() && line[start] == '#') {
+          ++start;
+        }
+        // Skip whitespace after '#'
+        while (start < line.size() &&
+               (line[start] == ' ' || line[start] == '\t')) {
+          ++start;
+        }
+        // Create a view of the remainder for header parsing
+        std::string_view header_view = line.substr(start);
+        auto headers = parse_line(header_view, delimiter, quote_char);
         result.headers = std::move(headers);
       } else {
+        auto parsed_row = parse_line(line, delimiter, quote_char);
         result.rows.emplace_back(Row{std::move(parsed_row)});
       }
     }

@@ -160,7 +160,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
       pin->param()->get<std::string>("problem.params.fn_hydro");
 
   // --- read in hydro data ---
-  auto hydro_data = io::Parser::parse_file(fn_hydro, ' ');
+  auto hydro_data = io::Parser::parse_file(fn_hydro);
 
   if (!hydro_data) {
     THROW_ATHELAS_ERROR("Error reading hydro profile!");
@@ -287,7 +287,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     // --- read in composition data ---
     const auto fn_comps =
         pin->param()->get<std::string>("problem.params.fn_comps");
-    auto comps_data = io::Parser::parse_file(fn_comps, ' ');
+    auto comps_data = io::Parser::parse_file(fn_comps);
     if (!comps_data) {
       THROW_ATHELAS_ERROR("Error reading composition profile!");
     }

@@ -52,8 +52,8 @@ class AtomicData {
              const std::string &fn_degeneracy) {
 
     // --- load atomic data from file ---
-    auto ionization_data = io::Parser::parse_file(fn_ionization, ' ');
-    auto degeneracy_data = io::Parser::parse_file(fn_degeneracy, ' ');
+    auto ionization_data = io::Parser::parse_file(fn_ionization);
+    auto degeneracy_data = io::Parser::parse_file(fn_degeneracy);
 
     // -- extract columns ---
     auto [atomic_numbers, ion_charges, ionization_energies] =
