@@ -303,17 +303,7 @@ def main() -> None:
   print("Profile:", profile)
 
   # Access specific columns
-  radius: np.ndarray = profile["radius"]
   density: np.ndarray = profile["rho"]
-  print(density)
-  pressure: np.ndarray = profile["pressure"]
-
-  velocity: np.ndarray = profile["velocity"]
-
-  h1: np.ndarray = profile["h1"]
-  he4: np.ndarray = profile["he4"]
-
-  mass: np.ndarray = profile["mass"]  # enclosed mass
 
   print(
     f"\nLoaded profile with {len(profile.columns)} columns and {profile.n_zones} zones"
