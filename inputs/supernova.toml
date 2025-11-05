@@ -1,12 +1,12 @@
 [problem]
 problem = "supernova"
 t_end = 86400.0
-nlim = 200
+nlim = 2500
 geometry = "spherical"
 restart = false
 xl = 100.0
 xr = 7.0e5
-cfl = 0.5
+cfl = 0.25
 nx = 256
 grid_type = "logarithmic"
 
@@ -20,7 +20,7 @@ ni_mass = 0.07 # Msun
 ni_boundary = 3.0 # Msun; > mass_cut
 
 [physics]
-radiation = true 
+radiation = true
 gravity = true
 composition = true
 ionization = true
@@ -32,7 +32,7 @@ ncomps = 21
 [ionization]
 fn_ionization = "../data/atomic_data_ionization.dat"
 fn_degeneracy = "../data/atomic_data_degeneracy_factors.dat"
-ncomps = 4
+ncomps = 5
 
 [bc]
 [bc.fluid]
@@ -44,12 +44,12 @@ bc_o = "outflow"
 
 [output]
 ncycle_out = 100
-#dt_hdf5 = 0.1
+dt_hdf5 = 0.01
 dt_init_frac = 1.05
 
 [output.history]
 fn = "supernova.hst"
-#dt = 0.001 # default: dt_hdf5 / 10
+dt = 0.001 # default: dt_hdf5 / 10
 
 [fluid]
 basis = "legendre"
@@ -83,9 +83,13 @@ operator_split = true
 
 [gravity]
 model = "spherical"
+operator_split = true
 
 [time]
-integrator = "EX_SSPRK11"
+#integrator = "EX_SSPRK22"
+#integrator = "IMEX_SSPRK22_DIRK" # bad
+#integrator = "IMEX_ARK32_ESDIRK"
+integrator = "IMEX_PDARS_ESDIRK"
 
 [eos]
 type = "paczynski"
