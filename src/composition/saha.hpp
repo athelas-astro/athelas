@@ -40,32 +40,6 @@ auto ion_frac0(const double Zbar, const double temperature,
   return Zbar / denominator;
 }
 
-/*
-KOKKOS_INLINE_FUNCTION
-auto saha_target(const double Zbar, const double T,
-                 const AthelasArray1D<const IonLevel> ion_datas,
-                 const double nh, const int min_state, const int max_state)
-    -> double {
-  double result = Zbar;
-  double numerator = 1.0;
-  double denominator = 0.0;
-  for (int i = min_state; i < max_state; ++i) {
-    double inner_denom = 1.0;
-    double inner_num = 1.0;
-    for (int j = min_state; j <= i; ++j) {
-      inner_num *= saha_f(T, ion_datas(j - 1));
-      inner_denom *= (i * saha_f(T, ion_datas(j - 1)));
-    }
-    numerator += inner_num / std::pow(Zbar * nh, i);
-    denominator += inner_denom / std::pow(Zbar * nh, i);
-  }
-  denominator += (min_state - 1.0);
-
-  result *= (numerator / denominator);
-  result = 1.0 - result;
-  return result;
-}
-*/
 KOKKOS_INLINE_FUNCTION
 auto saha_target(const double Zbar, const double T,
                  const AthelasArray1D<const IonLevel> ion_datas,
@@ -228,7 +202,7 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
   static const int start_elem = (has_neuts) ? 1 : 0;
   static const IndexRange ib(grid.domain<MeshDomain>());
   static const IndexRange nb(nNodes + 2);
-  static const IndexRange eb(std::make_pair(start_elem, ncomps_saha));
+  static const IndexRange eb(std::make_pair(start_elem, ncomps_saha - 1));
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Saha :: Solve ionization all", DevExecSpace(),
       ib.s, ib.e, nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int q) {
@@ -240,6 +214,7 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
         // TODO(astrobarker): Profile; faster as hierarchical reduction?
         // This loop is over Saha species
         for (int e = eb.s; e <= eb.e; ++e) {
+          std::println("e, eb.e ncomps {} {} {}", e, eb.e, ncomps_saha);
           const int z = species(e);
           const double x_e = basis_eval(phi, mass_fractions, i, e, q);
 
