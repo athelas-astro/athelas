@@ -214,7 +214,6 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
         // TODO(astrobarker): Profile; faster as hierarchical reduction?
         // This loop is over Saha species
         for (int e = eb.s; e <= eb.e; ++e) {
-          std::println("e, eb.e ncomps {} {} {}", e, eb.e, ncomps_saha);
           const int z = species(e);
           const double x_e = basis_eval(phi, mass_fractions, i, e, q);
 
