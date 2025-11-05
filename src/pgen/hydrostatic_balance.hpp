@@ -39,8 +39,6 @@ void hydrostatic_balance_init(State *state, GridStructure *grid, ProblemIn *pin,
   constexpr static int q_V = 1;
   constexpr static int q_E = 2;
 
-  constexpr static int iPF_D = 0;
-
   const auto rho_c = pin->param()->get<double>("problem.params.rho_c", 1.0e8);
   const auto p_thresh =
       pin->param()->get<double>("problem.params.p_threshold", 1.0e-10);
@@ -66,7 +64,8 @@ void hydrostatic_balance_init(State *state, GridStructure *grid, ProblemIn *pin,
         DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: HydrostaticBalance (1)",
         DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
           for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
-            uPF(i, iNodeX, iPF_D) = rho_from_p(uAF(i, iNodeX, 0));
+            uPF(i, iNodeX, vars::prim::Rho) =
+                rho_from_p(uAF(i, iNodeX, vars::prim::Rho));
           }
         });
   }

@@ -34,6 +34,18 @@ void GravityPackage::update_explicit(const State *const state,
   const auto ucf =
       Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
 
+  const int &order = basis_->order();
+  static const IndexRange kb(order);
+  static const IndexRange ib(grid.domain<Domain::Interior>());
+  athelas::par_for(
+      DEFAULT_FLAT_LOOP_PATTERN, "Gravity :: Zero delta", DevExecSpace(), ib.s,
+      ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
+        for (int k = kb.s; k <= kb.e; ++k) {
+          delta_(i, k, pkg_vars::Energy) = 0.0;
+          delta_(i, k, pkg_vars::Velocity) = 0.0;
+        }
+      });
+
   if (model_ == GravityModel::Spherical) {
     gravity_update<GravityModel::Spherical>(ucf, grid);
   } else [[unlikely]] {
@@ -53,6 +65,7 @@ void GravityPackage::gravity_update(const AthelasArray3D<double> state,
   const auto r = grid.nodal_grid();
   const auto dr = grid.widths();
   const auto enclosed_mass = grid.enclosed_mass();
+  auto mass = grid.mass();
   const auto weights = grid.weights();
   const auto sqrt_gm = grid.sqrt_gm();
   const auto phi = basis_->phi();
@@ -66,16 +79,14 @@ void GravityPackage::gravity_update(const AthelasArray3D<double> state,
         double local_sum_v = 0.0;
         double local_sum_e = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double X = r(i, q);
-          const double weight = weights(q);
+          const double &X = r(i, q);
+          const double &weight = weights(q);
+          const double &phi_kq = phi(i, q + 1, k);
+          const double X2 = X * X;
           if constexpr (Model == GravityModel::Spherical) {
-            local_sum_v +=
-                weight * phi(i, q + 1, k) * enclosed_mass(i, q) *
-                sqrt_gm(i, q + 1) /
-                ((X * X) *
-                 basis_eval(phi, state, i, vars::cons::SpecificVolume, q + 1));
+            local_sum_v += weight * phi_kq * enclosed_mass(i, q) * 1.0 / ((X2));
             local_sum_e +=
-                local_sum_v *
+                (weight * phi_kq / (X2)) *
                 basis_eval(phi, state, i, vars::cons::Velocity, q + 1);
           } else {
             local_sum_v +=
@@ -87,10 +98,11 @@ void GravityPackage::gravity_update(const AthelasArray3D<double> state,
           }
         }
 
+        const double dm_o_mkk = mass(i) * inv_mkk(i, k);
         delta_(i, k, pkg_vars::Velocity) -=
-            (constants::G_GRAV * local_sum_v * dr(i)) * inv_mkk(i, k);
+            constants::G_GRAV * local_sum_v * dm_o_mkk;
         delta_(i, k, pkg_vars::Energy) -=
-            (constants::G_GRAV * local_sum_e * dr(i)) * inv_mkk(i, k);
+            constants::G_GRAV * local_sum_e * dm_o_mkk;
       });
 }
 
@@ -120,11 +132,34 @@ void GravityPackage::apply_delta(AthelasArray3D<double> lhs,
  **/
 KOKKOS_FUNCTION
 auto GravityPackage::min_timestep(const State *const /*state*/,
-                                  const GridStructure & /*grid*/,
+                                  const GridStructure &grid,
                                   const TimeStepInfo & /*dt_info*/) const
     -> double {
-  static constexpr double MAX_DT = std::numeric_limits<double>::max() / 100.0;
-  static constexpr double dt_out = MAX_DT;
+  // static constexpr double MAX_DT = std::numeric_limits<double>::max() /
+  // 100.0; static constexpr double dt_out = MAX_DT; return dt_out;
+  static constexpr double MAX_DT = std::numeric_limits<double>::max();
+  static constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
+
+  static const IndexRange ib(grid.domain<Domain::Interior>());
+  const auto dr = grid.widths();
+  const auto r = grid.centers();
+  const auto m = grid.enclosed_mass();
+
+  double dt_out = 0.0;
+  athelas::par_reduce(
+      DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Timestep", DevExecSpace(), ib.s,
+      ib.e,
+      KOKKOS_CLASS_LAMBDA(const int i, double &lmin) {
+        const double dt_old =
+            std::sqrt((r(i) * r(i) * dr(i)) / (constants::G_GRAV * m(i, 0)));
+
+        lmin = std::min(dt_old, lmin);
+      },
+      Kokkos::Min<double>(dt_out));
+
+  dt_out = std::max(cfl_ * dt_out, MIN_DT);
+  dt_out = std::min(dt_out, MAX_DT);
+
   return dt_out;
 }
 

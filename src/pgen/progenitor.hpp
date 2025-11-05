@@ -478,13 +478,13 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
         DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Default Ionization",
         DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
           for (int q = 0; q < nNodes + 2; ++q) {
-            for (int elem = 0; elem < saha_ncomps; ++elem) {
+            for (int elem = 0; elem < ncomps; ++elem) {
               const int Z = charges(elem);
               if (Z == 0) {
                 continue;
               }
 
-              ionization_states(i, q, elem, Z) = 1.0;
+              ionization_states(i, q, elem, Z + 1) = 1.0;
             }
           }
         });
