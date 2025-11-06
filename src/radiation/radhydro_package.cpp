@@ -392,41 +392,6 @@ auto RadHydroPackage::radhydro_source(
 }
 
 /**
- * @brief geometric source terms
- *
- * NOTE: identical to fluid_geometry. Should reduce overlap.
- * TODO(astrobarker): get rid of duplicate code with Hydro
- */
-void RadHydroPackage::radhydro_geometry(const AthelasArray3D<double> ucf,
-                                        const AthelasArray3D<double> uaf,
-                                        const GridStructure &grid) const {
-  const int &nNodes = grid.n_nodes();
-  const int &order = fluid_basis_->order();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  static const IndexRange kb(order);
-
-  const auto dr = grid.widths();
-  const auto weights = grid.weights();
-  const auto inv_mkk = fluid_basis_->inv_mass_matrix();
-  const auto phi = fluid_basis_->phi();
-  const auto r = grid.nodal_grid();
-
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "RadHydro :: Geometry source", DevExecSpace(), ib.s,
-      ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-        double local_sum = 0.0;
-        for (int q = 0; q < nNodes; ++q) {
-          // /int 2 P r phi
-          local_sum +=
-              weights(q) * uaf(i, q + 1, 0) * phi(i, q + 1, k) * r(i, q);
-        }
-
-        delta_(i, k, vars::cons::Velocity) +=
-            2.0 * local_sum * dr(i) * inv_mkk(i, k);
-      });
-}
-
-/**
  * @brief explicit radiation hydrodynamic timestep restriction
  **/
 auto RadHydroPackage::min_timestep(const State *const /*ucf*/,

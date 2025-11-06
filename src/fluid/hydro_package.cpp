@@ -212,33 +212,6 @@ void HydroPackage::apply_delta(AthelasArray3D<double> lhs,
       });
 }
 
-void HydroPackage::fluid_geometry(const AthelasArray3D<double> ucf,
-                                  const AthelasArray3D<double> uaf,
-                                  const GridStructure &grid) const {
-  const int &nNodes = grid.n_nodes();
-  const int &order = basis_->order();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  static const IndexRange kb(order);
-
-  const auto sqrt_gm = grid.sqrt_gm();
-  const auto dx = grid.widths();
-  const auto weights = grid.weights();
-  const auto position = grid.nodal_grid();
-  const auto phi = basis_->phi();
-  const auto inv_mkk = basis_->inv_mass_matrix();
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Hydro :: Geometry Source", DevExecSpace(), ib.s,
-      ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-        double local_sum = 0.0;
-        for (int q = 0; q < nNodes; ++q) {
-          const double P = uaf(i, q + 1, vars::aux::Pressure);
-
-          local_sum += weights(q) * P * phi(i, q + 1, k) * position(i, q);
-        }
-
-        delta_(i, k, 1) += (2.0 * local_sum * dx(i)) * inv_mkk(i, k);
-      });
-}
 /**
  * @brief explicit hydrodynamic timestep restriction
  **/

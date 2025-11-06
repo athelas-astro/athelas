@@ -56,10 +56,6 @@ class RadHydroPackage {
   void radhydro_divergence(const State *const state, const GridStructure &grid,
                            int stage) const;
 
-  void radhydro_geometry(const AthelasArray3D<double> ucf,
-                         const AthelasArray3D<double> uaf,
-                         const GridStructure &grid) const;
-
   [[nodiscard]] auto min_timestep(const State *const /*ucf*/,
                                   const GridStructure &grid,
                                   const TimeStepInfo & /*dt_info*/) const
