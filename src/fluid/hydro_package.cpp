@@ -69,23 +69,19 @@ void HydroPackage::update_explicit(const State *const state,
         }
       });
 
-  // --- Fluid Increment : Dvbergence ---
+  // --- Fluid Increment : Divergence ---
   fluid_divergence(state, grid, stage);
 
-  // --- Dvbide update by mass mastrib ---
+  // --- Dvbide update by mass mastrix ---
   const auto inv_mkk = basis_->inv_mass_matrix();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Hydro :: delta / M_kk", DevExecSpace(), ib.s, ib.e,
       kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+        const double &invmkk = inv_mkk(i, k);
         for (int v = vb.s; v <= vb.e; ++v) {
-          delta_(i, k, v) *= inv_mkk(i, k);
+          delta_(i, k, v) *= invmkk;
         }
       });
-
-  // --- Increment from Geometry ---
-  if (grid.do_geometry()) {
-    fluid_geometry(ucf, uaf, grid);
-  }
 }
 
 // Compute the dvbergence of the flux term for the update
@@ -216,33 +212,6 @@ void HydroPackage::apply_delta(AthelasArray3D<double> lhs,
       });
 }
 
-void HydroPackage::fluid_geometry(const AthelasArray3D<double> ucf,
-                                  const AthelasArray3D<double> uaf,
-                                  const GridStructure &grid) const {
-  const int &nNodes = grid.n_nodes();
-  const int &order = basis_->order();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  static const IndexRange kb(order);
-
-  const auto sqrt_gm = grid.sqrt_gm();
-  const auto dx = grid.widths();
-  const auto weights = grid.weights();
-  const auto position = grid.nodal_grid();
-  const auto phi = basis_->phi();
-  const auto inv_mkk = basis_->inv_mass_matrix();
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Hydro :: Geometry Source", DevExecSpace(), ib.s,
-      ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-        double local_sum = 0.0;
-        for (int q = 0; q < nNodes; ++q) {
-          const double P = uaf(i, q + 1, vars::aux::Pressure);
-
-          local_sum += weights(q) * P * phi(i, q + 1, k) * position(i, q);
-        }
-
-        delta_(i, k, 1) += (2.0 * local_sum * dx(i)) * inv_mkk(i, k);
-      });
-}
 /**
  * @brief explicit hydrodynamic timestep restriction
  **/

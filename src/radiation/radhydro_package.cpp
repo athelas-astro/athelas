@@ -71,8 +71,8 @@ void RadHydroPackage::update_explicit(const State *const state,
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "RadHydro :: delta / M_kk", DevExecSpace(), ib.s,
       ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-        const double fluid_imm = inv_mkk_fluid(i, k);
-        const double rad_imm = inv_mkk_rad(i, k);
+        const double &fluid_imm = inv_mkk_fluid(i, k);
+        const double &rad_imm = inv_mkk_rad(i, k);
 
         for (int v = 0; v < 3; ++v) {
           delta_(i, k, v) *= fluid_imm;
@@ -82,12 +82,6 @@ void RadHydroPackage::update_explicit(const State *const state,
           delta_(i, k, v) *= rad_imm;
         }
       });
-
-  // --- Increment from Geometry ---
-  if (grid.do_geometry()) {
-    const auto uaf = state->u_af();
-    radhydro_geometry(ucf, uaf, grid);
-  }
 } // update_explicit
 
 /**
@@ -175,9 +169,10 @@ void RadHydroPackage::update_implicit_iterative(const State *const state,
         for (int k = 0; k < order; ++k) {
           // set radhydro vars
           for (int v = 0; v < NUM_VARS_; ++v) {
-            scratch_sol_i_k(k, v) = ucf_i(k, v);
-            scratch_sol_i_km1(k, v) = ucf_i(k, v);
-            scratch_sol_i(k, v) = ucf_i(k, v);
+            const double &u = ucf_i(k, v);
+            scratch_sol_i_k(k, v) = u;
+            scratch_sol_i_km1(k, v) = u;
+            scratch_sol_i(k, v) = u;
           }
         }
 
@@ -394,41 +389,6 @@ auto RadHydroPackage::radhydro_source(
   return compute_increment_radhydro_source(uCRH, k, state, dx, weights,
                                            phi_fluid, phi_rad, inv_mkk_fluid,
                                            inv_mkk_rad, eos_, opac_, i);
-}
-
-/**
- * @brief geometric source terms
- *
- * NOTE: identical to fluid_geometry. Should reduce overlap.
- * TODO(astrobarker): get rid of duplicate code with Hydro
- */
-void RadHydroPackage::radhydro_geometry(const AthelasArray3D<double> ucf,
-                                        const AthelasArray3D<double> uaf,
-                                        const GridStructure &grid) const {
-  const int &nNodes = grid.n_nodes();
-  const int &order = fluid_basis_->order();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  static const IndexRange kb(order);
-
-  const auto dr = grid.widths();
-  const auto weights = grid.weights();
-  const auto inv_mkk = fluid_basis_->inv_mass_matrix();
-  const auto phi = fluid_basis_->phi();
-  const auto r = grid.nodal_grid();
-
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "RadHydro :: Geometry source", DevExecSpace(), ib.s,
-      ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-        double local_sum = 0.0;
-        for (int q = 0; q < nNodes; ++q) {
-          // /int 2 P r phi
-          local_sum +=
-              weights(q) * uaf(i, q + 1, 0) * phi(i, q + 1, k) * r(i, q);
-        }
-
-        delta_(i, k, vars::cons::Velocity) +=
-            2.0 * local_sum * dr(i) * inv_mkk(i, k);
-      });
 }
 
 /**

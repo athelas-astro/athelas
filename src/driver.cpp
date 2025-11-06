@@ -2,6 +2,7 @@
 #include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "fluid/hydro_package.hpp"
+#include "geometry/geometry_package.hpp"
 #include "gravity/gravity_package.hpp"
 #include "heating/nickel_package.hpp"
 #include "history/quantities.hpp"
@@ -135,6 +136,7 @@ auto Driver::execute() -> int {
 
 void Driver::initialize(ProblemIn *pin) { // NOLINT
   using fluid::HydroPackage;
+  using geometry::GeometryPackage;
   using gravity::GravityPackage;
   using nickel::NickelHeatingPackage;
 
@@ -186,6 +188,8 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   const bool gravity_active = pin->param()->get<bool>("physics.gravity_active");
   const bool ni_heating_active =
       pin->param()->get<bool>("physics.heating.nickel.enabled");
+  const bool geometry =
+      pin->param()->get<std::string>("problem.geometry") == "spherical";
 
   int nvars_split = 0;
 
@@ -224,6 +228,9 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
       split_manager_->add_package(NickelHeatingPackage{
           pin, fluid_basis_.get(), state_->comps()->species_indexer(), true});
     }
+  }
+  if (geometry) {
+    manager_->add_package(GeometryPackage{pin, fluid_basis_.get(), true});
   }
 
   // set up operator split stepper
