@@ -4,6 +4,7 @@
 #include "basis/polynomial_basis.hpp"
 #include "bc/boundary_conditions.hpp"
 #include "composition/composition.hpp"
+#include "composition/saha.hpp"
 #include "eos/eos_variant.hpp"
 #include "fluid/fluid_utilities.hpp"
 #include "geometry/grid.hpp"
@@ -492,11 +493,13 @@ void RadHydroPackage::fill_derived(State *state, const GridStructure &grid,
   bc::fill_ghost_zones<3>(uCF, &grid, fluid_basis_, bcs_, {0, 2});
 
   if (state->composition_enabled()) {
-    atom::fill_derived_comps(state, &grid, fluid_basis_);
+    atom::fill_derived_comps<Domain::Entire>(state, &grid, fluid_basis_);
   }
 
   if (ionization_enabled) {
-    atom::fill_derived_ionization(state, &grid, fluid_basis_);
+    atom::solve_saha_ionization<Domain::Entire>(*state, grid, *eos_,
+                                                *fluid_basis_);
+    atom::fill_derived_ionization<Domain::Entire>(state, &grid, fluid_basis_);
   }
 
   athelas::par_for(

@@ -22,6 +22,10 @@
 #include "loop_layout.hpp"
 
 namespace athelas::bc {
+
+void fill_ghost_zones_composition(AthelasArray3D<double> U,
+                                  const IndexRange &vb);
+
 /**
  * @brief Apply Boundary Conditions to fluid fields
  *

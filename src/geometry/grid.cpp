@@ -78,12 +78,6 @@ auto GridStructure::get_sqrt_gm(const double X) const -> double {
   return 1.0;
 }
 
-// Accessor for x_l_
-KOKKOS_FUNCTION
-auto GridStructure::get_left_interface(int ix) const -> double {
-  return x_l_(ix);
-}
-
 // Return nNodes_
 KOKKOS_FUNCTION
 auto GridStructure::n_nodes() const noexcept -> int { return nNodes_; }
@@ -208,7 +202,7 @@ void GridStructure::create_log_grid() {
 
   const double log_xl = std::log10(xL_);
   const double log_ratio = std::log10(utilities::ratio(xR_, xL_));
-  const double dx = log_ratio / (nElements_ - 1);
+  const double dx = log_ratio / (nElements_ - 0);
 
   // Set up cell centers
   for (int i = ilo; i <= ihi; i++) {
@@ -308,8 +302,8 @@ void GridStructure::compute_mass_r(const AthelasArray3D<double> uPF) {
         const int ix = ilo + idx / nNodes_;
         const int q = idx % nNodes_;
         const double X = node_coordinate(ix, q);
-        mass_contrib(idx) =
-            weights_(q) * get_sqrt_gm(X) * uPF(ix, q, vars::prim::Rho);
+        mass_contrib(idx) = weights_(q) * get_sqrt_gm(X) *
+                            uPF(ix, q, vars::prim::Rho) * widths_(ix);
       });
 
   // 2: Perform parallel inclusive scan (cumulative sum)
@@ -329,7 +323,7 @@ void GridStructure::compute_mass_r(const AthelasArray3D<double> uPF) {
       0, total_points - 1, KOKKOS_CLASS_LAMBDA(const int idx) {
         const int ix = ilo + idx / nNodes_;
         const int q = idx % nNodes_;
-        mass_r_(ix, q) = cumulative_mass(idx) * widths_(ix) * geom_fac;
+        mass_r_(ix, q) = cumulative_mass(idx) * geom_fac;
       });
 
   // Get total mass

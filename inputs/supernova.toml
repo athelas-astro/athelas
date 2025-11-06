@@ -1,0 +1,100 @@
+[problem]
+problem = "supernova"
+t_end = 86400.0
+nlim = 2500
+geometry = "spherical"
+restart = false
+xl = 100.0
+xr = 7.0e5
+cfl = 0.25
+nx = 256
+grid_type = "logarithmic"
+
+[problem.params]
+fn_hydro = "../profiles/profile_hydro.dat"
+fn_comps = "../profiles/profile_comps.dat"
+mass_cut = 1.4
+
+# Note: Set the following both to 0.0 to disable Ni56 injection
+ni_mass = 0.07 # Msun
+ni_boundary = 3.0 # Msun; > mass_cut
+
+[physics]
+radiation = true
+gravity = true
+composition = true
+ionization = true
+heating = false
+
+[composition]
+ncomps = 21
+
+[ionization]
+fn_ionization = "../data/atomic_data_ionization.dat"
+fn_degeneracy = "../data/atomic_data_degeneracy_factors.dat"
+ncomps = 5
+
+[bc]
+[bc.fluid]
+bc_i = "reflecting"
+bc_o = "outflow"
+[bc.radiation]
+bc_i = "outflow"
+bc_o = "outflow"
+
+[output]
+ncycle_out = 100
+dt_hdf5 = 0.01
+dt_init_frac = 1.05
+
+[output.history]
+fn = "supernova.hst"
+dt = 0.001 # default: dt_hdf5 / 10
+
+[fluid]
+basis = "legendre"
+nnodes = 1
+porder = 1
+
+[fluid.limiter]
+do_limiter = true
+type = "minmod"
+b_tvd = 1.0
+m_tvb = 0.0
+tci_opt = false
+tci_val = 0.25
+
+[radiation]
+basis = "legendre"
+nnodes = 1
+porder = 1
+
+[radiation.limiter]
+type = "minmod"
+m_tvb = 0.0
+b_tvd = 1.0
+tci_opt = false
+tci_val = 0.1
+
+[heating.nickel]
+enabled = true
+model = "jeffery"
+operator_split = true
+
+[gravity]
+model = "spherical"
+operator_split = true
+
+[time]
+#integrator = "EX_SSPRK22"
+#integrator = "IMEX_SSPRK22_DIRK" # bad
+#integrator = "IMEX_ARK32_ESDIRK"
+integrator = "IMEX_PDARS_ESDIRK"
+
+[eos]
+type = "paczynski"
+
+[opacity]
+type = "constant"
+kP = 0.4 # cm^2 / g
+kR = 0.4 # cm^2 / g

@@ -277,6 +277,7 @@ void write_state(State *state, GridStructure &grid, SlopeLimiter *SL,
   writer.write_view(grid.widths(), "/grid/dx");
   writer.write_view(grid.centers(), "/grid/x");
   writer.write_view(grid.nodal_grid(), "/grid/x_nodal");
+  writer.write_view(grid.enclosed_mass(), "/grid/enclosed_mass");
 
   if (composition_active) {
     // const auto mass_fractions = state->mass_fractions();

@@ -88,7 +88,7 @@ class Paczynski : public EosBase<Paczynski> {
                                     double sigma1) -> double;
 
  private:
-  RootFinder<double, AANewtonAlgorithm<double>, RelativeError> root_finder_;
+  RootFinder<double, NewtonAlgorithm<double>, RelativeError> root_finder_;
 };
 
 /**

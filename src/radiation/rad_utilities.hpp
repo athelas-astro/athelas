@@ -29,6 +29,12 @@ namespace athelas::radiation {
 using root_finders::PhysicalScales, root_finders::RadHydroConvergence;
 
 /**
+ * @brief Radiation energy density from temperature
+ */
+KOKKOS_FORCEINLINE_FUNCTION
+auto rad_energy(const double T) { return constants::a * T * T * T * T; }
+
+/**
  * @brief radiation flux factor
  **/
 KOKKOS_FORCEINLINE_FUNCTION

@@ -52,8 +52,8 @@ class AtomicData {
              const std::string &fn_degeneracy) {
 
     // --- load atomic data from file ---
-    auto ionization_data = io::Parser::parse_file(fn_ionization, ' ');
-    auto degeneracy_data = io::Parser::parse_file(fn_degeneracy, ' ');
+    auto ionization_data = io::Parser::parse_file(fn_ionization);
+    auto degeneracy_data = io::Parser::parse_file(fn_degeneracy);
 
     // -- extract columns ---
     auto [atomic_numbers, ion_charges, ionization_energies] =
@@ -77,7 +77,7 @@ class AtomicData {
 
     ion_data_ =
         AthelasArray1D<IonLevel>("ion_data", total_levels + num_species_ + 2);
-    atomic_numbers_ = AthelasArray1D<int>("atomic_number", num_species_);
+    atomic_numbers_ = AthelasArray1D<int>("atomic_number", num_species_ + 0);
     offsets_ = AthelasArray1D<int>("offsets", num_species_);
 
     auto offs_host = Kokkos::create_mirror_view(offsets_);
@@ -143,7 +143,7 @@ class AtomicData {
 species_data(const AthelasArray1D<IonLevel> ion_data,
              const AthelasArray1D<int> offsets, const size_t species) {
   const size_t num_species = offsets.size();
-  const size_t offset = offsets(species);
+  const size_t offset = offsets(species) - 1;
   const size_t next_offset = (species + 1 < num_species)
                                  ? offsets(species + 1) + 1
                                  : ion_data.extent(0);

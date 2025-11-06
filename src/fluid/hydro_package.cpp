@@ -11,6 +11,7 @@
 #include "basis/polynomial_basis.hpp"
 #include "bc/boundary_conditions.hpp"
 #include "composition/composition.hpp"
+#include "composition/saha.hpp"
 #include "eos/eos_variant.hpp"
 #include "fluid/fluid_utilities.hpp"
 #include "fluid/hydro_package.hpp"
@@ -53,6 +54,11 @@ void HydroPackage::update_explicit(const State *const state,
 
   // --- Apply BC ---
   bc::fill_ghost_zones<3>(ucf, &grid, basis_, bcs_, {0, 2});
+  if (state->composition_enabled()) {
+    static const IndexRange vb_comps(
+        std::make_pair(NUM_VARS_, 3 + state->ncomps() - 1));
+    bc::fill_ghost_zones_composition(ucf, vb_comps);
+  }
 
   // --- Zero out delta  ---
   athelas::par_for(
@@ -314,11 +320,12 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
   bc::fill_ghost_zones<3>(uCF, &grid, basis_, bcs_, {0, 2});
 
   if (state->composition_enabled()) {
-    atom::fill_derived_comps(state, &grid, basis_);
+    atom::fill_derived_comps<Domain::Entire>(state, &grid, basis_);
   }
 
   if (ionization_enabled) {
-    atom::fill_derived_ionization(state, &grid, basis_);
+    atom::solve_saha_ionization<Domain::Entire>(*state, grid, *eos_, *basis_);
+    atom::fill_derived_ionization<Domain::Entire>(state, &grid, basis_);
   }
 
   const auto phi = basis_->phi();

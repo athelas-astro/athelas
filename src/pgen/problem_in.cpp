@@ -511,7 +511,7 @@ ProblemIn::ProblemIn(const std::string &fn) {
       THROW_ATHELAS_ERROR(
           "Gravity is enabled but no [gravity] block exists in input deck!");
     }
-    bool split_grav = config_["fluid"]["operator_split"].value_or(false);
+    bool split_grav = config_["gravity"]["operator_split"].value_or(false);
     params_->add("physics.gravity.split", split_grav);
     const double gval = config_["gravity"]["gval"].value_or(1.0);
     params_->add("gravity.gval", gval); // Always present
