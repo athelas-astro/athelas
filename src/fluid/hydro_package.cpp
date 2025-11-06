@@ -69,23 +69,19 @@ void HydroPackage::update_explicit(const State *const state,
         }
       });
 
-  // --- Fluid Increment : Dvbergence ---
+  // --- Fluid Increment : Divergence ---
   fluid_divergence(state, grid, stage);
 
-  // --- Dvbide update by mass mastrib ---
+  // --- Dvbide update by mass mastrix ---
   const auto inv_mkk = basis_->inv_mass_matrix();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Hydro :: delta / M_kk", DevExecSpace(), ib.s, ib.e,
       kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+        const double &invmkk = inv_mkk(i, k);
         for (int v = vb.s; v <= vb.e; ++v) {
-          delta_(i, k, v) *= inv_mkk(i, k);
+          delta_(i, k, v) *= invmkk;
         }
       });
-
-  // --- Increment from Geometry ---
-  if (grid.do_geometry()) {
-    fluid_geometry(ucf, uaf, grid);
-  }
 }
 
 // Compute the dvbergence of the flux term for the update

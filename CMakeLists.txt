@@ -134,6 +134,7 @@ set( ATHELAS_SOURCES
   "src/history/history.cpp"
   "src/interface/params.cpp"
   "src/radiation/radhydro_package.cpp"
+  "src/geometry/geometry_package.cpp"
   "src/geometry/grid.cpp"
   "src/gravity/gravity_package.cpp"
   "src/io/io.cpp"

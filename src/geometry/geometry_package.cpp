@@ -1,0 +1,115 @@
+#include "geometry/geometry_package.hpp"
+#include "basic_types.hpp"
+#include "basis/polynomial_basis.hpp"
+#include "geometry/grid.hpp"
+#include "kokkos_abstraction.hpp"
+#include "kokkos_types.hpp"
+#include "loop_layout.hpp"
+#include "pgen/problem_in.hpp"
+
+namespace athelas::geometry {
+using basis::ModalBasis;
+
+GeometryPackage::GeometryPackage(const ProblemIn *pin, ModalBasis *basis,
+                                 const bool active)
+    : active_(active), order_(basis->order()), basis_(basis) {
+  const int nx = pin->param()->get<int>("problem.nx");
+  int nvars_geom = 1; // sources velocity
+  delta_ = AthelasArray3D<double>("geometry delta", nx + 2, basis->order(),
+                                  nvars_geom);
+}
+
+void GeometryPackage::update_explicit(const State *const state,
+                                      const GridStructure &grid,
+                                      const TimeStepInfo &dt_info) {
+  static const int nNodes = grid.n_nodes();
+  static const IndexRange kb(order_);
+  static const IndexRange ib(grid.domain<Domain::Interior>());
+  const auto u_stages = state->u_cf_stages();
+
+  const auto uaf = state->u_af();
+  const auto stage = dt_info.stage;
+  const auto ucf =
+      Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
+
+  // --- Zero out delta  ---
+  athelas::par_for(
+      DEFAULT_FLAT_LOOP_PATTERN, "Geometry :: Zero delta", DevExecSpace(), ib.s,
+      ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
+        for (int k = kb.s; k <= kb.e; ++k) {
+          delta_(i, k, pkg_vars::Velocity) = 0.0;
+        }
+      });
+
+  const auto sqrt_gm = grid.sqrt_gm();
+  const auto dx = grid.widths();
+  const auto weights = grid.weights();
+  const auto r = grid.nodal_grid();
+  const auto phi = basis_->phi();
+  const auto inv_mkk = basis_->inv_mass_matrix();
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "Hydro :: Geometry Source", DevExecSpace(), ib.s,
+      ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+        double local_sum = 0.0;
+        for (int q = 0; q < nNodes; ++q) {
+          const double P = uaf(i, q + 1, vars::aux::Pressure);
+
+          local_sum += weights(q) * P * phi(i, q + 1, k) * r(i, q);
+        }
+
+        delta_(i, k, pkg_vars::Velocity) +=
+            (2.0 * local_sum * dx(i)) * inv_mkk(i, k);
+      });
+}
+
+/**
+ * @brief apply geometry package delta
+ */
+void GeometryPackage::apply_delta(AthelasArray3D<double> lhs,
+                                  const TimeStepInfo &dt_info) const {
+  static const int nx = static_cast<int>(lhs.extent(0));
+  static const int nk = static_cast<int>(lhs.extent(1));
+  static const IndexRange ib(std::make_pair(1, nx - 2));
+  static const IndexRange kb(nk);
+
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "Gravity :: Apply delta", DevExecSpace(), ib.s,
+      ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+        lhs(i, k, vars::cons::Velocity) +=
+            dt_info.dt_coef * delta_(i, k, pkg_vars::Velocity);
+      });
+}
+
+/**
+ * @brief geometry timestep restriction
+ * We do not enforce a timestep restriction from geometry sources.
+ **/
+auto GeometryPackage::min_timestep(const State *const /*state*/,
+                                   const GridStructure & /*grid*/,
+                                   const TimeStepInfo & /*dt_info*/) const
+    -> double {
+  static constexpr double MAX_DT = std::numeric_limits<double>::max();
+  static constexpr double dt_out = MAX_DT;
+  return dt_out;
+}
+
+/**
+ * @brief geometry package fill derived.
+ * no-op at present
+ */
+void GeometryPackage::fill_derived(State * /*state*/,
+                                   const GridStructure & /*grid*/,
+                                   const TimeStepInfo & /*dt_info*/) const {}
+
+[[nodiscard]] auto GeometryPackage::name() const noexcept -> std::string_view {
+  return "Geometry";
+}
+
+[[nodiscard]]
+auto GeometryPackage::is_active() const noexcept -> bool {
+  return active_;
+}
+
+void GeometryPackage::set_active(const bool active) { active_ = active; }
+
+} // namespace athelas::geometry

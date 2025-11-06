@@ -71,8 +71,8 @@ void RadHydroPackage::update_explicit(const State *const state,
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "RadHydro :: delta / M_kk", DevExecSpace(), ib.s,
       ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-        const double fluid_imm = inv_mkk_fluid(i, k);
-        const double rad_imm = inv_mkk_rad(i, k);
+        const double &fluid_imm = inv_mkk_fluid(i, k);
+        const double &rad_imm = inv_mkk_rad(i, k);
 
         for (int v = 0; v < 3; ++v) {
           delta_(i, k, v) *= fluid_imm;
@@ -82,12 +82,6 @@ void RadHydroPackage::update_explicit(const State *const state,
           delta_(i, k, v) *= rad_imm;
         }
       });
-
-  // --- Increment from Geometry ---
-  if (grid.do_geometry()) {
-    const auto uaf = state->u_af();
-    radhydro_geometry(ucf, uaf, grid);
-  }
 } // update_explicit
 
 /**
@@ -175,9 +169,10 @@ void RadHydroPackage::update_implicit_iterative(const State *const state,
         for (int k = 0; k < order; ++k) {
           // set radhydro vars
           for (int v = 0; v < NUM_VARS_; ++v) {
-            scratch_sol_i_k(k, v) = ucf_i(k, v);
-            scratch_sol_i_km1(k, v) = ucf_i(k, v);
-            scratch_sol_i(k, v) = ucf_i(k, v);
+            const double &u = ucf_i(k, v);
+            scratch_sol_i_k(k, v) = u;
+            scratch_sol_i_km1(k, v) = u;
+            scratch_sol_i(k, v) = u;
           }
         }
 

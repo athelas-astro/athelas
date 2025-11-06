@@ -130,6 +130,7 @@ auto compute_increment_radhydro_source(
   static const bool ionization_enabled = state->ionization_enabled();
 
   static const int nNodes = static_cast<int>(weights.size());
+  const double &dr_i = dx(i);
 
   double local_sum_e_r = 0.0; // radiation energy source
   double local_sum_m_r = 0.0; // radiation momentum (flux) source
@@ -137,6 +138,10 @@ auto compute_increment_radhydro_source(
   double local_sum_m_g = 0.0; // gas momentum (velocity) source
   for (int q = 0; q < nNodes; ++q) {
     const int qp1 = q + 1;
+    const double &wq = weights(q);
+    const double &phi_rad_kq = phi_rad(i, qp1, k);
+    const double &phi_fluid_kq = phi_fluid(i, qp1, k);
+
     // Note: basis evaluations are awkward here.
     // must be sure to use the correct basis functions.
     const double tau =
@@ -153,6 +158,7 @@ auto compute_increment_radhydro_source(
     const double t_g = temperature_from_conserved(eos, tau, vel, em_t, lambda);
 
     // TODO(astrobarker): composition
+    // Should I move these into a lambda?
     const double X = 1.0;
     const double Y = 1.0;
     const double Z = 1.0;
@@ -173,14 +179,14 @@ auto compute_increment_radhydro_source(
     const double source_e_g = c * G0;
     const double source_m_g = G;
 
-    local_sum_e_r += weights(q) * phi_rad(i, qp1, k) * source_e_r;
-    local_sum_m_r += weights(q) * phi_rad(i, qp1, k) * source_m_r;
-    local_sum_e_g += weights(q) * phi_fluid(i, qp1, k) * source_e_g;
-    local_sum_m_g += weights(q) * phi_fluid(i, qp1, k) * source_m_g;
+    local_sum_e_r += wq * phi_rad_kq * source_e_r;
+    local_sum_m_r += wq * phi_rad_kq * source_m_r;
+    local_sum_e_g += wq * phi_fluid_kq * source_e_g;
+    local_sum_m_g += wq * phi_fluid_kq * source_m_g;
   }
   // \Delta x / M_kk
-  const double dx_o_mkk_fluid = dx(i) * inv_mkk_fluid(i, k);
-  const double dx_o_mkk_rad = dx(i) * inv_mkk_rad(i, k);
+  const double dx_o_mkk_fluid = dr_i * inv_mkk_fluid(i, k);
+  const double dx_o_mkk_rad = dr_i * inv_mkk_rad(i, k);
 
   return {local_sum_m_g * dx_o_mkk_fluid, local_sum_e_g * dx_o_mkk_fluid,
           local_sum_e_r * dx_o_mkk_rad, local_sum_m_r * dx_o_mkk_rad};
@@ -198,7 +204,7 @@ KOKKOS_INLINE_FUNCTION void fixed_point_radhydro(T R, double dt_a_ii,
   static_assert(T::rank == 2, "fixed_point_radhydro expects rank-2 views.");
   static constexpr int nvars = 5;
 
-  const int num_modes = scratch_n.extent(0);
+  const int &num_modes = scratch_n.extent(0);
 
   auto target = [&](T u, const int k) {
     const auto [s_1_k, s_2_k, s_3_k, s_4_k] =
@@ -214,12 +220,10 @@ KOKKOS_INLINE_FUNCTION void fixed_point_radhydro(T R, double dt_a_ii,
     }
   }
 
-  // Set up physical scales based on your problem
-  PhysicalScales scales{};
-  scales.velocity_scale = 1e7; // Typical velocity (cm/s)
-  scales.energy_scale = 1e12; // Typical energy density
-  scales.rad_energy_scale = 1e12; // Typical radiation energy density
-  scales.rad_flux_scale = 1e20; // Typical radiation flux
+  static const PhysicalScales scales{.velocity_scale = 1.0e7,
+                                     .energy_scale = 1.0e12,
+                                     .rad_energy_scale = 1.0e12,
+                                     .rad_flux_scale = 1.0e20};
 
   static RadHydroConvergence<T> convergence_checker(
       scales, root_finders::ABSTOL, root_finders::RELTOL, num_modes);
