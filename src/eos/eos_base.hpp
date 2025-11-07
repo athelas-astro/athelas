@@ -37,6 +37,13 @@ class EosBase {
     return static_cast<EOS const *>(this)->temperature_from_density_sie(
         rho, sie, lambda);
   }
+  auto sound_speed_from_density_temperature_pressure(
+      const double rho, const double temp, const double pressure,
+      const double *const lambda) const -> double {
+    return static_cast<EOS const *>(this)
+        ->sound_speed_from_density_temperature_pressure(rho, temp, pressure,
+                                                        lambda);
+  }
   auto pressure_from_conserved(const double tau, const double V,
                                const double EmT,
                                const double *const lambda) const -> double {

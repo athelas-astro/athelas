@@ -21,6 +21,12 @@ Polytropic::temperature_from_density_sie(const double rho, const double /*sie*/,
   return p * mu * constants::m_p / (rho * constants::k_B);
 }
 
+[[nodiscard]] auto Polytropic::sound_speed_from_density_temperature_pressure(
+    const double rho, const double /*temp*/, const double /*pressure*/,
+    const double *const /*lambda*/) const -> double {
+  return std::sqrt((1.0 + 1.0 / n_) * k_ * std::pow(rho, 1.0 / n_));
+}
+
 [[nodiscard]] auto Polytropic::pressure_from_conserved(
     const double tau, const double /*V*/, const double /*EmT*/,
     const double *const /*lambda*/) const -> double {

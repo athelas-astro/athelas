@@ -55,6 +55,14 @@ Paczynski::temperature_from_density_sie(const double rho, const double sie,
                             temperature_guess, rho, lambda);
 }
 
+[[nodiscard]] auto Paczynski::sound_speed_from_density_temperature_pressure(
+    const double rho, const double temp, const double pressure,
+    const double *const lambda) const -> double {
+  const auto gamma_1 =
+      gamma1_from_density_temperature_pressure(rho, temp, pressure, lambda);
+  return std::sqrt(pressure * gamma_1 / rho);
+}
+
 /**
  * @brief Paczynski pressure from conserved variables.
  * NOTE:: Lambda contents:
@@ -145,7 +153,33 @@ Paczynski::sie_from_density_pressure(const double rho, const double pressure,
   return specific_internal_energy(temperature, rho, lambda);
 }
 
+/**
+ * @brief Paczynski internal gamma1 from density temperature pressure
+ */
+[[nodiscard]] auto Paczynski::gamma1_from_density_temperature_pressure(
+    double rho, double temp, double pressure, const double *lambda) const
+    -> double {
+  const double N = lambda[0];
+  const double ye = lambda[1];
+  const double ybar = lambda[2];
+  const double sigma1 = lambda[3];
+
+  const double pednr = p_ednr(rho, ye);
+  const double pedr = p_edr(rho, ye);
+  const double ped = p_ed(pednr, pedr);
+  const double pend = p_end(rho, temp, ybar, N);
+  const double f = degeneracy_factor(ped, pednr, pedr);
+
+  const double chi_rho =
+      (rho / pressure) * dp_drho(temp, rho, ybar, pend, ped, f, N, sigma1);
+  const double chi_T = (temp / pressure) * dp_dt(temp, rho, lambda);
+  const double cv = dsie_dt(temp, rho, lambda);
+
+  return (chi_T * chi_T * pressure) / (cv * rho * temp) + chi_rho;
+}
+
 // TODO(astrobarker): make gamma1_from_T .....
+// This call is slow.
 [[nodiscard]] auto Paczynski::gamma1(const double tau, const double V,
                                      const double EmT,
                                      const double *const lambda) const
@@ -159,8 +193,6 @@ Paczynski::sie_from_density_pressure(const double rho, const double pressure,
   // TODO: use an internal temperature call here instead of from_conserved
   const double temperature = temperature_from_conserved(tau, V, EmT, lambda);
 
-  // TODO(astrobarker): have a pressure call that doesn't separately compute T
-  // have it take T, ped, ...
   const double pressure = pressure_from_conserved(tau, V, EmT, lambda);
 
   const double pednr = p_ednr(rho, ye);
