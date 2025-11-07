@@ -51,6 +51,10 @@ auto Driver::execute() -> int {
   history_->write(*state_, grid_, fluid_basis_.get(), radiation_basis_.get(),
                   time_);
 
+  // misc
+  bool &thermal_engine_active =
+      pin_->param()->get_mutable_ref<bool>("physics.engine.thermal.enabled");
+
   // --- Evolution loop ---
   int iStep = 0;
   int i_out_h5 = 1; // output label, start 1
@@ -87,6 +91,26 @@ auto Driver::execute() -> int {
     if (operator_split_physics_) {
       split_stepper_->step(split_manager_.get(), state_.get(), grid_, time_,
                            dt_);
+    }
+
+    // Check if we need to disable any packages
+    // I wonder if this should be internal to packages
+    if (thermal_engine_active) {
+      using thermal_engine::ThermalEnginePackage;
+      static const auto tend_te =
+          pin_->param()->get<double>("physics.engine.thermal.tend");
+      static const bool split_te =
+          pin_->param()->get<bool>("physics.engine.thermal.split");
+      if (time_ >= tend_te && !split_te) {
+        manager_->get_package<ThermalEnginePackage>("ThermalEngine")
+            ->set_active(false);
+        thermal_engine_active = false;
+      }
+      if (time_ >= tend_te && split_te) {
+        split_manager_->get_package<ThermalEnginePackage>("ThermalEngine")
+            ->set_active(false);
+        thermal_engine_active = false;
+      }
     }
 
 #ifdef ATHELAS_DEBUG
@@ -235,12 +259,12 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   }
   if (thermal_engine_active) {
     if (!pin->param()->get<bool>("physics.engine.thermal.split")) {
-      manager_->add_package(
-          ThermalEnginePackage{pin, fluid_basis_.get(), true});
+      manager_->add_package(ThermalEnginePackage{pin, state_.get(), &grid_,
+                                                 fluid_basis_.get(), true});
     } else {
       split = true;
-      split_manager_->add_package(
-          ThermalEnginePackage{pin, fluid_basis_.get(), true});
+      split_manager_->add_package(ThermalEnginePackage{
+          pin, state_.get(), &grid_, fluid_basis_.get(), true});
     }
   }
   if (geometry) {

@@ -139,10 +139,9 @@ inline auto total_gravitational_energy(const State &state,
   using basis::basis_eval;
   const auto &nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  const auto dr = grid.widths();
-  const auto sqrt_gm = grid.sqrt_gm();
   const auto weights = grid.weights();
   const auto enclosed_mass = grid.enclosed_mass();
+  const auto mass_cell = grid.mass();
   const auto r = grid.nodal_grid();
 
   const auto phi = fluid_basis->phi();
@@ -156,12 +155,9 @@ inline auto total_gravitational_energy(const State &state,
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
           const double X = r(i, q);
-          local_sum +=
-              (enclosed_mass(i, q) /
-               (X / basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1))) *
-              sqrt_gm(i, q + 1) * weights(q);
+          local_sum += (enclosed_mass(i, q) * mass_cell(i) / X) * weights(q);
         }
-        lsum += local_sum * dr(i);
+        lsum += local_sum;
       },
       Kokkos::Sum<double>(output));
 

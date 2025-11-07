@@ -1,4 +1,5 @@
 #include "engines/thermal.hpp"
+#include "Kokkos_Core.hpp"
 #include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "compdata.hpp"
@@ -15,18 +16,84 @@ using basis::ModalBasis;
 using utilities::to_lower;
 
 ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
+                                           const State *state,
+                                           const GridStructure *grid,
                                            ModalBasis *basis, const bool active)
-    : active_(active), basis_(basis) {
-  // set up heating deposition model
-  energy_ = pin->param()->get<double>("physics.engine.thermal.energy");
+    : active_(active), basis_(basis), mend_idx_(1) {
+
+  const int nx = pin->param()->get<int>("problem.nx");
+  delta_ = AthelasArray3D<double>("nickel delta", nx + 2, basis->order(), 1);
+
+  energy_target_ = pin->param()->get<double>("physics.engine.thermal.energy");
   mode_ =
       to_lower(pin->param()->get<std::string>("physics.engine.thermal.mode"));
   tend_ = pin->param()->get<double>("physics.engine.thermal.tend");
   mstart_ = pin->param()->get<int>("physics.engine.thermal.mstart");
   mend_ = pin->param()->get<double>("physics.engine.thermal.mend");
 
-  const int nx = pin->param()->get<int>("problem.nx");
-  delta_ = AthelasArray3D<double>("nickel delta", nx + 2, basis->order(), 1);
+  // Find index of mass spread
+  auto mass_enc_h = Kokkos::create_mirror_view(grid->enclosed_mass());
+  const double m_start = mass_enc_h(mstart_, 0);
+  const int nnodes = pin->param()->get<int>("fluid.nnodes");
+  for (int i = 1; i <= nx; ++i) {
+    for (int q = 0; q < nnodes; ++q) {
+      if (mass_enc_h(i, q) - mass_enc_h(1, 0) <= mend_ * constants::M_sun) {
+        mend_idx_++;
+      } else {
+        break;
+      }
+    }
+  }
+
+  // Now we need to compute the actual deposition energy
+  // If we specify an asymptotic explosion energy then offset by
+  // the model's total energy
+  const auto mcell = grid->mass();
+  const auto menc = grid->enclosed_mass();
+  if (mode_ == "direct") {
+    energy_dep_ = energy_target_;
+  } else {
+    // integrate total energy on the mesh
+    const bool gravity_active =
+        pin->param()->get<bool>("physics.gravity_active");
+    const int grav_switch = 1 ? gravity_active : 0;
+    const auto phi = basis_->phi();
+    const auto ucf = state->u_cf();
+    const auto r = grid->nodal_grid();
+    const auto weights = grid->weights();
+    double total_energy = 0.0;
+    athelas::par_reduce(
+        DEFAULT_LOOP_PATTERN, "ThermalEngine :: Total energy", DevExecSpace(),
+        1, nx, 0, nnodes - 1,
+        KOKKOS_CLASS_LAMBDA(const int i, const int q, double &lenergy) {
+          const double e_fluid =
+              basis::basis_eval(phi, ucf, i, vars::cons::Energy, q);
+          const double e_grav =
+              grav_switch * constants::G_GRAV * mcell(i) * menc(i, q) / r(i, q);
+          lenergy += (e_fluid - e_grav) * weights(q);
+        },
+        Kokkos::Sum<double>(total_energy));
+    energy_dep_ = energy_target_ - total_energy;
+  }
+
+  // Below are the a, b, c, d coefficients for the injection profile
+  c_coeff_ = std::log(RATIO_TIME_) / (tend_); // assuming t_start = 0.0
+  d_coeff_ = c_coeff_ * energy_dep_ / (1.0 - std::exp(-c_coeff_ * tend_));
+  a_coeff_ = std::log(RATIO_MASS_) / (mend_ - m_start);
+  std::println("coef_a mend mstart {:.5e} {:.5e} {:.5e}", a_coeff_, mend_,
+               m_start);
+
+  // integral for b_coeff_
+  double b_int = 0.0;
+  athelas::par_reduce(
+      DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Timestep", DevExecSpace(), 1, nx, 0,
+      nnodes - 1,
+      KOKKOS_CLASS_LAMBDA(const int i, const int q, double &lb) {
+        lb += std::exp(-a_coeff_ * menc(i, q)) * mcell(i);
+      },
+      Kokkos::Sum<double>(b_int));
+  b_int_ = b_int;
+  std::println("bint {:.5e}", b_int);
 }
 
 void ThermalEnginePackage::update_explicit(const State *const state,
@@ -52,11 +119,18 @@ void ThermalEnginePackage::update_explicit(const State *const state,
 
   // NOTE: We are only applying heating to the cell average currently.
   // Is there are better way to do this?
+  const IndexRange ib_dep(std::make_pair(1, mend_idx_));
+  const auto mass = grid.mass();
+  const auto menc = grid.enclosed_mass();
+  const auto time = dt_info.t;
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "ThermalEngine :: Update", DevExecSpace(),
-      ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
+      ib_dep.s, ib_dep.e, KOKKOS_CLASS_LAMBDA(const int i) {
+        const double b_coeff = d_coeff_ * std::exp(-c_coeff_ * time) / b_int_;
+        // std::println("b_coeff {:.5e}", b_coeff);
         const int k = vars::modes::CellAverage;
-        delta_(i, k, pkg_vars::Energy) = 0.0;
+        delta_(i, k, pkg_vars::Energy) =
+            b_coeff * std::exp(-a_coeff_ * mass(i));
       });
 }
 

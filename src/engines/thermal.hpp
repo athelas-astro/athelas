@@ -18,7 +18,8 @@ constexpr int Energy = 0;
 
 class ThermalEnginePackage {
  public:
-  ThermalEnginePackage(const ProblemIn *pin, basis::ModalBasis *basis,
+  ThermalEnginePackage(const ProblemIn *pin, const State *state,
+                       const GridStructure *grid, basis::ModalBasis *basis,
                        bool active = true);
 
   void update_explicit(const State *const state, const GridStructure &grid,
@@ -48,15 +49,22 @@ class ThermalEnginePackage {
 
   AthelasArray3D<double> delta_;
 
-  double energy_;
+  double energy_target_;
+  double energy_dep_; // actual energy to be deposited
   std::string mode_;
   double tend_;
   int mstart_;
   double mend_;
+  int mend_idx_; // index of mass spread
 
   // TODO(astrobarker): Should this be runtime?
   static constexpr double RATIO_TIME_ = 100.0;
   static constexpr double RATIO_MASS_ = 100.0;
+
+  double c_coeff_;
+  double d_coeff_;
+  double a_coeff_;
+  double b_int_;
 };
 
 } // namespace athelas::thermal_engine
