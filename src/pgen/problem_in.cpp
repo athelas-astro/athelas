@@ -643,7 +643,7 @@ ProblemIn::ProblemIn(const std::string &fn) {
         THROW_ATHELAS_ERROR(
             "[engine.thermal] is requested but 'mode' is missing!");
       }
-      if (utilities::to_lower(mode.value()) != "direct" ||
+      if (utilities::to_lower(mode.value()) != "direct" &&
           utilities::to_lower(mode.value()) != "asymptotic") {
         THROW_ATHELAS_ERROR(
             "[engine.thermal.mode] must be 'direct' or 'asymptotic'!");

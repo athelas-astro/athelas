@@ -93,6 +93,7 @@ endif()
 include_directories(src)
 include_directories("src/composition")
 include_directories("src/concepts")
+include_directories("src/engines")
 include_directories("src/geometry")
 include_directories("src/heating")
 include_directories("src/history")
@@ -125,6 +126,7 @@ set( ATHELAS_SOURCES
   "src/pgen/problem_in.cpp"
   "src/basis/polynomial_basis.cpp"
   "src/bc/boundary_conditions.cpp"
+  "src/engines/thermal.cpp"
   "src/eos/eos_ideal.cpp"
   "src/eos/eos_marshak.cpp"
   "src/eos/eos_paczynski.cpp"

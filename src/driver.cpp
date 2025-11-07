@@ -12,6 +12,7 @@
 #include "limiters/slope_limiter.hpp"
 #include "pgen/problem_in.hpp"
 #include "state/state.hpp"
+#include "thermal.hpp"
 #include "timestepper/timestepper.hpp"
 #include "utils/error.hpp"
 
@@ -139,6 +140,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   using geometry::GeometryPackage;
   using gravity::GravityPackage;
   using nickel::NickelHeatingPackage;
+  using thermal_engine::ThermalEnginePackage;
 
   const auto nx = pin_->param()->get<int>("problem.nx");
   const int max_order =
@@ -190,8 +192,10 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
       pin->param()->get<bool>("physics.heating.nickel.enabled");
   const bool geometry =
       pin->param()->get<std::string>("problem.geometry") == "spherical";
+  const bool thermal_engine_active =
+      pin->param()->get<bool>("physics.engine.thermal.enabled");
 
-  int nvars_split = 0;
+  bool split = false;
 
   // --- Init physics package manager ---
   // NOTE: Hydro/RadHydro should be registered first
@@ -212,7 +216,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
                          pin->param()->get<double>("gravity.gval"),
                          fluid_basis_.get(), cfl, true});
     } else {
-      nvars_split += 2;
+      split = true;
       split_manager_->add_package(
           GravityPackage{pin, pin->param()->get<GravityModel>("gravity.model"),
                          pin->param()->get<double>("gravity.gval"),
@@ -224,9 +228,19 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
       manager_->add_package(NickelHeatingPackage{
           pin, fluid_basis_.get(), state_->comps()->species_indexer(), true});
     } else {
-      nvars_split += 4;
+      split = true;
       split_manager_->add_package(NickelHeatingPackage{
           pin, fluid_basis_.get(), state_->comps()->species_indexer(), true});
+    }
+  }
+  if (thermal_engine_active) {
+    if (!pin->param()->get<bool>("physics.engine.thermal.split")) {
+      manager_->add_package(
+          ThermalEnginePackage{pin, fluid_basis_.get(), true});
+    } else {
+      split = true;
+      split_manager_->add_package(
+          ThermalEnginePackage{pin, fluid_basis_.get(), true});
     }
   }
   if (geometry) {
@@ -234,7 +248,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   }
 
   // set up operator split stepper
-  if (nvars_split > 0) {
+  if (split) {
     split_stepper_ = std::make_unique<OperatorSplitStepper>();
     operator_split_physics_ = true;
   }

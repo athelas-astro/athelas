@@ -142,7 +142,7 @@ void NickelHeatingPackage::ni_update(const State *const state,
 }
 
 /**
- * @brief apply gravity package delta
+ * @brief apply nickel package delta
  */
 void NickelHeatingPackage::apply_delta(AthelasArray3D<double> lhs,
                                        const TimeStepInfo &dt_info) const {
@@ -152,8 +152,8 @@ void NickelHeatingPackage::apply_delta(AthelasArray3D<double> lhs,
   static const IndexRange kb(nk);
 
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Gravity :: Apply delta", DevExecSpace(), ib.s,
-      ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+      DEFAULT_LOOP_PATTERN, "Nickel :: Apply delta", DevExecSpace(), ib.s, ib.e,
+      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         lhs(i, k, vars::cons::Energy) +=
             dt_info.dt_coef * delta_(i, k, pkg_vars::Energy);
         lhs(i, k, ind_ni_) += dt_info.dt_coef * delta_(i, k, pkg_vars::Nickel);
