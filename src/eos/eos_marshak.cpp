@@ -5,6 +5,27 @@
 
 namespace athelas::eos {
 
+[[nodiscard]] auto Marshak::pressure_from_density_temperature(
+    const double /*rho*/, const double temp,
+    const double *const /*lambda*/) const -> double {
+  return (gamma_ - 1.0) * constants::a * temp * temp * temp * temp;
+}
+
+[[nodiscard]] auto
+Marshak::temperature_from_density_sie(const double rho, const double sie,
+                                      const double *const /*lambda*/) const
+    -> double {
+  const double ev = sie * rho;
+  return std::pow(ev / constants::a, 0.25);
+}
+
+[[nodiscard]] auto Marshak::sound_speed_from_density_temperature_pressure(
+    const double rho, const double /*temp*/, const double pressure,
+    const double *const lambda) const -> double {
+  const double sie = sie_from_density_pressure(rho, pressure, lambda);
+  return std::sqrt(gamma_ * (gamma_ - 1.0) * sie);
+}
+
 [[nodiscard]] auto Marshak::pressure_from_conserved(
     const double tau, const double V, const double EmT,
     const double *const /*lambda*/) const -> double {
@@ -16,8 +37,8 @@ namespace athelas::eos {
 [[nodiscard]] auto Marshak::sound_speed_from_conserved(
     const double /*tau*/, const double V, const double EmT,
     const double *const /*lambda*/) const -> double {
-  const double Em = EmT - (0.5 * V * V);
-  return std::sqrt(gamma_ * (gamma_ - 1.0) * Em);
+  const double sie = EmT - (0.5 * V * V);
+  return std::sqrt(gamma_ * (gamma_ - 1.0) * sie);
 }
 
 [[nodiscard]] auto Marshak::temperature_from_conserved(

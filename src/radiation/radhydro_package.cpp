@@ -488,12 +488,13 @@ void RadHydroPackage::fill_derived(State *state, const GridStructure &grid,
           if (ionization_enabled) {
             atom::paczynski_terms(state, i, q, lambda);
           }
-          const double pressure =
-              pressure_from_conserved(eos_, tau, vel, emt, lambda);
+
           const double t_gas =
-              temperature_from_conserved(eos_, tau, vel, emt, lambda);
-          const double cs =
-              sound_speed_from_conserved(eos_, tau, vel, emt, lambda);
+              temperature_from_density_sie(eos_, rho, sie, lambda);
+          const double pressure =
+              pressure_from_density_temperature(eos_, rho, t_gas, lambda);
+          const double cs = sound_speed_from_density_temperature_pressure(
+              eos_, rho, t_gas, pressure, lambda);
 
           uPF(i, q, vars::prim::Rho) = rho;
           uPF(i, q, vars::prim::Momentum) = momentum;

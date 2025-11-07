@@ -5,6 +5,30 @@
 
 namespace athelas::eos {
 
+[[nodiscard]] auto IdealGas::pressure_from_density_temperature(
+    const double rho, const double temp, const double *const /*lambda*/) const
+    -> double {
+  static constexpr double mu =
+      1.0 + constants::m_e / constants::m_p; // TODO(astrobarker) generalize
+  return rho * constants::k_B * temp / (mu * constants::m_p);
+}
+
+[[nodiscard]] auto
+IdealGas::temperature_from_density_sie(const double /*rho*/, const double sie,
+                                       const double *const /*lambda*/) const
+    -> double {
+  static constexpr double mu =
+      1.0 + constants::m_e / constants::m_p; // TODO(astrobarker) generalize
+  return (gamma_ - 1.0) * sie * mu * constants::m_p / constants::k_B;
+}
+
+[[nodiscard]] auto IdealGas::sound_speed_from_density_temperature_pressure(
+    const double rho, const double /*temp*/, const double pressure,
+    const double *const lambda) const -> double {
+  const double sie = sie_from_density_pressure(rho, pressure, lambda);
+  return std::sqrt(gamma_ * (gamma_ - 1.0) * sie);
+}
+
 [[nodiscard]] auto IdealGas::pressure_from_conserved(
     const double tau, const double V, const double EmT,
     const double *const /*lambda*/) const -> double {
@@ -16,15 +40,15 @@ namespace athelas::eos {
 [[nodiscard]] auto IdealGas::sound_speed_from_conserved(
     const double /*tau*/, const double V, const double EmT,
     const double *const /*lambda*/) const -> double {
-  const double Em = EmT - (0.5 * V * V);
-  return std::sqrt(gamma_ * (gamma_ - 1.0) * Em);
+  const double sie = EmT - (0.5 * V * V);
+  return std::sqrt(gamma_ * (gamma_ - 1.0) * sie);
 }
 
 [[nodiscard]] auto IdealGas::temperature_from_conserved(
     const double /*tau*/, const double V, const double E,
     const double *const /*lambda*/) const -> double {
   const double sie = E - 0.5 * V * V;
-  const double mu =
+  static constexpr double mu =
       1.0 + constants::m_e / constants::m_p; // TODO(astrobarker) generalize
   return (gamma_ - 1.0) * sie * mu * constants::m_p / constants::k_B;
 }

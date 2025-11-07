@@ -151,7 +151,8 @@ auto compute_increment_radhydro_source(
     if (ionization_enabled) {
       atom::paczynski_terms(state, i, qp1, lambda);
     }
-    const double t_g = temperature_from_conserved(eos, tau, vel, em_t, lambda);
+    const double t_g = eos::temperature_from_density_sie(
+        eos, rho, em_t - 0.5 * vel * vel, lambda);
 
     // TODO(astrobarker): composition
     // Should I move these into a lambda?

@@ -47,6 +47,14 @@ class Paczynski : public EosBase<Paczynski> {
                                                             .max_iterations =
                                                                 max_iters}) {}
 
+  auto pressure_from_density_temperature(double rho, double temp,
+                                         const double *lambda) const -> double;
+  auto temperature_from_density_sie(double rho, double sie,
+                                    const double *lambda) const -> double;
+  auto sound_speed_from_density_temperature_pressure(double rho, double temp,
+                                                     double pressure,
+                                                     const double *lambda) const
+      -> double;
   auto pressure_from_conserved(double tau, double V, double EmT,
                                const double *lambda) const -> double;
   auto sound_speed_from_conserved(double tau, double V, double EmT,
@@ -58,6 +66,9 @@ class Paczynski : public EosBase<Paczynski> {
   [[nodiscard]] auto gamma1() const -> double;
   [[nodiscard]] auto gamma1(double tau, double V, double EmT,
                             const double *lambda) const -> double;
+  [[nodiscard]] auto gamma1_from_density_temperature_pressure(
+      double rho, double temp, double pressure, const double *lambda) const
+      -> double;
   [[nodiscard]] static auto p_end(double rho, double T, double ybar, double N)
       -> double;
   [[nodiscard]] static auto p_ednr(double rho, double ye) -> double;
@@ -106,6 +117,14 @@ class IdealGas : public EosBase<IdealGas> {
     }
   }
 
+  auto pressure_from_density_temperature(double rho, double temp,
+                                         const double *lambda) const -> double;
+  auto temperature_from_density_sie(double rho, double sie,
+                                    const double *lambda) const -> double;
+  auto sound_speed_from_density_temperature_pressure(double rho, double temp,
+                                                     double pressure,
+                                                     const double *lambda) const
+      -> double;
   auto pressure_from_conserved(double tau, double V, double EmT,
                                const double *lambda) const -> double;
   auto sound_speed_from_conserved(double tau, double V, double EmT,
@@ -125,6 +144,7 @@ class IdealGas : public EosBase<IdealGas> {
 /**
  * @class Polytropic
  * @brief polytropic equation of state: P = K rho^(1 + 1/n)
+ * TODO(astrobarker): Can be cleaned up with an internal P(rho) func.
  */
 class Polytropic : public EosBase<Polytropic> {
  public:
@@ -138,6 +158,14 @@ class Polytropic : public EosBase<Polytropic> {
     }
   }
 
+  auto pressure_from_density_temperature(double rho, double /*temp*/,
+                                         const double *lambda) const -> double;
+  auto temperature_from_density_sie(double rho, double sie,
+                                    const double *lambda) const -> double;
+  auto sound_speed_from_density_temperature_pressure(double rho, double temp,
+                                                     double pressure,
+                                                     const double *lambda) const
+      -> double;
   auto pressure_from_conserved(double tau, double V, double EmT,
                                const double *lambda) const -> double;
   auto sound_speed_from_conserved(double tau, double V, double EmT,
@@ -173,6 +201,14 @@ class Marshak : public EosBase<Marshak> {
     }
   }
 
+  auto pressure_from_density_temperature(double rho, double temp,
+                                         const double *lambda) const -> double;
+  auto temperature_from_density_sie(double rho, double sie,
+                                    const double *lambda) const -> double;
+  auto sound_speed_from_density_temperature_pressure(double rho, double temp,
+                                                     double pressure,
+                                                     const double *lambda) const
+      -> double;
   auto pressure_from_conserved(double tau, double V, double EmT,
                                const double *lambda) const -> double;
   auto sound_speed_from_conserved(double tau, double V, double EmT,
