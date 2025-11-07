@@ -484,7 +484,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
                 continue;
               }
 
-              ionization_states(i, q, elem, Z + 1) = 1.0;
+              ionization_states(i, q, elem, Z) = 1.0;
             }
           }
         });
