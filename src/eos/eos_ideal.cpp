@@ -9,7 +9,7 @@ namespace athelas::eos {
     const double rho, const double temp, const double *const /*lambda*/) const
     -> double {
   static constexpr double mu =
-      1.0 + constants::m_p / constants::m_e; // TODO(astrobarker) generalize
+      1.0 + constants::m_e / constants::m_p; // TODO(astrobarker) generalize
   return rho * constants::k_B * temp / (mu * constants::m_p);
 }
 
@@ -18,7 +18,7 @@ IdealGas::temperature_from_density_sie(const double /*rho*/, const double sie,
                                        const double *const /*lambda*/) const
     -> double {
   static constexpr double mu =
-      1.0 + constants::m_p / constants::m_e; // TODO(astrobarker) generalize
+      1.0 + constants::m_e / constants::m_p; // TODO(astrobarker) generalize
   return (gamma_ - 1.0) * sie * mu * constants::m_p / constants::k_B;
 }
 
