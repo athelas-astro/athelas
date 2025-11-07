@@ -1,13 +1,13 @@
 [problem]
 problem = "supernova"
 t_end = 86400.0
-nlim = 500
+nlim = 2500
 geometry = "spherical"
 restart = false
 xl = 100.0
 xr = 7.0e5
 cfl = 0.25
-nx = 256
+nx = 128
 grid_type = "logarithmic"
 
 [problem.params]
@@ -25,7 +25,14 @@ gravity = true
 composition = true
 ionization = true
 heating = false
-engine = false
+engine = true
+
+[engine.thermal]
+enabled = true
+mode = "direct"
+energy = 1.64e51 # erg
+tend = 0.1
+mend = 0.1 # Msun
 
 [composition]
 ncomps = 21
@@ -45,12 +52,12 @@ bc_o = "outflow"
 
 [output]
 ncycle_out = 100
-dt_hdf5 = 0.01
+dt_hdf5 = 1.0e-10
 dt_init_frac = 1.05
 
 [output.history]
 fn = "supernova.hst"
-dt = 0.001 # default: dt_hdf5 / 10
+dt = 1.0e-10 # default: dt_hdf5 / 10
 
 [fluid]
 basis = "legendre"
