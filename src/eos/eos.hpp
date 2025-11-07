@@ -47,6 +47,8 @@ class Paczynski : public EosBase<Paczynski> {
                                                             .max_iterations =
                                                                 max_iters}) {}
 
+  auto pressure_from_density_temperature(double rho, double temp,
+                                         const double *lambda) const -> double;
   auto pressure_from_conserved(double tau, double V, double EmT,
                                const double *lambda) const -> double;
   auto sound_speed_from_conserved(double tau, double V, double EmT,
@@ -106,6 +108,8 @@ class IdealGas : public EosBase<IdealGas> {
     }
   }
 
+  auto pressure_from_density_temperature(double rho, double temp,
+                                         const double *lambda) const -> double;
   auto pressure_from_conserved(double tau, double V, double EmT,
                                const double *lambda) const -> double;
   auto sound_speed_from_conserved(double tau, double V, double EmT,
@@ -138,6 +142,8 @@ class Polytropic : public EosBase<Polytropic> {
     }
   }
 
+  auto pressure_from_density_temperature(double rho, double /*temp*/,
+                                         const double *lambda) const -> double;
   auto pressure_from_conserved(double tau, double V, double EmT,
                                const double *lambda) const -> double;
   auto sound_speed_from_conserved(double tau, double V, double EmT,
@@ -173,6 +179,8 @@ class Marshak : public EosBase<Marshak> {
     }
   }
 
+  auto pressure_from_density_temperature(double rho, double temp,
+                                         const double *lambda) const -> double;
   auto pressure_from_conserved(double tau, double V, double EmT,
                                const double *lambda) const -> double;
   auto sound_speed_from_conserved(double tau, double V, double EmT,

@@ -10,6 +10,35 @@ using root_finders::RootFinder, root_finders::NewtonAlgorithm,
     root_finders::ToleranceConfig;
 
 /**
+ * @brief Paczynski pressure from density and temperature
+ * NOTE:: Lambda contents:
+ * 0: N (for ion pressure)
+ * 1: ye
+ * 2: ybar (mean ionization state)
+ * 3: sigma1
+ * 4: sigma2
+ * 5: sigma3
+ * 6: e_ioncorr (ionization corrcetion to internal energy)
+ * 7: temperature_guess
+ */
+[[nodiscard]] auto Paczynski::pressure_from_density_temperature(
+    const double rho, const double temp, const double *const lambda) const
+    -> double {
+  const double N = lambda[0];
+  const double ye = lambda[1];
+  const double ybar = lambda[2];
+
+  const double pion = p_ion(rho, temp, N);
+  const double pednr = p_ednr(rho, ye);
+  const double pedr = p_edr(rho, ye);
+  const double ped = p_ed(pednr, pedr);
+  const double pend = p_end(rho, temp, ybar, N);
+  const double pe = p_e(pend, ped);
+
+  return pe + pion;
+}
+
+/**
  * @brief Paczynski pressure from conserved variables.
  * NOTE:: Lambda contents:
  * 0: N (for ion pressure)

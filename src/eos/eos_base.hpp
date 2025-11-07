@@ -13,6 +13,7 @@ namespace athelas::eos {
  * implement specific EOS behaviors.
  *
  *          The class provides the following:
+ *          - pressure_from_density_temperature
  *          - pressure_from_conserved
  *          - sound_speed_from_conserved
  *          - temperature_from_conserved
@@ -24,6 +25,12 @@ namespace athelas::eos {
 template <class EOS>
 class EosBase {
  public:
+  auto pressure_from_density_temperature(const double rho, const double temp,
+                                         const double *const lambda) const
+      -> double {
+    return static_cast<EOS const *>(this)->pressure_from_density_temperature(
+        rho, temp, lambda);
+  }
   auto pressure_from_conserved(const double tau, const double V,
                                const double EmT,
                                const double *const lambda) const -> double {

@@ -5,6 +5,12 @@
 
 namespace athelas::eos {
 
+[[nodiscard]] auto Polytropic::pressure_from_density_temperature(
+    const double rho, const double /*temp*/,
+    const double *const /*lambda*/) const -> double {
+  return k_ * std::pow(rho, 1.0 + 1.0 / n_);
+}
+
 [[nodiscard]] auto Polytropic::pressure_from_conserved(
     const double tau, const double /*V*/, const double /*EmT*/,
     const double *const /*lambda*/) const -> double {
