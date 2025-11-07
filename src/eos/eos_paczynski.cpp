@@ -15,11 +15,6 @@ using root_finders::RootFinder, root_finders::NewtonAlgorithm,
  * 0: N (for ion pressure)
  * 1: ye
  * 2: ybar (mean ionization state)
- * 3: sigma1
- * 4: sigma2
- * 5: sigma3
- * 6: e_ioncorr (ionization corrcetion to internal energy)
- * 7: temperature_guess
  */
 [[nodiscard]] auto Paczynski::pressure_from_density_temperature(
     const double rho, const double temp, const double *const lambda) const
@@ -36,6 +31,28 @@ using root_finders::RootFinder, root_finders::NewtonAlgorithm,
   const double pe = p_e(pend, ped);
 
   return pe + pion;
+}
+
+/**
+ * @brief Paczynski temperature from density and specific internal energy
+ * NOTE:: Lambda contents:
+ * 7: temperature_guess
+ */
+[[nodiscard]] auto
+Paczynski::temperature_from_density_sie(const double rho, const double sie,
+                                        const double *const lambda) const
+    -> double {
+  const double temperature_guess = lambda[7];
+  auto temperature_target = [&sie](const double temperature, const double rho,
+                                   const double *const lambda) {
+    return specific_internal_energy(temperature, rho, lambda) - sie;
+  };
+  auto temperature_derivative = [](const double T, const double rho,
+                                   const double *const lambda) {
+    return dsie_dt(T, rho, lambda);
+  };
+  return root_finder_.solve(temperature_target, temperature_derivative,
+                            temperature_guess, rho, lambda);
 }
 
 /**

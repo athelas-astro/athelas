@@ -31,6 +31,12 @@ class EosBase {
     return static_cast<EOS const *>(this)->pressure_from_density_temperature(
         rho, temp, lambda);
   }
+  auto temperature_from_density_sie(const double rho, const double sie,
+                                    const double *const lambda) const
+      -> double {
+    return static_cast<EOS const *>(this)->temperature_from_density_sie(
+        rho, sie, lambda);
+  }
   auto pressure_from_conserved(const double tau, const double V,
                                const double EmT,
                                const double *const lambda) const -> double {

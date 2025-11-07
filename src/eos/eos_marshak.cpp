@@ -11,6 +11,14 @@ namespace athelas::eos {
   return (gamma_ - 1.0) * constants::a * temp * temp * temp * temp;
 }
 
+[[nodiscard]] auto
+Marshak::temperature_from_density_sie(const double rho, const double sie,
+                                      const double *const /*lambda*/) const
+    -> double {
+  const double ev = sie * rho;
+  return std::pow(ev / constants::a, 0.25);
+}
+
 [[nodiscard]] auto Marshak::pressure_from_conserved(
     const double tau, const double V, const double EmT,
     const double *const /*lambda*/) const -> double {

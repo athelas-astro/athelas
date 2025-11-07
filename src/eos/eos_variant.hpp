@@ -18,6 +18,17 @@ namespace athelas::eos {
 using EOS = std::variant<IdealGas, Marshak, Paczynski, Polytropic>;
 
 KOKKOS_INLINE_FUNCTION auto
+temperature_from_density_sie(const EOS *const eos, const double rho,
+                             const double sie, const double *const lambda)
+    -> double {
+  return std::visit(
+      [&rho, &sie, &lambda](auto &eos) {
+        return eos.temperature_from_density_sie(rho, sie, lambda);
+      },
+      *eos);
+}
+
+KOKKOS_INLINE_FUNCTION auto
 pressure_from_density_temperature(const EOS *const eos, const double rho,
                                   const double temp, const double *const lambda)
     -> double {

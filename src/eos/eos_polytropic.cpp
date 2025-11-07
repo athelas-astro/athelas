@@ -11,6 +11,16 @@ namespace athelas::eos {
   return k_ * std::pow(rho, 1.0 + 1.0 / n_);
 }
 
+[[nodiscard]] auto
+Polytropic::temperature_from_density_sie(const double rho, const double /*sie*/,
+                                         const double *const /*lambda*/) const
+    -> double {
+  const double p = std::pow(rho, 1.0 + 1.0 / n_);
+  const double mu =
+      1.0 + constants::m_e / constants::m_p; // TODO(astrobarker) generalize
+  return p * mu * constants::m_p / (rho * constants::k_B);
+}
+
 [[nodiscard]] auto Polytropic::pressure_from_conserved(
     const double tau, const double /*V*/, const double /*EmT*/,
     const double *const /*lambda*/) const -> double {
