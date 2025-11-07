@@ -20,6 +20,7 @@ gravity = false
 composition = true
 ionization = true
 heating = false
+engine = false
 
 [ionization]
 fn_ionization = "../../../data/atomic_data_ionization.dat"

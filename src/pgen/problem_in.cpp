@@ -185,6 +185,12 @@ ProblemIn::ProblemIn(const std::string &fn) {
   }
   params_->add("physics.ionization_enabled", ion.value());
 
+  std::optional<bool> engine = config_["physics"]["engine"].value<bool>();
+  if (!engine) {
+    THROW_ATHELAS_ERROR("Missing or invalid 'engine' in [physics] block.");
+  }
+  params_->add("physics.engine.enabled", engine.value());
+
   if (ion.value() && !comps.value()) {
     THROW_ATHELAS_ERROR("Ionization enabled but composition disabled!");
   }
@@ -602,6 +608,83 @@ ProblemIn::ProblemIn(const std::string &fn) {
     }
   } else {
     params_->add("physics.heating.nickel.enabled", false);
+  } // heating block
+
+  // ----------------------------------
+  // ---------- engine block ----------
+  // ----------------------------------
+  if (engine.value()) {
+    if (!config_["engine"].is_table()) {
+      THROW_ATHELAS_ERROR(
+          "An engine is enabled but no [engine] block exists in input deck!");
+    }
+    if (config_["engine"]["thermal"].is_table()) {
+      std::optional<bool> thermal_engine_enabled =
+          config_["engine"]["thermal"]["enabled"].value<bool>();
+      if (!thermal_engine_enabled) {
+        THROW_ATHELAS_ERROR(
+            "[engine.thermal] is requested but 'enabled' is missing!");
+      }
+      params_->add("physics.engine.thermal.enabled",
+                   thermal_engine_enabled.value());
+
+      // Get the required thermal engine options
+      std::optional<double> energy =
+          config_["engine"]["thermal"]["energy"].value<double>();
+      if (!energy) {
+        THROW_ATHELAS_ERROR(
+            "[engine.thermal] is requested but 'energy' is missing!");
+      }
+      params_->add("physics.engine.thermal.energy", energy.value());
+
+      // Energy injection mode: direct or asymptotic
+      auto mode = config_["engine"]["thermal"]["mode"].value<std::string>();
+      if (!mode) {
+        THROW_ATHELAS_ERROR(
+            "[engine.thermal] is requested but 'mode' is missing!");
+      }
+      if (utilities::to_lower(mode.value()) != "direct" ||
+          utilities::to_lower(mode.value()) != "asymptotic") {
+        THROW_ATHELAS_ERROR(
+            "[engine.thermal.mode] must be 'direct' or 'asymptotic'!");
+      }
+      params_->add("physics.engine.thermal.mode",
+                   utilities::to_lower(mode.value()));
+
+      // time
+      auto tend = config_["engine"]["thermal"]["tend"].value<double>();
+      if (!tend) {
+        THROW_ATHELAS_ERROR(
+            "[engine.thermal] is requested but 'tend' is missing!");
+      }
+      if (tend <= 0.0) {
+        THROW_ATHELAS_ERROR("[engine.thermal.tend] must be > 0!");
+      }
+      params_->add("physics.engine.thermal.tend", tend.value());
+
+      // NOTE: currently forcing the start position of the thermal engine to be
+      // the left domain.
+      params_->add("physics.engine.thermal.mstart", 1); // first real cell
+
+      auto mend = config_["engine"]["thermal"]["mend"].value<double>();
+      if (!mend) {
+        THROW_ATHELAS_ERROR(
+            "[engine.thermal] is requested but 'mend' is missing!");
+      }
+      if (mend <= 0.0) {
+        THROW_ATHELAS_ERROR("[engine.thermal.mend] must be > 0!");
+      }
+      params_->add("physics.engine.thermal.mend", mend.value());
+
+      // optional
+      bool split_te =
+          config_["engine"]["thermal"]["operator_split"].value_or(false);
+      params_->add("physics.engine.thermal.split", split_te);
+    } else {
+      params_->add("physics.engine.thermal.enabled", false);
+    }
+  } else {
+    params_->add("physics.engine.thermal.enabled", false);
   } // heating block
 
   // ----------------------------

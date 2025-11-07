@@ -7,7 +7,7 @@ restart = false
 xl = 0.0
 xr = 3.466205e-3
 cfl = 0.3
-nx = 256
+nx = 512
 grid_type = "uniform"
 
 [problem.params]
@@ -22,6 +22,7 @@ gravity = false
 composition = false
 ionization = false
 heating = false
+engine = false
 
 [bc]
 [bc.fluid]
@@ -36,15 +37,12 @@ dirichlet_values_i = [1.1113063385e12, 0.0]
 ncycle_out = 100
 #dt_hdf5 = 1.0e-12 # default: 100 outputs
 dt_init_frac = 1.0005
-
-[output.history]
-fn = "marshak.hst"
-dt = 1.0e-16
+dt_hdf5 = 1.0 # only output initial and final
 
 [fluid]
 basis = "legendre"
-nnodes = 1
-porder = 1
+nnodes = 3
+porder = 3
 
 [fluid.limiter]
 do_limiter = true
@@ -57,22 +55,22 @@ characteristic = false
 
 [radiation]
 basis = "legendre"
-nnodes = 1
-porder = 1
+nnodes = 3
+porder = 3
 
 [radiation.limiter]
 do_limiter = true
 type = "minmod"
-m_tvb = 1000.0
-b_tvd = 2.0
-tci_opt = true
+m_tvb = 0.0
+b_tvd = 1.0
+tci_opt = false
 tci_val = 0.1
 characteristic = false
 
 [time]
-#integrator = "IMEX_ARK32_ESDIRK"
+integrator = "IMEX_ARK32_ESDIRK"
 #integrator = "IMEX_PDARS_ESDIRK"
-integrator = "IMEX_SSPRK11"
+#integrator = "IMEX_SSPRK11"
 
 [eos]
 type = "marshak"

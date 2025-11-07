@@ -6,8 +6,8 @@ geometry = "spherical"
 restart = false
 xl = 0.0
 xr = 1.25
-cfl = 0.75
-nx = 512
+cfl = 0.5
+nx = 256
 grid_type = "uniform"
 
 [physics]
@@ -16,6 +16,7 @@ gravity = false
 composition = false
 ionization = false
 heating = false
+engine = false
 
 [problem.params]
 rstar = 0.01
@@ -43,14 +44,14 @@ porder = 2
 [fluid.limiter]
 do_limiter = true
 type = "minmod"
-m_tvb = 2.0
+m_tvb = 0.0
 b_tvd = 1.0
 tci_opt = false
 tci_val = 0.075
 characteristic = false
 
 [time]
-integrator = "EX_SSPRK33"
+integrator = "EX_SSPRK22"
 
 [eos]
 type = "ideal"

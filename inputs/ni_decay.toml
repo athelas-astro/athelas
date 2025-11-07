@@ -20,13 +20,14 @@ gravity = false
 composition = true
 ionization = false
 heating = true
+engine = false
 
 [composition]
 ncomps = 3
 
 [heating.nickel]
 enabled = true
-model = "full_trapping"
+model = "jeffery"
 operator_split = false
 
 [bc]

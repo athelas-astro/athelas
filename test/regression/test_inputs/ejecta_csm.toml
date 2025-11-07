@@ -16,6 +16,7 @@ gravity = false
 composition = false
 ionization = false
 heating = false
+engine = false
 
 [problem.params]
 rstar = 0.01

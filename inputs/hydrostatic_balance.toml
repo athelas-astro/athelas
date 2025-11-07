@@ -1,6 +1,6 @@
 [problem]
 problem = "hydrostatic_balance"
-t_end = 0.75e5
+t_end = 6.0e2
 #t_end = 1.7e5
 nlim = -1
 geometry = "spherical"
@@ -12,8 +12,9 @@ nx = 1024
 grid_type = "uniform"
 
 [problem.params]
+#rho_c = 1.0
 rho_c = 1.5e2
-p_threshold = 1.0e-1
+p_threshold = 2.0e-1
 # TODO: dr
 
 [physics]
@@ -22,6 +23,7 @@ gravity = true
 composition = false
 ionization = false
 heating = false
+engine = false
 
 [bc]
 [bc.fluid]
@@ -39,28 +41,23 @@ fn = "hydrostatic_balance.hst"
 
 [fluid]
 basis = "legendre"
-nnodes = 3
-porder = 3
+nnodes = 4
+porder = 4
 
 [fluid.limiter]
-do_limiter = true
+do_limiter = false
 type = "minmod"
-b_tvd = 0.0
+b_tvd = 1.0
 m_tvb = 0.0
-tci_opt = true
+tci_opt = false
 tci_val = 0.25
-characteristic = false
-gamma_i = 0.9
-#gamma_r = 0.005
-#gamma_l = 0.005
-weno_r = 2.0
 
 [gravity]
 model = "spherical"
 gval = 1.0e3
 
 [time]
-integrator = "EX_SSPRK33"
+integrator = "EX_SSPRK54"
 
 [eos]
 type = "polytropic"

@@ -16,6 +16,7 @@ gravity = false
 composition = false
 ionization = false
 heating = false
+engine = false
 
 [problem.params]
 vL = 0.0
@@ -42,8 +43,8 @@ dt = 0.001
 
 [fluid]
 basis = "legendre"
-nnodes = 3
-porder = 3
+nnodes = 2
+porder = 2
 
 [fluid.limiter]
 do_limiter = true
@@ -55,7 +56,7 @@ tci_val = 0.075
 characteristic = false
 
 [time]
-integrator = "EX_SSPRK33"
+integrator = "EX_SSPRK22"
 
 [eos]
 type = "ideal"

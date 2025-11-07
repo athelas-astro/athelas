@@ -19,6 +19,7 @@ gravity = false
 composition = false
 ionization = false
 heating = false
+engine = false
 
 [bc]
 [bc.fluid]

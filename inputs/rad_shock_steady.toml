@@ -38,6 +38,7 @@ gravity = false
 composition = false
 ionization = false
 heating = false
+engine = false
 
 # TODO(astrobarker) fix
 [bc]

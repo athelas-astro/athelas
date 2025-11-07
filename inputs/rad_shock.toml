@@ -1,7 +1,7 @@
 [problem]
 problem = "rad_shock"
 t_end = 0.2e-9
-nlim = -1
+nlim = 1000
 geometry = "planar"
 restart = false
 xl = 0.0
@@ -36,6 +36,7 @@ gravity = false
 composition = false
 ionization = false
 heating = false
+engine = false
 
 [bc]
 [bc.fluid]
