@@ -29,7 +29,8 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
       to_lower(pin->param()->get<std::string>("physics.engine.thermal.mode"));
   tend_ = pin->param()->get<double>("physics.engine.thermal.tend");
   mstart_ = pin->param()->get<int>("physics.engine.thermal.mstart");
-  mend_ = pin->param()->get<double>("physics.engine.thermal.mend") * constants::M_sun;
+  mend_ = pin->param()->get<double>("physics.engine.thermal.mend") *
+          constants::M_sun;
 
   // Find index of mass spread
   auto mass_enc_h = Kokkos::create_mirror_view(grid->enclosed_mass());
@@ -85,23 +86,20 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
   c_coeff_ = std::log(RATIO_TIME_) / (tend_); // assuming t_start = 0.0
   d_coeff_ = c_coeff_ * energy_dep_ / (1.0 - std::exp(-c_coeff_ * tend_));
   a_coeff_ = std::log(RATIO_MASS_) / (mend_ - m_start);
-  std::println("a c d {:.5e} {:.5e} {:.5e}", a_coeff_, c_coeff_, d_coeff_);
 
   // integral for b_coeff_
   double b_int = 0.0;
   athelas::par_reduce(
-      DEFAULT_FLAT_LOOP_PATTERN, "ThermalEngine :: b integral", DevExecSpace(), 1, mend_idx_,
+      DEFAULT_FLAT_LOOP_PATTERN, "ThermalEngine :: b integral", DevExecSpace(),
+      1, mend_idx_,
       KOKKOS_CLASS_LAMBDA(const int i, double &lb) {
         for (int q = 0; q < nnodes; ++q) {
-          lb += std::exp(-a_coeff_ * menc(i, q)) * (menc(i+1, 0) - menc(i, 0));
+          lb +=
+              std::exp(-a_coeff_ * menc(i, q)) * (menc(i + 1, 0) - menc(i, 0));
         }
       },
       Kokkos::Sum<double>(b_int));
   b_int_ = b_int;
-  std::println("mstart mend {} {}", m_start/constants::M_sun, mend_ / constants::M_sun);
-  std::println("bint {:.5e}", b_int);
-  std::println("bint(anal) {:.5e}", (std::exp(-a_coeff_ * m_start) - std::exp(-a_coeff_ * mend_)) / a_coeff_);
-  //b_int_ = std::exp(-a_coeff_ * m_start) - std::exp(-a_coeff_ * mend_) / a_coeff_;
 }
 
 void ThermalEnginePackage::update_explicit(const State *const state,
@@ -136,11 +134,13 @@ void ThermalEnginePackage::update_explicit(const State *const state,
   const auto time = dt_info.t;
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "ThermalEngine :: Update", DevExecSpace(),
-      ib_dep.s, ib_dep.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+      ib_dep.s, ib_dep.e, kb.s, kb.e,
+      KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         const double b_coeff = d_coeff_ * std::exp(-c_coeff_ * time) / b_int_;
         for (int q = qb.s; q <= qb.e; ++q) {
-        delta_(i, k, pkg_vars::Energy) +=
-            weights(q) * phi(i, q + 1, k) * b_coeff * std::exp(-a_coeff_ * menc(i, q));
+          delta_(i, k, pkg_vars::Energy) += weights(q) * phi(i, q + 1, k) *
+                                            b_coeff *
+                                            std::exp(-a_coeff_ * menc(i, q));
         }
         delta_(i, k, pkg_vars::Energy) *= mass(i);
       });
@@ -148,8 +148,9 @@ void ThermalEnginePackage::update_explicit(const State *const state,
   // --- Divide update by mass matrix ---
   const auto inv_mkk = basis_->inv_mass_matrix();
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "ThermalEngine :: delta / M_kk", DevExecSpace(), ib_dep.s,
-      ib_dep.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+      DEFAULT_LOOP_PATTERN, "ThermalEngine :: delta / M_kk", DevExecSpace(),
+      ib_dep.s, ib_dep.e, kb.s, kb.e,
+      KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         const double &imm = inv_mkk(i, k);
         delta_(i, k, pkg_vars::Energy) *= imm;
       });
