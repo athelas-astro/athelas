@@ -81,6 +81,7 @@ inline auto total_fluid_momentum(const State &state, const GridStructure &grid,
           local_sum +=
               basis_eval(phi, u, i, vars::cons::Velocity, q + 1) /
               basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
+              basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
               sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);

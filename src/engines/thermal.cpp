@@ -29,15 +29,16 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
       to_lower(pin->param()->get<std::string>("physics.engine.thermal.mode"));
   tend_ = pin->param()->get<double>("physics.engine.thermal.tend");
   mstart_ = pin->param()->get<int>("physics.engine.thermal.mstart");
-  mend_ = pin->param()->get<double>("physics.engine.thermal.mend");
+  mend_ = pin->param()->get<double>("physics.engine.thermal.mend") * constants::M_sun;
 
   // Find index of mass spread
   auto mass_enc_h = Kokkos::create_mirror_view(grid->enclosed_mass());
   const double m_start = mass_enc_h(mstart_, 0);
+  mend_ += m_start;
   const int nnodes = pin->param()->get<int>("fluid.nnodes");
   for (int i = 1; i <= nx; ++i) {
     for (int q = 0; q < nnodes; ++q) {
-      if (mass_enc_h(i, q) - mass_enc_h(1, 0) <= mend_ * constants::M_sun) {
+      if (mass_enc_h(i, q) <= mend_) {
         mend_idx_++;
       } else {
         break;
@@ -56,7 +57,7 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
     // integrate total energy on the mesh
     const bool gravity_active =
         pin->param()->get<bool>("physics.gravity_active");
-    const int grav_switch = 1 ? gravity_active : 0;
+    const int grav_active = gravity_active ? 1 : 0;
     const auto phi = basis_->phi();
     const auto ucf = state->u_cf();
     const auto r = grid->nodal_grid();
@@ -69,37 +70,46 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
           const double e_fluid =
               basis::basis_eval(phi, ucf, i, vars::cons::Energy, q);
           const double e_grav =
-              grav_switch * constants::G_GRAV * mcell(i) * menc(i, q) / r(i, q);
+              grav_active * constants::G_GRAV * mcell(i) * menc(i, q) / r(i, q);
           lenergy += (e_fluid - e_grav) * weights(q);
         },
         Kokkos::Sum<double>(total_energy));
     energy_dep_ = energy_target_ - total_energy;
   }
 
-  // Below are the a, b, c, d coefficients for the injection profile
+  if (energy_dep_ < 0.0) {
+    THROW_ATHELAS_ERROR("The thermal engine energy has become < 0.0!");
+  }
+
+  // Below are the a, c, d coefficients for the injection profile
   c_coeff_ = std::log(RATIO_TIME_) / (tend_); // assuming t_start = 0.0
   d_coeff_ = c_coeff_ * energy_dep_ / (1.0 - std::exp(-c_coeff_ * tend_));
   a_coeff_ = std::log(RATIO_MASS_) / (mend_ - m_start);
-  std::println("coef_a mend mstart {:.5e} {:.5e} {:.5e}", a_coeff_, mend_,
-               m_start);
+  std::println("a c d {:.5e} {:.5e} {:.5e}", a_coeff_, c_coeff_, d_coeff_);
 
   // integral for b_coeff_
   double b_int = 0.0;
   athelas::par_reduce(
-      DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Timestep", DevExecSpace(), 1, nx, 0,
-      nnodes - 1,
-      KOKKOS_CLASS_LAMBDA(const int i, const int q, double &lb) {
-        lb += std::exp(-a_coeff_ * menc(i, q)) * mcell(i);
+      DEFAULT_FLAT_LOOP_PATTERN, "ThermalEngine :: b integral", DevExecSpace(), 1, mend_idx_,
+      KOKKOS_CLASS_LAMBDA(const int i, double &lb) {
+        for (int q = 0; q < nnodes; ++q) {
+          lb += std::exp(-a_coeff_ * menc(i, q)) * (menc(i+1, 0) - menc(i, 0));
+        }
       },
       Kokkos::Sum<double>(b_int));
   b_int_ = b_int;
+  std::println("mstart mend {} {}", m_start/constants::M_sun, mend_ / constants::M_sun);
   std::println("bint {:.5e}", b_int);
+  std::println("bint(anal) {:.5e}", (std::exp(-a_coeff_ * m_start) - std::exp(-a_coeff_ * mend_)) / a_coeff_);
+  //b_int_ = std::exp(-a_coeff_ * m_start) - std::exp(-a_coeff_ * mend_) / a_coeff_;
 }
 
 void ThermalEnginePackage::update_explicit(const State *const state,
                                            const GridStructure &grid,
                                            const TimeStepInfo &dt_info) {
   const int &order = basis_->order();
+  static const auto &nnodes = grid.n_nodes();
+  static const IndexRange qb(nnodes);
   static const IndexRange kb(order);
   static const IndexRange ib(grid.domain<Domain::Interior>());
   const auto u_stages = state->u_cf_stages();
@@ -117,20 +127,31 @@ void ThermalEnginePackage::update_explicit(const State *const state,
         }
       });
 
-  // NOTE: We are only applying heating to the cell average currently.
-  // Is there are better way to do this?
   const IndexRange ib_dep(std::make_pair(1, mend_idx_));
+  const auto weights = grid.weights();
+  const auto dr = grid.widths();
   const auto mass = grid.mass();
   const auto menc = grid.enclosed_mass();
+  const auto phi = basis_->phi();
   const auto time = dt_info.t;
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "ThermalEngine :: Update", DevExecSpace(),
-      ib_dep.s, ib_dep.e, KOKKOS_CLASS_LAMBDA(const int i) {
+      ib_dep.s, ib_dep.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         const double b_coeff = d_coeff_ * std::exp(-c_coeff_ * time) / b_int_;
-        // std::println("b_coeff {:.5e}", b_coeff);
-        const int k = vars::modes::CellAverage;
-        delta_(i, k, pkg_vars::Energy) =
-            b_coeff * std::exp(-a_coeff_ * mass(i));
+        for (int q = qb.s; q <= qb.e; ++q) {
+        delta_(i, k, pkg_vars::Energy) +=
+            weights(q) * phi(i, q + 1, k) * b_coeff * std::exp(-a_coeff_ * menc(i, q));
+        }
+        delta_(i, k, pkg_vars::Energy) *= mass(i);
+      });
+
+  // --- Divide update by mass matrix ---
+  const auto inv_mkk = basis_->inv_mass_matrix();
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "ThermalEngine :: delta / M_kk", DevExecSpace(), ib_dep.s,
+      ib_dep.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+        const double &imm = inv_mkk(i, k);
+        delta_(i, k, pkg_vars::Energy) *= imm;
       });
 }
 
@@ -139,9 +160,8 @@ void ThermalEnginePackage::update_explicit(const State *const state,
  */
 void ThermalEnginePackage::apply_delta(AthelasArray3D<double> lhs,
                                        const TimeStepInfo &dt_info) const {
-  static const int nx = static_cast<int>(lhs.extent(0));
   static const int nk = static_cast<int>(lhs.extent(1));
-  static const IndexRange ib(std::make_pair(1, nx - 2));
+  static const IndexRange ib(std::make_pair(1, mend_idx_));
   static const IndexRange kb(nk);
 
   athelas::par_for(
