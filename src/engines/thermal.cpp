@@ -3,6 +3,7 @@
 #include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "compdata.hpp"
+#include "constants.hpp"
 #include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
@@ -13,8 +14,16 @@
 namespace athelas::thermal_engine {
 using atom::CompositionData;
 using basis::ModalBasis;
+using constants::FOURPI;
 using utilities::to_lower;
 
+/**
+ * @brief ThermalEnginePackage constructor
+ * It might be nice to allow to specify instead of a mass
+ * extent optionally an index instead.
+ *
+ * It might be nice to pass in to the constructor t_start
+ */
 ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
                                            const State *state,
                                            const GridStructure *grid,
@@ -29,6 +38,8 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
       to_lower(pin->param()->get<std::string>("physics.engine.thermal.mode"));
   tend_ = pin->param()->get<double>("physics.engine.thermal.tend");
   mstart_ = pin->param()->get<int>("physics.engine.thermal.mstart");
+
+  // I think we may want to divorce from assuming units comparable to Msun
   mend_ = pin->param()->get<double>("physics.engine.thermal.mend") *
           constants::M_sun;
 
@@ -45,6 +56,11 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
         break;
       }
     }
+  }
+
+  if (mend_idx_ > nx) {
+    THROW_ATHELAS_ERROR(
+        "ThermalEngine :: mass extent index (mend_idx) is greater than nx!");
   }
 
   // Now we need to compute the actual deposition energy
@@ -69,13 +85,15 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
         1, nx, 0, nnodes - 1,
         KOKKOS_CLASS_LAMBDA(const int i, const int q, double &lenergy) {
           const double e_fluid =
-              basis::basis_eval(phi, ucf, i, vars::cons::Energy, q);
+              basis::basis_eval(phi, ucf, i, vars::cons::Energy, q + 1);
           const double e_grav =
-              grav_active * constants::G_GRAV * mcell(i) * menc(i, q) / r(i, q);
-          lenergy += (e_fluid - e_grav) * weights(q);
+              grav_active * constants::G_GRAV * menc(i, q) / r(i, q);
+          lenergy += (e_fluid - e_grav) * weights(q) * mcell(i) * FOURPI;
         },
         Kokkos::Sum<double>(total_energy));
     energy_dep_ = energy_target_ - total_energy;
+    std::println("etarget emodel edep {:.5e} {:.5e} {:.5e}", energy_target_,
+                 total_energy, energy_dep_);
   }
 
   if (energy_dep_ < 0.0) {

@@ -228,13 +228,16 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
       double mass_enc = 0.0;
       double dm = 0.0;
       for (int i = 0; i < n_zones_prog - 1; ++i) {
-        dm = constants::FOUR_THIRDS_PI * density_host(i) * (std::pow(radius_host(i+1), 3.0) -
-                    std::pow(radius_host(i), 3.0)) /
-                    constants::M_sun;
+        dm = constants::FOUR_THIRDS_PI * density_host(i) *
+             (std::pow(radius_host(i + 1), 3.0) -
+              std::pow(radius_host(i), 3.0)) /
+             constants::M_sun;
         mass_enc += dm;
         if (mass_enc >= mass_cut) {
           idx_cut = i - 1;
-          r_cut = utilities::LINTERP(mass_enc - dm, mass_enc, radius_host(idx_cut), radius_host(idx_cut+1), mass_cut);
+          r_cut =
+              utilities::LINTERP(mass_enc - dm, mass_enc, radius_host(idx_cut),
+                                 radius_host(idx_cut + 1), mass_cut);
           mass_cut = mass_enc;
           break;
         }
@@ -719,20 +722,23 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     atom::solve_saha_ionization<Domain::Interior>(*state, *grid, *eos,
                                                   *fluid_basis);
     atom::fill_derived_ionization<Domain::Interior>(state, grid, fluid_basis);
+
+    int nvars = rad_enabled ? 5 : 3;
     // composition boundary condition
-    static const IndexRange vb_comps(std::make_pair(3, 3 + ncomps - 1));
+    static const IndexRange vb_comps(std::make_pair(nvars, nvars + ncomps - 1));
     bc::fill_ghost_zones_composition(uCF, vb_comps);
 
     // now let us offset the enclosed mass by the mass cut
     if (mass_cut != 0.0) {
-    auto menc = grid->enclosed_mass();
-    athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Adjust enclosed mass",
-        DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-          for (int q = 0; q < nNodes; q++) {
-            menc(i, q) += mass_cut * constants::M_sun; 
-          }
-        });
+      auto menc = grid->enclosed_mass();
+      athelas::par_for(
+          DEFAULT_FLAT_LOOP_PATTERN,
+          "Pgen :: Supernova :: Adjust enclosed mass", DevExecSpace(), ib.s,
+          ib.e, KOKKOS_LAMBDA(const int i) {
+            for (int q = 0; q < nNodes; q++) {
+              menc(i, q) += mass_cut * constants::M_sun;
+            }
+          });
     }
 
   } // second pgen call

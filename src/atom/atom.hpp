@@ -6,6 +6,8 @@
  * @note Used to hold NIST atomic data
  *   Designed for an array of structures pattern,
  *   where algorithms should loop over species, then cells.
+ *
+ * We expect to read ionization potentials in eV and then convert to erg.
  */
 
 #pragma once
@@ -14,6 +16,7 @@
 
 #include "io/parser.hpp"
 #include "kokkos_types.hpp"
+#include "utils/constants.hpp"
 
 namespace athelas::atom {
 
@@ -114,12 +117,10 @@ class AtomicData {
 
       for (int n = 0; n < Z; ++n) { // n goes from 0 to Z-1
         // Level n represents ionization from state n to state n+1
-        ion_data_host(level_idx).chi = ionization_energies[chi_idx + n];
+        ion_data_host(level_idx).chi =
+            ionization_energies[chi_idx + n] * constants::ev_to_erg;
         ion_data_host(level_idx).g_lower = weights[g_idx + n]; // g[n]
         ion_data_host(level_idx).g_upper = weights[g_idx + n + 1]; // g[n+1]
-        //        std::println(" ATOM Z={}, n = {}. gup = {}, glo = {}, chi =
-        //        {}", Z, n, weights[g_idx + n + 1], weights[g_idx + n],
-        //        ionization_energies[chi_idx + n]);
 
         level_idx++;
       }
@@ -143,10 +144,9 @@ class AtomicData {
 species_data(const AthelasArray1D<IonLevel> ion_data,
              const AthelasArray1D<int> offsets, const size_t species) {
   const size_t num_species = offsets.size();
-  const size_t offset = offsets(species) - 1;
-  const size_t next_offset = (species + 1 < num_species)
-                                 ? offsets(species + 1) + 1
-                                 : ion_data.extent(0);
+  const size_t offset = offsets(species - 1);
+  const size_t next_offset =
+      (species < num_species) ? offsets(species) + 1 : ion_data.extent(0);
   return Kokkos::subview(ion_data, Kokkos::make_pair(offset, next_offset));
 }
 

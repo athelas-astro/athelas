@@ -265,6 +265,9 @@ void GridStructure::compute_mass(const AthelasArray3D<double> uPF) {
         }
         mass *= widths_(i);
         mass_(i) = mass;
+        // if (do_geometry()) {
+        //   mass_(i) *= constants::FOURPI;
+        // }
       });
 
   // Guard cells

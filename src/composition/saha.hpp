@@ -2,7 +2,9 @@
 
 #include "atom/atom.hpp"
 #include "composition/composition.hpp"
+#include "constants.hpp"
 #include "eos/eos_variant.hpp"
+#include "error.hpp"
 #include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
 #include "loop_layout.hpp"
@@ -15,7 +17,7 @@ KOKKOS_INLINE_FUNCTION
 auto saha_f(const double T, const IonLevel &ion_data) -> double {
   const double prefix = 2.0 * (ion_data.g_upper / ion_data.g_lower) *
                         constants::k_saha * std::pow(T, 1.5);
-  const double suffix = std::exp(-ion_data.chi / (constants::k_Bev * T));
+  const double suffix = std::exp(-ion_data.chi / (constants::k_B * T));
 
   return prefix * suffix;
 }
@@ -104,7 +106,7 @@ auto saha_solve(AthelasArray1D<double> ionization_states, const int Z,
   // We keep tight tolerances here.
   // TODO(astrobarker): make tolerances runtime
   static RootFinder<double, NewtonAlgorithm<double>> solver(
-      {.abs_tol = 1.0e-16, .rel_tol = 1.0e-14, .max_iterations = 100});
+      {.abs_tol = 1.0e-18, .rel_tol = 1.0e-16, .max_iterations = 100});
   static constexpr double ZBARTOL = 1.0e-15;
   static constexpr double ZBARTOLINV = 1.0e15;
 
@@ -115,7 +117,7 @@ auto saha_solve(AthelasArray1D<double> ionization_states, const int Z,
   const double Zbar_nk_inv = 1.0 / (Z * nk);
 
   for (int i = 0; i <= num_states - 1; ++i) {
-    const double f_saha = std::abs(saha_f(temperature, ion_datas(i)));
+    const double f_saha = saha_f(temperature, ion_datas(i));
 
     if (f_saha * Zbar_nk_inv > ZBARTOLINV) {
       min_state = i + 1;
@@ -130,18 +132,22 @@ auto saha_solve(AthelasArray1D<double> ionization_states, const int Z,
     }
   }
 
+  // Need  better solution for this.
+  static constexpr double min_nk = 1.0e-40;
+  if (nk < min_nk) {
+    min_state = num_states;
+  }
+
   double Zbar = 0;
   if (max_state == 0) {
     ionization_states(0) = 1.0; // neutral
     Zbar = 1.0e-16; // uncharged (but don't want division by 0)
   } else if (min_state == num_states) {
-    ionization_states(0) =
-        ion_frac0(Zbar, temperature, ion_datas, nk, min_state, max_state);
-    ionization_states(num_states - 1) = 1.0; // full ionization
+    ionization_states(Z) = 1.0; // full ionization
     Zbar = Z;
   } else if (min_state == max_state) {
     Zbar = min_state - 1.0;
-    ionization_states(min_state) = 1.0; // only one state possible
+    ionization_states(min_state - 1) = 1.0; // only one state possible
   } else { // iterative solve
     // I wonder if there is a smarter way to produce a guess -- T dependent?
     // Simpler ionization model to guess Zbar(T)?
@@ -182,8 +188,7 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
   const auto species = comps->charge();
   const auto neutron_number = comps->neutron_number();
   auto n_e = comps->electron_number_density();
-  auto n_k = comps->number_density();
-  auto species_indexer = comps->species_indexer();
+  auto *species_indexer = comps->species_indexer();
   auto ionization_fractions = ionization_states->ionization_fractions();
 
   const auto phi = fluid_basis.phi();
@@ -203,6 +208,17 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
   static const IndexRange ib(grid.domain<MeshDomain>());
   static const IndexRange nb(nNodes + 2);
   static const IndexRange eb(std::make_pair(start_elem, ncomps_saha - 1));
+
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "Saha :: Zero ioniation fractions", DevExecSpace(),
+      ib.s, ib.e, nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int q) {
+        for (std::size_t e = eb.s; e < ncomps_all; ++e) {
+          for (int s = 0; s <= species(e); ++s) {
+            ionization_fractions(i, q, e, s) = 0.0;
+          }
+        }
+      });
+
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Saha :: Solve ionization all", DevExecSpace(),
       ib.s, ib.e, nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int q) {
@@ -228,18 +244,20 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
 
           const double zbar = saha_solve(ionization_fractions_e, z, temperature,
                                          species_atomic_data, nk);
-          n_e(i, q) += zbar * n_k(i, q);
+          n_e(i, q) += zbar * nk;
         }
 
         // loop over remaining species, assume complete ionization.
         for (std::size_t e = eb.e + 1; e < ncomps_all; ++e) {
           const int z = species(e);
+          const double x_e = basis_eval(phi, mass_fractions, i, e, q);
+          const double A = z + neutron_number(e);
+          const double nk = element_number_density(x_e, A, rho);
           // pull out element info
-          const auto species_atomic_data =
-              species_data(ion_data, species_offsets, z);
           auto ionization_fractions_e =
               Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
           ionization_fractions_e(z) = 1.0;
+          n_e(i, q) += z * nk;
         }
       });
 }

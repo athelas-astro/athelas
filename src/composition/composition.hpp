@@ -125,7 +125,7 @@ void fill_derived_ionization(State *const state,
             1.0 / basis::basis_eval(phi, ucf, i, vars::cons::SpecificVolume, q);
         // This kernel is horrible.
         // Reduce the ionization based quantities sigma1-3, e_ion_corr
-        ybar(i, q) = electron_number_density(i, q) / number_density(i, q);
+        ybar(i, q) = electron_number_density(i, q) / number_density(i, q) / rho;
         for (int e = eb.s; e <= eb.e; ++e) {
           // pull out element info
           const int z = species(e);
@@ -151,9 +151,7 @@ void fill_derived_ionization(State *const state,
           for (int s = 0; s < nstates; ++s) {
             // I think that this pattern is not optimal.
             double sum_pot = 0.0;
-            for (int m = 0; m < s; ++m) {
-              sum_pot += species_atomic_data(s).chi;
-            }
+            sum_pot += species_atomic_data(s).chi;
             sum_ion_pot += ionization_fractions_e(s) * sum_pot;
           }
 
@@ -164,7 +162,7 @@ void fill_derived_ionization(State *const state,
           double y_r = 0;
           double chi_r = 0.0;
           if (lmax == 0) {
-            y_r = ionization_fractions_e(lmax + 1);
+            y_r = ionization_fractions_e(lmax);
             chi_r = species_atomic_data(lmax).chi;
           } else if (lmax == (z)) {
             y_r = ionization_fractions_e(lmax);
@@ -187,12 +185,13 @@ void fill_derived_ionization(State *const state,
 
           const double atomic_mass = z + neutron_number(e);
           const double xk = basis->basis_eval(mass_fractions, i, e, q);
-          const double nu_k = element_number_density(xk, atomic_mass, rho) /
-                              number_density(i, q) / rho;
+          const double N = number_density(i, q);
+          const double nu_k =
+              element_number_density(xk, atomic_mass, rho) / N / rho;
           sum1 += nu_k * y_r * (1 - y_r); // sigma1
           sum2 += chi_r * sum1; // sigma2
           sum3 += chi_r * sum2; // sigma3
-          sum_e_ion_corr += nu_k * sum_ion_pot; // e_ion_corr
+          sum_e_ion_corr += N * nu_k * sum_ion_pot; // e_ion_corr
         }
         sigma1(i, q) = sum1;
         sigma2(i, q) = sum2;
