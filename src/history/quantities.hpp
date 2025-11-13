@@ -30,6 +30,7 @@ inline auto total_fluid_energy(const State &state, const GridStructure &grid,
   const auto dr = grid.widths();
   const auto sqrt_gm = grid.sqrt_gm();
   const auto weights = grid.weights();
+  const auto mcell = grid.mass();
 
   const auto phi = fluid_basis->phi();
 
@@ -42,12 +43,14 @@ inline auto total_fluid_energy(const State &state, const GridStructure &grid,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
+          // local_sum +=
+          //     basis_eval(phi, u, i, vars::cons::Energy, q + 1) /
+          //     basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
+          //     sqrt_gm(i, q + 1) * weights(q);
           local_sum +=
-              basis_eval(phi, u, i, vars::cons::Energy, q + 1) /
-              basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
-              sqrt_gm(i, q + 1) * weights(q);
+              basis_eval(phi, u, i, vars::cons::Energy, q + 1) * weights(q);
         }
-        lsum += local_sum * dr(i);
+        lsum += local_sum * mcell(i);
       },
       Kokkos::Sum<double>(output));
 
@@ -148,6 +151,8 @@ inline auto total_gravitational_energy(const State &state,
   const auto phi = fluid_basis->phi();
   const auto u = state.u_cf();
 
+  const bool do_geometry = grid.do_geometry();
+
   double output = 0.0;
   athelas::par_reduce(
       DEFAULT_FLAT_LOOP_PATTERN, "History :: TotalGravitationalEnergy",
@@ -155,16 +160,17 @@ inline auto total_gravitational_energy(const State &state,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double X = r(i, q);
-          local_sum += (enclosed_mass(i, q) * mass_cell(i) / X) * weights(q);
+          const double &X = r(i, q);
+          local_sum += (enclosed_mass(i, q) / X) * weights(q);
         }
-        lsum += local_sum;
+        double mcell = mass_cell(i);
+        if (do_geometry) {
+          mcell *= constants::FOURPI;
+        }
+        lsum += local_sum * mcell;
       },
       Kokkos::Sum<double>(output));
 
-  if (grid.do_geometry()) {
-    output *= constants::FOURPI;
-  }
   return -constants::G_GRAV * output;
 }
 
