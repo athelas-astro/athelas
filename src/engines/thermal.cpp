@@ -193,14 +193,15 @@ void ThermalEnginePackage::apply_delta(AthelasArray3D<double> lhs,
 
 /**
  * @brief Thermal engine timestep restriction
- * @note We require that the engine is spread through 1000 timesteps at least.
+ * @note We require that the engine is spread through 2500 timesteps at least.
+ * The actual heating restriction is prohibitively expensive.
  **/
-auto ThermalEnginePackage::min_timestep(const State *const /*state*/,
-                                        const GridStructure & /*grid*/,
-                                        const TimeStepInfo & /*dt_info*/) const
+auto ThermalEnginePackage::min_timestep(const State *const state,
+                                        const GridStructure &grid,
+                                        const TimeStepInfo &dt_info) const
     -> double {
-  static const double MAX_DT = tend_ / 1000.0;
-  static const double dt_out = MAX_DT;
+  static const double MAX_DT = tend_ / 2500.0;
+  static double dt_out = MAX_DT;
   return dt_out;
 }
 
