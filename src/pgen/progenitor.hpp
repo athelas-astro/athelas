@@ -66,6 +66,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
                      const eos::EOS *eos,
                      basis::ModalBasis *fluid_basis = nullptr,
                      basis::ModalBasis *rad_basis = nullptr) {
+  // If we ever add columns to the hydro profile, change this.
   static constexpr int NUM_COLS_HYDRO = 6;
 
   // Perform a number of sanity checks
@@ -139,7 +140,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
   }
 
   static const int nNodes = grid->n_nodes();
-  static const int order = nNodes;
+  static const int order = state->p_order();
   static const int nx = grid->n_elements();
   static const IndexRange ib(grid->domain<Domain::Interior>());
 
@@ -148,7 +149,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
   auto uAF = state->u_af();
 
   std::shared_ptr<atom::CompositionData> comps =
-      std::make_shared<atom::CompositionData>(nx + 2, order, ncomps);
+      std::make_shared<atom::CompositionData>(nx + 2, nNodes, ncomps);
 
   auto mass_fractions = state->mass_fractions();
   auto charges = comps->charge();
@@ -225,6 +226,8 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     int idx_cut = 0;
     double r_cut = radius_host[0];
     if (mass_cut != 0.0) {
+      auto &mass_cut_ref =
+          pin->param()->get_mutable_ref<double>("problem.params.mass_cut");
       double mass_enc = 0.0;
       double dm = 0.0;
       for (int i = 0; i < n_zones_prog - 1; ++i) {
@@ -239,6 +242,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
               utilities::LINTERP(mass_enc - dm, mass_enc, radius_host(idx_cut),
                                  radius_host(idx_cut + 1), mass_cut);
           mass_cut = mass_enc;
+          mass_cut_ref = mass_cut;
           break;
         }
       }

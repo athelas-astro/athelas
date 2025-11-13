@@ -58,7 +58,7 @@ class TimeStepper {
                              GridStructure &grid, const double t,
                              const double dt, SlopeLimiter *sl_hydro) {
 
-    const auto &order = grid.n_nodes();
+    const auto &order = state->p_order();
 
     auto U = state->u_cf();
     auto U_s = state->u_cf_stages();
@@ -179,7 +179,7 @@ class TimeStepper {
                              const double dt, SlopeLimiter *sl_hydro,
                              SlopeLimiter *sl_rad) {
 
-    const auto &order = grid.n_nodes();
+    const auto &order = state->p_order();
 
     auto uCF = state->u_cf();
     auto U_s = state->u_cf_stages();

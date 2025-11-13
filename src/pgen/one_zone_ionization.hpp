@@ -49,7 +49,7 @@ void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
 
   static const IndexRange ib(grid->domain<Domain::Interior>());
   static const int nNodes = grid->n_nodes();
-  static const int order = nNodes;
+  static const int order = state->p_order();
 
   const int q_Tau = 0;
   const int q_V = 1;
