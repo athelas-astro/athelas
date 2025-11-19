@@ -29,7 +29,7 @@ namespace athelas::eos {
 
 using root_finders::RootFinder, root_finders::NewtonAlgorithm,
     root_finders::RelativeError, root_finders::HybridError,
-    root_finders::ToleranceConfig, root_finders::AANewtonAlgorithm;
+    root_finders::ToleranceConfig, root_finders::RegulaFalsiAlgorithm;
 
 /**
  * @class Paczynski
@@ -97,9 +97,11 @@ class Paczynski : public EosBase<Paczynski> {
   [[nodiscard]] static auto dp_drho(double T, double rho, double ybar,
                                     double pend, double ped, double f, double N,
                                     double sigma1) -> double;
+  [[nodiscard]] static auto eps_min(double rho, const double *lambda) -> double;
 
  private:
-  RootFinder<double, NewtonAlgorithm<double>, RelativeError> root_finder_;
+  // RootFinder<double, NewtonAlgorithm<double>, RelativeError> root_finder_;
+  RootFinder<double, RegulaFalsiAlgorithm<double>, RelativeError> root_finder_;
 };
 
 /**

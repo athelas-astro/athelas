@@ -11,11 +11,10 @@ nx = 1
 grid_type = "uniform"
 
 [problem.params]
-temperature = 10066.0
+temperature = 2.0e4
 #temperature = 1.5e8
-rho = 2.75e-9
+rho = 1.0e-4
 #rho = 2.143e-9
-ncomps = 5
 
 [physics]
 radiation = false
@@ -26,12 +25,12 @@ heating = false
 engine = false
 
 [composition]
-ncomps = 5
+ncomps = 3
 
 [ionization]
 fn_ionization = "../data/atomic_data_ionization.dat"
 fn_degeneracy = "../data/atomic_data_degeneracy_factors.dat"
-ncomps = 5
+ncomps = 3
 
 [bc]
 [bc.fluid]
@@ -63,4 +62,4 @@ integrator = "EX_SSPRK11"
 
 [eos]
 type = "ideal"
-gamma = 1.66666666666667 # default: 1.4
+gamma = 1.4 # default: 1.4

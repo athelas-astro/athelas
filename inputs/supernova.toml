@@ -1,13 +1,13 @@
 [problem]
 problem = "supernova"
-t_end = 86400.0
-nlim = 2500
+t_end = 800.0
+nlim = -1
 geometry = "spherical"
 restart = false
 xl = 100.0
 xr = 7.0e5
 cfl = 0.25
-nx = 128
+nx = 512
 grid_type = "logarithmic"
 
 [problem.params]
@@ -20,7 +20,7 @@ ni_mass = 0.07 # Msun
 ni_boundary = 3.0 # Msun; > mass_cut
 
 [physics]
-radiation = true
+radiation = false
 gravity = true
 composition = true
 ionization = true
@@ -28,9 +28,9 @@ heating = false
 engine = true
 
 [engine.thermal]
-enabled = true
-mode = "direct"
-energy = 1.64e51 # erg
+enabled = true 
+mode = "asymptotic"
+energy = 1.5e51 # erg
 tend = 0.1
 mend = 0.1 # Msun
 
@@ -40,7 +40,7 @@ ncomps = 21
 [ionization]
 fn_ionization = "../data/atomic_data_ionization.dat"
 fn_degeneracy = "../data/atomic_data_degeneracy_factors.dat"
-ncomps = 5
+ncomps = 1
 
 [bc]
 [bc.fluid]
@@ -51,13 +51,13 @@ bc_i = "outflow"
 bc_o = "outflow"
 
 [output]
-ncycle_out = 100
-dt_hdf5 = 1.0e-10
-dt_init_frac = 1.05
+ncycle_out = 1000
+dt_hdf5 = 200.0
+dt_init_frac = 1.01
 
 [output.history]
 fn = "supernova.hst"
-dt = 1.0e-10 # default: dt_hdf5 / 10
+dt = 0.1 # default: dt_hdf5 / 10
 
 [fluid]
 basis = "legendre"
@@ -94,10 +94,10 @@ model = "spherical"
 operator_split = true
 
 [time]
-#integrator = "EX_SSPRK22"
+integrator = "EX_SSPRK11"
 #integrator = "IMEX_SSPRK22_DIRK" # bad
 #integrator = "IMEX_ARK32_ESDIRK"
-integrator = "IMEX_PDARS_ESDIRK"
+#integrator = "IMEX_PDARS_ESDIRK"
 
 [eos]
 type = "paczynski"

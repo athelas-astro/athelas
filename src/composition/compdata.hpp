@@ -24,6 +24,7 @@ class IonizationState {
   [[nodiscard]] auto ionization_fractions() const noexcept
       -> AthelasArray4D<double>;
   [[nodiscard]] auto atomic_data() const noexcept -> AtomicData *;
+  [[nodiscard]] auto zbar() const noexcept -> AthelasArray3D<double>;
   [[nodiscard]] auto ybar() const noexcept -> AthelasArray2D<double>;
   [[nodiscard]] auto e_ion_corr() const noexcept -> AthelasArray2D<double>;
   [[nodiscard]] auto sigma1() const noexcept -> AthelasArray2D<double>;
@@ -36,6 +37,8 @@ class IonizationState {
   AthelasArray4D<double>
       ionization_fractions_; // [nX][nNodes][n_species][max_charge+1]
   std::unique_ptr<AtomicData> atomic_data_;
+
+  AthelasArray3D<double> zbar_;
 
   // Derived quantities for Paczynski, stored nodally
   AthelasArray2D<double> ybar_; // mean ionization fraction
@@ -52,11 +55,12 @@ class IonizationState {
  */
 class CompositionData {
  public:
-  CompositionData(int nX, int order, int n_species);
+  CompositionData(int nX, int nnodes, int n_species);
 
   [[nodiscard]] auto charge() const noexcept -> AthelasArray1D<int>;
   [[nodiscard]] auto neutron_number() const noexcept -> AthelasArray1D<int>;
   [[nodiscard]] auto ye() const noexcept -> AthelasArray2D<double>;
+  [[nodiscard]] auto abar() const noexcept -> AthelasArray2D<double>;
   [[nodiscard]] auto number_density() const noexcept -> AthelasArray2D<double>;
   [[nodiscard]] auto electron_number_density() const noexcept
       -> AthelasArray2D<double>;
@@ -68,7 +72,7 @@ class CompositionData {
   }
 
  private:
-  int nX_, order_, n_species_;
+  int nX_, nnodes_, n_species_;
 
   // This params object holds indices of species of interest.
   // For example, for nickel heating, I store indices "ni56" -> int etc.
@@ -79,10 +83,11 @@ class CompositionData {
   // Put whatever you like here.
   std::unique_ptr<Params> species_indexer_;
 
-  AthelasArray2D<double> number_density_; // [nX][order] number per unit mass
+  AthelasArray2D<double> number_density_; // [nX][nnodes] number per unit mass
   AthelasArray2D<double>
       electron_number_density_; // [nX][nNodes + 2] number per unit mass
   AthelasArray2D<double> ye_; // [nx][nnodes]
+  AthelasArray2D<double> abar_; // [nx][nnodes]
   AthelasArray1D<int> charge_; // n_species
   AthelasArray1D<int> neutron_number_;
 }; // class CompositionData

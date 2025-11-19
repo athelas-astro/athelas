@@ -1,7 +1,9 @@
 #pragma once
 
 #include "Kokkos_Macros.hpp"
+#include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
+#include "constants.hpp"
 #include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
@@ -43,11 +45,14 @@ void fill_derived_comps(State *const state, const GridStructure *const grid,
 
   auto phi = basis->phi();
 
+  auto ucf = state->u_cf();
+
   auto *const comps = state->comps();
   const auto mass_fractions = state->mass_fractions();
   const auto species = comps->charge();
   const auto neutron_number = comps->neutron_number();
   auto ye = comps->ye();
+  auto abar = comps->abar();
   auto number_density = comps->number_density();
   const size_t num_species = comps->n_species();
 
@@ -57,15 +62,21 @@ void fill_derived_comps(State *const state, const GridStructure *const grid,
       ib.e, nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int q) {
         double n = 0.0;
         double ye_q = 0.0;
+        double sum_y = 0.0;
         for (size_t e = 0; e < num_species; ++e) {
           const double Z = species(e);
           const double A = Z + neutron_number(e);
+          const double rho =
+              1.0 /
+              basis::basis_eval(phi, ucf, i, vars::cons::SpecificVolume, q);
           const double xk = basis::basis_eval(phi, mass_fractions, i, e, q);
           n += xk / A;
           ye_q += Z * xk / A;
+          sum_y += element_number_density(xk, A, rho) / (rho * constants::N_A);
         }
         number_density(i, q) = n * inv_m_p;
         ye(i, q) = ye_q;
+        abar(i, q) = 1.0 / sum_y;
       });
 }
 
@@ -90,6 +101,7 @@ void fill_derived_ionization(State *const state,
   const auto neutron_number = comps->neutron_number();
   const auto number_density = comps->number_density();
   const auto electron_number_density = comps->electron_number_density();
+  const auto abar = comps->abar();
   const size_t num_species = comps->n_species();
   auto *species_indexer = comps->species_indexer();
   static const bool has_neuts = species_indexer->contains("neut");
@@ -110,6 +122,7 @@ void fill_derived_ionization(State *const state,
   const auto species_offsets = atomic_data->offsets();
 
   const auto ucf = state->u_cf();
+  auto uaf = state->u_af();
 
   // NOTE: check index ranges inside here when saha ncomps =/= num_species
   // Should we be skipping neutrons?
@@ -148,11 +161,16 @@ void fill_derived_ionization(State *const state,
 
           // 2. Sum ionization fractions * ionization potentials for e_ion_corr
           double sum_ion_pot = 0.0;
-          for (int s = 0; s < nstates; ++s) {
+          double sum_pot = 0.0;
+          for (int s = 1; s < nstates; ++s) {
             // I think that this pattern is not optimal.
-            double sum_pot = 0.0;
-            sum_pot += species_atomic_data(s).chi;
+            sum_pot += species_atomic_data(s - 1).chi;
             sum_ion_pot += ionization_fractions_e(s) * sum_pot;
+            //            std::println("z s y chi sum_ion_pot rho temp {} {}
+            //            {:.5e} {:.5e} {:.5e} {:.5e} {:.5e}", z, s,
+            //            ionization_fractions_e(s),
+            //            species_atomic_data(s-1).chi, sum_ion_pot, rho,
+            //            removeme);
           }
 
           // 3. Find two most populated states and store the higher as y_r.
@@ -164,7 +182,7 @@ void fill_derived_ionization(State *const state,
           if (lmax == 0) {
             y_r = ionization_fractions_e(lmax);
             chi_r = species_atomic_data(lmax).chi;
-          } else if (lmax == (z)) {
+          } else if (lmax == z) {
             y_r = ionization_fractions_e(lmax);
             chi_r = species_atomic_data(lmax - 1).chi;
           } else {
@@ -186,13 +204,20 @@ void fill_derived_ionization(State *const state,
           const double atomic_mass = z + neutron_number(e);
           const double xk = basis->basis_eval(mass_fractions, i, e, q);
           const double N = number_density(i, q);
-          const double nu_k =
-              element_number_density(xk, atomic_mass, rho) / N / rho;
+          const double nu_k = abar(i, q) * xk / atomic_mass;
           sum1 += nu_k * y_r * (1 - y_r); // sigma1
-          sum2 += chi_r * sum1; // sigma2
-          sum3 += chi_r * sum2; // sigma3
+          sum2 += chi_r * nu_k * y_r * (1 - y_r); // sigma2
+          sum3 += chi_r * chi_r * nu_k * y_r * (1 - y_r); // sigma2
+          // sum2 += chi_r * sum1; // sigma2
+          // sum3 += chi_r * sum2; // sigma3
           sum_e_ion_corr += N * nu_k * sum_ion_pot; // e_ion_corr
-        }
+          //        std::println("i q z yr sigma1 sigma2 sigma3 rho {} {} {} {}
+          //        {:.5e} {:.5e} {:.5e} {:.5e}", i, q, z, y_r, sum1, sum2,
+          //        sum3, rho);
+          //          std::println("i z N nu sumionxorr {} {} {:.5e} {:.5e}
+          //          {:.5e} {:.5e} {:.5e}", i, z, N, nu_k, sum_ion_pot,
+          //          sum_e_ion_corr, rho);
+        } // loop species
         sigma1(i, q) = sum1;
         sigma2(i, q) = sum2;
         sigma3(i, q) = sum3;

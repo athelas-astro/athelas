@@ -26,7 +26,7 @@ TEST_CASE("Paczynski EOS", "[paczynski]") {
   const double e_ioncorr_in = 287375046768323.38;
   const double pressure_ans = 7.3548947139e21;
   const double ffactor_ans = 1.635712907366;
-  const double temp_guess = temp_in / 15.1 + 1.0;
+  const double temp_guess = temp_in + temp_in / 10.0;
   const double cs_ans = std::sqrt(95956495901503152.0);
 
   // Things for eos

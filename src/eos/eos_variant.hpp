@@ -112,9 +112,9 @@ KOKKOS_INLINE_FUNCTION auto initialize_eos(const ProblemIn *pin) -> EOS {
     // NOTE: This is currently where the tolerances are hard coded.
     // TODO(astrobarker): make tolerances runtime configurable.
     // Stretch goal: make algorithm configurable.
-    static constexpr double abstol = 1.0e-14;
-    static constexpr double reltol = 1.0e-14;
-    static constexpr int max_iters = 100;
+    static constexpr double abstol = 1.0e-10;
+    static constexpr double reltol = 1.0e-10;
+    static constexpr int max_iters = 1000;
     eos = Paczynski(abstol, reltol, max_iters);
   } else if (type == "ideal") {
     eos = IdealGas(pin->param()->get<double>("eos.gamma"));

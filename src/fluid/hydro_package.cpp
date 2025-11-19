@@ -304,7 +304,12 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
 
           const double rho = 1.0 / tau;
           const double momentum = rho * vel;
-          const double sie = (emt - 0.5 * vel * vel);
+          double sie = (emt - 0.5 * vel * vel);
+
+          if (rho <= 0.0) {
+            std::println("i q rho vel {} {} {:.5e} {:.5e}", i, q, rho, vel);
+            THROW_ATHELAS_ERROR("NEGATIVE RHIO");
+          }
 
           double lambda[8];
           // This is probably not the cleanest logic, but setups with
@@ -312,6 +317,13 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
           // Maybe I can do this always?
           if (ionization_enabled) {
             atom::paczynski_terms(state, i, q, lambda);
+            const double emin = eos::Paczynski::eps_min(rho, lambda);
+            if (sie < 1.1 * emin) {
+              std::println("sie floor triggered i q {} {} {:.5e} {:.5e}", i, q,
+                           sie, 1.1 * emin);
+              sie = 1.1 * emin;
+              uCF(i, 0, 2) = sie + 0.5 * vel * vel;
+            }
           }
           const double t_gas =
               temperature_from_density_sie(eos_, rho, sie, lambda);
@@ -329,6 +341,11 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
           uAF(i, q, vars::aux::Cs) = cs;
         }
       });
+
+  if (ionization_enabled) {
+    atom::solve_saha_ionization<Domain::Entire>(*state, grid, *eos_, *basis_);
+    atom::fill_derived_ionization<Domain::Entire>(state, &grid, basis_);
+  }
 }
 
 [[nodiscard]] auto HydroPackage::name() const noexcept -> std::string_view {

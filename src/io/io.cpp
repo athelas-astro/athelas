@@ -230,6 +230,7 @@ auto generate_filename(const std::string &problem_name, int i_write,
 void write_state(State *state, GridStructure &grid, SlopeLimiter *SL,
                  ProblemIn *pin, double time, int order, int i_write,
                  bool do_rad) {
+  Kokkos::Profiling::pushRegion("HDF5 IO");
 
   const bool ionization_active =
       pin->param()->get<bool>("physics.ionization_enabled");
@@ -331,6 +332,7 @@ void write_state(State *state, GridStructure &grid, SlopeLimiter *SL,
       writer.write_string("parameters/" + key, "Null");
     }
   }
+  Kokkos::Profiling::popRegion();
 }
 
 /**

@@ -327,6 +327,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
       auto data = io::get_column_by_index<int>(*comps_data, e);
       species_h(e) = data[0];
       neutron_number_h(e) = data[1];
+
       // We need to store the element index of Ni56, Co56, Fe56
       // in the species indexer. If you need to track other specific
       // species, this might be a good place to do it.
@@ -486,9 +487,10 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     auto charges = comps->charge();
     auto neutrons = comps->neutron_number();
     auto ionization_states = ionization_state->ionization_fractions();
+    auto zbar = ionization_state->zbar();
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Default Ionization",
-        DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
+        DevExecSpace(), ib.s - 1, ib.e + 1, KOKKOS_LAMBDA(const int i) {
           for (int q = 0; q < nNodes + 2; ++q) {
             for (int elem = 0; elem < ncomps; ++elem) {
               const int Z = charges(elem);
@@ -497,6 +499,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
               }
 
               ionization_states(i, q, elem, Z) = 1.0;
+              zbar(i, q, elem) = Z;
             }
           }
         });
@@ -540,6 +543,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     // for doing the Saha solve.
     auto sqrt_gm = grid->sqrt_gm();
     auto dr = grid->widths();
+    auto mkk_fluid = fluid_basis->mass_matrix();
     AthelasArray2D<double> tau_cell("supernova :: tau cell", nx + 2, nNodes);
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Project tau",
@@ -553,14 +557,14 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
           // This should probably be a function.
           for (int k = 0; k < order; k++) {
             double numerator = 0.0;
-            const double denominator = mass_matrix_h(i, k);
+            const double denominator = mkk_fluid(i, k);
 
             // Compute <f_q, phi_k>
             for (int q = 0; q < nNodes; q++) {
               const double nodal_val = tau_cell(i, q);
               const double rho = uPF(i, q + 1, vars::prim::Rho);
 
-              numerator += nodal_val * phi_h(i, q + 1, k) * weights_h(q) *
+              numerator += nodal_val * phi_fluid(i, q + 1, k) * weights(q) *
                            dr(i) * sqrt_gm(i, q + 1) * rho;
             }
             uCF(i, k, vars::cons::SpecificVolume) = numerator / denominator;
@@ -599,7 +603,6 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     AthelasArray2D<double> vel_cell("supernova :: vel cell", nx + 2, nNodes);
     AthelasArray2D<double> energy_cell("supernova :: energy cell", nx + 2,
                                        nNodes);
-    auto mkk_fluid = fluid_basis->mass_matrix();
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Project RadHydro vars",
         DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
@@ -659,12 +662,14 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
           for (int q = 0; q < nNodes + 2; q++) {
             double lambda[8];
             atom::paczynski_terms(state, i, q, lambda);
-            uAF(i, q, vars::aux::Tgas) = eos::temperature_from_conserved(
+            const double vel =
+                basis::basis_eval(phi_fluid, uCF, i, vars::cons::Velocity, q);
+            uAF(i, q, vars::aux::Tgas) = eos::temperature_from_density_sie(
                 eos,
-                basis::basis_eval(phi_fluid, uCF, i, vars::cons::SpecificVolume,
-                                  q),
-                basis::basis_eval(phi_fluid, uCF, i, vars::cons::Velocity, q),
-                basis::basis_eval(phi_fluid, uCF, i, vars::cons::Energy, q),
+                1.0 / basis::basis_eval(phi_fluid, uCF, i,
+                                        vars::cons::SpecificVolume, q),
+                basis::basis_eval(phi_fluid, uCF, i, vars::cons::Energy, q) -
+                    0.5 * vel * vel,
                 lambda);
           }
         });
