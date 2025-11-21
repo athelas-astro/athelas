@@ -36,11 +36,9 @@ auto ion_frac0(const double Zbar, const double temperature,
   const double inv_zbar_nk = 1.0 / (Zbar * nk);
 
   double denominator = 0.0;
+  double prod = 1.0;
   for (int i = min_state; i < max_state; ++i) {
-    double prod = 1.0;
-    for (int j = min_state; j <= i; ++j) {
-      prod *= inv_zbar_nk * saha_f(temperature, ion_datas(j - 1));
-    }
+    prod *= inv_zbar_nk * saha_f(temperature, ion_datas(i - 1));
     denominator += i * prod;
   }
   denominator += (min_state - 1.0);

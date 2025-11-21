@@ -482,7 +482,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     // If we want to default the ionization fractions to anything other
     // than 0, we can do it below. i.e., for species that we are not doing
     // Saha solves, what is their default ionization state?
-    // This can probably be removed.
+    // This can probably be removed. (Zbar must be initialized)
     auto mass_fractions = state->mass_fractions();
     auto charges = comps->charge();
     auto neutrons = comps->neutron_number();
@@ -601,8 +601,6 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
 
     // Per cell nodal storage
     AthelasArray2D<double> vel_cell("supernova :: vel cell", nx + 2, nNodes);
-    AthelasArray2D<double> energy_cell("supernova :: energy cell", nx + 2,
-                                       nNodes);
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Project RadHydro vars",
         DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
@@ -618,6 +616,63 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
             vel_cell(i, q) = utilities::LINTERP(
                 radius_view(idx), radius_view(idx + 1), velocity_view(idx),
                 velocity_view(idx + 1), rq);
+          }
+
+          // Project the nodal representation to a modal one
+          // Compute L2 projection: <f_q, phi_k> / <phi_k, phi_k>
+          // This should probably be a function.
+          for (int k = 0; k < order; k++) {
+            double numerator_vel = 0.0;
+            const double denominator = mkk_fluid(i, k);
+
+            // Compute <f_q, phi_k>
+            for (int q = 0; q < nNodes; q++) {
+              const double nodal_vel = vel_cell(i, q);
+              const double rho = uPF(i, q + 1, vars::prim::Rho);
+
+              numerator_vel += nodal_vel * phi_fluid(i, q + 1, k) * weights(q) *
+                               dr(i) * sqrt_gm(i, q + 1) * rho;
+            }
+            uCF(i, k, vars::cons::Velocity) = numerator_vel / denominator;
+            // Exponential filter
+            if (k > 0) {
+              uCF(i, k, vars::cons::Velocity) *= std::exp(-k);
+            }
+          }
+        });
+
+    // Now recompute the temperature so that everything is happy and consistent
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Recompute T",
+        DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
+          for (int q = 0; q < nNodes + 2; q++) {
+            double lambda[8];
+            atom::paczynski_terms(state, i, q, lambda);
+            const double pressure = uAF(i, q, vars::aux::Pressure);
+            const double rho =
+                1.0 / basis::basis_eval(phi_fluid, uCF, i,
+                                        vars::cons::SpecificVolume, q);
+            uAF(i, q, vars::aux::Tgas) = eos::temperature_from_density_pressure(
+                eos, rho, pressure, lambda);
+          }
+        });
+
+    atom::fill_derived_comps<Domain::Interior>(state, grid, fluid_basis);
+    atom::solve_saha_ionization<Domain::Interior>(*state, *grid, *eos,
+                                                  *fluid_basis);
+    atom::fill_derived_ionization<Domain::Interior>(state, grid, fluid_basis);
+
+    AthelasArray2D<double> energy_cell("supernova :: energy cell", nx + 2,
+                                       nNodes);
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Project sie",
+        DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
+          double lambda[8];
+          // Project each conserved variable
+          // loop over nodes on an element, interpolate to nodal positions
+          for (int q = 0; q < nNodes; ++q) {
+            tau_cell(i, q) = basis::basis_eval(phi_fluid, uCF, i,
+                                               vars::cons::SpecificVolume, q);
             const double pressure_q = uAF(i, q + 1, vars::aux::Pressure);
             atom::paczynski_terms(state, i, q, lambda);
             energy_cell(i, q) =
@@ -630,47 +685,22 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
           // Compute L2 projection: <f_q, phi_k> / <phi_k, phi_k>
           // This should probably be a function.
           for (int k = 0; k < order; k++) {
-            double numerator_vel = 0.0;
             double numerator_energy = 0.0;
             const double denominator = mkk_fluid(i, k);
 
             // Compute <f_q, phi_k>
             for (int q = 0; q < nNodes; q++) {
-              const double nodal_vel = vel_cell(i, q);
               const double nodal_energy = energy_cell(i, q);
               const double rho = uPF(i, q + 1, vars::prim::Rho);
 
-              numerator_vel += nodal_vel * phi_fluid(i, q + 1, k) * weights(q) *
-                               dr(i) * sqrt_gm(i, q + 1) * rho;
               numerator_energy += nodal_energy * phi_fluid(i, q + 1, k) *
                                   weights(q) * dr(i) * sqrt_gm(i, q + 1) * rho;
             }
-            uCF(i, k, vars::cons::Velocity) = numerator_vel / denominator;
             uCF(i, k, vars::cons::Energy) = numerator_energy / denominator;
             // Exponential filter
             if (k > 0) {
-              uCF(i, k, vars::cons::Velocity) *= std::exp(-k);
               uCF(i, k, vars::cons::Energy) *= std::exp(-k);
             }
-          }
-        });
-
-    // Now recompute the temperature so that everything is happy and consistent
-    athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Recompute T",
-        DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-          for (int q = 0; q < nNodes + 2; q++) {
-            double lambda[8];
-            atom::paczynski_terms(state, i, q, lambda);
-            const double vel =
-                basis::basis_eval(phi_fluid, uCF, i, vars::cons::Velocity, q);
-            uAF(i, q, vars::aux::Tgas) = eos::temperature_from_density_sie(
-                eos,
-                1.0 / basis::basis_eval(phi_fluid, uCF, i,
-                                        vars::cons::SpecificVolume, q),
-                basis::basis_eval(phi_fluid, uCF, i, vars::cons::Energy, q) -
-                    0.5 * vel * vel,
-                lambda);
           }
         });
 
@@ -726,11 +756,6 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
             }
           });
     }
-
-    atom::fill_derived_comps<Domain::Interior>(state, grid, fluid_basis);
-    atom::solve_saha_ionization<Domain::Interior>(*state, *grid, *eos,
-                                                  *fluid_basis);
-    atom::fill_derived_ionization<Domain::Interior>(state, grid, fluid_basis);
 
     int nvars = rad_enabled ? 5 : 3;
     // composition boundary condition

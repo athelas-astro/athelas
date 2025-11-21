@@ -166,11 +166,6 @@ void fill_derived_ionization(State *const state,
             // I think that this pattern is not optimal.
             sum_pot += species_atomic_data(s - 1).chi;
             sum_ion_pot += ionization_fractions_e(s) * sum_pot;
-            //            std::println("z s y chi sum_ion_pot rho temp {} {}
-            //            {:.5e} {:.5e} {:.5e} {:.5e} {:.5e}", z, s,
-            //            ionization_fractions_e(s),
-            //            species_atomic_data(s-1).chi, sum_ion_pot, rho,
-            //            removeme);
           }
 
           // 3. Find two most populated states and store the higher as y_r.
@@ -208,15 +203,7 @@ void fill_derived_ionization(State *const state,
           sum1 += nu_k * y_r * (1 - y_r); // sigma1
           sum2 += chi_r * nu_k * y_r * (1 - y_r); // sigma2
           sum3 += chi_r * chi_r * nu_k * y_r * (1 - y_r); // sigma2
-          // sum2 += chi_r * sum1; // sigma2
-          // sum3 += chi_r * sum2; // sigma3
           sum_e_ion_corr += N * nu_k * sum_ion_pot; // e_ion_corr
-          //        std::println("i q z yr sigma1 sigma2 sigma3 rho {} {} {} {}
-          //        {:.5e} {:.5e} {:.5e} {:.5e}", i, q, z, y_r, sum1, sum2,
-          //        sum3, rho);
-          //          std::println("i z N nu sumionxorr {} {} {:.5e} {:.5e}
-          //          {:.5e} {:.5e} {:.5e}", i, z, N, nu_k, sum_ion_pot,
-          //          sum_e_ion_corr, rho);
         } // loop species
         sigma1(i, q) = sum1;
         sigma2(i, q) = sum2;
