@@ -92,8 +92,10 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
         },
         Kokkos::Sum<double>(total_energy));
     energy_dep_ = energy_target_ - total_energy;
-    std::println("etarget emodel edep {:.5e} {:.5e} {:.5e}", energy_target_,
-                 total_energy, energy_dep_);
+    std::println("# --- Thermal Engine Parameters --- ");
+    std::println("# Model energy   : {:.5e}", total_energy);
+    std::println("# Target energy  : {:.5e}", energy_target_);
+    std::println("# Engine energy  : {:.5e}", energy_dep_);
   }
 
   if (energy_dep_ < 0.0) {
