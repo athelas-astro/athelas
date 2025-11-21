@@ -29,6 +29,17 @@ temperature_from_density_sie(const EOS *const eos, const double rho,
 }
 
 KOKKOS_INLINE_FUNCTION auto
+temperature_from_density_pressure(const EOS *const eos, const double rho,
+                                  const double pressure,
+                                  const double *const lambda) -> double {
+  return std::visit(
+      [&rho, &pressure, &lambda](auto &eos) {
+        return eos.temperature_from_density_pressure(rho, pressure, lambda);
+      },
+      *eos);
+}
+
+KOKKOS_INLINE_FUNCTION auto
 pressure_from_density_temperature(const EOS *const eos, const double rho,
                                   const double temp, const double *const lambda)
     -> double {
@@ -89,6 +100,17 @@ sie_from_density_pressure(const EOS *const eos, const double rho,
   return std::visit(
       [&rho, &pressure, &lambda](auto &eos) {
         return eos.sie_from_density_pressure(rho, pressure, lambda);
+      },
+      *eos);
+}
+
+KOKKOS_INLINE_FUNCTION auto
+sie_from_density_temperature(const EOS *const eos, const double rho,
+                             const double temperature,
+                             const double *const lambda) -> double {
+  return std::visit(
+      [&rho, &temperature, &lambda](auto &eos) {
+        return eos.sie_from_density_temperature(rho, temperature, lambda);
       },
       *eos);
 }

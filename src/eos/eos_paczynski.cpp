@@ -17,8 +17,7 @@ using root_finders::RootFinder, root_finders::NewtonAlgorithm,
  * 2: ybar (mean ionization state)
  */
 [[nodiscard]] auto Paczynski::pressure_from_density_temperature(
-    const double rho, const double temp, const double *const lambda) const
-    -> double {
+    const double rho, const double temp, const double *const lambda) -> double {
   const double N = lambda[0];
   const double ye = lambda[1];
   const double ybar = lambda[2];
@@ -47,10 +46,26 @@ Paczynski::temperature_from_density_sie(const double rho, const double sie,
   const double e_min = eps_min(rho, lambda);
   auto target = [&sie, &e_i, &e_min](const double temperature, const double rho,
                                      const double *const lambda) {
-    //          std::println("e(T) e_known e_min e_ioniz rho {:.5e} {:.5e}
-    //          {:.5e} {:.5e} {:.5e}", specific_internal_energy(temperature,
-    //          rho, lambda), sie, e_min, e_i, rho);
-    return specific_internal_energy(temperature, rho, lambda) - sie;
+    return sie_from_density_temperature(rho, temperature, lambda) - sie;
+  };
+  const double res =
+      root_finder_.solve(target, 1.0, 5.0e12, temperature_guess, rho, lambda);
+  return res;
+}
+
+/**
+ * @brief Paczynski temperature from density and pressure
+ * NOTE:: Lambda contents:
+ * 7: temperature_guess
+ */
+[[nodiscard]] auto Paczynski::temperature_from_density_pressure(
+    const double rho, const double pressure, const double *const lambda) const
+    -> double {
+  const double temperature_guess = lambda[7];
+  auto target = [&pressure](const double temperature, const double rho,
+                            const double *const lambda) {
+    return pressure_from_density_temperature(rho, temperature, lambda) -
+           pressure;
   };
   const double res =
       root_finder_.solve(target, 1.0, 5.0e12, temperature_guess, rho, lambda);
@@ -120,7 +135,7 @@ Paczynski::pressure_from_conserved(const double tau, const double V,
   const double rho = 1.0 / tau;
   auto target = [sie](double temperature, double rho,
                       const double *const lambda) {
-    return specific_internal_energy(temperature, rho, lambda) - sie;
+    return sie_from_density_temperature(rho, temperature, lambda) - sie;
   };
   return root_finder_.solve(target, temperature_guess - dT,
                             temperature_guess + dT, temperature_guess, rho,
@@ -146,7 +161,7 @@ Paczynski::sie_from_density_pressure(const double rho, const double pressure,
   const double temperature = root_finder_.solve(target, temperature_guess - dT,
                                                 temperature_guess + 5.0 * dT,
                                                 temperature_guess, rho, lambda);
-  return specific_internal_energy(temperature, rho, lambda);
+  return sie_from_density_temperature(rho, temperature, lambda);
 }
 
 /**
@@ -279,8 +294,9 @@ Paczynski::pressure_from_rho_temperature(const double temperature,
  * @brief internal (to the eos) specific internal energy function
  */
 [[nodiscard]] auto
-Paczynski::specific_internal_energy(const double T, const double rho,
-                                    const double *const lambda) -> double {
+Paczynski::sie_from_density_temperature(const double rho,
+                                        const double temperature,
+                                        const double *const lambda) -> double {
   static constexpr double THREE_HALVES = 1.5;
   const double N = lambda[0];
   const double ye = lambda[1];
@@ -289,12 +305,12 @@ Paczynski::specific_internal_energy(const double T, const double rho,
   const double pednr = p_ednr(rho, ye);
   const double pedr = p_edr(rho, ye);
   const double ped = p_ed(pednr, pedr);
-  const double pend = p_end(rho, T, ybar, N);
+  const double pend = p_end(rho, temperature, ybar, N);
   const double pe = p_e(pend, ped);
   const double f = degeneracy_factor(ped, pednr, pedr);
 
-  return THREE_HALVES * N * constants::k_B * T + pe / (rho * (f - 1.0)) +
-         e_ion_corr;
+  return THREE_HALVES * N * constants::k_B * temperature +
+         pe / (rho * (f - 1.0)) + e_ion_corr;
 }
 
 /*

@@ -47,10 +47,12 @@ class Paczynski : public EosBase<Paczynski> {
                                                             .max_iterations =
                                                                 max_iters}) {}
 
-  auto pressure_from_density_temperature(double rho, double temp,
-                                         const double *lambda) const -> double;
+  static auto pressure_from_density_temperature(double rho, double temp,
+                                                const double *lambda) -> double;
   auto temperature_from_density_sie(double rho, double sie,
                                     const double *lambda) const -> double;
+  auto temperature_from_density_pressure(double rho, double pressure,
+                                         const double *lambda) const -> double;
   auto sound_speed_from_density_temperature_pressure(double rho, double temp,
                                                      double pressure,
                                                      const double *lambda) const
@@ -63,6 +65,8 @@ class Paczynski : public EosBase<Paczynski> {
                                   const double *lambda) const -> double;
   auto sie_from_density_pressure(double rho, double pressure,
                                  const double *lambda) const -> double;
+  static auto sie_from_density_temperature(double rho, double temperature,
+                                           const double *lambda) -> double;
   [[nodiscard]] auto gamma1() const -> double;
   [[nodiscard]] auto gamma1(double tau, double V, double EmT,
                             const double *lambda) const -> double;
@@ -87,9 +91,6 @@ class Paczynski : public EosBase<Paczynski> {
 
   // TODO(astrobarker): The following 2 functions need an identical API.
   // However, I recompute some things unnecessarily. Make the arg lists bigger.
-  [[nodiscard]] static auto specific_internal_energy(double T, double rho,
-                                                     const double *lambda)
-      -> double;
   [[nodiscard]] static auto dsie_dt(double T, double rho, const double *lambda)
       -> double;
   [[nodiscard]] static auto dp_dt(double T, double rho, const double *lambda)
@@ -123,6 +124,8 @@ class IdealGas : public EosBase<IdealGas> {
                                          const double *lambda) const -> double;
   auto temperature_from_density_sie(double rho, double sie,
                                     const double *lambda) const -> double;
+  auto temperature_from_density_pressure(double rho, double pressure,
+                                         const double *lambda) const -> double;
   auto sound_speed_from_density_temperature_pressure(double rho, double temp,
                                                      double pressure,
                                                      const double *lambda) const
@@ -135,6 +138,8 @@ class IdealGas : public EosBase<IdealGas> {
                                   const double *lambda) const -> double;
   auto sie_from_density_pressure(double rho, double pressure,
                                  const double *lambda) const -> double;
+  auto sie_from_density_temperature(double rho, double temperature,
+                                    const double *lambda) const -> double;
   [[nodiscard]] auto gamma1(double tau, double V, double EmT,
                             const double *lambda) const noexcept -> double;
   [[nodiscard]] auto gamma1() const noexcept -> double;
@@ -164,6 +169,8 @@ class Polytropic : public EosBase<Polytropic> {
                                          const double *lambda) const -> double;
   auto temperature_from_density_sie(double rho, double sie,
                                     const double *lambda) const -> double;
+  auto temperature_from_density_pressure(double rho, double pressure,
+                                         const double *lambda) const -> double;
   auto sound_speed_from_density_temperature_pressure(double rho, double temp,
                                                      double pressure,
                                                      const double *lambda) const
@@ -176,6 +183,8 @@ class Polytropic : public EosBase<Polytropic> {
                                   const double *lambda) const -> double;
   auto sie_from_density_pressure(double rho, double pressure,
                                  const double *lambda) const -> double;
+  auto sie_from_density_temperature(double rho, double temperature,
+                                    const double *lambda) const -> double;
   [[nodiscard]] auto gamma1(double tau, double V, double EmT,
                             const double *lambda) const noexcept -> double;
   [[nodiscard]] auto gamma1() const noexcept -> double;
@@ -207,6 +216,8 @@ class Marshak : public EosBase<Marshak> {
                                          const double *lambda) const -> double;
   auto temperature_from_density_sie(double rho, double sie,
                                     const double *lambda) const -> double;
+  auto temperature_from_density_pressure(double rho, double pressure,
+                                         const double *lambda) const -> double;
   auto sound_speed_from_density_temperature_pressure(double rho, double temp,
                                                      double pressure,
                                                      const double *lambda) const
@@ -219,6 +230,8 @@ class Marshak : public EosBase<Marshak> {
                                   const double *lambda) const -> double;
   auto sie_from_density_pressure(double rho, double pressure,
                                  const double *lambda) const -> double;
+  auto sie_from_density_temperature(double rho, double temperature,
+                                    const double *lambda) const -> double;
   [[nodiscard]] auto gamma1(double tau, double V, double EmT,
                             const double *lambda) const noexcept -> double;
   [[nodiscard]] auto gamma1() const noexcept -> double;

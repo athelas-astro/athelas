@@ -21,6 +21,14 @@ Polytropic::temperature_from_density_sie(const double rho, const double /*sie*/,
   return p * mu * constants::m_p / (rho * constants::k_B);
 }
 
+[[nodiscard]] auto Polytropic::temperature_from_density_pressure(
+    const double rho, const double pressure,
+    const double *const /*lambda*/) const -> double {
+  const double mu =
+      1.0 + constants::m_e / constants::m_p; // TODO(astrobarker) generalize
+  return pressure * mu * constants::m_p / (rho * constants::k_B);
+}
+
 [[nodiscard]] auto Polytropic::sound_speed_from_density_temperature_pressure(
     const double rho, const double /*temp*/, const double /*pressure*/,
     const double *const /*lambda*/) const -> double {
@@ -53,6 +61,14 @@ Polytropic::temperature_from_density_sie(const double rho, const double /*sie*/,
 Polytropic::sie_from_density_pressure(const double rho, const double pressure,
                                       const double *const /*lambda*/) const
     -> double {
+  return pressure / (gamma1() - 1) / rho;
+}
+
+[[nodiscard]] auto Polytropic::sie_from_density_temperature(
+    const double rho, const double temperature,
+    const double *const lambda) const -> double {
+  const double pressure =
+      pressure_from_density_temperature(rho, temperature, lambda);
   return pressure / (gamma1() - 1) / rho;
 }
 
