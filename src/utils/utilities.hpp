@@ -19,12 +19,27 @@
 #include "Kokkos_Macros.hpp"
 
 #include "basis/polynomial_basis.hpp"
+#include "concepts/arithmetic.hpp"
 #include "concepts/types.hpp"
 #include "kokkos_types.hpp"
 
 namespace athelas::utilities {
 using basis::ModalBasis;
 
+/**
+ * @brief constexpr integer power function
+ * requires a positive exponent
+ */
+template <Multipliable T>
+constexpr T pow_int(T base, unsigned int exp) noexcept(noexcept(base * base)) {
+  T result = T(1);
+  while (exp > 0) {
+    if (exp & 1) result = result * base; // multiply once
+    base = base * base; // square
+    exp >>= 1; // divide exponent by 2
+  }
+  return result;
+}
 /**
  * @brief simple linear interpolation to x
  *
