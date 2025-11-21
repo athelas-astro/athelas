@@ -25,10 +25,10 @@ engine = false
 [ionization]
 fn_ionization = "../../../data/atomic_data_ionization.dat"
 fn_degeneracy = "../../../data/atomic_data_degeneracy_factors.dat"
-ncomps = 5
+ncomps = 3
 
 [composition]
-ncomps = 5
+ncomps = 3
 
 [bc]
 [bc.fluid]
