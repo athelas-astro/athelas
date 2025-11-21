@@ -604,7 +604,6 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Project RadHydro vars",
         DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-          double lambda[8];
           // Project each conserved variable
           // loop over nodes on an element, interpolate to nodal positions
           for (int q = 0; q < nNodes; ++q) {
