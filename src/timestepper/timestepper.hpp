@@ -58,7 +58,7 @@ class TimeStepper {
                              GridStructure &grid, const double t,
                              const double dt, SlopeLimiter *sl_hydro) {
 
-    const auto &order = grid.n_nodes();
+    const auto &order = state->p_order();
 
     auto U = state->u_cf();
     auto U_s = state->u_cf_stages();
@@ -91,7 +91,7 @@ class TimeStepper {
 
       for (int j = 0; j < iS; ++j) {
         dt_info.stage = j;
-        dt_info.t = t + integrator_.explicit_tableau.c_i(j);
+        dt_info.t = t + integrator_.explicit_tableau.c_i(j) * dt;
         pkgs->fill_derived(state, grid_s_[j], dt_info);
         pkgs->update_explicit(state, grid_s_[j], dt_info);
 
@@ -132,7 +132,7 @@ class TimeStepper {
 
     for (int iS = 0; iS < nStages_; ++iS) {
       dt_info.stage = iS;
-      dt_info.t = t + integrator_.explicit_tableau.c_i(iS);
+      dt_info.t = t + integrator_.explicit_tableau.c_i(iS) * dt;
 
       pkgs->fill_derived(state, grid_s_[iS], dt_info);
       pkgs->update_explicit(state, grid_s_[iS], dt_info);
@@ -179,7 +179,7 @@ class TimeStepper {
                              const double dt, SlopeLimiter *sl_hydro,
                              SlopeLimiter *sl_rad) {
 
-    const auto &order = grid.n_nodes();
+    const auto &order = state->p_order();
 
     auto uCF = state->u_cf();
     auto U_s = state->u_cf_stages();
@@ -197,7 +197,7 @@ class TimeStepper {
     for (int iS = 0; iS < nStages_; ++iS) {
       auto left_interface = grid_s_[iS].x_l();
       dt_info.stage = iS;
-      dt_info.t = t + integrator_.explicit_tableau.c_i(iS);
+      dt_info.t = t + integrator_.explicit_tableau.c_i(iS) * dt;
       athelas::par_for(
           DEFAULT_LOOP_PATTERN, "Timestepper :: IMEX :: Reset sumvar",
           DevExecSpace(), ib.s, ib.e, kb.s, kb.e, vb.s, vb.e,
@@ -210,7 +210,7 @@ class TimeStepper {
 
       for (int j = 0; j < iS; ++j) {
         dt_info.stage = j;
-        dt_info.t = t + integrator_.explicit_tableau.c_i(j);
+        dt_info.t = t + integrator_.explicit_tableau.c_i(j) * dt;
         const double dt_a = dt * integrator_.explicit_tableau.a_ij(iS, j);
         const double dt_a_im = dt * integrator_.implicit_tableau.a_ij(iS, j);
 
@@ -276,7 +276,7 @@ class TimeStepper {
 
       // implicit update
       dt_info.stage = iS;
-      dt_info.t = t + integrator_.explicit_tableau.c_i(iS);
+      dt_info.t = t + integrator_.explicit_tableau.c_i(iS) * dt;
       dt_info.dt_a = dt * integrator_.implicit_tableau.a_ij(iS, iS);
       pkgs->fill_derived(state, grid_s_[iS], dt_info);
       pkgs->update_implicit_iterative(state, SumVar_U_, grid_s_[iS], dt_info);
@@ -285,9 +285,11 @@ class TimeStepper {
       // set U_s after iterative solve
       athelas::par_for(
           DEFAULT_LOOP_PATTERN, "Timestepper :: IMEX :: Set Us implicit",
-          DevExecSpace(), ib.s, ib.e, kb.s, kb.e, 1, vb.e,
-          KOKKOS_CLASS_LAMBDA(const int i, const int k, const int v) {
-            U_s(iS, i, k, v) = Us_j(i, k, v);
+          DevExecSpace(), ib.s, ib.e, kb.s, kb.e,
+          KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+            for (int v = 1; v <= vb.e; ++v) {
+              U_s(iS, i, k, v) = Us_j(i, k, v);
+            }
           });
 
       // TODO(astrobarker): slope limit rad
@@ -305,6 +307,7 @@ class TimeStepper {
 
     for (int iS = 0; iS < nStages_; ++iS) {
       dt_info.stage = iS;
+      dt_info.t = t + integrator_.explicit_tableau.c_i(iS) * dt;
       const double dt_b = dt * integrator_.explicit_tableau.b_i(iS);
       const double dt_b_im = dt * integrator_.implicit_tableau.b_i(iS);
 

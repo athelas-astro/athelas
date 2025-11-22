@@ -17,8 +17,7 @@ using root_finders::RootFinder, root_finders::NewtonAlgorithm,
  * 2: ybar (mean ionization state)
  */
 [[nodiscard]] auto Paczynski::pressure_from_density_temperature(
-    const double rho, const double temp, const double *const lambda) const
-    -> double {
+    const double rho, const double temp, const double *const lambda) -> double {
   const double N = lambda[0];
   const double ye = lambda[1];
   const double ybar = lambda[2];
@@ -43,16 +42,34 @@ Paczynski::temperature_from_density_sie(const double rho, const double sie,
                                         const double *const lambda) const
     -> double {
   const double temperature_guess = lambda[7];
-  auto temperature_target = [&sie](const double temperature, const double rho,
-                                   const double *const lambda) {
-    return specific_internal_energy(temperature, rho, lambda) - sie;
+  const double e_i = lambda[6];
+  const double e_min = eps_min(rho, lambda);
+  auto target = [&sie, &e_i, &e_min](const double temperature, const double rho,
+                                     const double *const lambda) {
+    return sie_from_density_temperature(rho, temperature, lambda) - sie;
   };
-  auto temperature_derivative = [](const double T, const double rho,
-                                   const double *const lambda) {
-    return dsie_dt(T, rho, lambda);
+  const double res =
+      root_finder_.solve(target, 1.0, 5.0e12, temperature_guess, rho, lambda);
+  return res;
+}
+
+/**
+ * @brief Paczynski temperature from density and pressure
+ * NOTE:: Lambda contents:
+ * 7: temperature_guess
+ */
+[[nodiscard]] auto Paczynski::temperature_from_density_pressure(
+    const double rho, const double pressure, const double *const lambda) const
+    -> double {
+  const double temperature_guess = lambda[7];
+  auto target = [&pressure](const double temperature, const double rho,
+                            const double *const lambda) {
+    return pressure_from_density_temperature(rho, temperature, lambda) -
+           pressure;
   };
-  return root_finder_.solve(temperature_target, temperature_derivative,
-                            temperature_guess, rho, lambda);
+  const double res =
+      root_finder_.solve(target, 1.0, 5.0e12, temperature_guess, rho, lambda);
+  return res;
 }
 
 [[nodiscard]] auto Paczynski::sound_speed_from_density_temperature_pressure(
@@ -113,18 +130,16 @@ Paczynski::pressure_from_conserved(const double tau, const double V,
     const double tau, const double V, const double E,
     const double *const lambda) const -> double {
   const double temperature_guess = lambda[7];
+  const double dT = temperature_guess / 2.0;
   const double sie = E - 0.5 * V * V;
   const double rho = 1.0 / tau;
-  auto temperature_target = [sie](double temperature, double rho,
-                                  const double *const lambda) {
-    return specific_internal_energy(temperature, rho, lambda) - sie;
+  auto target = [sie](double temperature, double rho,
+                      const double *const lambda) {
+    return sie_from_density_temperature(rho, temperature, lambda) - sie;
   };
-  auto temperature_derivative = [](double T, double rho,
-                                   const double *const lambda) {
-    return dsie_dt(T, rho, lambda);
-  };
-  return root_finder_.solve(temperature_target, temperature_derivative,
-                            temperature_guess, rho, lambda);
+  return root_finder_.solve(target, temperature_guess - dT,
+                            temperature_guess + dT, temperature_guess, rho,
+                            lambda);
 }
 
 /**
@@ -136,21 +151,17 @@ Paczynski::pressure_from_conserved(const double tau, const double V,
 Paczynski::sie_from_density_pressure(const double rho, const double pressure,
                                      const double *const lambda) const
     -> double {
-  auto temperature_target = [pressure](double temperature, double rho,
-                                       const double *const lambda) {
+  auto target = [pressure](double temperature, double rho,
+                           const double *const lambda) {
     return pressure_from_rho_temperature(temperature, rho, lambda) - pressure;
   };
-  auto temperature_derivative = [](double temperature, double rho,
-                                   const double *const lambda) {
-    return dp_dt(temperature, rho, lambda);
-  };
 
-  const double temperature_guess = lambda[7] / 250.0;
-  const double temperature =
-      root_finder_.solve(temperature_target, temperature_derivative,
-                         temperature_guess, rho, lambda);
-
-  return specific_internal_energy(temperature, rho, lambda);
+  const double temperature_guess = lambda[7];
+  const double dT = 0.9 * temperature_guess;
+  const double temperature = root_finder_.solve(target, temperature_guess - dT,
+                                                temperature_guess + 5.0 * dT,
+                                                temperature_guess, rho, lambda);
+  return sie_from_density_temperature(rho, temperature, lambda);
 }
 
 /**
@@ -283,25 +294,23 @@ Paczynski::pressure_from_rho_temperature(const double temperature,
  * @brief internal (to the eos) specific internal energy function
  */
 [[nodiscard]] auto
-Paczynski::specific_internal_energy(const double T, const double rho,
-                                    const double *const lambda) -> double {
+Paczynski::sie_from_density_temperature(const double rho,
+                                        const double temperature,
+                                        const double *const lambda) -> double {
   static constexpr double THREE_HALVES = 1.5;
   const double N = lambda[0];
   const double ye = lambda[1];
   const double ybar = lambda[2];
-  // const double sigma1 = lambda[3];
-  // const double sigma2 = lambda[4];
-  // const double sigma3 = lambda[5];
   const double e_ion_corr = lambda[6];
   const double pednr = p_ednr(rho, ye);
   const double pedr = p_edr(rho, ye);
   const double ped = p_ed(pednr, pedr);
-  const double pend = p_end(rho, T, ybar, N);
+  const double pend = p_end(rho, temperature, ybar, N);
   const double pe = p_e(pend, ped);
   const double f = degeneracy_factor(ped, pednr, pedr);
 
-  return THREE_HALVES * N * constants::k_B * T + pe / (rho * (f - 1.0)) +
-         e_ion_corr;
+  return THREE_HALVES * N * constants::k_B * temperature +
+         pe / (rho * (f - 1.0)) + e_ion_corr;
 }
 
 /*
@@ -381,6 +390,18 @@ Paczynski::specific_internal_energy(const double T, const double rho,
 
   return N * kT - (pend2 * sigma1) / (pe * rho * sigma1_plus_ybar) +
          (1.0 / (pe * rho)) * (pend2 + f * ped * ped);
+}
+
+[[nodiscard]] auto Paczynski::eps_min(double rho, const double *lambda)
+    -> double {
+  const double ye = lambda[1];
+  const double e_ionization = lambda[6];
+
+  const double pednr = p_ednr(rho, ye);
+  const double pedr = p_edr(rho, ye);
+  const double ped = p_ed(pednr, pedr);
+  const double f = degeneracy_factor(ped, pednr, pedr);
+  return ped / (rho * (f - 1.0)) + e_ionization;
 }
 
 } // namespace athelas::eos

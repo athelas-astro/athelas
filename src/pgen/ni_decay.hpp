@@ -1,6 +1,7 @@
 #pragma once
 
 #include "basis/polynomial_basis.hpp"
+#include "bc/boundary_conditions.hpp"
 #include "eos/eos_variant.hpp"
 #include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
@@ -102,6 +103,10 @@ void ni_decay_init(State *state, GridStructure *grid, ProblemIn *pin,
       });
 
   state->setup_composition(comps);
+
+  // composition boundary condition
+  static const IndexRange vb_comps(std::make_pair(3, 3 + ncomps - 1));
+  bc::fill_ghost_zones_composition(uCF, vb_comps);
 
   // Fill density in guard cells
   athelas::par_for(

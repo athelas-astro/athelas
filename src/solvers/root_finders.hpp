@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "Kokkos_Macros.hpp"
 #include "concepts/arithmetic.hpp"
 #include "solvers/root_finder_opts.hpp"
 #include "utils/utilities.hpp"
@@ -474,6 +475,7 @@ class RootFinder {
   }
 
   // Solve methods - constrained by concepts
+  // Kind of awkard as the solve API depends on what solver you are using
   template <typename F, typename G, typename... Args>
   auto solve(F func, G dfunc, T x0, Args &&...args) const -> T {
     return algorithm_(func, dfunc, x0, config_, std::forward<Args>(args)...);
@@ -482,6 +484,11 @@ class RootFinder {
   template <typename F, typename... Args>
   auto solve(F func, T x0, Args &&...args) const -> T {
     return algorithm_(func, x0, config_, std::forward<Args>(args)...);
+  }
+
+  template <typename F, typename... Args>
+  auto solve(F func, T a, T b, T guess, Args &&...args) const -> T {
+    return algorithm_(func, a, b, guess, config_, std::forward<Args>(args)...);
   }
 
   auto config() const noexcept -> ToleranceConfig<T, ErrorMetric> & {
@@ -506,7 +513,7 @@ class NewtonAlgorithm {
                   const ToleranceConfig<T, ErrorMetric> &config,
                   Args &&...args) const -> T {
     T x = x0;
-    for (int i = 0; i < config.max_iterations; ++i) {
+    for (int i = 0; i <= config.max_iterations; ++i) {
       const T h = target(x, std::forward<Args>(args)...) /
                   d_target(x, std::forward<Args>(args)...);
 
@@ -644,6 +651,216 @@ class AAFixedPointAlgorithm {
       x = x_new;
     }
     return x;
+  }
+};
+
+/**
+ * @brief Bisection algorithm for root finding.
+ *
+ * This class implements the bisection method for finding roots of f(x) = 0.
+ * Requires an initial bracket [a, b] where f(a) and f(b) have opposite signs.
+ * The algorithm iteratively halves the interval until convergence.
+ *
+ * Algorithm: c = (a + b) / 2, then update bracket based on sign of f(c)
+ *
+ * @tparam T Floating-point type for computations
+ *
+ * @par Usage Note:
+ * The bracket [a, b] must satisfy f(a) * f(b) < 0 (opposite signs).
+ * The algorithm will converge to a root within the initial bracket.
+ */
+template <typename T>
+class BisectionAlgorithm {
+ public:
+  template <typename F, typename ErrorMetric, typename... Args>
+  KOKKOS_INLINE_FUNCTION auto
+  operator()(F target, T a, T b, const ToleranceConfig<T, ErrorMetric> &config,
+             Args &&...args) const -> T {
+    // Verify bracket has opposite signs
+    const T fa = target(a, std::forward<Args>(args)...);
+    const T fb = target(b, std::forward<Args>(args)...);
+
+    if (fa * fb > 0) {
+      // Bracket doesn't bracket a root, return midpoint as best guess
+      return (a + b) / T(2);
+    }
+
+    // Ensure a < b and fa < 0 < fb (swap if needed)
+    T left = a;
+    T right = b;
+    T f_left = fa;
+    T f_right = fb;
+
+    if (f_left > 0) {
+      std::swap(left, right);
+      std::swap(f_left, f_right);
+    }
+
+    T c_prev = left;
+    for (int i = 0; i <= config.max_iterations; ++i) {
+      const T c = (left + right) / T(2);
+      const T fc = target(c, std::forward<Args>(args)...);
+
+      // Check convergence on midpoint
+      if (config.converged(c, c_prev)) {
+        return c;
+      }
+
+      // Update bracket
+      if (fc < 0) {
+        left = c;
+        f_left = fc;
+      } else if (fc > 0) {
+        right = c;
+        f_right = fc;
+      } else {
+        // Exact root found
+        return c;
+      }
+
+      c_prev = c;
+    }
+
+    // Return final midpoint if max iterations reached
+    return (left + right) / T(2);
+  }
+};
+
+// Helper function to check if a bracket contains a root
+template <typename T>
+constexpr KOKKOS_INLINE_FUNCTION auto check_bracket(T fa, T fb) -> bool {
+  return fa * fb <= T(0);
+}
+
+template <typename F, typename... Args>
+KOKKOS_INLINE_FUNCTION void refine_bracket(F &func, const double guess,
+                                           double &a, double &b, double &ya,
+                                           double &yb, Args &&...args) {
+  if (a <= guess && b >= guess) {
+    ya = func(guess, std::forward<Args>(args)...);
+    yb = func(b, std::forward<Args>(args)...);
+    if (ya * yb > 0.0) {
+      yb = ya;
+      b = guess;
+      ya = func(a, std::forward<Args>(args)...);
+    } else {
+      a = guess;
+    }
+  } else {
+    ya = func(a, std::forward<Args>(args)...);
+    yb = func(b, std::forward<Args>(args)...);
+  }
+}
+
+/**
+ * @brief Regula Falsi (False Position) algorithm for root finding.
+ *
+ * This class implements the regula falsi method for finding roots of f(x) = 0.
+ * Requires an initial bracket [a, b] where f(a) and f(b) have opposite signs.
+ * The algorithm uses linear interpolation to find the root, with Illinois
+ * modification to prevent slow convergence when one endpoint is fixed.
+ *
+ * Algorithm: c = (a * f(b) - b * f(a)) / (f(b) - f(a)), then update bracket
+ * based on sign of f(c). Illinois modification halves the function value at
+ * the fixed endpoint after two consecutive iterations on the same side.
+ *
+ * @tparam T Floating-point type for computations
+ *
+ * @par Usage Note:
+ * The bracket [a, b] must satisfy f(a) * f(b) < 0 (opposite signs).
+ * The algorithm will converge to a root within the initial bracket.
+ */
+template <typename T>
+class RegulaFalsiAlgorithm {
+ public:
+  template <typename F, typename ErrorMetric, typename... Args>
+  auto operator()(F target, T a, T b, T guess,
+                  const ToleranceConfig<T, ErrorMetric> &config,
+                  Args &&...args) const -> T {
+
+    if (a > b) [[unlikely]] {
+      std::swap(a, b);
+    }
+
+    T fa = 0.0;
+    T fb = 0.0;
+    // refine_bracket(target, guess, a, b, fa, fb, std::forward<Args>(args)...);
+    fa = target(a, std::forward<Args>(args)...);
+    fb = target(b, std::forward<Args>(args)...);
+
+    if (fa == 0) {
+      return a;
+    }
+    if (fb == 0) {
+      return b;
+    }
+
+    // Check if bracket is valid
+    if (!check_bracket(fa, fb)) {
+      // Bracket doesn't bracket a root, return guess
+      std::println("root not bracketed!!");
+      std::println("a b fa fb {:.5e} {:.5e} {:.5e} {:.5e}", a, b, fa, fb);
+      THROW_ATHELAS_ERROR("Bad");
+      return guess;
+    }
+
+    // Normalize so fa < 0 < fb
+    T sign = (fa < T(0) ? T(1) : T(-1));
+    fa *= sign;
+    fb *= sign;
+
+    // Ensure a < b
+    if (fa > 0) [[unlikely]] {
+      std::swap(a, b);
+      std::swap(fa, fb);
+    }
+
+    T c_prev = a;
+    int a_hits = 0;
+    int b_hits = 0;
+
+    for (int i = 0; i < config.max_iterations; ++i) {
+      const T c = (a * fb - b * fa) / (fb - fa);
+
+      if (c == a || c == b) {
+        return (a + b) * 0.5;
+      }
+
+      const T fc = sign * target(c, std::forward<Args>(args)...);
+
+      // First check function residual
+      if (std::abs(fc) <= config.abs_tol) {
+        return c;
+      }
+
+      // Then check step convergence
+      if (config.converged(c, c_prev)) {
+        return c;
+      }
+
+      // Illinois update
+      if (fc > 0) {
+        b = c;
+        fb = fc;
+        ++b_hits;
+        if (b_hits > 1) {
+          fa *= 0.5;
+        }
+        a_hits = 0;
+      } else { // fc < 0
+        a = c;
+        fa = fc;
+        ++a_hits;
+        if (a_hits > 1) {
+          fb *= 0.5;
+        }
+        b_hits = 0;
+      }
+
+      c_prev = c;
+    }
+
+    return c_prev; // safest fallback
   }
 };
 

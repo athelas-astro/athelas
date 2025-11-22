@@ -766,8 +766,8 @@ struct array_type {
     }
   }
   KOKKOS_INLINE_FUNCTION // add operator
-      array_type &
-      operator+=(const array_type &src) {
+      auto
+      operator+=(const array_type &src) -> array_type & {
     for (int i = 0; i < N; i++) {
       data[i] += src.data[i];
     }

@@ -2,6 +2,7 @@
 *.h5
 src/out
 out
+*.hst
 
 # Prerequisites
 *.d

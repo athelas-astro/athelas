@@ -29,6 +29,17 @@ temperature_from_density_sie(const EOS *const eos, const double rho,
 }
 
 KOKKOS_INLINE_FUNCTION auto
+temperature_from_density_pressure(const EOS *const eos, const double rho,
+                                  const double pressure,
+                                  const double *const lambda) -> double {
+  return std::visit(
+      [&rho, &pressure, &lambda](auto &eos) {
+        return eos.temperature_from_density_pressure(rho, pressure, lambda);
+      },
+      *eos);
+}
+
+KOKKOS_INLINE_FUNCTION auto
 pressure_from_density_temperature(const EOS *const eos, const double rho,
                                   const double temp, const double *const lambda)
     -> double {
@@ -93,6 +104,17 @@ sie_from_density_pressure(const EOS *const eos, const double rho,
       *eos);
 }
 
+KOKKOS_INLINE_FUNCTION auto
+sie_from_density_temperature(const EOS *const eos, const double rho,
+                             const double temperature,
+                             const double *const lambda) -> double {
+  return std::visit(
+      [&rho, &temperature, &lambda](auto &eos) {
+        return eos.sie_from_density_temperature(rho, temperature, lambda);
+      },
+      *eos);
+}
+
 KOKKOS_INLINE_FUNCTION auto gamma1(const EOS *const eos, const double tau,
                                    const double V, const double E,
                                    const double *const lambda) -> double {
@@ -112,9 +134,9 @@ KOKKOS_INLINE_FUNCTION auto initialize_eos(const ProblemIn *pin) -> EOS {
     // NOTE: This is currently where the tolerances are hard coded.
     // TODO(astrobarker): make tolerances runtime configurable.
     // Stretch goal: make algorithm configurable.
-    static constexpr double abstol = 1.0e-14;
-    static constexpr double reltol = 1.0e-14;
-    static constexpr int max_iters = 100;
+    static constexpr double abstol = 1.0e-10;
+    static constexpr double reltol = 1.0e-10;
+    static constexpr int max_iters = 1000;
     eos = Paczynski(abstol, reltol, max_iters);
   } else if (type == "ideal") {
     eos = IdealGas(pin->param()->get<double>("eos.gamma"));

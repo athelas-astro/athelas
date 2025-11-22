@@ -220,39 +220,34 @@ auto HydroPackage::min_timestep(const State *const state,
                                 const TimeStepInfo & /*dt_info*/) const
     -> double {
   const auto ucf = state->u_cf();
+  const auto uaf = state->u_af();
   static constexpr double MAX_DT = std::numeric_limits<double>::max();
   static constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
 
+  static const int nnodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
   const auto dr = grid.widths();
+  const auto weights = grid.weights();
+  const auto phi = basis_->phi();
+  const auto inv_mkk = basis_->inv_mass_matrix();
 
   double dt_out = 0.0;
   athelas::par_reduce(
       DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Timestep", DevExecSpace(), ib.s,
       ib.e,
       KOKKOS_CLASS_LAMBDA(const int i, double &lmin) {
-        // --- Using Cell Averages ---
-        const double tau_x =
-            ucf(i, vars::modes::CellAverage, vars::cons::SpecificVolume);
+        // --- Using cell average velocity
         const double vel_x =
             ucf(i, vars::modes::CellAverage, vars::cons::Velocity);
-        const double eint_x =
-            ucf(i, vars::modes::CellAverage, vars::cons::Energy);
 
-        // NOTE: This is not really correct. I'm using a nodal location for
-        // getting the ionization terms but cell average quantities for the
-        // sound speed. This is only an issue in pure hydro + ionization
-        // which should be an edge case.
-        // TODO(astrobarker): implement cell averaged Paczynski terms?
-        double lambda[8];
-        if (state->ionization_enabled()) {
-          atom::paczynski_terms(state, i, 1, lambda);
+        // Find the max sound speed across the element including the interfaces
+        double Cs = uaf(i, 0, vars::aux::Cs);
+        for (int q = 1; q <= nnodes; ++q) {
+          Cs = std::max(Cs, uaf(i, q, vars::aux::Cs));
         }
-        const double Cs =
-            sound_speed_from_conserved(eos_, tau_x, vel_x, eint_x, lambda);
         const double eigval = Cs + std::abs(vel_x);
 
-        const double dt_old = std::abs(dr(i)) / std::abs(eigval);
+        const double dt_old = dr(i) / eigval;
 
         lmin = std::min(dt_old, lmin);
       },
@@ -293,8 +288,9 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
   }
 
   if (ionization_enabled) {
-    atom::solve_saha_ionization<Domain::Entire>(*state, grid, *eos_, *basis_);
-    atom::fill_derived_ionization<Domain::Entire>(state, &grid, basis_);
+    // atom::solve_saha_ionization<Domain::Entire>(*state, grid, *eos_,
+    // *basis_); atom::fill_derived_ionization<Domain::Entire>(state, &grid,
+    // basis_);
   }
 
   const auto phi = basis_->phi();
@@ -309,7 +305,7 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
 
           const double rho = 1.0 / tau;
           const double momentum = rho * vel;
-          const double sie = (emt - 0.5 * vel * vel);
+          double sie = (emt - 0.5 * vel * vel);
 
           double lambda[8];
           // This is probably not the cleanest logic, but setups with
@@ -334,6 +330,11 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
           uAF(i, q, vars::aux::Cs) = cs;
         }
       });
+
+  if (ionization_enabled) {
+    atom::solve_saha_ionization<Domain::Entire>(*state, grid, *eos_, *basis_);
+    atom::fill_derived_ionization<Domain::Entire>(state, &grid, basis_);
+  }
 }
 
 [[nodiscard]] auto HydroPackage::name() const noexcept -> std::string_view {

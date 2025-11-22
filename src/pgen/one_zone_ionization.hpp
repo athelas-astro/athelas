@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "bc/boundary_conditions.hpp"
 #include "composition/composition.hpp"
@@ -29,18 +30,22 @@ void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
   const int saha_ncomps =
       pin->param()->get<int>("ionization.ncomps"); // for ionization
   const auto ncomps =
-      pin->param()->get<int>("composition.ncomps", 1); // mass fractions
+      pin->param()->get<int>("composition.ncomps", 3); // mass fractions
+  if (ncomps != 3) {
+    THROW_ATHELAS_ERROR("One zone ionization requires ncomps = 3");
+  }
   if (!ionization_active) {
     THROW_ATHELAS_ERROR("One zone ionization requires ionization enabled!");
   }
-  if (pin->param()->get<std::string>("eos.type") != "ideal") {
-    THROW_ATHELAS_ERROR("One zone ionization requires ideal gas eos!");
-  }
+  const auto eos_type = pin->param()->get<std::string>("eos.type");
+  //  if (pin->param()->get<std::string>("eos.type") != "ideal") {
+  //    THROW_ATHELAS_ERROR("One zone ionization requires ideal gas eos!");
+  //  }
   // Don't try to track ionization for more species than we use.
   // We will track ionization for the first saha_ncomps species
-  if (saha_ncomps > ncomps) {
-    THROW_ATHELAS_ERROR("One zone ionization requires [ionization.ncomps] <= "
-                        "[problem.params.ncomps]!");
+  if (saha_ncomps != 3) {
+    THROW_ATHELAS_ERROR("One zone ionization requires [ionization.ncomps] = "
+                        "[composition.ncomps] = 3!");
   }
 
   AthelasArray3D<double> uCF = state->u_cf();
@@ -49,13 +54,7 @@ void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
 
   static const IndexRange ib(grid->domain<Domain::Interior>());
   static const int nNodes = grid->n_nodes();
-  static const int order = nNodes;
-
-  const int q_Tau = 0;
-  const int q_V = 1;
-  const int q_E = 2;
-
-  const int iPF_D = 0;
+  static const int order = state->p_order();
 
   const auto temperature =
       pin->param()->get<double>("problem.params.temperature", 5800); // K
@@ -73,67 +72,112 @@ void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
     THROW_ATHELAS_ERROR("Temperature and denisty must be positive definite!");
   }
 
-  const double mu = 1.0 + constants::m_e / constants::m_p;
-  const double gamma = gamma1(eos);
-  const double gm1 = gamma - 1.0;
-  const double sie = constants::k_B * temperature / (gm1 * mu * constants::m_p);
-
   std::shared_ptr<atom::CompositionData> comps =
       std::make_shared<atom::CompositionData>(grid->n_elements() + 2, order,
                                               ncomps);
   std::shared_ptr<atom::IonizationState> ionization_state =
       std::make_shared<atom::IonizationState>(grid->n_elements() + 2, nNodes,
-                                              ncomps, ncomps + 1, saha_ncomps,
+                                              ncomps, 7, saha_ncomps,
                                               fn_ionization, fn_deg);
   auto mass_fractions = state->mass_fractions();
   auto charges = comps->charge();
   auto neutrons = comps->neutron_number();
   auto ionization_states = ionization_state->ionization_fractions();
+  auto zbar = ionization_state->zbar();
+
+  // Set up ball of hydrogen, helium, carbon.
+  constexpr int i_H = 0;
+  constexpr int i_He = 1;
+  constexpr int i_C = 2;
+  constexpr double X_H = 0.75;
+  constexpr double X_He = 0.23;
+  constexpr double X_C = 0.02;
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: OneZoneIonization (1)",
+      DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: OneZoneIonization :: nodal",
       DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-        const int k = 0;
-
-        uCF(i, k, q_Tau) = tau;
-        uCF(i, k, q_V) = vel;
-        uCF(i, k, q_E) = sie;
-
-        for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
-          uPF(i, iNodeX, iPF_D) = rho;
-          uAF(i, iNodeX, 1) = temperature;
+        uCF(i, vars::modes::CellAverage, vars::cons::SpecificVolume) =
+            1.0 / rho;
+        for (int q = 0; q < nNodes + 2; q++) {
+          uPF(i, q, vars::prim::Rho) = rho;
+          uAF(i, q, vars::aux::Tgas) = temperature;
+          // Set Zbar assuming full ionization -- used as guess in Saha below.
+          zbar(i, q, i_H) = 1;
+          zbar(i, q, i_He) = 2;
+          zbar(i, q, i_C) = 6;
         }
 
-        // set up comps
-        // For this problem we set up a contiguous list of species
-        // form Z = 1 to ncomps. Mass fractions are uniform with no slopes.
-        for (int elem = 0; elem < ncomps; ++elem) {
-          mass_fractions(i, k, elem) = 1.0 / ncomps;
-          charges(elem) = elem + 1;
-          neutrons(elem) = elem + 1;
-        }
+        mass_fractions(i, vars::modes::CellAverage, i_H) = X_H;
+        charges(i_H) = 1;
+        neutrons(i_H) = 0;
 
-        for (int node = 0; node < nNodes + 2; ++node) {
+        mass_fractions(i, vars::modes::CellAverage, i_He) = X_He;
+        charges(i_He) = 2;
+        neutrons(i_He) = 2;
 
-          // overkill
-          if (ionization_active) {
-            for (int elem = 0; elem < saha_ncomps; ++elem) {
-              const int Z = charges(elem);
-
-              for (int z = 0; z < Z + 1; ++z) {
-                ionization_states(i, node, elem, z) = 0.0; // unnecessary
-              }
-            }
-          }
-        }
+        mass_fractions(i, vars::modes::CellAverage, i_C) = X_C;
+        charges(i_C) = 6;
+        neutrons(i_C) = 6;
       });
-
   state->setup_composition(comps);
   state->setup_ionization(ionization_state);
+
   if (fluid_basis != nullptr) {
     atom::fill_derived_comps<Domain::Interior>(state, grid, fluid_basis);
-    atom::fill_derived_ionization<Domain::Interior>(state, grid, fluid_basis);
     atom::solve_saha_ionization<Domain::Interior>(*state, *grid, *eos,
                                                   *fluid_basis);
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: OneZoneIonization (1)",
+        DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
+          double lambda[8];
+          const int k = vars::modes::CellAverage;
+
+          uCF(i, k, vars::cons::SpecificVolume) = tau;
+          uCF(i, k, vars::cons::Velocity) = vel;
+
+          for (int q = 0; q < nNodes + 2; q++) {
+            uPF(i, q, vars::prim::Rho) = rho;
+            uAF(i, q, vars::aux::Tgas) = temperature;
+            if (eos_type == "paczynski") {
+              atom::paczynski_terms(state, i, q, lambda);
+            }
+            uAF(i, q, vars::aux::Pressure) = pressure_from_density_temperature(
+                eos, rho, temperature, lambda);
+            uPF(i, q, vars::prim::Sie) = sie_from_density_pressure(
+                eos, rho, uAF(i, q, vars::aux::Pressure), lambda);
+          }
+        });
+
+    auto mkk = fluid_basis->mass_matrix();
+    auto phi = fluid_basis->phi();
+    auto weights = grid->weights();
+    auto dr = grid->widths();
+    auto sqrt_gm = grid->sqrt_gm();
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: OneZoneIonization :: Project sie",
+        DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
+          // Project the nodal representation to a modal one
+          // Compute L2 projection: <f_q, phi_k> / <phi_k, phi_k>
+          for (int k = 0; k < order; k++) {
+            double numerator = 0.0;
+            const double denominator = mkk(i, k);
+
+            // Compute <f_q, phi_k>
+            for (int q = 0; q < nNodes; q++) {
+              const double nodal_val = uPF(i, q, vars::prim::Sie);
+              const double rho = uPF(i, q + 1, vars::prim::Rho);
+
+              numerator += nodal_val * phi(i, q + 1, k) * weights(q) * dr(i) *
+                           sqrt_gm(i, q + 1) * rho;
+            }
+            uCF(i, k, vars::cons::Energy) = numerator / denominator;
+            // We apply a simple exponential filter to modes
+            if (k > 0) {
+              uCF(i, k, vars::cons::Energy) *= std::exp(-k);
+            }
+          }
+        });
+
+    atom::fill_derived_ionization<Domain::Interior>(state, grid, fluid_basis);
     // composition boundary condition
     static const IndexRange vb_comps(std::make_pair(3, 3 + ncomps - 1));
     bc::fill_ghost_zones_composition(uCF, vb_comps);
@@ -152,6 +196,18 @@ void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
               uAF(ib.s + i, (nNodes + 2) - iN - 1, vars::aux::Tgas);
           uAF(ib.e + 1 + i, iN, vars::aux::Tgas) =
               uAF(ib.e - i, (nNodes + 2) - iN - 1, vars::aux::Tgas);
+          zbar(ib.s - 1 - i, iN, i_H) =
+              zbar(ib.s + i, (nNodes + 2) - iN - 1, i_H);
+          zbar(ib.e + 1 + i, iN, i_H) =
+              zbar(ib.e - i, (nNodes + 2) - iN - 1, i_H);
+          zbar(ib.s - 1 - i, iN, i_He) =
+              zbar(ib.s + i, (nNodes + 2) - iN - 1, i_He);
+          zbar(ib.e + 1 + i, iN, i_He) =
+              zbar(ib.e - i, (nNodes + 2) - iN - 1, i_He);
+          zbar(ib.s - 1 - i, iN, i_C) =
+              zbar(ib.s + i, (nNodes + 2) - iN - 1, i_C);
+          zbar(ib.e + 1 + i, iN, i_C) =
+              zbar(ib.e - i, (nNodes + 2) - iN - 1, i_C);
         }
       });
 }

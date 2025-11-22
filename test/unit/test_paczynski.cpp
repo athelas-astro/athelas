@@ -26,7 +26,7 @@ TEST_CASE("Paczynski EOS", "[paczynski]") {
   const double e_ioncorr_in = 287375046768323.38;
   const double pressure_ans = 7.3548947139e21;
   const double ffactor_ans = 1.635712907366;
-  const double temp_guess = temp_in / 15.1 + 1.0;
+  const double temp_guess = temp_in + temp_in / 10.0;
   const double cs_ans = std::sqrt(95956495901503152.0);
 
   // Things for eos
@@ -83,5 +83,37 @@ TEST_CASE("Paczynski EOS", "[paczynski]") {
     const double pressure_2 =
         pressure_from_conserved(&eos, tau, vel, sie, lambda);
     REQUIRE(soft_equal(pressure, pressure_2));
+  }
+
+  SECTION("temperature -> pressure -> sie -> temperature") {
+    const double temperature =
+        temperature_from_density_sie(&eos, rho_in, e_in, lambda);
+    const double pressure =
+        pressure_from_density_temperature(&eos, rho_in, temperature, lambda);
+    const double sie =
+        sie_from_density_pressure(&eos, rho_in, pressure, lambda);
+    const double new_temperature =
+        temperature_from_density_sie(&eos, rho_in, sie, lambda);
+    REQUIRE(soft_equal(temperature, new_temperature));
+  }
+
+  SECTION("pressure -> temperature -> pressure") {
+    const double pressure =
+        pressure_from_density_temperature(&eos, rho_in, temp_in, lambda);
+    const double temperature =
+        temperature_from_density_pressure(&eos, rho_in, pressure, lambda);
+    const double new_pressure =
+        pressure_from_density_temperature(&eos, rho_in, temperature, lambda);
+    REQUIRE(soft_equal(pressure, new_pressure));
+  }
+
+  SECTION("pressure -> temperature -> sie -> temperature") {
+    const double temperature =
+        temperature_from_density_pressure(&eos, rho_in, pressure_ans, lambda);
+    const double sie =
+        sie_from_density_temperature(&eos, rho_in, temperature, lambda);
+    const double new_temperature =
+        temperature_from_density_sie(&eos, rho_in, sie, lambda);
+    REQUIRE(soft_equal(temperature, new_temperature));
   }
 }

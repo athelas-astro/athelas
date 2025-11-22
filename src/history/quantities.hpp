@@ -30,6 +30,7 @@ inline auto total_fluid_energy(const State &state, const GridStructure &grid,
   const auto dr = grid.widths();
   const auto sqrt_gm = grid.sqrt_gm();
   const auto weights = grid.weights();
+  const auto mcell = grid.mass();
 
   const auto phi = fluid_basis->phi();
 
@@ -42,12 +43,14 @@ inline auto total_fluid_energy(const State &state, const GridStructure &grid,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
+          // local_sum +=
+          //     basis_eval(phi, u, i, vars::cons::Energy, q + 1) /
+          //     basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
+          //     sqrt_gm(i, q + 1) * weights(q);
           local_sum +=
-              basis_eval(phi, u, i, vars::cons::Energy, q + 1) /
-              basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
-              sqrt_gm(i, q + 1) * weights(q);
+              basis_eval(phi, u, i, vars::cons::Energy, q + 1) * weights(q);
         }
-        lsum += local_sum * dr(i);
+        lsum += local_sum * mcell(i);
       },
       Kokkos::Sum<double>(output));
 
@@ -80,6 +83,7 @@ inline auto total_fluid_momentum(const State &state, const GridStructure &grid,
         for (int q = 0; q < nNodes; ++q) {
           local_sum +=
               basis_eval(phi, u, i, vars::cons::Velocity, q + 1) /
+              basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
               basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
               sqrt_gm(i, q + 1) * weights(q);
         }
@@ -139,14 +143,15 @@ inline auto total_gravitational_energy(const State &state,
   using basis::basis_eval;
   const auto &nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  const auto dr = grid.widths();
-  const auto sqrt_gm = grid.sqrt_gm();
   const auto weights = grid.weights();
   const auto enclosed_mass = grid.enclosed_mass();
+  const auto mass_cell = grid.mass();
   const auto r = grid.nodal_grid();
 
   const auto phi = fluid_basis->phi();
   const auto u = state.u_cf();
+
+  const bool do_geometry = grid.do_geometry();
 
   double output = 0.0;
   athelas::par_reduce(
@@ -155,19 +160,17 @@ inline auto total_gravitational_energy(const State &state,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double X = r(i, q);
-          local_sum +=
-              (enclosed_mass(i, q) /
-               (X / basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1))) *
-              sqrt_gm(i, q + 1) * weights(q);
+          const double &X = r(i, q);
+          local_sum += (enclosed_mass(i, q) / X) * weights(q);
         }
-        lsum += local_sum * dr(i);
+        double mcell = mass_cell(i);
+        if (do_geometry) {
+          mcell *= constants::FOURPI;
+        }
+        lsum += local_sum * mcell;
       },
       Kokkos::Sum<double>(output));
 
-  if (grid.do_geometry()) {
-    output *= constants::FOURPI;
-  }
   return -constants::G_GRAV * output;
 }
 

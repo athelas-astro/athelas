@@ -22,6 +22,15 @@ IdealGas::temperature_from_density_sie(const double /*rho*/, const double sie,
   return (gamma_ - 1.0) * sie * mu * constants::m_p / constants::k_B;
 }
 
+[[nodiscard]] auto IdealGas::temperature_from_density_pressure(
+    const double rho, const double pressure, const double *const lambda) const
+    -> double {
+  static constexpr double mu =
+      1.0 + constants::m_e / constants::m_p; // TODO(astrobarker) generalize
+  const double sie = sie_from_density_pressure(rho, pressure, lambda);
+  return (gamma_ - 1.0) * sie * mu * constants::m_p / constants::k_B;
+}
+
 [[nodiscard]] auto IdealGas::sound_speed_from_density_temperature_pressure(
     const double rho, const double /*temp*/, const double pressure,
     const double *const lambda) const -> double {
@@ -57,6 +66,15 @@ IdealGas::temperature_from_density_sie(const double /*rho*/, const double sie,
 IdealGas::sie_from_density_pressure(const double rho, const double pressure,
                                     const double *const /*lambda*/) const
     -> double {
+  const double Ev = pressure / (gamma_ - 1.0);
+  return Ev / rho;
+}
+
+[[nodiscard]] auto IdealGas::sie_from_density_temperature(
+    const double rho, const double temperature,
+    const double *const lambda) const -> double {
+  const double pressure =
+      pressure_from_density_temperature(rho, temperature, lambda);
   const double Ev = pressure / (gamma_ - 1.0);
   return Ev / rho;
 }
