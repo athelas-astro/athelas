@@ -80,6 +80,103 @@ void fill_derived_comps(State *const state, const GridStructure *const grid,
       });
 }
 
+// per-point version called by the below
+KOKKOS_INLINE_FUNCTION
+void fill_derived_ionization(const basis::ModalBasis *basis,
+                             const AthelasArray3D<double> mass_fractions,
+                             const CompositionData *comps,
+                             const IonizationState *ionization_state,
+                             const IndexRange &eb, const int &i, const int &q) {
+  const auto ionization_fractions = ionization_state->ionization_fractions();
+  auto ybar = ionization_state->ybar();
+  auto e_ion_corr = ionization_state->e_ion_corr();
+  auto sigma1 = ionization_state->sigma1();
+  auto sigma2 = ionization_state->sigma2();
+  auto sigma3 = ionization_state->sigma3();
+  const auto *const atomic_data = ionization_state->atomic_data();
+
+  const auto ion_data = atomic_data->ion_data();
+  const auto species_offsets = atomic_data->offsets();
+  const auto species = comps->charge();
+  const auto neutron_number = comps->neutron_number();
+  const auto number_density = comps->number_density();
+  const auto electron_number_density = comps->electron_number_density();
+  const auto abar = comps->abar();
+
+  double sum1 = 0.0;
+  double sum2 = 0.0;
+  double sum3 = 0.0;
+  double sum_e_ion_corr = 0.0;
+  for (int e = eb.s; e <= eb.e; ++e) {
+    // pull out element info
+    const int z = species(e);
+    const auto species_atomic_data = species_data(ion_data, species_offsets, z);
+    const auto ionization_fractions_e =
+        Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
+    const int nstates = z + 1;
+
+    // 1. Get lmax -- index associated with max ionization per species
+    int lmax = 0;
+    double ymax = 0;
+    for (int s = 0; s < nstates; ++s) {
+      const double y = ionization_fractions_e(s);
+      if (y > ymax) {
+        ymax = y;
+        lmax = s;
+      }
+    }
+
+    // 2. Sum ionization fractions * ionization potentials for e_ion_corr
+    double sum_ion_pot = 0.0;
+    double sum_pot = 0.0;
+    for (int s = 1; s < nstates; ++s) {
+      // I think that this pattern is not optimal.
+      sum_pot += species_atomic_data(s - 1).chi;
+      sum_ion_pot += ionization_fractions_e(s) * sum_pot;
+    }
+
+    // 3. Find two most populated states and store the higher as y_r.
+    // chi_r is the ionization potential between these states.
+    // Check index logic.
+    // Wish I could avoid branching logic...
+    double y_r = 0;
+    double chi_r = 0.0;
+    if (lmax == 0) {
+      y_r = ionization_fractions_e(lmax);
+      chi_r = species_atomic_data(lmax).chi;
+    } else if (lmax == z) {
+      y_r = ionization_fractions_e(lmax);
+      chi_r = species_atomic_data(lmax - 1).chi;
+    } else {
+      // Comparison between lmax+1 and lmax-1 indices
+      if (ionization_fractions_e(lmax + 1) > ionization_fractions_e(lmax - 1)) {
+        y_r = ionization_fractions_e(lmax + 1);
+        chi_r = species_atomic_data(lmax).chi;
+      } else {
+        y_r = ionization_fractions_e(lmax);
+        chi_r = species_atomic_data(lmax - 1).chi;
+      }
+    }
+
+    // 4. The good stuff -- integrate the various sigma terms
+    // and the internal energy term from partial ionization.
+    // Start with constructing the abundance n_k
+
+    const double atomic_mass = z + neutron_number(e);
+    const double xk = basis->basis_eval(mass_fractions, i, e, q);
+    const double N = number_density(i, q);
+    const double nu_k = abar(i, q) * xk / atomic_mass;
+    sum1 += nu_k * y_r * (1 - y_r); // sigma1
+    sum2 += chi_r * nu_k * y_r * (1 - y_r); // sigma2
+    sum3 += chi_r * chi_r * nu_k * y_r * (1 - y_r); // sigma2
+    sum_e_ion_corr += N * nu_k * sum_ion_pot; // e_ion_corr
+  } // loop species
+  sigma1(i, q) = sum1;
+  sigma2(i, q) = sum2;
+  sigma3(i, q) = sum3;
+  e_ion_corr(i, q) = sum_e_ion_corr;
+}
+
 /**
  * @brief Fill derived ionization quantities
  *
@@ -97,11 +194,8 @@ void fill_derived_ionization(State *const state,
 
   const auto *const comps = state->comps();
   const auto mass_fractions = state->mass_fractions();
-  const auto species = comps->charge();
-  const auto neutron_number = comps->neutron_number();
   const auto number_density = comps->number_density();
   const auto electron_number_density = comps->electron_number_density();
-  const auto abar = comps->abar();
   const size_t num_species = comps->n_species();
   auto *species_indexer = comps->species_indexer();
   static const bool has_neuts = species_indexer->contains("neut");
@@ -109,20 +203,9 @@ void fill_derived_ionization(State *const state,
   static const IndexRange eb(std::make_pair(start_elem, num_species - 1));
 
   auto *const ionization_states = state->ionization_state();
-  const auto ionization_fractions = ionization_states->ionization_fractions();
   auto ybar = ionization_states->ybar();
-  auto e_ion_corr = ionization_states->e_ion_corr();
-  auto sigma1 = ionization_states->sigma1();
-  auto sigma2 = ionization_states->sigma2();
-  auto sigma3 = ionization_states->sigma3();
-
-  // pull out atomic data containers
-  const auto *const atomic_data = ionization_states->atomic_data();
-  const auto ion_data = atomic_data->ion_data();
-  const auto species_offsets = atomic_data->offsets();
 
   const auto ucf = state->u_cf();
-  auto uaf = state->u_af();
 
   // NOTE: check index ranges inside here when saha ncomps =/= num_species
   // Should we be skipping neutrons?
@@ -130,85 +213,13 @@ void fill_derived_ionization(State *const state,
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Ionization :: fill derived", DevExecSpace(), ib.s,
       ib.e, nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int q) {
-        double sum1 = 0.0;
-        double sum2 = 0.0;
-        double sum3 = 0.0;
-        double sum_e_ion_corr = 0.0;
         const double rho =
             1.0 / basis::basis_eval(phi, ucf, i, vars::cons::SpecificVolume, q);
         // This kernel is horrible.
         // Reduce the ionization based quantities sigma1-3, e_ion_corr
         ybar(i, q) = electron_number_density(i, q) / number_density(i, q) / rho;
-        for (int e = eb.s; e <= eb.e; ++e) {
-          // pull out element info
-          const int z = species(e);
-          const auto species_atomic_data =
-              species_data(ion_data, species_offsets, z);
-          const auto ionization_fractions_e =
-              Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
-          const int nstates = z + 1;
-
-          // 1. Get lmax -- index associated with max ionization per species
-          int lmax = 0;
-          double ymax = 0;
-          for (int s = 0; s < nstates; ++s) {
-            const double y = ionization_fractions_e(s);
-            if (y > ymax) {
-              ymax = y;
-              lmax = s;
-            }
-          }
-
-          // 2. Sum ionization fractions * ionization potentials for e_ion_corr
-          double sum_ion_pot = 0.0;
-          double sum_pot = 0.0;
-          for (int s = 1; s < nstates; ++s) {
-            // I think that this pattern is not optimal.
-            sum_pot += species_atomic_data(s - 1).chi;
-            sum_ion_pot += ionization_fractions_e(s) * sum_pot;
-          }
-
-          // 3. Find two most populated states and store the higher as y_r.
-          // chi_r is the ionization potential between these states.
-          // Check index logic.
-          // Wish I could avoid branching logic...
-          double y_r = 0;
-          double chi_r = 0.0;
-          if (lmax == 0) {
-            y_r = ionization_fractions_e(lmax);
-            chi_r = species_atomic_data(lmax).chi;
-          } else if (lmax == z) {
-            y_r = ionization_fractions_e(lmax);
-            chi_r = species_atomic_data(lmax - 1).chi;
-          } else {
-            // Comparison between lmax+1 and lmax-1 indices
-            if (ionization_fractions_e(lmax + 1) >
-                ionization_fractions_e(lmax - 1)) {
-              y_r = ionization_fractions_e(lmax + 1);
-              chi_r = species_atomic_data(lmax).chi;
-            } else {
-              y_r = ionization_fractions_e(lmax);
-              chi_r = species_atomic_data(lmax - 1).chi;
-            }
-          }
-
-          // 4. The good stuff -- integrate the various sigma terms
-          // and the internal energy term from partial ionization.
-          // Start with constructing the abundance n_k
-
-          const double atomic_mass = z + neutron_number(e);
-          const double xk = basis->basis_eval(mass_fractions, i, e, q);
-          const double N = number_density(i, q);
-          const double nu_k = abar(i, q) * xk / atomic_mass;
-          sum1 += nu_k * y_r * (1 - y_r); // sigma1
-          sum2 += chi_r * nu_k * y_r * (1 - y_r); // sigma2
-          sum3 += chi_r * chi_r * nu_k * y_r * (1 - y_r); // sigma2
-          sum_e_ion_corr += N * nu_k * sum_ion_pot; // e_ion_corr
-        } // loop species
-        sigma1(i, q) = sum1;
-        sigma2(i, q) = sum2;
-        sigma3(i, q) = sum3;
-        e_ion_corr(i, q) = sum_e_ion_corr;
+        fill_derived_ionization(basis, mass_fractions, comps, ionization_states,
+                                eb, i, q);
       });
 }
 
