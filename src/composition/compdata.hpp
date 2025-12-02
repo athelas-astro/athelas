@@ -27,6 +27,7 @@ class IonizationState {
   [[nodiscard]] auto zbar() const noexcept -> AthelasArray3D<double>;
   [[nodiscard]] auto ybar() const noexcept -> AthelasArray2D<double>;
   [[nodiscard]] auto e_ion_corr() const noexcept -> AthelasArray2D<double>;
+  [[nodiscard]] auto saha_factor() const noexcept -> AthelasArray1D<double>;
   [[nodiscard]] auto sigma1() const noexcept -> AthelasArray2D<double>;
   [[nodiscard]] auto sigma2() const noexcept -> AthelasArray2D<double>;
   [[nodiscard]] auto sigma3() const noexcept -> AthelasArray2D<double>;
@@ -44,6 +45,7 @@ class IonizationState {
   AthelasArray2D<double> ybar_; // mean ionization fraction
   AthelasArray2D<double>
       e_ion_corr_; // ionization correction to internal energy
+  AthelasArray1D<double> saha_f_; // temperature dependent Saha terms
   AthelasArray2D<double> sigma1_;
   AthelasArray2D<double> sigma2_;
   AthelasArray2D<double> sigma3_;

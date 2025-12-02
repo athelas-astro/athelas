@@ -287,35 +287,62 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
     atom::fill_derived_comps<Domain::Entire>(state, &grid, basis_);
   }
 
-  if (ionization_enabled) {
+  const auto phi = basis_->phi();
+
+  // First we get the temperature from the density and specific internal
+  // energy. The ionization case is involved and so this is all done
+  // separately. In that case the temperature solve is coupled to a Saha solve.
+  if (ionization_enabled && false) {
+    atom::solve_temperature_saha<Domain::Entire, eos::EOSInversion::Sie>(
+        eos_, state, grid, *basis_);
+  } else {
     // atom::solve_saha_ionization<Domain::Entire>(*state, grid, *eos_,
     // *basis_); atom::fill_derived_ionization<Domain::Entire>(state, &grid,
     // basis_);
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Fill derived :: temperature",
+        DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
+          double lambda[8];
+          for (int q = 0; q < nNodes + 2; ++q) {
+            atom::paczynski_terms(state, i, q, lambda);
+            const double rho =
+                1.0 / basis_eval(phi, uCF, i, vars::cons::SpecificVolume, q);
+            const double vel = basis_eval(phi, uCF, i, vars::cons::Velocity, q);
+            const double emt = basis_eval(phi, uCF, i, vars::cons::Energy, q);
+            const double sie = emt - 0.5 * vel * vel;
+            double t_old = uAF(i, q, vars::aux::Tgas);
+            std::println("sie eion {:.5e} {:.5e}", sie, lambda[6]);
+            uAF(i, q, vars::aux::Tgas) =
+                temperature_from_density_sie(eos_, rho, sie, lambda);
+            std::println(
+                "i q sie t_old t_new {} {} {:.5e} {:.5e} {:.5e} {:.5e}", i, q,
+                sie, t_old, uAF(i, q, vars::aux::Tgas), lambda[6]);
+          }
+        });
+    atom::solve_saha_ionization<Domain::Entire>(*state, grid, *eos_, *basis_);
+    atom::fill_derived_ionization<Domain::Entire>(state, &grid, basis_);
   }
 
-  const auto phi = basis_->phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Fill derived", DevExecSpace(), ib.s,
       ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
         for (int q = 0; q < nNodes + 2; ++q) {
-          const double tau =
-              basis_eval(phi, uCF, i, vars::cons::SpecificVolume, q);
+          const double rho =
+              1.0 / basis_eval(phi, uCF, i, vars::cons::SpecificVolume, q);
           const double vel = basis_eval(phi, uCF, i, vars::cons::Velocity, q);
           const double emt = basis_eval(phi, uCF, i, vars::cons::Energy, q);
 
-          const double rho = 1.0 / tau;
           const double momentum = rho * vel;
-          double sie = (emt - 0.5 * vel * vel);
+          const double sie = (emt - 0.5 * vel * vel);
 
-          double lambda[8];
           // This is probably not the cleanest logic, but setups with
           // ionization enabled and Paczynski disbled are an outlier.
           // Maybe I can do this always?
+          double lambda[8];
           if (ionization_enabled) {
             atom::paczynski_terms(state, i, q, lambda);
           }
-          const double t_gas =
-              temperature_from_density_sie(eos_, rho, sie, lambda);
+          const double t_gas = uAF(i, q, vars::aux::Tgas);
           const double pressure =
               pressure_from_density_temperature(eos_, rho, t_gas, lambda);
           const double cs = sound_speed_from_density_temperature_pressure(
@@ -326,11 +353,9 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
           uPF(i, q, vars::prim::Sie) = sie;
 
           uAF(i, q, vars::aux::Pressure) = pressure;
-          uAF(i, q, vars::aux::Tgas) = t_gas;
           uAF(i, q, vars::aux::Cs) = cs;
         }
       });
-
   if (ionization_enabled) {
     atom::solve_saha_ionization<Domain::Entire>(*state, grid, *eos_, *basis_);
     atom::fill_derived_ionization<Domain::Entire>(state, &grid, basis_);

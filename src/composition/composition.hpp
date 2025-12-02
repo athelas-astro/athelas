@@ -170,6 +170,10 @@ void fill_derived_ionization(const basis::ModalBasis *basis,
     sum2 += chi_r * nu_k * y_r * (1 - y_r); // sigma2
     sum3 += chi_r * chi_r * nu_k * y_r * (1 - y_r); // sigma2
     sum_e_ion_corr += N * nu_k * sum_ion_pot; // e_ion_corr
+    // std::println("EION :: i q z N nu sumpot eioncorr {} {} {} {:.5e} {:.5e}
+    // {:.5e} {:.5e}", i, q, z, N, nu_k, sum_ion_pot, sum_e_ion_corr);
+    // std::println("i q eioniz l {} {} {:.5e} {:.5e} {} {}", i, q,
+    // e_ion_corr(i, q), ionization_fractions_e(0), ymax, lmax);
   } // loop species
   sigma1(i, q) = sum1;
   sigma2(i, q) = sum2;

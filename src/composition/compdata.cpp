@@ -77,7 +77,7 @@ IonizationState::IonizationState(const int nX, const int nNodes,
                             n_states),
       atomic_data_(std::make_unique<AtomicData>(fn_ionization, fn_degeneracy)),
       zbar_("zbar", nX, nNodes + 2, n_species), ybar_("ybar", nX, nNodes + 2),
-      e_ion_corr_("e_ion_corr", nX, nNodes + 2),
+      e_ion_corr_("e_ion_corr", nX, nNodes + 2), saha_f_("saha_f", n_states),
       sigma1_("sigma1", nX, nNodes + 2), sigma2_("sigma2", nX, nNodes + 2),
       sigma3_("sigma3", nX, nNodes + 2) {
   if (n_species <= 0) {
@@ -115,6 +115,11 @@ IonizationState::IonizationState(const int nX, const int nNodes,
 [[nodiscard]] auto IonizationState::e_ion_corr() const noexcept
     -> AthelasArray2D<double> {
   return e_ion_corr_;
+}
+
+[[nodiscard]] auto IonizationState::saha_factor() const noexcept
+    -> AthelasArray1D<double> {
+  return saha_f_;
 }
 
 [[nodiscard]] auto IonizationState::sigma1() const noexcept

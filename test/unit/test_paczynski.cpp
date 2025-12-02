@@ -116,4 +116,14 @@ TEST_CASE("Paczynski EOS", "[paczynski]") {
         temperature_from_density_sie(&eos, rho_in, sie, lambda);
     REQUIRE(soft_equal(temperature, new_temperature));
   }
+
+  SECTION("temperature two ways") {
+    const double temperature =
+        temperature_from_density_pressure(&eos, rho_in, pressure_ans, lambda);
+    const double new_temperature =
+        temperature_from_density_sie(&eos, rho_in, e_in, lambda);
+    REQUIRE(soft_equal(temperature, temp_in, tol));
+    REQUIRE(soft_equal(temp_in, new_temperature, tol));
+    REQUIRE(soft_equal(temperature, new_temperature, tol));
+  }
 }

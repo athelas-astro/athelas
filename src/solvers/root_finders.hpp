@@ -784,9 +784,9 @@ class RegulaFalsiAlgorithm {
 
     T fa = 0.0;
     T fb = 0.0;
-    // refine_bracket(target, guess, a, b, fa, fb, std::forward<Args>(args)...);
-    fa = target(a, std::forward<Args>(args)...);
-    fb = target(b, std::forward<Args>(args)...);
+    refine_bracket(target, guess, a, b, fa, fb, std::forward<Args>(args)...);
+    // fa = target(a, std::forward<Args>(args)...);
+    // fb = target(b, std::forward<Args>(args)...);
 
     if (fa == 0) {
       return a;
@@ -804,12 +804,11 @@ class RegulaFalsiAlgorithm {
       return guess;
     }
 
-    // Normalize so fa < 0 < fb
+    // Normalize
     T sign = (fa < T(0) ? T(1) : T(-1));
     fa *= sign;
     fb *= sign;
 
-    // Ensure a < b
     if (fa > 0) [[unlikely]] {
       std::swap(a, b);
       std::swap(fa, fb);
@@ -828,17 +827,14 @@ class RegulaFalsiAlgorithm {
 
       const T fc = sign * target(c, std::forward<Args>(args)...);
 
-      // First check function residual
       if (std::abs(fc) <= config.abs_tol) {
         return c;
       }
 
-      // Then check step convergence
       if (config.converged(c, c_prev)) {
         return c;
       }
 
-      // Illinois update
       if (fc > 0) {
         b = c;
         fb = fc;
