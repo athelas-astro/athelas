@@ -585,12 +585,6 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     // Compute necessary terms for using the Paczynski eos
     atom::fill_derived_comps<Domain::Interior>(state, grid, fluid_basis);
 
-    // Get the initial Saha ionization state.
-    // Also computes the electron number density
-    atom::solve_saha_ionization<Domain::Interior>(*state, *grid, *eos,
-                                                  *fluid_basis);
-    atom::fill_derived_ionization<Domain::Interior>(state, grid, fluid_basis);
-
     // Finally, compute the radhydro variables. This requires, as before,
     // interpolation of the progenitor data to nodal collocation points
     // and projection from nodal to modal representation.
@@ -640,26 +634,8 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
           }
         });
 
-    // Now recompute the temperature so that everything is happy and consistent
-    athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Recompute T",
-        DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-          for (int q = 0; q < nNodes + 2; q++) {
-            double lambda[8];
-            atom::paczynski_terms(state, i, q, lambda);
-            const double pressure = uAF(i, q, vars::aux::Pressure);
-            const double rho =
-                1.0 / basis::basis_eval(phi_fluid, uCF, i,
-                                        vars::cons::SpecificVolume, q);
-            uAF(i, q, vars::aux::Tgas) = eos::temperature_from_density_pressure(
-                eos, rho, pressure, lambda);
-          }
-        });
-
-    atom::fill_derived_comps<Domain::Interior>(state, grid, fluid_basis);
-    atom::solve_saha_ionization<Domain::Interior>(*state, *grid, *eos,
-                                                  *fluid_basis);
-    atom::fill_derived_ionization<Domain::Interior>(state, grid, fluid_basis);
+    atom::solve_temperature_saha<Domain::Interior, eos::EOSInversion::Pressure>(
+        eos, state, *grid, *fluid_basis);
 
     AthelasArray2D<double> energy_cell("supernova :: energy cell", nx + 2,
                                        nNodes);
@@ -673,10 +649,11 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
             tau_cell(i, q) = basis::basis_eval(phi_fluid, uCF, i,
                                                vars::cons::SpecificVolume, q);
             const double pressure_q = uAF(i, q + 1, vars::aux::Pressure);
+            const double temperature_q = uAF(i, q + 1, vars::aux::Tgas);
             atom::paczynski_terms(state, i, q, lambda);
             energy_cell(i, q) =
-                eos::sie_from_density_pressure(eos, 1.0 / tau_cell(i, q),
-                                               pressure_q, lambda) +
+                eos::sie_from_density_temperature(eos, 1.0 / tau_cell(i, q),
+                                                  temperature_q, lambda) +
                 0.5 * vel_cell(i, q) * vel_cell(i, q);
           }
 

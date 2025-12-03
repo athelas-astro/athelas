@@ -7,6 +7,7 @@
 #include "eos/eos_variant.hpp"
 #include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
+#include "kokkos_types.hpp"
 #include "loop_layout.hpp"
 #include "polynomial_basis.hpp"
 #include "root_finders.hpp"
@@ -32,7 +33,7 @@ auto saha_f(const double T, const IonLevel &ion_data) -> double {
  * @brief Compute neutral ionization fraction. Eq 8 of Zaghloul et al 2000.
  */
 KOKKOS_INLINE_FUNCTION
-auto ion_frac0(const double Zbar, const AthelasArray1D<double> saha_factors,
+auto ion_frac0(const double Zbar, const ScratchPad1D<double> saha_factors,
                const double nk, const int min_state, const int max_state)
     -> double {
   const double inv_zbar_nk = 1.0 / (Zbar * nk);
@@ -48,7 +49,7 @@ auto ion_frac0(const double Zbar, const AthelasArray1D<double> saha_factors,
 }
 
 KOKKOS_INLINE_FUNCTION
-auto saha_target(const double Zbar, const AthelasArray1D<double> saha_factors,
+auto saha_target(const double Zbar, const ScratchPad1D<double> saha_factors,
                  const double nk, const int min_state, const int max_state)
     -> double {
   const double inv_zbar_nk = 1.0 / (Zbar * nk);
@@ -71,7 +72,7 @@ auto saha_target(const double Zbar, const AthelasArray1D<double> saha_factors,
 }
 
 KOKKOS_INLINE_FUNCTION
-auto saha_d_target(const double Zbar, const AthelasArray1D<double> saha_factors,
+auto saha_d_target(const double Zbar, const ScratchPad1D<double> saha_factors,
                    const double nk, const int min_state, const int max_state)
     -> double {
 
@@ -100,7 +101,7 @@ auto saha_d_target(const double Zbar, const AthelasArray1D<double> saha_factors,
  */
 KOKKOS_INLINE_FUNCTION
 void saha_solve(AthelasArray1D<double> ionization_states, const int Z,
-                const AthelasArray1D<double> saha_factors, const double rho,
+                const ScratchPad1D<double> saha_factors, const double rho,
                 const double nk, double &zbar_old) {
 
   using root_finders::RootFinder, root_finders::NewtonAlgorithm,
@@ -216,48 +217,63 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
         }
       });
 
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Saha :: Solve ionization all", DevExecSpace(),
-      ib.s, ib.e, nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int q) {
+  // Allocate scratch space
+  static const size_t nstates_total = ionization_fractions.extent(3);
+  const int scratch_level = 0; // 0 is actual scratch (tiny); 1 is HBM
+  const size_t scratch_size = ScratchPad1D<double>::shmem_size(nstates_total);
+  athelas::par_for_outer(
+      DEFAULT_OUTER_LOOP_PATTERN, "Saha :: Solve ionization all",
+      DevExecSpace(), scratch_size, scratch_level, ib.s, ib.e, nb.s, nb.e,
+      KOKKOS_LAMBDA(athelas::team_mbr_t member, const int i, const int q) {
+        ScratchPad1D<double> saha_factors2(member.team_scratch(scratch_level),
+                                           nstates_total);
         const double rho =
             1.0 / basis_eval(phi, uCF, i, vars::cons::SpecificVolume, q);
         const double temperature = uaf(i, q, vars::aux::Tgas);
 
         // TODO(astrobarker): Profile; faster as hierarchical reduction?
         // This loop is over Saha species
-        for (int e = eb.s; e <= eb.e; ++e) {
-          const int z = species(e);
-          const double x_e = basis_eval(phi, mass_fractions, i, e, q);
+        athelas::par_for_inner(
+            DEFAULT_INNER_LOOP_PATTERN, member, eb.s, eb.e, [&](const int e) {
+              // for (int e = eb.s; e <= eb.e; ++e) {
+              const int z = species(e);
+              const double x_e = basis_eval(phi, mass_fractions, i, e, q);
 
-          const double A = z + neutron_number(e);
-          const double nk = element_number_density(x_e, A, rho);
+              const double A = z + neutron_number(e);
+              const double nk = element_number_density(x_e, A, rho);
 
-          // pull out element info
-          const auto species_atomic_data =
-              species_data(ion_data, species_offsets, z);
-          auto ionization_fractions_e =
-              Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
+              // pull out element info
+              const auto species_atomic_data =
+                  species_data(ion_data, species_offsets, z);
+              auto ionization_fractions_e =
+                  Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
 
-          for (int s = 0; s <= z; ++s) {
-            saha_factors(s) = saha_f(temperature, species_atomic_data(s));
-          }
+              for (int s = 0; s <= z; ++s) {
+                saha_factors2(s) = saha_f(temperature, species_atomic_data(s));
+              }
 
-          double &zbar = zbars(i, q, e);
+              double &zbar = zbars(i, q, e);
 
-          saha_solve(ionization_fractions_e, z, saha_factors, rho, nk, zbar);
-          std::println("Z Zbar T {} {:.5e} {:.5e}", z, zbar, temperature);
-          n_e(i, q) += zbar * nk;
-        }
+              saha_solve(ionization_fractions_e, z, saha_factors2, rho, nk,
+                         zbar);
+              std::println("Z Zbar T {} {:.5e} {:.5e}", z, zbar, temperature);
+              n_e(i, q) += zbar * nk;
+            });
 
         // loop over remaining species, assume complete ionization.
-        for (std::size_t e = eb.e + 1; e < ncomps_all; ++e) {
-          const int z = species(e);
-          const double x_e = basis_eval(phi, mass_fractions, i, e, q);
-          const double A = z + neutron_number(e);
-          const double nk = element_number_density(x_e, A, rho);
-          ionization_fractions(i, q, e, z) = 1.0;
-          n_e(i, q) += z * nk;
-        }
+        athelas::par_for_inner(DEFAULT_INNER_LOOP_PATTERN, member, eb.e + 1,
+                               ncomps_all - 1, [&](const int e) {
+                                 // for (std::size_t e = eb.e + 1; e <
+                                 // ncomps_all; ++e) {
+                                 const int z = species(e);
+                                 const double x_e =
+                                     basis_eval(phi, mass_fractions, i, e, q);
+                                 const double A = z + neutron_number(e);
+                                 const double nk =
+                                     element_number_density(x_e, A, rho);
+                                 ionization_fractions(i, q, e, z) = 1.0;
+                                 n_e(i, q) += z * nk;
+                               });
       });
 }
 
@@ -283,7 +299,6 @@ void solve_temperature_saha(const eos::EOS *eos, State *state,
   auto *species_indexer = comps->species_indexer();
   auto ionization_fractions = ionization_states->ionization_fractions();
   auto zbars = ionization_states->zbar();
-  auto saha_factors = ionization_states->saha_factor();
 
   static const auto &ncomps_saha = ionization_states->ncomps();
 
@@ -305,9 +320,19 @@ void solve_temperature_saha(const eos::EOS *eos, State *state,
       solver({.abs_tol = 1.0e-12, .rel_tol = 1.0e-12, .max_iterations = 100});
 
   auto phi = basis.phi();
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "EOS :: T/Saha solve", DevExecSpace(), ib.s, ib.e,
-      nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int q) {
+  // Allocate scratch space
+  static const size_t nstates_total = ionization_fractions.extent(3);
+  const int scratch_level = 0; // 0 is actual scratch (tiny); 1 is HBM
+  const size_t scratch_size = ScratchPad1D<double>::shmem_size(nstates_total);
+  athelas::par_for_outer(
+      DEFAULT_OUTER_LOOP_PATTERN, "EOS :: T/Saha solve", DevExecSpace(),
+      scratch_size, scratch_level, ib.s, ib.e, nb.s, nb.e,
+      KOKKOS_LAMBDA(athelas::team_mbr_t member, const int i, const int q) {
+        n_e(i, q) = 0.0;
+
+        ScratchPad1D<double> saha_factors(member.team_scratch(scratch_level),
+                                          nstates_total);
+
         const double rho =
             1.0 / basis::basis_eval(phi, ucf, i, vars::cons::SpecificVolume, q);
 
@@ -315,47 +340,57 @@ void solve_temperature_saha(const eos::EOS *eos, State *state,
         atom::paczynski_terms(state, i, q, lambda);
 
         const double temperature_guess = uaf(i, q, vars::aux::Tgas);
+
+        // TODO(astrobarker): [Saha] There must be a cleaner way to do this.
+        athelas::par_for_inner(DEFAULT_INNER_LOOP_PATTERN, member,
+                               eb_saha.e + 1, eb.e, [&](const int e) {
+                                 const int &z = species(e);
+                                 const double x_e = basis::basis_eval(
+                                     phi, mass_fractions, i, e, q);
+                                 const double A = z + neutron_number(e);
+                                 const double nk =
+                                     element_number_density(x_e, A, rho);
+                                 n_e(i, q) += z * nk;
+                               });
+
+        // solver target function
         auto target = [&](const double temperature, const double rho,
                           double *const lambda) {
-          n_e(i, q) = 0.0;
-          for (int e = eb_saha.s; e <= eb_saha.e; ++e) {
-            const int z = species(e);
-            const double x_e = basis::basis_eval(phi, mass_fractions, i, e, q);
+          double n_e_solve = 0.0;
 
-            const double A = z + neutron_number(e);
-            const double nk = atom::element_number_density(x_e, A, rho);
+          // loop over active Saha species
+          athelas::par_for_inner(
+              DEFAULT_INNER_LOOP_PATTERN, member, eb_saha.s, eb_saha.e,
+              [&](const int e) {
+                const int z = species(e);
+                const double x_e =
+                    basis::basis_eval(phi, mass_fractions, i, e, q);
 
-            // pull out element info
-            const auto species_atomic_data =
-                species_data(ion_data, species_offsets, z);
-            auto ionization_fractions_e =
-                Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
+                const double A = z + neutron_number(e);
+                const double nk = atom::element_number_density(x_e, A, rho);
 
-            // As the iterative solve modifies the ionization fractions
-            // directly, we have to reset it with each iteration. Also
-            // precompute saha factors
-            for (int s = 0; s <= z; ++s) {
-              ionization_fractions(i, q, e, s) = 0.0;
-              saha_factors(s) = saha_f(temperature, species_atomic_data(s));
-            }
+                // pull out element info
+                const auto species_atomic_data =
+                    species_data(ion_data, species_offsets, z);
+                auto ionization_fractions_e =
+                    Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
 
-            double &zbar = zbars(i, q, e);
+                // As the iterative solve modifies the ionization fractions
+                // directly, we have to reset it with each iteration. Also
+                // precompute saha factors
+                for (int s = 0; s <= z; ++s) {
+                  ionization_fractions(i, q, e, s) = 0.0;
+                  saha_factors(s) = saha_f(temperature, species_atomic_data(s));
+                }
 
-            saha_solve(ionization_fractions_e, z, saha_factors, rho, nk, zbar);
-            n_e(i, q) += zbar * nk;
-          }
+                double &zbar = zbars(i, q, e);
 
-          // TODO(astrobarker): [Saha] There must be a cleaner way to do this.
-          for (int e = eb_saha.e + 1; e <= eb.e; ++e) {
-            const int &z = species(e);
-            const double x_e = basis::basis_eval(phi, mass_fractions, i, e, q);
-            const double A = z + neutron_number(e);
-            const double nk = element_number_density(x_e, A, rho);
-            ionization_fractions(i, q, e, z) = 1.0;
-            n_e(i, q) += z * nk;
-          }
+                saha_solve(ionization_fractions_e, z, saha_factors, rho, nk,
+                           zbar);
+                n_e_solve += zbar * nk;
+              });
 
-          ybar(i, q) = n_e(i, q) / number_density(i, q) / rho;
+          ybar(i, q) = (n_e(i, q) + n_e_solve) / number_density(i, q) / rho;
           fill_derived_ionization(&basis, mass_fractions, comps,
                                   ionization_states, eb, i, q);
           atom::paczynski_terms(state, i, q, lambda);
