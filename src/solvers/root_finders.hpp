@@ -737,8 +737,8 @@ KOKKOS_INLINE_FUNCTION void refine_bracket(F &func, const double guess,
                                            double &a, double &b, double &ya,
                                            double &yb, Args &&...args) {
   if (a <= guess && b >= guess) {
-    ya = func(guess, std::forward<Args>(args)...);
     yb = func(b, std::forward<Args>(args)...);
+    ya = func(guess, std::forward<Args>(args)...);
     if (ya * yb > 0.0) {
       yb = ya;
       b = guess;

@@ -1,6 +1,8 @@
 #pragma once
 
+#include "Kokkos_Macros.hpp"
 #include "atom/atom.hpp"
+#include "basis/polynomial_basis.hpp"
 #include "composition/compdata.hpp"
 #include "composition/composition.hpp"
 #include "constants.hpp"
@@ -9,8 +11,6 @@
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
 #include "loop_layout.hpp"
-#include "polynomial_basis.hpp"
-#include "root_finders.hpp"
 #include "solvers/root_finders.hpp"
 #include "state/state.hpp"
 #include "utils/error.hpp"
@@ -98,6 +98,8 @@ auto saha_d_target(const double Zbar, const ScratchPad1D<double> saha_factors,
 /**
  * @brief Saha solve on a given cell
  * @return zbar
+ * @param relaxed_tol If true, use relaxed tolerances for faster convergence
+ *                     during outer temperature iteration
  */
 KOKKOS_INLINE_FUNCTION
 void saha_solve(AthelasArray1D<double> ionization_states, const int Z,
@@ -108,10 +110,9 @@ void saha_solve(AthelasArray1D<double> ionization_states, const int Z,
       root_finders::AANewtonAlgorithm, root_finders::RegulaFalsiAlgorithm,
       root_finders::RelativeError;
   // Set up static root finder for Saha ionization
-  // We keep tight tolerances here.
   // TODO(astrobarker): make tolerances runtime
   static RootFinder<double, NewtonAlgorithm<double>> solver(
-      {.abs_tol = 1.0e-12, .rel_tol = 1.0e-12, .max_iterations = 100});
+      {.abs_tol = 1.0e-6, .rel_tol = 1.0e-6, .max_iterations = 10});
   static constexpr double ZBARTOL = 1.0e-15;
   static constexpr double ZBARTOLINV = 1.0e15;
 
@@ -123,7 +124,6 @@ void saha_solve(AthelasArray1D<double> ionization_states, const int Z,
 
   for (int i = 1; i < num_states; ++i) {
     const double f_saha = saha_factors(i - 1);
-    // const double f_saha = saha_f(temperature, ion_datas(i - 1));
 
     if (f_saha * Zbar_nk_inv > ZBARTOLINV) {
       min_state = i + 1;
@@ -184,7 +184,6 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
   auto *species_indexer = comps->species_indexer();
   auto ionization_fractions = ionization_states->ionization_fractions();
   auto zbars = ionization_states->zbar();
-  auto saha_factors = ionization_states->saha_factor();
 
   const auto phi = fluid_basis.phi();
 
@@ -225,8 +224,8 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
       DEFAULT_OUTER_LOOP_PATTERN, "Saha :: Solve ionization all",
       DevExecSpace(), scratch_size, scratch_level, ib.s, ib.e, nb.s, nb.e,
       KOKKOS_LAMBDA(athelas::team_mbr_t member, const int i, const int q) {
-        ScratchPad1D<double> saha_factors2(member.team_scratch(scratch_level),
-                                           nstates_total);
+        ScratchPad1D<double> saha_factors(member.team_scratch(scratch_level),
+                                          nstates_total);
         const double rho =
             1.0 / basis_eval(phi, uCF, i, vars::cons::SpecificVolume, q);
         const double temperature = uaf(i, q, vars::aux::Tgas);
@@ -235,7 +234,6 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
         // This loop is over Saha species
         athelas::par_for_inner(
             DEFAULT_INNER_LOOP_PATTERN, member, eb.s, eb.e, [&](const int e) {
-              // for (int e = eb.s; e <= eb.e; ++e) {
               const int z = species(e);
               const double x_e = basis_eval(phi, mass_fractions, i, e, q);
 
@@ -249,22 +247,19 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
                   Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
 
               for (int s = 0; s <= z; ++s) {
-                saha_factors2(s) = saha_f(temperature, species_atomic_data(s));
+                saha_factors(s) = saha_f(temperature, species_atomic_data(s));
               }
 
               double &zbar = zbars(i, q, e);
 
-              saha_solve(ionization_fractions_e, z, saha_factors2, rho, nk,
+              saha_solve(ionization_fractions_e, z, saha_factors, rho, nk,
                          zbar);
-              std::println("Z Zbar T {} {:.5e} {:.5e}", z, zbar, temperature);
               n_e(i, q) += zbar * nk;
             });
 
         // loop over remaining species, assume complete ionization.
         athelas::par_for_inner(DEFAULT_INNER_LOOP_PATTERN, member, eb.e + 1,
                                ncomps_all - 1, [&](const int e) {
-                                 // for (std::size_t e = eb.e + 1; e <
-                                 // ncomps_all; ++e) {
                                  const int z = species(e);
                                  const double x_e =
                                      basis_eval(phi, mass_fractions, i, e, q);
@@ -277,10 +272,206 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
       });
 }
 
+struct CoupledSolverContent {
+  using AA1D = AthelasArray1D<double>;
+  using AA2D = AthelasArray2D<double>;
+  using AA3D = AthelasArray3D<double>;
+  using AA4D = AthelasArray4D<double>;
+
+  AA3D ucf;
+  AA3D uaf;
+  AA3D mass_fractions;
+  AA3D phi;
+  AA3D zbar;
+  AA2D ye;
+  AA2D n_e;
+  AA2D number_density;
+  AA2D ybar;
+  AA2D abar;
+  AA2D e_ion_corr;
+  AA2D sigma1;
+  AA2D sigma2;
+  AA2D sigma3;
+
+  AA4D ionization_fractions;
+  ScratchPad1D<double> saha_factors;
+
+  AthelasArray1D<int> species;
+  AthelasArray1D<int> neutron_number;
+  AthelasArray1D<int> species_offsets;
+
+  AthelasArray1D<IonLevel> ion_data;
+
+  IndexRange eb_saha;
+  IndexRange eb;
+
+  int i;
+  int q;
+};
+
+KOKKOS_FUNCTION
+template <eos::EOSInversion Inversion>
+auto coupled_saha(const double temperature, const double rho,
+                  const eos::EOS *eos, const CoupledSolverContent &content)
+    -> double {
+
+  auto ucf = content.ucf;
+  auto uaf = content.uaf;
+
+  auto phi = content.phi;
+
+  const auto species = content.species;
+  const auto neutron_number = content.neutron_number;
+  auto ye = content.ye;
+  auto n_e = content.n_e;
+  auto number_density = content.number_density;
+  auto mass_fractions = content.mass_fractions;
+
+  auto ion_data = content.ion_data;
+  auto species_offsets = content.species_offsets;
+
+  auto ybar = content.ybar;
+  auto ionization_fractions = content.ionization_fractions;
+  auto saha_factors = content.saha_factors;
+  auto zbars = content.zbar;
+  auto e_ion_corr = content.e_ion_corr;
+  auto sigma1 = content.sigma1;
+  auto sigma2 = content.sigma2;
+  auto sigma3 = content.sigma3;
+
+  const auto &eb = content.eb;
+  const auto &eb_saha = content.eb_saha;
+
+  const int &i = content.i;
+  const int &q = content.q;
+
+  double n_e_solve = 0.0;
+  double sum_e_ion_corr = 0.0;
+  double sum1 = 0.0;
+  double sum2 = 0.0;
+  double sum3 = 0.0;
+  const double N = number_density(i, q);
+  const auto abar = content.abar(i, q);
+
+  // Loop over Saha species – solve ionization for the Saha subset
+  for (int e = eb_saha.s; e <= eb_saha.e; ++e) {
+    const int z = species(e);
+    const double x_e = basis::basis_eval(phi, mass_fractions, i, e, q);
+
+    const double A = z + neutron_number(e);
+    const double nk = atom::element_number_density(x_e, A, rho);
+
+    // species atomic data
+    const auto species_atomic_data = species_data(ion_data, species_offsets, z);
+
+    auto ionization_fractions_e =
+        Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
+
+    // reset ionization fractions, setup saha factors
+    for (int s = 0; s <= z; ++s) {
+      ionization_fractions(i, q, e, s) = 0.0;
+      saha_factors(s) = saha_f(temperature, species_atomic_data(s));
+    }
+
+    double &zbar = zbars(i, q, e);
+
+    saha_solve(ionization_fractions_e, z, saha_factors, rho, nk, zbar);
+
+    n_e_solve += zbar * nk;
+
+    const int nstates = z + 1;
+
+    // Paczynski sigma terms: same logic as per-point fill_derived_ionization
+    // y_r = max populated ionization fraction, chi_r corresponding potential
+    double y_r = ionization_fractions_e(0);
+    double chi_r = 0.0;
+    double sum_ion_pot = 0.0;
+    double sum_pot = 0.0;
+    for (int s = 1; s < nstates; ++s) {
+      sum_pot += species_atomic_data(s - 1).chi;
+      sum_ion_pot += ionization_fractions_e(s) * sum_pot;
+      const double y = ionization_fractions_e(s);
+      if (y > y_r) {
+        y_r = y;
+        chi_r = species_atomic_data(s).chi;
+      }
+    }
+
+    const double atomic_mass = z + neutron_number(e);
+    const double nu_k = abar * x_e / atomic_mass;
+    const double term = nu_k * y_r * (1.0 - y_r);
+    sum1 += term;
+    sum2 += chi_r * term;
+    sum3 += chi_r * chi_r * term;
+    sum_e_ion_corr += N * nu_k * sum_ion_pot;
+  }
+
+  // Second loop over all species for thermodynamic integrals (sigma1-3,
+  // e_ion_corr)
+  for (int e = eb_saha.e + 1; e <= eb.e; ++e) {
+    const int z = species(e);
+    const double x_e = basis::basis_eval(phi, mass_fractions, i, e, q);
+
+    // species atomic data
+    const auto species_atomic_data = species_data(ion_data, species_offsets, z);
+
+    auto ionization_fractions_e =
+        Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
+
+    // ------------------------------------------------
+    // Inline computation of thermodynamic derivative terms
+    // (sigma1, sigma2, sigma3) and e_ion_corr
+    // ------------------------------------------------
+    const double sum_pot = species_atomic_data(z - 1).chi;
+    const double sum_ion_pot = ionization_fractions_e(z) * sum_pot;
+    const double atomic_mass = z + neutron_number(e);
+    const double nu_k = abar * x_e / atomic_mass;
+
+    // e_ion_corr contribution
+    sum_e_ion_corr += N * nu_k * sum_ion_pot;
+  }
+
+  // ------------------------------------------------
+  // Store ybar and sigma1-3 / e_ion_corr
+  // ------------------------------------------------
+  ybar(i, q) = (n_e(i, q) + n_e_solve) / N / rho;
+  sigma1(i, q) = sum1;
+  sigma2(i, q) = sum2;
+  sigma3(i, q) = sum3;
+  e_ion_corr(i, q) = sum_e_ion_corr;
+
+  // ------------------------------------------------
+  // Fill lambda
+  // ------------------------------------------------
+  double lambda[8];
+  lambda[0] = N;
+  lambda[1] = ye(i, q);
+  lambda[2] = ybar(i, q);
+  lambda[6] = sum_e_ion_corr;
+  lambda[7] = temperature;
+
+  // ------------------------------------------------
+  // Return solver residual
+  // ------------------------------------------------
+  if constexpr (Inversion == eos::EOSInversion::Pressure) {
+    const double pressure = uaf(i, q, vars::aux::Pressure);
+    return pressure_from_density_temperature(eos, rho, temperature, lambda) -
+           pressure;
+
+  } else {
+    const double vel = basis::basis_eval(phi, ucf, i, vars::cons::Velocity, q);
+    const double emt = basis::basis_eval(phi, ucf, i, vars::cons::Energy, q);
+    const double sie = emt - 0.5 * vel * vel;
+
+    return sie_from_density_temperature(eos, rho, temperature, lambda) - sie;
+  }
+}
+
 template <Domain MeshDomain, eos::EOSInversion Inversion>
 void solve_temperature_saha(const eos::EOS *eos, State *state,
                             const GridStructure &grid,
                             const basis::ModalBasis &basis) {
+  using root_finders::RegulaFalsiAlgorithm, root_finders::FixedPointAlgorithm;
   static const auto &nnodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<MeshDomain>());
   static const IndexRange nb(nnodes + 2);
@@ -294,11 +485,17 @@ void solve_temperature_saha(const eos::EOS *eos, State *state,
   const auto mass_fractions = state->mass_fractions();
   const auto species = comps->charge();
   const auto neutron_number = comps->neutron_number();
+  auto ye = comps->ye();
+  auto abar = comps->abar();
   auto n_e = comps->electron_number_density();
   auto number_density = comps->number_density();
   auto *species_indexer = comps->species_indexer();
   auto ionization_fractions = ionization_states->ionization_fractions();
   auto zbars = ionization_states->zbar();
+  auto e_ion_corr = ionization_states->e_ion_corr();
+  auto sigma1 = ionization_states->sigma1();
+  auto sigma2 = ionization_states->sigma2();
+  auto sigma3 = ionization_states->sigma3();
 
   static const auto &ncomps_saha = ionization_states->ncomps();
 
@@ -314,16 +511,16 @@ void solve_temperature_saha(const eos::EOS *eos, State *state,
   const auto ion_data = atomic_data->ion_data();
   const auto species_offsets = atomic_data->offsets();
 
-  // set up root finder
-  static root_finders::RootFinder<double,
-                                  root_finders::RegulaFalsiAlgorithm<double>>
-      solver({.abs_tol = 1.0e-12, .rel_tol = 1.0e-12, .max_iterations = 100});
+  static root_finders::RootFinder<double, RegulaFalsiAlgorithm<double>> solver(
+      {.abs_tol = 1.0e-8, .rel_tol = 1.0e-8, .max_iterations = 50});
 
   auto phi = basis.phi();
   // Allocate scratch space
-  static const size_t nstates_total = ionization_fractions.extent(3);
-  const int scratch_level = 0; // 0 is actual scratch (tiny); 1 is HBM
+  static const std::size_t nstates_total =
+      ionization_fractions.extent(3); // overkill
+  const int scratch_level = 1; // 0 is actual scratch (tiny); 1 is HBM
   const size_t scratch_size = ScratchPad1D<double>::shmem_size(nstates_total);
+
   athelas::par_for_outer(
       DEFAULT_OUTER_LOOP_PATTERN, "EOS :: T/Saha solve", DevExecSpace(),
       scratch_size, scratch_level, ib.s, ib.e, nb.s, nb.e,
@@ -335,11 +532,33 @@ void solve_temperature_saha(const eos::EOS *eos, State *state,
 
         const double rho =
             1.0 / basis::basis_eval(phi, ucf, i, vars::cons::SpecificVolume, q);
-
-        double lambda[8];
-        atom::paczynski_terms(state, i, q, lambda);
-
         const double temperature_guess = uaf(i, q, vars::aux::Tgas);
+
+        // solver content
+        CoupledSolverContent content{ucf,
+                                     uaf,
+                                     mass_fractions,
+                                     phi,
+                                     zbars,
+                                     ye,
+                                     n_e,
+                                     number_density,
+                                     ybar,
+                                     abar,
+                                     e_ion_corr,
+                                     sigma1,
+                                     sigma2,
+                                     sigma3,
+                                     ionization_fractions,
+                                     saha_factors,
+                                     species,
+                                     neutron_number,
+                                     species_offsets,
+                                     ion_data,
+                                     eb_saha,
+                                     eb,
+                                     i,
+                                     q};
 
         // TODO(astrobarker): [Saha] There must be a cleaner way to do this.
         athelas::par_for_inner(DEFAULT_INNER_LOOP_PATTERN, member,
@@ -353,64 +572,8 @@ void solve_temperature_saha(const eos::EOS *eos, State *state,
                                  n_e(i, q) += z * nk;
                                });
 
-        // solver target function
-        auto target = [&](const double temperature, const double rho,
-                          double *const lambda) {
-          double n_e_solve = 0.0;
-
-          // loop over active Saha species
-          athelas::par_for_inner(
-              DEFAULT_INNER_LOOP_PATTERN, member, eb_saha.s, eb_saha.e,
-              [&](const int e) {
-                const int z = species(e);
-                const double x_e =
-                    basis::basis_eval(phi, mass_fractions, i, e, q);
-
-                const double A = z + neutron_number(e);
-                const double nk = atom::element_number_density(x_e, A, rho);
-
-                // pull out element info
-                const auto species_atomic_data =
-                    species_data(ion_data, species_offsets, z);
-                auto ionization_fractions_e =
-                    Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
-
-                // As the iterative solve modifies the ionization fractions
-                // directly, we have to reset it with each iteration. Also
-                // precompute saha factors
-                for (int s = 0; s <= z; ++s) {
-                  ionization_fractions(i, q, e, s) = 0.0;
-                  saha_factors(s) = saha_f(temperature, species_atomic_data(s));
-                }
-
-                double &zbar = zbars(i, q, e);
-
-                saha_solve(ionization_fractions_e, z, saha_factors, rho, nk,
-                           zbar);
-                n_e_solve += zbar * nk;
-              });
-
-          ybar(i, q) = (n_e(i, q) + n_e_solve) / number_density(i, q) / rho;
-          fill_derived_ionization(&basis, mass_fractions, comps,
-                                  ionization_states, eb, i, q);
-          atom::paczynski_terms(state, i, q, lambda);
-          if constexpr (Inversion == eos::EOSInversion::Pressure) {
-            const double pressure = uaf(i, q, vars::aux::Pressure);
-            return pressure_from_density_temperature(eos, rho, temperature,
-                                                     lambda) -
-                   pressure;
-          } else {
-            const double vel =
-                basis::basis_eval(phi, ucf, i, vars::cons::Velocity, q);
-            const double emt =
-                basis::basis_eval(phi, ucf, i, vars::cons::Energy, q);
-            const double sie = emt - 0.5 * vel * vel;
-            return sie_from_density_temperature(eos, rho, temperature, lambda) -
-                   sie;
-          }
-        };
-        const double res =
-            solver.solve(target, 500.0, 1.5e10, temperature_guess, rho, lambda);
+        const double res = solver.solve(coupled_saha<Inversion>, 500.0, 1.0e10,
+                                        temperature_guess, rho, eos, content);
         uaf(i, q, vars::aux::Tgas) = res;
       });
 }

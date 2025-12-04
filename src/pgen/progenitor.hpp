@@ -381,10 +381,10 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     if (neut_present) {
       const int ind_neut = species_indexer->get<int>("neut");
       if (ind_neut != 0) {
-        species(ind_neut) = species(0);
-        species(0) = 0; // Z
-        neutron_number(ind_neut) = neutron_number(0);
-        neutron_number(0) = 1;
+        species_h(ind_neut) = species_h(0);
+        species_h(0) = 0; // Z
+        neutron_number_h(ind_neut) = neutron_number_h(0);
+        neutron_number_h(0) = 1;
 
         for (int i = 2; i < n_zones_prog + 2; ++i) {
           const size_t i_cell = i - 2;
