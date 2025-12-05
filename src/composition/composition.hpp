@@ -18,16 +18,11 @@ void paczynski_terms(const State *state, int ix, int node, double *lambda);
  * @brief Number density of atomic species in particles/cm^3
  */
 KOKKOS_INLINE_FUNCTION
-auto element_number_density(const double mass_frac, const double atomic_mass,
-                            const double rho) -> double {
-  return (mass_frac * rho) / (atomic_mass * constants::amu_to_g);
+auto element_number_density(const double mass_frac,
+                            const double inv_atomic_mass, const double rho)
+    -> double {
+  return mass_frac * rho * inv_atomic_mass * constants::N_A;
 }
-
-// Compute electron number density (derived quantity)
-auto electron_density(const AthelasArray3D<double> mass_fractions,
-                      const AthelasArray4D<double> ion_fractions,
-                      const AthelasArray1D<int> charges, int i, int q,
-                      double rho) -> double;
 
 /**
  * @brief Fill derived composition quantities
@@ -51,6 +46,7 @@ void fill_derived_comps(State *const state, const GridStructure *const grid,
   const auto mass_fractions = state->mass_fractions();
   const auto species = comps->charge();
   const auto neutron_number = comps->neutron_number();
+  auto inv_atomic_mass = comps->inverse_atomic_mass();
   auto ye = comps->ye();
   auto abar = comps->abar();
   auto number_density = comps->number_density();
@@ -65,14 +61,15 @@ void fill_derived_comps(State *const state, const GridStructure *const grid,
         double sum_y = 0.0;
         for (size_t e = 0; e < num_species; ++e) {
           const double Z = species(e);
-          const double A = Z + neutron_number(e);
+          const double inv_A = inv_atomic_mass(e);
           const double rho =
               1.0 /
               basis::basis_eval(phi, ucf, i, vars::cons::SpecificVolume, q);
           const double xk = basis::basis_eval(phi, mass_fractions, i, e, q);
-          n += xk / A;
-          ye_q += Z * xk / A;
-          sum_y += element_number_density(xk, A, rho) / (rho * constants::N_A);
+          n += xk * inv_A;
+          ye_q += Z * xk * inv_A;
+          sum_y += constants::amu_to_g *
+                   element_number_density(xk, inv_A, rho) / rho;
         }
         number_density(i, q) = n * inv_m_p;
         ye(i, q) = ye_q;
@@ -88,25 +85,29 @@ auto fill_derived_ionization(const basis::ModalBasis *basis,
                              const IonizationState *ionization_state,
                              const IndexRange &eb, const int &num_species,
                              const int &i, const int &q)
-    -> std::tuple<double, double, double> {
+    -> std::tuple<double, double, double, double> {
   const auto ionization_fractions = ionization_state->ionization_fractions();
   const auto *const atomic_data = ionization_state->atomic_data();
 
   const auto ion_data = atomic_data->ion_data();
+  auto sum_pots = atomic_data->sum_pots();
   const auto species_offsets = atomic_data->offsets();
   const auto species = comps->charge();
   const auto neutron_number = comps->neutron_number();
   const auto number_density = comps->number_density();
-  // const auto electron_number_density = comps->electron_number_density();
   const auto abar = comps->abar();
+  const auto inv_atomic_mass = comps->inverse_atomic_mass();
 
   double sum1 = 0.0;
   double sum2 = 0.0;
   double sum3 = 0.0;
+  double sum_e_ion_corr = 0.0;
+  /*
   for (int e = eb.s; e <= eb.e; ++e) {
     // pull out element info
     const int z = species(e);
     const auto species_atomic_data = species_data(ion_data, species_offsets, z);
+    const auto species_sum_pot = species_data(sum_pots, species_offsets, z);
     const auto ionization_fractions_e =
         Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
     const int nstates = z + 1;
@@ -116,8 +117,6 @@ auto fill_derived_ionization(const basis::ModalBasis *basis,
     double chi_r = 0.0;
     for (int s = 0; s < nstates; ++s) {
       const double y = ionization_fractions_e(s);
-      // chi_r_new = (y > ymax) * species_atomic_data(s).chi;
-      // ymax = std::max(y, ymax);
       if (y > y_r) {
         y_r = y;
         chi_r = species_atomic_data(s).chi;
@@ -128,15 +127,57 @@ auto fill_derived_ionization(const basis::ModalBasis *basis,
     // and the internal energy term from partial ionization.
     // Start with constructing the abundance n_k
 
-    const double atomic_mass = z + neutron_number(e);
+    const double inv_A = inv_atomic_mass(e);
     const double xk = basis->basis_eval(mass_fractions, i, e, q);
-    const double nu_k = abar(i, q) * xk / atomic_mass;
+    const double nu_k = abar(i, q) * xk * inv_A;
     const double term = nu_k * y_r * (1.0 - y_r);
     sum1 += term;
     sum2 += chi_r * term;
     sum3 += chi_r * chi_r * term;
   } // loop species
-  return {sum1, sum2, sum3};
+  */
+  // Loop over Saha species – solve ionization for the Saha subset
+  auto phi = basis->phi();
+  for (int e = eb.s; e <= eb.e; ++e) {
+    const int z = species(e);
+    const double x_e = basis::basis_eval(phi, mass_fractions, i, e, q);
+
+    const double inv_A = inv_atomic_mass(e);
+
+    // species atomic data
+    const auto species_atomic_data = species_data(ion_data, species_offsets, z);
+    const auto species_sum_pot = species_data(sum_pots, species_offsets, z);
+
+    auto ionization_fractions_e =
+        Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
+
+    // reset ionization fractions, setup saha factors
+
+    const int nstates = z + 1;
+
+    // Paczynski sigma terms: same logic as per-point fill_derived_ionization
+    // y_r = max populated ionization fraction, chi_r corresponding potential
+    double y_r = ionization_fractions_e(0);
+    double chi_r = 0.0;
+    double sum_ion_pot = 0.0;
+    for (int s = 1; s < nstates; ++s) {
+      sum_ion_pot += ionization_fractions_e(s) * species_sum_pot(s - 1);
+      const double y = ionization_fractions_e(s);
+      if (y > y_r) {
+        y_r = y;
+        chi_r = species_atomic_data(s).chi;
+      }
+    }
+
+    const double nu_k = abar(i, q) * x_e * inv_A;
+    const double term = nu_k * y_r * (1.0 - y_r);
+    sum1 += term;
+    sum2 += chi_r * term;
+    sum3 += chi_r * chi_r * term;
+    sum_e_ion_corr += number_density(i, q) * nu_k * sum_ion_pot;
+  }
+
+  return {sum1, sum2, sum3, sum_e_ion_corr};
 }
 
 /**
@@ -167,6 +208,7 @@ void fill_derived_ionization(State *const state,
   auto sigma1 = ionization_state->sigma1();
   auto sigma2 = ionization_state->sigma2();
   auto sigma3 = ionization_state->sigma3();
+  auto e_ion_corr = ionization_state->e_ion_corr();
 
   static const bool has_neuts = species_indexer->contains("neut");
   static const int start_elem = (has_neuts) ? 1 : 0;
@@ -189,12 +231,13 @@ void fill_derived_ionization(State *const state,
         // This kernel is horrible.
         // Reduce the ionization based quantities sigma1-3, e_ion_corr
         ybar(i, q) = electron_number_density(i, q) / number_density(i, q) / rho;
-        const auto [s1, s2, s3] = fill_derived_ionization(
-            basis, mass_fractions, comps, ionization_state, eb_saha,
-            num_species, i, q);
+        const auto [s1, s2, s3, eion] =
+            fill_derived_ionization(basis, mass_fractions, comps,
+                                    ionization_state, eb, num_species, i, q);
         sigma1(i, q) = s1;
         sigma2(i, q) = s2;
         sigma3(i, q) = s3;
+        e_ion_corr(i, q) = eion;
       });
 }
 

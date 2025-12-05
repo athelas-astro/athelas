@@ -16,6 +16,7 @@
 
 #include "io/parser.hpp"
 #include "kokkos_types.hpp"
+#include "print"
 #include "utils/constants.hpp"
 
 namespace athelas::atom {
@@ -46,7 +47,8 @@ class AtomicData {
   AthelasArray1D<IonLevel> ion_data_;
   AthelasArray1D<int> offsets_;
   AthelasArray1D<int> atomic_numbers_;
-  size_t num_species_;
+  AthelasArray1D<double> sum_pot_; // sum of ionization potentials, flattened.
+  int num_species_;
 
  public:
   AtomicData() = default;
@@ -67,12 +69,12 @@ class AtomicData {
     // NOTE: This explicitly assumes that the data in the files are ordered
     // and contiguous. If this assumption is broken, then this is incorrect.
     // TODO(astrobarker): Sorting the data after extracting would harden it.
-    num_species_ = atomic_numbers.back();
+    num_species_ = static_cast<int>(atomic_numbers.back());
 
     int total_levels = 0;
     std::vector<int> offs(num_species_);
 
-    for (size_t s = 0; s < num_species_; ++s) {
+    for (int s = 0; s < num_species_; ++s) {
       const int Z = s + 1;
       offs[s] = total_levels;
       total_levels += Z; // Z ionization levels
@@ -82,11 +84,14 @@ class AtomicData {
         AthelasArray1D<IonLevel>("ion_data", total_levels + num_species_ + 2);
     atomic_numbers_ = AthelasArray1D<int>("atomic_number", num_species_ + 0);
     offsets_ = AthelasArray1D<int>("offsets", num_species_);
+    sum_pot_ =
+        AthelasArray1D<double>("sum_pot", total_levels + num_species_ + 2);
 
     auto offs_host = Kokkos::create_mirror_view(offsets_);
     auto ion_data_host = Kokkos::create_mirror_view(ion_data_);
     auto atomic_numbers_host = Kokkos::create_mirror_view(atomic_numbers_);
-    for (size_t s = 0; s < num_species_; ++s) {
+    auto sum_pot_h = Kokkos::create_mirror_view(sum_pot_);
+    for (int s = 0; s < num_species_; ++s) {
       offs_host(s) = offs[s];
     }
 
@@ -107,8 +112,10 @@ class AtomicData {
     int g_idx = 0; // Index into degeneracy factors vector
     int level_idx = 0; // Index into our ion_data_ array
 
-    for (size_t s = 0; s < num_species_; ++s) {
+    for (int s = 0; s < num_species_; ++s) {
       const int Z = atomic_numbers_host(s);
+      sum_pot_h(level_idx) =
+          ionization_energies[chi_idx] * constants::ev_to_erg;
 
       // For species s, we have:
       // - Z ionization potentials: chi[0] to chi[Z-1]
@@ -119,6 +126,9 @@ class AtomicData {
         // Level n represents ionization from state n to state n+1
         ion_data_host(level_idx).chi =
             ionization_energies[chi_idx + n] * constants::ev_to_erg;
+        sum_pot_h(level_idx + 1) =
+            sum_pot_h(level_idx) +
+            ionization_energies[chi_idx + n + 1] * constants::ev_to_erg;
         ion_data_host(level_idx).g_lower = weights[g_idx + n]; // g[n]
         ion_data_host(level_idx).g_upper = weights[g_idx + n + 1]; // g[n+1]
 
@@ -133,11 +143,12 @@ class AtomicData {
     Kokkos::deep_copy(offsets_, offs_host);
     Kokkos::deep_copy(ion_data_, ion_data_host);
     Kokkos::deep_copy(atomic_numbers_, atomic_numbers_host);
+    Kokkos::deep_copy(sum_pot_, sum_pot_h);
   }
 
   [[nodiscard]] auto offsets() const noexcept { return offsets_; }
-
   [[nodiscard]] auto ion_data() const noexcept { return ion_data_; }
+  [[nodiscard]] auto sum_pots() const noexcept { return sum_pot_; }
 };
 
 [[nodiscard]] KOKKOS_INLINE_FUNCTION auto
@@ -148,6 +159,16 @@ species_data(const AthelasArray1D<IonLevel> ion_data,
   const size_t next_offset =
       (species < num_species) ? offsets(species) + 1 : ion_data.extent(0);
   return Kokkos::subview(ion_data, Kokkos::make_pair(offset, next_offset));
+}
+
+[[nodiscard]] KOKKOS_INLINE_FUNCTION auto
+species_data(const AthelasArray1D<double> sum_pots,
+             const AthelasArray1D<int> offsets, const size_t species) {
+  const size_t num_species = offsets.size();
+  const size_t offset = offsets(species - 1);
+  const size_t next_offset =
+      (species < num_species) ? offsets(species) + 1 : sum_pots.extent(0);
+  return Kokkos::subview(sum_pots, Kokkos::make_pair(offset, next_offset));
 }
 
 } // namespace athelas::atom

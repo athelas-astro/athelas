@@ -17,6 +17,8 @@ CompositionData::CompositionData(const int nX, const int nnodes,
   electron_number_density_ = AthelasArray2D<double>("ye", nX, nnodes + 2);
   charge_ = AthelasArray1D<int>("charge", n_species);
   neutron_number_ = AthelasArray1D<int>("neutron_number", n_species);
+  inverse_atomic_mass_ =
+      AthelasArray1D<double>("inverse atomic mass", n_species);
 
   if (n_species <= 0) {
     THROW_ATHELAS_ERROR("CompositionData :: n_species must be > 0!");
@@ -30,6 +32,10 @@ CompositionData::CompositionData(const int nX, const int nnodes,
 [[nodiscard]] auto CompositionData::neutron_number() const noexcept
     -> AthelasArray1D<int> {
   return neutron_number_;
+}
+[[nodiscard]] auto CompositionData::inverse_atomic_mass() const noexcept
+    -> AthelasArray1D<double> {
+  return inverse_atomic_mass_;
 }
 [[nodiscard]] auto CompositionData::ye() const noexcept
     -> AthelasArray2D<double> {

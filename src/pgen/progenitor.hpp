@@ -292,8 +292,10 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
   if (fluid_basis != nullptr) {
     auto species = comps->charge();
     auto neutron_number = comps->neutron_number();
+    auto inv_atomic_mass = comps->inverse_atomic_mass();
     auto species_h = Kokkos::create_mirror_view(species);
     auto neutron_number_h = Kokkos::create_mirror_view(neutron_number);
+    auto inv_atomic_mass_h = Kokkos::create_mirror_view(inv_atomic_mass);
     auto upf_h = Kokkos::create_mirror_view(uPF);
 
     // --- read in composition data ---
@@ -327,6 +329,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
       auto data = io::get_column_by_index<int>(*comps_data, e);
       species_h(e) = data[0];
       neutron_number_h(e) = data[1];
+      inv_atomic_mass_h(e) = 1.0 / (data[0] + data[1]);
 
       // We need to store the element index of Ni56, Co56, Fe56
       // in the species indexer. If you need to track other specific
@@ -385,6 +388,8 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
         species_h(0) = 0; // Z
         neutron_number_h(ind_neut) = neutron_number_h(0);
         neutron_number_h(0) = 1;
+        inv_atomic_mass_h(ind_neut) = inv_atomic_mass_h(0);
+        inv_atomic_mass_h(0) = 1.0;
 
         for (int i = 2; i < n_zones_prog + 2; ++i) {
           const size_t i_cell = i - 2;
@@ -473,6 +478,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     Kokkos::deep_copy(state->mass_fractions(), mass_fractions_h);
     Kokkos::deep_copy(species, species_h);
     Kokkos::deep_copy(neutron_number, neutron_number_h);
+    Kokkos::deep_copy(inv_atomic_mass, inv_atomic_mass_h);
 
     std::shared_ptr<atom::IonizationState> ionization_state =
         std::make_shared<atom::IonizationState>(
@@ -648,7 +654,6 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
           for (int q = 0; q < nNodes; ++q) {
             tau_cell(i, q) = basis::basis_eval(phi_fluid, uCF, i,
                                                vars::cons::SpecificVolume, q);
-            const double pressure_q = uAF(i, q + 1, vars::aux::Pressure);
             const double temperature_q = uAF(i, q + 1, vars::aux::Tgas);
             atom::paczynski_terms(state, i, q, lambda);
             energy_cell(i, q) =

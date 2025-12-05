@@ -296,14 +296,11 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
     atom::solve_temperature_saha<Domain::Entire, eos::EOSInversion::Sie>(
         eos_, state, grid, *basis_);
   } else {
-    atom::solve_saha_ionization<Domain::Entire>(*state, grid, *eos_, *basis_);
-    atom::fill_derived_ionization<Domain::Entire>(state, &grid, basis_);
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Fill derived :: temperature",
         DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
           double lambda[8];
           for (int q = 0; q < nNodes + 2; ++q) {
-            atom::paczynski_terms(state, i, q, lambda);
             const double rho =
                 1.0 / basis_eval(phi, uCF, i, vars::cons::SpecificVolume, q);
             const double vel = basis_eval(phi, uCF, i, vars::cons::Velocity, q);
@@ -313,8 +310,6 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
                 temperature_from_density_sie(eos_, rho, sie, lambda);
           }
         });
-    atom::solve_saha_ionization<Domain::Entire>(*state, grid, *eos_, *basis_);
-    atom::fill_derived_ionization<Domain::Entire>(state, &grid, basis_);
   }
 
   athelas::par_for(

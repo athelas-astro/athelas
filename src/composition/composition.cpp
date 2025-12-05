@@ -52,30 +52,4 @@ void paczynski_terms(const State *const state, const int ix, const int node,
   lambda[7] = uaf(ix, node, vars::aux::Tgas);
 }
 
-// Compute electron number density
-auto electron_density(const AthelasArray3D<double> mass_fractions,
-                      const AthelasArray4D<double> ion_fractions,
-                      const AthelasArray1D<int> charges, const int i,
-                      const int q, const double rho) -> double {
-  double n_e = 0.0;
-  const size_t n_species = charges.size();
-
-  athelas::par_reduce(
-      DEFAULT_FLAT_LOOP_PATTERN, "Paczynski :: Reduce :: ne", DevExecSpace(), 0,
-      n_species - 1,
-      KOKKOS_LAMBDA(const int elem, double &ne_local) {
-        const double n_elem = element_number_density(mass_fractions(i, q, elem),
-                                                     charges(elem), rho);
-
-        // Sum charge * ionization_fraction for each charge state
-        const int max_charge = charges(elem);
-        for (int charge = 1; charge <= max_charge; ++charge) {
-          const double f_ion = ion_fractions(i, q, elem, charge);
-          ne_local += charge * f_ion * n_elem;
-        }
-      },
-      Kokkos::Sum<double>(n_e));
-  return n_e;
-}
-
 } // namespace athelas::atom
