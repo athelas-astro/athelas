@@ -298,7 +298,7 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
   // energy. The ionization case is involved and so this is all done
   // separately. In that case the temperature solve is coupled to a Saha solve.
   if (ionization_enabled) {
-    atom::solve_temperature_saha<Domain::Entire, eos::EOSInversion::Sie>(
+    atom::compute_temperature_with_saha<Domain::Entire, eos::EOSInversion::Sie>(
         eos_, state, uCF, grid, *basis_);
   } else {
     athelas::par_for(

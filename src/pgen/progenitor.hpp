@@ -659,7 +659,8 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
           }
         });
 
-    atom::solve_temperature_saha<Domain::Interior, eos::EOSInversion::Pressure>(
+    atom::compute_temperature_with_saha<Domain::Interior,
+                                        eos::EOSInversion::Pressure>(
         eos, state, uCF, *grid, *fluid_basis);
 
     AthelasArray2D<double> energy_cell("supernova :: energy cell", nx + 2,

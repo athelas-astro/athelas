@@ -315,9 +315,9 @@ struct CoupledSolverContent {
 
 KOKKOS_FUNCTION
 template <eos::EOSInversion Inversion>
-auto coupled_saha(const double temperature, const double rho,
-                  const eos::EOS *eos, const CoupledSolverContent &content)
-    -> double {
+auto temperature_residual(const double temperature, const double rho,
+                          const eos::EOS *eos,
+                          const CoupledSolverContent &content) -> double {
 
   auto ucf = content.ucf;
   auto uaf = content.uaf;
@@ -461,10 +461,10 @@ auto coupled_saha(const double temperature, const double rho,
 }
 
 template <Domain MeshDomain, eos::EOSInversion Inversion>
-void solve_temperature_saha(const eos::EOS *eos, State *state,
-                            AthelasArray3D<double> ucf,
-                            const GridStructure &grid,
-                            const basis::ModalBasis &basis) {
+void compute_temperature_with_saha(const eos::EOS *eos, State *state,
+                                   AthelasArray3D<double> ucf,
+                                   const GridStructure &grid,
+                                   const basis::ModalBasis &basis) {
   using root_finders::RegulaFalsiAlgorithm, root_finders::FixedPointAlgorithm,
       root_finders::AAFixedPointAlgorithm;
   static const auto &nnodes = grid.n_nodes();
@@ -585,7 +585,7 @@ void solve_temperature_saha(const eos::EOS *eos, State *state,
                                  n_e(i, q) += z * nk;
                                });
 
-        const double res = solver.solve(coupled_saha<Inversion>,
+        const double res = solver.solve(temperature_residual<Inversion>,
                                         temperature_guess, rho, eos, content);
         uaf(i, q, vars::aux::Tgas) = res;
       });
