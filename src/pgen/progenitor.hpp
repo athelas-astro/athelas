@@ -547,10 +547,16 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     // We need to do the nodal to modal projection for specific volume first
     // and separate, as a full modal basis representation of tau is needed
     // for doing the Saha solve.
+    // NOTE: Here we also project the pressure onto a modal basis
+    // and then _back_ onto nodes. This is to ensure that the pressure
+    // representation on an elemenent is consistent with the new density one,
+    // i.e., if density is constant over an element so too will pressure.
     auto sqrt_gm = grid->sqrt_gm();
     auto dr = grid->widths();
     auto mkk_fluid = fluid_basis->mass_matrix();
     AthelasArray2D<double> tau_cell("supernova :: tau cell", nx + 2, nNodes);
+    AthelasArray2D<double> pressure_cell("supernova :: pressure cell (modal)",
+                                         nx + 2, order);
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Project tau",
         DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
@@ -562,18 +568,25 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
           // Compute L2 projection: <f_q, phi_k> / <phi_k, phi_k>
           // This should probably be a function.
           for (int k = 0; k < order; k++) {
-            double numerator = 0.0;
+            double numerator_tau = 0.0;
+            double numerator_pre = 0.0;
             const double denominator = mkk_fluid(i, k);
 
             // Compute <f_q, phi_k>
             for (int q = 0; q < nNodes; q++) {
-              const double nodal_val = tau_cell(i, q);
+              const double nodal_val_tau = tau_cell(i, q);
+              const double nodal_val_pre = uAF(i, q, vars::aux::Pressure);
+              // Curious.. is it okay to allow rho to vary over the cell when
+              // doing this?
               const double rho = uPF(i, q + 1, vars::prim::Rho);
 
-              numerator += nodal_val * phi_fluid(i, q + 1, k) * weights(q) *
-                           dr(i) * sqrt_gm(i, q + 1) * rho;
+              const double int_factor = phi_fluid(i, q + 1, k) * weights(q) *
+                                        dr(i) * sqrt_gm(i, q + 1) * rho;
+              numerator_tau += nodal_val_tau * int_factor;
+              numerator_pre += nodal_val_pre * int_factor;
             }
-            uCF(i, k, vars::cons::SpecificVolume) = numerator / denominator;
+            uCF(i, k, vars::cons::SpecificVolume) = numerator_tau / denominator;
+            pressure_cell(i, k) = numerator_pre / denominator;
             // We apply a simple exponential filter to modes
             // This is critical as any discontinuities or non-smooth features
             // in the nodal density (specific volume) profile can result in
@@ -584,12 +597,18 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
             // other fields.
             if (k > 0) {
               uCF(i, k, vars::cons::SpecificVolume) *= std::exp(-k);
+              pressure_cell(i, k) *= std::exp(-k);
             }
+          }
+          // Now project the pressure _back_ onto nodes
+          for (int q = 0; q < nNodes + 2; ++q) {
+            uAF(i, q, vars::aux::Pressure) =
+                basis::basis_eval(phi_fluid, pressure_cell, i, q);
           }
         });
 
     // Compute necessary terms for using the Paczynski eos
-    atom::fill_derived_comps<Domain::Interior>(state, grid, fluid_basis);
+    atom::fill_derived_comps<Domain::Interior>(state, uCF, grid, fluid_basis);
 
     // Finally, compute the radhydro variables. This requires, as before,
     // interpolation of the progenitor data to nodal collocation points
@@ -641,7 +660,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
         });
 
     atom::solve_temperature_saha<Domain::Interior, eos::EOSInversion::Pressure>(
-        eos, state, *grid, *fluid_basis);
+        eos, state, uCF, *grid, *fluid_basis);
 
     AthelasArray2D<double> energy_cell("supernova :: energy cell", nx + 2,
                                        nNodes);

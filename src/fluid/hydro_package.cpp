@@ -284,17 +284,22 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
   bc::fill_ghost_zones<3>(uCF, &grid, basis_, bcs_, {0, 2});
 
   if (state->composition_enabled()) {
-    atom::fill_derived_comps<Domain::Entire>(state, &grid, basis_);
+    static constexpr int nvars = 3; // non-comps
+    // composition boundary condition
+    static const IndexRange vb_comps(
+        std::make_pair(nvars, nvars + state->ncomps() - 1));
+    bc::fill_ghost_zones_composition(uCF, vb_comps);
+    atom::fill_derived_comps<Domain::Entire>(state, uCF, &grid, basis_);
   }
 
-  const auto phi = basis_->phi();
+  auto phi = basis_->phi();
 
   // First we get the temperature from the density and specific internal
   // energy. The ionization case is involved and so this is all done
   // separately. In that case the temperature solve is coupled to a Saha solve.
   if (ionization_enabled) {
     atom::solve_temperature_saha<Domain::Entire, eos::EOSInversion::Sie>(
-        eos_, state, grid, *basis_);
+        eos_, state, uCF, grid, *basis_);
   } else {
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Fill derived :: temperature",
@@ -326,7 +331,6 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
 
           // This is probably not the cleanest logic, but setups with
           // ionization enabled and Paczynski disbled are an outlier.
-          // Maybe I can do this always?
           double lambda[8];
           if (ionization_enabled) {
             atom::paczynski_terms(state, i, q, lambda);

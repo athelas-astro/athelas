@@ -122,8 +122,8 @@ void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
   state->setup_ionization(ionization_state);
 
   if (fluid_basis != nullptr) {
-    atom::fill_derived_comps<Domain::Interior>(state, grid, fluid_basis);
-    atom::solve_saha_ionization<Domain::Interior>(*state, *grid, *eos,
+    atom::fill_derived_comps<Domain::Interior>(state, uCF, grid, fluid_basis);
+    atom::solve_saha_ionization<Domain::Interior>(*state, uCF, *grid, *eos,
                                                   *fluid_basis);
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: OneZoneIonization (1)",
@@ -177,7 +177,8 @@ void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
           }
         });
 
-    atom::fill_derived_ionization<Domain::Interior>(state, grid, fluid_basis);
+    atom::fill_derived_ionization<Domain::Interior>(state, uCF, grid,
+                                                    fluid_basis);
     // composition boundary condition
     static const IndexRange vb_comps(std::make_pair(3, 3 + ncomps - 1));
     bc::fill_ghost_zones_composition(uCF, vb_comps);

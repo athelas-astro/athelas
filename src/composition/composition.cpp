@@ -38,16 +38,16 @@ void paczynski_terms(const State *const state, const int ix, const int node,
   const auto *const ionization_states = state->ionization_state();
   const auto ybar = ionization_states->ybar();
   const auto e_ion_corr = ionization_states->e_ion_corr();
-  // const auto sigma1 = ionization_states->sigma1();
-  // const auto sigma2 = ionization_states->sigma2();
-  // const auto sigma3 = ionization_states->sigma3();
+  const auto sigma1 = ionization_states->sigma1();
+  const auto sigma2 = ionization_states->sigma2();
+  const auto sigma3 = ionization_states->sigma3();
 
   lambda[0] = number_density(ix, node);
   lambda[1] = ye(ix, node);
   lambda[2] = ybar(ix, node);
-  // lambda[3] = sigma1(ix, node);
-  // lambda[4] = sigma2(ix, node);
-  // lambda[5] = sigma3(ix, node);
+  lambda[3] = sigma1(ix, node);
+  lambda[4] = sigma2(ix, node);
+  lambda[5] = sigma3(ix, node);
   lambda[6] = e_ion_corr(ix, node);
   lambda[7] = uaf(ix, node, vars::aux::Tgas);
 }

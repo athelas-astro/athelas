@@ -32,7 +32,8 @@ auto element_number_density(const double mass_frac,
  * TODO(astrobarker): Explore hierarchical parallelism for inner loops
  */
 template <Domain MeshDomain>
-void fill_derived_comps(State *const state, const GridStructure *const grid,
+void fill_derived_comps(State *const state, AthelasArray3D<double> ucf,
+                        const GridStructure *const grid,
                         const basis::ModalBasis *const basis) {
   static const auto &nnodes = grid->n_nodes();
   static const IndexRange ib(grid->domain<MeshDomain>());
@@ -40,12 +41,10 @@ void fill_derived_comps(State *const state, const GridStructure *const grid,
 
   auto phi = basis->phi();
 
-  auto ucf = state->u_cf();
-
   auto *const comps = state->comps();
-  const auto mass_fractions = state->mass_fractions();
-  const auto species = comps->charge();
-  const auto neutron_number = comps->neutron_number();
+  auto mass_fractions = state->mass_fractions();
+  auto species = comps->charge();
+  auto neutron_number = comps->neutron_number();
   auto inv_atomic_mass = comps->inverse_atomic_mass();
   auto ye = comps->ye();
   auto abar = comps->abar();
@@ -62,18 +61,17 @@ void fill_derived_comps(State *const state, const GridStructure *const grid,
         for (size_t e = 0; e < num_species; ++e) {
           const double Z = species(e);
           const double inv_A = inv_atomic_mass(e);
-          const double rho =
-              1.0 /
+          const double tau =
               basis::basis_eval(phi, ucf, i, vars::cons::SpecificVolume, q);
+          const double rho = 1.0 / tau;
           const double xk = basis::basis_eval(phi, mass_fractions, i, e, q);
           n += xk * inv_A;
           ye_q += Z * xk * inv_A;
-          sum_y += constants::amu_to_g *
-                   element_number_density(xk, inv_A, rho) / rho;
+          sum_y += element_number_density(xk, inv_A, rho) * tau;
         }
         number_density(i, q) = n * inv_m_p;
         ye(i, q) = ye_q;
-        abar(i, q) = 1.0 / sum_y;
+        abar(i, q) = 1.0 / (sum_y * constants::amu_to_g);
       });
 }
 
@@ -102,40 +100,6 @@ auto fill_derived_ionization(const basis::ModalBasis *basis,
   double sum2 = 0.0;
   double sum3 = 0.0;
   double sum_e_ion_corr = 0.0;
-  /*
-  for (int e = eb.s; e <= eb.e; ++e) {
-    // pull out element info
-    const int z = species(e);
-    const auto species_atomic_data = species_data(ion_data, species_offsets, z);
-    const auto species_sum_pot = species_data(sum_pots, species_offsets, z);
-    const auto ionization_fractions_e =
-        Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
-    const int nstates = z + 1;
-
-    // max ionization fraction
-    double y_r = 0;
-    double chi_r = 0.0;
-    for (int s = 0; s < nstates; ++s) {
-      const double y = ionization_fractions_e(s);
-      if (y > y_r) {
-        y_r = y;
-        chi_r = species_atomic_data(s).chi;
-      }
-    }
-
-    // 4. The good stuff -- integrate the various sigma terms
-    // and the internal energy term from partial ionization.
-    // Start with constructing the abundance n_k
-
-    const double inv_A = inv_atomic_mass(e);
-    const double xk = basis->basis_eval(mass_fractions, i, e, q);
-    const double nu_k = abar(i, q) * xk * inv_A;
-    const double term = nu_k * y_r * (1.0 - y_r);
-    sum1 += term;
-    sum2 += chi_r * term;
-    sum3 += chi_r * chi_r * term;
-  } // loop species
-  */
   // Loop over Saha species – solve ionization for the Saha subset
   auto phi = basis->phi();
   for (int e = eb.s; e <= eb.e; ++e) {
@@ -185,10 +149,11 @@ auto fill_derived_ionization(const basis::ModalBasis *basis,
  *
  * These are quantities needed for the Paczynski eos.
  *
- * TODO(astrobarker): Explore hierarchical parallelism for inner loops
+ * NOTE: This is currently unused in performance critical sections.
+ * If this changes then the inner looping needs to be optimized.
  */
 template <Domain MeshDomain>
-void fill_derived_ionization(State *const state,
+void fill_derived_ionization(State *const state, AthelasArray3D<double> ucf,
                              const GridStructure *const grid,
                              const basis::ModalBasis *const basis) {
   static const auto &nnodes = grid->n_nodes();
@@ -217,8 +182,6 @@ void fill_derived_ionization(State *const state,
   static const IndexRange eb_saha(std::make_pair(start_elem, end_elem));
 
   static const IndexRange eb(std::make_pair(start_elem, num_species - 1));
-
-  const auto ucf = state->u_cf();
 
   // NOTE: check index ranges inside here when saha ncomps =/= num_species
   // Should we be skipping neutrons?

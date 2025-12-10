@@ -112,7 +112,7 @@ void saha_solve(AthelasArray1D<double> ionization_states, const int Z,
   // Set up static root finder for Saha ionization
   // TODO(astrobarker): make tolerances runtime
   static RootFinder<double, NewtonAlgorithm<double>> solver(
-      {.abs_tol = 1.0e-6, .rel_tol = 1.0e-6, .max_iterations = 10});
+      {.abs_tol = 1.0e-10, .rel_tol = 1.0e-10, .max_iterations = 16});
   static constexpr double ZBARTOL = 1.0e-15;
   static constexpr double ZBARTOLINV = 1.0e15;
 
@@ -167,12 +167,11 @@ void saha_solve(AthelasArray1D<double> ionization_states, const int Z,
  * Word of warning: the code here is a gold medalist in index gymnastics.
  */
 template <Domain MeshDomain>
-void solve_saha_ionization(State &state, const GridStructure &grid,
-                           const eos::EOS &eos,
+void solve_saha_ionization(State &state, AthelasArray3D<double> ucf,
+                           const GridStructure &grid, const eos::EOS &eos,
                            const basis::ModalBasis &fluid_basis) {
   using basis::basis_eval;
 
-  const auto uCF = state.u_cf();
   const auto uaf = state.u_af();
   const auto *const comps = state.comps();
   auto *const ionization_states = state.ionization_state();
@@ -228,7 +227,7 @@ void solve_saha_ionization(State &state, const GridStructure &grid,
         ScratchPad1D<double> saha_factors(member.team_scratch(scratch_level),
                                           nstates_total);
         const double rho =
-            1.0 / basis_eval(phi, uCF, i, vars::cons::SpecificVolume, q);
+            1.0 / basis_eval(phi, ucf, i, vars::cons::SpecificVolume, q);
         const double temperature = uaf(i, q, vars::aux::Tgas);
 
         // TODO(astrobarker): Profile; faster as hierarchical reduction?
@@ -325,9 +324,9 @@ auto coupled_saha(const double temperature, const double rho,
 
   auto phi = content.phi;
 
-  const auto species = content.species;
-  const auto neutron_number = content.neutron_number;
-  const auto inv_atomic_mass = content.inv_atomic_mass;
+  auto species = content.species;
+  auto neutron_number = content.neutron_number;
+  auto inv_atomic_mass = content.inv_atomic_mass;
   auto ye = content.ye;
   auto n_e = content.n_e;
   auto number_density = content.number_density;
@@ -389,8 +388,6 @@ auto coupled_saha(const double temperature, const double rho,
 
     const int nstates = z + 1;
 
-    // Paczynski sigma terms: same logic as per-point fill_derived_ionization
-    // y_r = max populated ionization fraction, chi_r corresponding potential
     double y_r = ionization_fractions_e(0);
     double chi_r = 0.0;
     double sum_ion_pot = 0.0;
@@ -411,8 +408,7 @@ auto coupled_saha(const double temperature, const double rho,
     sum_e_ion_corr += nu_k * sum_ion_pot;
   }
 
-  // Second loop over all species for thermodynamic integrals (sigma1-3,
-  // e_ion_corr)
+  // Sum over non-Saha species
   for (int e = eb_saha.e + 1; e <= eb.e; ++e) {
     const int z = species(e);
     const double x_e = basis::basis_eval(phi, mass_fractions, i, e, q);
@@ -425,65 +421,62 @@ auto coupled_saha(const double temperature, const double rho,
     auto ionization_fractions_e =
         Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
 
-    // ------------------------------------------------
-    // Inline computation of thermodynamic derivative terms
-    // (sigma1, sigma2, sigma3) and e_ion_corr
-    // ------------------------------------------------
     const double sum_ion_pot = species_sum_pot(z - 1);
     const double nu_k = abar * x_e * inv_A;
 
-    // e_ion_corr contribution
     sum_e_ion_corr += nu_k * sum_ion_pot;
   }
 
-  // ------------------------------------------------
-  // Store ybar and sigma1-3 / e_ion_corr
-  // ------------------------------------------------
   ybar(i, q) = (n_e(i, q) + n_e_solve) / N / rho;
   sigma1(i, q) = sum1;
   sigma2(i, q) = sum2;
   sigma3(i, q) = sum3;
   e_ion_corr(i, q) = N * sum_e_ion_corr;
 
-  // ------------------------------------------------
   // Fill lambda
-  // ------------------------------------------------
   double lambda[8];
   lambda[0] = N;
   lambda[1] = ye(i, q);
   lambda[2] = ybar(i, q);
-  lambda[6] = sum_e_ion_corr;
-  lambda[7] = temperature;
+  lambda[3] = sigma1(i, q);
+  lambda[4] = sigma2(i, q);
+  lambda[5] = sigma3(i, q);
+  lambda[6] = e_ion_corr(i, q);
 
-  // ------------------------------------------------
-  // Return solver residual
-  // ------------------------------------------------
   if constexpr (Inversion == eos::EOSInversion::Pressure) {
-    return pressure_from_density_temperature(eos, rho, temperature, lambda) -
-           content.target_var;
-
-  } else {
-    return sie_from_density_temperature(eos, rho, temperature, lambda) -
-           content.target_var;
+    const double inv_dfdt =
+        1.0 / eos::Paczynski::dp_dt(temperature, rho, lambda);
+    const double f =
+        pressure_from_density_temperature(eos, rho, temperature, lambda) -
+        content.target_var;
+    return temperature - inv_dfdt * f;
+  } else { // sie inversion
+    const double inv_dfdt =
+        1.0 / eos::Paczynski::dsie_dt(temperature, rho, lambda);
+    const double f =
+        sie_from_density_temperature(eos, rho, temperature, lambda) -
+        content.target_var;
+    return temperature - inv_dfdt * f;
   }
 }
 
 template <Domain MeshDomain, eos::EOSInversion Inversion>
 void solve_temperature_saha(const eos::EOS *eos, State *state,
+                            AthelasArray3D<double> ucf,
                             const GridStructure &grid,
                             const basis::ModalBasis &basis) {
-  using root_finders::RegulaFalsiAlgorithm, root_finders::FixedPointAlgorithm;
+  using root_finders::RegulaFalsiAlgorithm, root_finders::FixedPointAlgorithm,
+      root_finders::AAFixedPointAlgorithm;
   static const auto &nnodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<MeshDomain>());
   static const IndexRange nb(nnodes + 2);
 
-  auto ucf = state->u_cf();
   auto uaf = state->u_af();
 
   const auto *const comps = state->comps();
-  const auto mass_fractions = state->mass_fractions();
-  const auto species = comps->charge();
-  const auto neutron_number = comps->neutron_number();
+  auto mass_fractions = state->mass_fractions();
+  auto species = comps->charge();
+  auto neutron_number = comps->neutron_number();
   auto inv_atomic_mass = comps->inverse_atomic_mass();
   auto ye = comps->ye();
   auto abar = comps->abar();
@@ -512,12 +505,12 @@ void solve_temperature_saha(const eos::EOS *eos, State *state,
 
   // atomic data
   const auto *const atomic_data = ionization_state->atomic_data();
-  const auto ion_data = atomic_data->ion_data();
-  const auto species_offsets = atomic_data->offsets();
+  auto ion_data = atomic_data->ion_data();
+  auto species_offsets = atomic_data->offsets();
   auto prefix_sum_pots = atomic_data->sum_pots();
 
-  static root_finders::RootFinder<double, RegulaFalsiAlgorithm<double>> solver(
-      {.abs_tol = 1.0e-8, .rel_tol = 1.0e-8, .max_iterations = 50});
+  static root_finders::RootFinder<double, AAFixedPointAlgorithm<double>> solver(
+      {.abs_tol = 1.0e-8, .rel_tol = 1.0e-8, .max_iterations = 32});
 
   auto phi = basis.phi();
   // Allocate scratch space
@@ -552,33 +545,33 @@ void solve_temperature_saha(const eos::EOS *eos, State *state,
         }
 
         // solver content
-        CoupledSolverContent content{ucf,
-                                     uaf,
-                                     mass_fractions,
-                                     phi,
-                                     zbars,
-                                     ye,
-                                     n_e,
-                                     number_density,
-                                     ybar,
-                                     abar,
-                                     e_ion_corr,
-                                     sigma1,
-                                     sigma2,
-                                     sigma3,
-                                     ionization_fractions,
-                                     saha_factors,
-                                     species,
-                                     neutron_number,
-                                     inv_atomic_mass,
-                                     species_offsets,
-                                     ion_data,
-                                     prefix_sum_pots,
-                                     eb_saha,
-                                     eb,
-                                     i,
-                                     q,
-                                     target_var};
+        const CoupledSolverContent content{ucf,
+                                           uaf,
+                                           mass_fractions,
+                                           phi,
+                                           zbars,
+                                           ye,
+                                           n_e,
+                                           number_density,
+                                           ybar,
+                                           abar,
+                                           e_ion_corr,
+                                           sigma1,
+                                           sigma2,
+                                           sigma3,
+                                           ionization_fractions,
+                                           saha_factors,
+                                           species,
+                                           neutron_number,
+                                           inv_atomic_mass,
+                                           species_offsets,
+                                           ion_data,
+                                           prefix_sum_pots,
+                                           eb_saha,
+                                           eb,
+                                           i,
+                                           q,
+                                           target_var};
 
         // TODO(astrobarker): [Saha] There must be a cleaner way to do this.
         athelas::par_for_inner(DEFAULT_INNER_LOOP_PATTERN, member,
@@ -592,7 +585,7 @@ void solve_temperature_saha(const eos::EOS *eos, State *state,
                                  n_e(i, q) += z * nk;
                                });
 
-        const double res = solver.solve(coupled_saha<Inversion>, 500.0, 1.0e10,
+        const double res = solver.solve(coupled_saha<Inversion>,
                                         temperature_guess, rho, eos, content);
         uaf(i, q, vars::aux::Tgas) = res;
       });

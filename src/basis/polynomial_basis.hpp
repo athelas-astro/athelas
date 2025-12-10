@@ -109,6 +109,18 @@ auto basis_eval(AthelasArray3D<double> phi, AthelasArray2D<double> U,
   return result;
 }
 
+// Takes U(i,k)
+KOKKOS_INLINE_FUNCTION
+auto basis_eval(AthelasArray3D<double> phi, AthelasArray2D<double> U,
+                const int ix, const int i_eta) -> double {
+  const size_t order = U.extent(1);
+  double result = 0.0;
+  for (size_t k = 0; k < order; k++) {
+    result += phi(ix, i_eta, k) * U(ix, k);
+  }
+  return result;
+}
+
 // Same as above, for a 1D vector U_k on a given cell and quantity
 // e.g., U(ix, :, q)
 KOKKOS_INLINE_FUNCTION
