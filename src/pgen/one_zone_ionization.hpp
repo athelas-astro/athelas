@@ -115,20 +115,17 @@ void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
         mass_fractions(i, vars::modes::CellAverage, i_He) = X_He;
         charges(i_He) = 2;
         neutrons(i_He) = 2;
-        inv_atomic_mass(i_H) = 1.0 / 4.0;
+        inv_atomic_mass(i_He) = 1.0 / 4.0;
 
         mass_fractions(i, vars::modes::CellAverage, i_C) = X_C;
         charges(i_C) = 6;
         neutrons(i_C) = 6;
-        inv_atomic_mass(i_H) = 1.0 / 12.0;
+        inv_atomic_mass(i_C) = 1.0 / 12.0;
       });
   state->setup_composition(comps);
   state->setup_ionization(ionization_state);
 
   if (fluid_basis != nullptr) {
-    atom::fill_derived_comps<Domain::Interior>(state, uCF, grid, fluid_basis);
-    atom::solve_saha_ionization<Domain::Interior>(*state, uCF, *grid, *eos,
-                                                  *fluid_basis);
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: OneZoneIonization (1)",
         DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
@@ -181,6 +178,9 @@ void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
           }
         });
 
+    atom::fill_derived_comps<Domain::Interior>(state, uCF, grid, fluid_basis);
+    atom::solve_saha_ionization<Domain::Interior>(*state, uCF, *grid, *eos,
+                                                  *fluid_basis);
     atom::fill_derived_ionization<Domain::Interior>(state, uCF, grid,
                                                     fluid_basis);
     // composition boundary condition
