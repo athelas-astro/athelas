@@ -82,6 +82,7 @@ void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
   auto mass_fractions = state->mass_fractions();
   auto charges = comps->charge();
   auto neutrons = comps->neutron_number();
+  auto inv_atomic_mass = comps->inverse_atomic_mass();
   auto ionization_states = ionization_state->ionization_fractions();
   auto zbar = ionization_state->zbar();
 
@@ -109,14 +110,17 @@ void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
         mass_fractions(i, vars::modes::CellAverage, i_H) = X_H;
         charges(i_H) = 1;
         neutrons(i_H) = 0;
+        inv_atomic_mass(i_H) = 1.0;
 
         mass_fractions(i, vars::modes::CellAverage, i_He) = X_He;
         charges(i_He) = 2;
         neutrons(i_He) = 2;
+        inv_atomic_mass(i_H) = 1.0 / 4.0;
 
         mass_fractions(i, vars::modes::CellAverage, i_C) = X_C;
         charges(i_C) = 6;
         neutrons(i_C) = 6;
+        inv_atomic_mass(i_H) = 1.0 / 12.0;
       });
   state->setup_composition(comps);
   state->setup_ionization(ionization_state);
