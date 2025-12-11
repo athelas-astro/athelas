@@ -1,0 +1,313 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contributing &mdash; Athelas v25.10 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+
+  
+    <link rel="canonical" href="https://athelas-astro.github.io/athelas/src/contributing.html" />
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=c4f607f0"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="How to Use Sphinx for Writing Docs" href="sphinx-doc.html" />
+    <link rel="prev" title="Building" href="building.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Athelas
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="building.html">Building</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Contributing</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#pull-request-protocol">Pull request protocol</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#test-suite">Test Suite</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#adding-tests">Adding Tests</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#unit">Unit</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#regression">Regression</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#expectations-for-code-review">Expectations for code review</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#from-the-perspective-of-the-contributor">From the perspective of the contributor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#expectations-of-code-reviewers">Expectations of code reviewers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#general-principle-for-everyone">General principle for everyone</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="sphinx-doc.html">How to Use Sphinx for Writing Docs</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Athelas</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Contributing</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/src/contributing.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="contributing">
+<h1>Contributing<a class="headerlink" href="#contributing" title="Link to this heading"></a></h1>
+<p>To contribute to <code class="docutils literal notranslate"><span class="pre">athelas</span></code>, feel free to submit a pull
+request or open an issue.</p>
+<ol class="arabic simple">
+<li><p>Create a new fork or branch of off <code class="docutils literal notranslate"><span class="pre">main</span></code> where your changes can be made.</p></li>
+<li><p>When ready, create a pull request, describe what you’ve done
+and ensure the branch has no conflicts.</p></li>
+<li><p>At least one Maintainer will review the PR.</p></li>
+<li><p>Once comments/feedback is addressed, the PR will be merged into the
+main branch and changes will be added to list of changes in the next
+release.</p></li>
+<li><p>At present, Releases (with a git version tag) for the <code class="docutils literal notranslate"><span class="pre">main</span></code> branch
+of <code class="docutils literal notranslate"><span class="pre">athelas</span></code> will occur at a 6 to 12 month cadence or following
+implementation of a major enhancement or capability to the code base.</p></li>
+</ol>
+<section id="pull-request-protocol">
+<h2>Pull request protocol<a class="headerlink" href="#pull-request-protocol" title="Link to this heading"></a></h2>
+<p>When submitting a pull request, there is a default template that is automatically
+populated. The pull request should sufficiently summarize all changes.
+As necessary, tests should be added for new features of bugs fixed.</p>
+<p>Before a pull request will be merged, the code should be formatted. We
+use clang-format for this, pinned to version 20.1.0.
+The script <code class="docutils literal notranslate"><span class="pre">scripts/bash/format.sh</span></code> will apply <code class="docutils literal notranslate"><span class="pre">clang-format</span></code>
+to C++ source files in the repository as well as <code class="docutils literal notranslate"><span class="pre">ruff</span></code> to python files, if available.
+The script takes three CLI arguments
+that may be useful, <code class="docutils literal notranslate"><span class="pre">CFM</span></code>, which can be set to the path for your
+clang-format binary, <code class="docutils literal notranslate"><span class="pre">PFM</span></code> which can point to <code class="docutils literal notranslate"><span class="pre">ruff</span></code>,
+and <code class="docutils literal notranslate"><span class="pre">VERBOSE</span></code>, which if set to <code class="docutils literal notranslate"><span class="pre">1</span></code> adds useful output. For example:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">CFM</span><span class="o">=</span>clang-format<span class="w"> </span><span class="nv">VERBOSE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>./scripts/bash/format.sh
+</pre></div>
+</div>
+<p>In order for a pull request to merge, we require:</p>
+<ul class="simple">
+<li><p>Provide a thorough summary of changes, especially if they are breaking changes
+or new features.</p></li>
+<li><p>Obey style guidleines (format with <code class="docutils literal notranslate"><span class="pre">clang-format</span></code> and pass the necessary test)</p></li>
+<li><p>Pass the existing test suite</p></li>
+<li><p>Have at least one approval from a Maintainer</p></li>
+<li><p>Update <cite>CHANGELOG.md</cite></p></li>
+<li><p>If applicable:</p>
+<ul>
+<li><p>Write new tests for new features or bugs</p></li>
+<li><p>Include or update documentation in <code class="docutils literal notranslate"><span class="pre">docs/</span></code></p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="test-suite">
+<h2>Test Suite<a class="headerlink" href="#test-suite" title="Link to this heading"></a></h2>
+<p>Several sets of tests are triggered on a pull request: a static format
+check, a docs buld, build on multiple compilers, and a suite of unit and regression tests.
+These are run through github’s CI infrastructure. These tests
+help ensure that modifications to the code do not break existing capabilities
+and ensure a consistent code style.</p>
+<section id="adding-tests">
+<h3>Adding Tests<a class="headerlink" href="#adding-tests" title="Link to this heading"></a></h3>
+<p>There are two primary categories of tests written in <code class="docutils literal notranslate"><span class="pre">athelas</span></code>:
+unit tests and regression tests.</p>
+<section id="unit">
+<h4>Unit<a class="headerlink" href="#unit" title="Link to this heading"></a></h4>
+<p>Unit tests live in <code class="docutils literal notranslate"><span class="pre">test/unit/</span></code>. They are implemented using the
+<a class="reference external" href="https://github.com/catchorg/Catch2">Catch2</a> unit testing framework. They are integrated with <code class="docutils literal notranslate"><span class="pre">cmake</span></code>
+and can be run, when enabled, with <code class="docutils literal notranslate"><span class="pre">ctest</span></code>. <code class="docutils literal notranslate"><span class="pre">Athelas</span></code> must be built
+with unit tests enabled (see <a class="reference internal" href="building.html#build-opts"><span class="std std-ref">Build Options</span></a>.).</p>
+</section>
+<section id="regression">
+<h4>Regression<a class="headerlink" href="#regression" title="Link to this heading"></a></h4>
+<p>Regression tests run existing simulations and test against saved output
+in order to verify sustained capabilities.
+They are implemented in Python in
+<code class="docutils literal notranslate"><span class="pre">test/regression/</span></code>. To run the tests you will need a Python environment with
+at least <code class="docutils literal notranslate"><span class="pre">numpy</span></code> and <code class="docutils literal notranslate"><span class="pre">h5py</span></code>. Tests can be ran manually as, e.g.,</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>run_regression_tests.py<span class="w"> </span>--test<span class="w"> </span>test_marshak<span class="w"> </span>-e<span class="w"> </span>../../build/athelas
+</pre></div>
+</div>
+<p>This will use an existing build of <code class="docutils literal notranslate"><span class="pre">athelas</span></code> located in <code class="docutils literal notranslate"><span class="pre">build/athelas</span></code>.
+Without the <code class="docutils literal notranslate"><span class="pre">-e</span></code> option the runner will build <code class="docutils literal notranslate"><span class="pre">Athelas</span></code> locally.
+Each script <code class="docutils literal notranslate"><span class="pre">test_problem.py</span></code> has a correspodning “gold file” <code class="docutils literal notranslate"><span class="pre">problem.gold</span></code>.
+The gold files contain the gold standard data that the output of the regression test
+is compared against. To generate new gold data, for example if a change is implemented
+that changes the behavior of a test (not erroneously) or a new test is created, run the test
+script with the <code class="docutils literal notranslate"><span class="pre">--upgold</span></code> option. This will create or update the corresponding <code class="docutils literal notranslate"><span class="pre">.gold</span></code> file.
+To add a new test:</p>
+<ol class="arabic simple">
+<li><p>Create a new test script.</p>
+<ul class="simple">
+<li><p>Copy an existing test module, e.g., <code class="docutils literal notranslate"><span class="pre">test_sod.py</span></code></p></li>
+<li><p>Set the <code class="docutils literal notranslate"><span class="pre">variables</span></code> list to contain the quantities to test against</p></li>
+<li><p>Optionally, change the <code class="docutils literal notranslate"><span class="pre">compression_factor</span></code> to avoid overly large gold files.</p></li>
+</ul>
+</li>
+<li><p>Run the script with the <code class="docutils literal notranslate"><span class="pre">--upgold</span></code> option</p></li>
+<li><p>Commit the test script and gold file</p></li>
+<li><p>Update the CI to include the new test (<code class="docutils literal notranslate"><span class="pre">athelas/.github/workflows/regression_testing.yml</span></code>)</p></li>
+</ol>
+</section>
+</section>
+</section>
+<section id="expectations-for-code-review">
+<h2>Expectations for code review<a class="headerlink" href="#expectations-for-code-review" title="Link to this heading"></a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Much of what follows is adapted from <a class="reference external" href="https://lanl.github.io/singularity-eos">singularity-eos</a>.</p>
+</div>
+<section id="from-the-perspective-of-the-contributor">
+<h3>From the perspective of the contributor<a class="headerlink" href="#from-the-perspective-of-the-contributor" title="Link to this heading"></a></h3>
+<p>Code review is an integral part of the development process
+for <code class="docutils literal notranslate"><span class="pre">athelas</span></code>. You can expect at least one, perhaps many,
+core developers to read your code and offer suggestions.
+You should treat this much like scientific or academic peer review.
+You should listen to suggestions but also feel entitled to push back
+if you believe the suggestions or comments are incorrect or
+are requesting too much effort.</p>
+<p>Reviewers may offer conflicting advice, if this is the case, it’s an
+opportunity to open a discussion and communally arrive at a good
+approach. You should feel empowered to argue for which of the
+solutions you prefer or to suggest a compromise. If you
+don’t feel strongly, that’s fine too, but it’s best to say so to keep
+the lines of communication open.</p>
+<p>Big contributions may be difficult to review in one piece and you may
+be requested to split your pull request into two or more separate
+contributions. You may also receive many “nitpicky” comments about
+code style or structure. These comments help keep a broad codebase
+with many contributors uniform in style and maintainable with
+consistent expectations accross the code base. While there is no
+formal style guide for now, the regular contributors have a sense for
+the broad style of the project. You should take these stylistic and
+“nitpicky” suggestions seriously, but you should also feel free to
+push back.</p>
+<p>As with any creative endeavor, we put a lot of ourselves into our
+code. It can be painful to receive criticism on your contribution and
+easy to take it personally. While you should resist the urge to take
+offense, it is also partly code reviewer’s responsiblity to create a
+constructive environment, as discussed below.</p>
+</section>
+<section id="expectations-of-code-reviewers">
+<h3>Expectations of code reviewers<a class="headerlink" href="#expectations-of-code-reviewers" title="Link to this heading"></a></h3>
+<p>A good code review builds a contribution up, rather than tearing it
+down. Here are a few rules to keep code reviews constructive and
+congenial:</p>
+<ul class="simple">
+<li><p>You should take the time needed to review a contribution and offer
+meaningful advice. Unless a contribution is very small, limit
+the times you simply click “approve” with a “looks good to me.”</p></li>
+<li><p>You should keep your comments constructive. For example, rather than
+saying “this pattern is bad,” try saying “at this point, you may
+want to try this other pattern.”</p></li>
+<li><p>Avoid language that can be misconstrued, even if it’s common
+notation in the commnunity. For example, avoid phrases like “code
+smell.”</p></li>
+<li><p>Explain why you make a suggestion. In addition to saying “try X
+instead of Y” explain why you like pattern X more than pattern Y.</p></li>
+<li><p>A contributor may push back on your suggestion. Be open to the
+possibility that you’re either asking too much or are incorrect in
+this instance. Code review is an opportunity for everyone to learn.</p></li>
+<li><p>Don’t just highlight what you don’t like. Also highlight the parts
+of the pull request you do like and thank the contributor for their
+effort.</p></li>
+</ul>
+</section>
+<section id="general-principle-for-everyone">
+<h3>General principle for everyone<a class="headerlink" href="#general-principle-for-everyone" title="Link to this heading"></a></h3>
+<p>It’s hard to convey tone in text correspondance. Try to read what
+others write favorably and try to write in such a way that your tone
+can’t be mis-interpreted as malicious.</p>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="building.html" class="btn btn-neutral float-left" title="Building" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="sphinx-doc.html" class="btn btn-neutral float-right" title="How to Use Sphinx for Writing Docs" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+<div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    <span class="fa fa-book"> Other Versions</span>
+    v: blb/docs
+    <span class="fa fa-caret-down"></span>
+  </span>
+  <div class="rst-other-versions">
+    <dl>
+      <dt>Branches</dt>
+      <dd><a href="../../../main/src/contributing.html">main</a></dd>
+      <dd><a href="../../coupled_saha/src/contributing.html">blb/coupled_saha</a></dd>
+      <dd><a href="contributing.html">blb/docs</a></dd>
+    </dl>
+  </div>
+</div><script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
