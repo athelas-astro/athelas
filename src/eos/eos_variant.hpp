@@ -9,11 +9,21 @@
 
 #include <variant>
 
+#include "Kokkos_Macros.hpp"
 #include "eos/eos.hpp"
+#include "grid.hpp"
+#include "kokkos_abstraction.hpp"
 #include "pgen/problem_in.hpp"
+#include "state/state.hpp"
 #include "utils/error.hpp"
 
 namespace athelas::eos {
+
+/**
+ * @brief enum for eos inversion
+ * pressure or sie solve
+ */
+enum class EOSInversion { Pressure, Sie };
 
 using EOS = std::variant<IdealGas, Marshak, Paczynski, Polytropic>;
 
@@ -136,7 +146,7 @@ KOKKOS_INLINE_FUNCTION auto initialize_eos(const ProblemIn *pin) -> EOS {
     // Stretch goal: make algorithm configurable.
     static constexpr double abstol = 1.0e-10;
     static constexpr double reltol = 1.0e-10;
-    static constexpr int max_iters = 1000;
+    static constexpr int max_iters = 64;
     eos = Paczynski(abstol, reltol, max_iters);
   } else if (type == "ideal") {
     eos = IdealGas(pin->param()->get<double>("eos.gamma"));

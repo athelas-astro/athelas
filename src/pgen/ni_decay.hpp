@@ -67,6 +67,7 @@ void ni_decay_init(State *state, GridStructure *grid, ProblemIn *pin,
   auto charges = comps->charge();
   auto neutrons = comps->neutron_number();
   auto ye = comps->ye();
+  auto inv_atomic_mass = comps->inverse_atomic_mass();
   auto *species_indexer = comps->species_indexer();
   species_indexer->add("ni56", 3);
   species_indexer->add("co56", 4);
@@ -94,12 +95,15 @@ void ni_decay_init(State *state, GridStructure *grid, ProblemIn *pin,
         // Ni
         charges(0) = 28;
         neutrons(0) = 28;
+        inv_atomic_mass(0) = 1.0 / (56.0);
         // Co
         charges(1) = 27;
         neutrons(1) = 29;
+        inv_atomic_mass(1) = 1.0 / (56.0);
         // Co
         charges(2) = 26;
         neutrons(2) = 30;
+        inv_atomic_mass(2) = 1.0 / (56.0);
       });
 
   state->setup_composition(comps);

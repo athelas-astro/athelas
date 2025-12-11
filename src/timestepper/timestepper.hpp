@@ -112,9 +112,11 @@ class TimeStepper {
       // set U_s
       athelas::par_for(
           DEFAULT_LOOP_PATTERN, "Timestepper :: EX :: Set Us", DevExecSpace(),
-          ib.s, ib.e, kb.s, kb.e, vb.s, vb.e,
-          KOKKOS_CLASS_LAMBDA(const int i, const int k, const int v) {
-            U_s(iS, i, k, v) = SumVar_U_(i, k, v);
+          ib.s, ib.e, kb.s, kb.e, // vb.s, vb.e,
+          KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+            for (int v = vb.s; v <= vb.e; ++v) {
+              U_s(iS, i, k, v) = SumVar_U_(i, k, v);
+            }
           });
 
       auto stage_data_j = Kokkos::subview(stage_data_, iS, Kokkos::ALL);

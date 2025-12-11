@@ -292,8 +292,10 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
   if (fluid_basis != nullptr) {
     auto species = comps->charge();
     auto neutron_number = comps->neutron_number();
+    auto inv_atomic_mass = comps->inverse_atomic_mass();
     auto species_h = Kokkos::create_mirror_view(species);
     auto neutron_number_h = Kokkos::create_mirror_view(neutron_number);
+    auto inv_atomic_mass_h = Kokkos::create_mirror_view(inv_atomic_mass);
     auto upf_h = Kokkos::create_mirror_view(uPF);
 
     // --- read in composition data ---
@@ -327,6 +329,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
       auto data = io::get_column_by_index<int>(*comps_data, e);
       species_h(e) = data[0];
       neutron_number_h(e) = data[1];
+      inv_atomic_mass_h(e) = 1.0 / (data[0] + data[1]);
 
       // We need to store the element index of Ni56, Co56, Fe56
       // in the species indexer. If you need to track other specific
@@ -381,10 +384,12 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     if (neut_present) {
       const int ind_neut = species_indexer->get<int>("neut");
       if (ind_neut != 0) {
-        species(ind_neut) = species(0);
-        species(0) = 0; // Z
-        neutron_number(ind_neut) = neutron_number(0);
-        neutron_number(0) = 1;
+        species_h(ind_neut) = species_h(0);
+        species_h(0) = 0; // Z
+        neutron_number_h(ind_neut) = neutron_number_h(0);
+        neutron_number_h(0) = 1;
+        inv_atomic_mass_h(ind_neut) = inv_atomic_mass_h(0);
+        inv_atomic_mass_h(0) = 1.0;
 
         for (int i = 2; i < n_zones_prog + 2; ++i) {
           const size_t i_cell = i - 2;
@@ -473,6 +478,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     Kokkos::deep_copy(state->mass_fractions(), mass_fractions_h);
     Kokkos::deep_copy(species, species_h);
     Kokkos::deep_copy(neutron_number, neutron_number_h);
+    Kokkos::deep_copy(inv_atomic_mass, inv_atomic_mass_h);
 
     std::shared_ptr<atom::IonizationState> ionization_state =
         std::make_shared<atom::IonizationState>(
@@ -541,10 +547,16 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     // We need to do the nodal to modal projection for specific volume first
     // and separate, as a full modal basis representation of tau is needed
     // for doing the Saha solve.
+    // NOTE: Here we also project the pressure onto a modal basis
+    // and then _back_ onto nodes. This is to ensure that the pressure
+    // representation on an elemenent is consistent with the new density one,
+    // i.e., if density is constant over an element so too will pressure.
     auto sqrt_gm = grid->sqrt_gm();
     auto dr = grid->widths();
     auto mkk_fluid = fluid_basis->mass_matrix();
     AthelasArray2D<double> tau_cell("supernova :: tau cell", nx + 2, nNodes);
+    AthelasArray2D<double> pressure_cell("supernova :: pressure cell (modal)",
+                                         nx + 2, order);
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Project tau",
         DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
@@ -556,18 +568,25 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
           // Compute L2 projection: <f_q, phi_k> / <phi_k, phi_k>
           // This should probably be a function.
           for (int k = 0; k < order; k++) {
-            double numerator = 0.0;
+            double numerator_tau = 0.0;
+            double numerator_pre = 0.0;
             const double denominator = mkk_fluid(i, k);
 
             // Compute <f_q, phi_k>
             for (int q = 0; q < nNodes; q++) {
-              const double nodal_val = tau_cell(i, q);
+              const double nodal_val_tau = tau_cell(i, q);
+              const double nodal_val_pre = uAF(i, q, vars::aux::Pressure);
+              // Curious.. is it okay to allow rho to vary over the cell when
+              // doing this?
               const double rho = uPF(i, q + 1, vars::prim::Rho);
 
-              numerator += nodal_val * phi_fluid(i, q + 1, k) * weights(q) *
-                           dr(i) * sqrt_gm(i, q + 1) * rho;
+              const double int_factor = phi_fluid(i, q + 1, k) * weights(q) *
+                                        dr(i) * sqrt_gm(i, q + 1) * rho;
+              numerator_tau += nodal_val_tau * int_factor;
+              numerator_pre += nodal_val_pre * int_factor;
             }
-            uCF(i, k, vars::cons::SpecificVolume) = numerator / denominator;
+            uCF(i, k, vars::cons::SpecificVolume) = numerator_tau / denominator;
+            pressure_cell(i, k) = numerator_pre / denominator;
             // We apply a simple exponential filter to modes
             // This is critical as any discontinuities or non-smooth features
             // in the nodal density (specific volume) profile can result in
@@ -578,18 +597,18 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
             // other fields.
             if (k > 0) {
               uCF(i, k, vars::cons::SpecificVolume) *= std::exp(-k);
+              pressure_cell(i, k) *= std::exp(-k);
             }
+          }
+          // Now project the pressure _back_ onto nodes
+          for (int q = 0; q < nNodes + 2; ++q) {
+            uAF(i, q, vars::aux::Pressure) =
+                basis::basis_eval(phi_fluid, pressure_cell, i, q);
           }
         });
 
     // Compute necessary terms for using the Paczynski eos
-    atom::fill_derived_comps<Domain::Interior>(state, grid, fluid_basis);
-
-    // Get the initial Saha ionization state.
-    // Also computes the electron number density
-    atom::solve_saha_ionization<Domain::Interior>(*state, *grid, *eos,
-                                                  *fluid_basis);
-    atom::fill_derived_ionization<Domain::Interior>(state, grid, fluid_basis);
+    atom::fill_derived_comps<Domain::Interior>(state, uCF, grid, fluid_basis);
 
     // Finally, compute the radhydro variables. This requires, as before,
     // interpolation of the progenitor data to nodal collocation points
@@ -640,26 +659,9 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
           }
         });
 
-    // Now recompute the temperature so that everything is happy and consistent
-    athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Recompute T",
-        DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-          for (int q = 0; q < nNodes + 2; q++) {
-            double lambda[8];
-            atom::paczynski_terms(state, i, q, lambda);
-            const double pressure = uAF(i, q, vars::aux::Pressure);
-            const double rho =
-                1.0 / basis::basis_eval(phi_fluid, uCF, i,
-                                        vars::cons::SpecificVolume, q);
-            uAF(i, q, vars::aux::Tgas) = eos::temperature_from_density_pressure(
-                eos, rho, pressure, lambda);
-          }
-        });
-
-    atom::fill_derived_comps<Domain::Interior>(state, grid, fluid_basis);
-    atom::solve_saha_ionization<Domain::Interior>(*state, *grid, *eos,
-                                                  *fluid_basis);
-    atom::fill_derived_ionization<Domain::Interior>(state, grid, fluid_basis);
+    atom::compute_temperature_with_saha<Domain::Interior,
+                                        eos::EOSInversion::Pressure>(
+        eos, state, uCF, *grid, *fluid_basis);
 
     AthelasArray2D<double> energy_cell("supernova :: energy cell", nx + 2,
                                        nNodes);
@@ -672,11 +674,11 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
           for (int q = 0; q < nNodes; ++q) {
             tau_cell(i, q) = basis::basis_eval(phi_fluid, uCF, i,
                                                vars::cons::SpecificVolume, q);
-            const double pressure_q = uAF(i, q + 1, vars::aux::Pressure);
+            const double temperature_q = uAF(i, q + 1, vars::aux::Tgas);
             atom::paczynski_terms(state, i, q, lambda);
             energy_cell(i, q) =
-                eos::sie_from_density_pressure(eos, 1.0 / tau_cell(i, q),
-                                               pressure_q, lambda) +
+                eos::sie_from_density_temperature(eos, 1.0 / tau_cell(i, q),
+                                                  temperature_q, lambda) +
                 0.5 * vel_cell(i, q) * vel_cell(i, q);
           }
 

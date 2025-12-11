@@ -477,6 +477,7 @@ class RootFinder {
   // Solve methods - constrained by concepts
   // Kind of awkard as the solve API depends on what solver you are using
   template <typename F, typename G, typename... Args>
+    requires std::invocable<G, T, Args...>
   auto solve(F func, G dfunc, T x0, Args &&...args) const -> T {
     return algorithm_(func, dfunc, x0, config_, std::forward<Args>(args)...);
   }
@@ -626,30 +627,37 @@ class AAFixedPointAlgorithm {
   template <typename F, typename ErrorMetric, typename... Args>
   auto operator()(F target, T x0, const ToleranceConfig<T, ErrorMetric> &config,
                   Args &&...args) const -> T {
-    T x = x0;
-    // Jumpstart the AA algorithm with 1 iteration of the base algorithm
-    T x_new = target(x, args...);
-    // Must check convergence before moving on.
-    if (config.converged(x_new, x0)) {
-      return x_new;
-    }
+
     T x_prev = x0;
-    for (int i = 1; i < config.max_iterations; ++i) {
-      const T x_new = target(x, std::forward<Args>(args)...);
-      T fn = target(x_new, std::forward<Args>(args)...);
-      T fnm1 = target(x_prev, std::forward<Args>(args)...);
-      T rn = residual(fn, x_new);
-      T rnm1 = residual(fnm1, x_prev);
-      const T alpha = alpha_aa(rn, rnm1);
 
-      T xkp1 = (alpha * fnm1) + ((1.0 - alpha) * fn);
+    // Initial fixed-point step to jumpstart AA
+    T f_prev = target(x_prev, std::forward<Args>(args)...);
+    T r_prev = residual(f_prev, x_prev); // r0 = f(x0) - x0
+    T x = f_prev; // x1 = f(x0)
 
-      if (config.converged(x_new, x)) {
-        return x_new;
-      }
-      x_prev = x;
-      x = x_new;
+    if (config.converged(x, x_prev)) {
+      return x;
     }
+
+    for (int i = 1; i < config.max_iterations; ++i) {
+      T f = target(x, std::forward<Args>(args)...);
+      T r = residual(f, x);
+
+      T alpha = alpha_aa(r, r_prev);
+
+      // Depth-1 Anderson update
+      T xkp1 = (1.0 - alpha) * f + alpha * f_prev;
+
+      if (config.converged(xkp1, x)) {
+        return xkp1;
+      }
+
+      x_prev = x;
+      f_prev = f;
+      r_prev = r;
+      x = xkp1;
+    }
+
     return x;
   }
 };
@@ -737,8 +745,8 @@ KOKKOS_INLINE_FUNCTION void refine_bracket(F &func, const double guess,
                                            double &a, double &b, double &ya,
                                            double &yb, Args &&...args) {
   if (a <= guess && b >= guess) {
-    ya = func(guess, std::forward<Args>(args)...);
     yb = func(b, std::forward<Args>(args)...);
+    ya = func(guess, std::forward<Args>(args)...);
     if (ya * yb > 0.0) {
       yb = ya;
       b = guess;
@@ -784,9 +792,9 @@ class RegulaFalsiAlgorithm {
 
     T fa = 0.0;
     T fb = 0.0;
-    // refine_bracket(target, guess, a, b, fa, fb, std::forward<Args>(args)...);
-    fa = target(a, std::forward<Args>(args)...);
-    fb = target(b, std::forward<Args>(args)...);
+    refine_bracket(target, guess, a, b, fa, fb, std::forward<Args>(args)...);
+    // fa = target(a, std::forward<Args>(args)...);
+    // fb = target(b, std::forward<Args>(args)...);
 
     if (fa == 0) {
       return a;
@@ -799,17 +807,14 @@ class RegulaFalsiAlgorithm {
     if (!check_bracket(fa, fb)) {
       // Bracket doesn't bracket a root, return guess
       std::println("root not bracketed!!");
-      std::println("a b fa fb {:.5e} {:.5e} {:.5e} {:.5e}", a, b, fa, fb);
-      THROW_ATHELAS_ERROR("Bad");
       return guess;
     }
 
-    // Normalize so fa < 0 < fb
+    // Normalize
     T sign = (fa < T(0) ? T(1) : T(-1));
     fa *= sign;
     fb *= sign;
 
-    // Ensure a < b
     if (fa > 0) [[unlikely]] {
       std::swap(a, b);
       std::swap(fa, fb);
@@ -828,17 +833,14 @@ class RegulaFalsiAlgorithm {
 
       const T fc = sign * target(c, std::forward<Args>(args)...);
 
-      // First check function residual
       if (std::abs(fc) <= config.abs_tol) {
         return c;
       }
 
-      // Then check step convergence
       if (config.converged(c, c_prev)) {
         return c;
       }
 
-      // Illinois update
       if (fc > 0) {
         b = c;
         fb = fc;

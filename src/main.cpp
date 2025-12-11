@@ -66,7 +66,9 @@ auto main(int argc, char **argv) -> int {
     Kokkos::Timer timer_total;
 
     // --- execute driver ---
+    Kokkos::Profiling::pushRegion("Driver::execute");
     driver.execute();
+    Kokkos::Profiling::popRegion();
 
     // --- Finalize timer ---
     double const time = timer_total.seconds();

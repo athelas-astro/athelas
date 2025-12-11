@@ -27,6 +27,7 @@ class IonizationState {
   [[nodiscard]] auto zbar() const noexcept -> AthelasArray3D<double>;
   [[nodiscard]] auto ybar() const noexcept -> AthelasArray2D<double>;
   [[nodiscard]] auto e_ion_corr() const noexcept -> AthelasArray2D<double>;
+  [[nodiscard]] auto saha_factor() const noexcept -> AthelasArray1D<double>;
   [[nodiscard]] auto sigma1() const noexcept -> AthelasArray2D<double>;
   [[nodiscard]] auto sigma2() const noexcept -> AthelasArray2D<double>;
   [[nodiscard]] auto sigma3() const noexcept -> AthelasArray2D<double>;
@@ -44,6 +45,7 @@ class IonizationState {
   AthelasArray2D<double> ybar_; // mean ionization fraction
   AthelasArray2D<double>
       e_ion_corr_; // ionization correction to internal energy
+  AthelasArray1D<double> saha_f_; // temperature dependent Saha terms
   AthelasArray2D<double> sigma1_;
   AthelasArray2D<double> sigma2_;
   AthelasArray2D<double> sigma3_;
@@ -59,6 +61,8 @@ class CompositionData {
 
   [[nodiscard]] auto charge() const noexcept -> AthelasArray1D<int>;
   [[nodiscard]] auto neutron_number() const noexcept -> AthelasArray1D<int>;
+  [[nodiscard]] auto inverse_atomic_mass() const noexcept
+      -> AthelasArray1D<double>;
   [[nodiscard]] auto ye() const noexcept -> AthelasArray2D<double>;
   [[nodiscard]] auto abar() const noexcept -> AthelasArray2D<double>;
   [[nodiscard]] auto number_density() const noexcept -> AthelasArray2D<double>;
@@ -90,6 +94,7 @@ class CompositionData {
   AthelasArray2D<double> abar_; // [nx][nnodes]
   AthelasArray1D<int> charge_; // n_species
   AthelasArray1D<int> neutron_number_;
+  AthelasArray1D<double> inverse_atomic_mass_;
 }; // class CompositionData
 
 } // namespace athelas::atom

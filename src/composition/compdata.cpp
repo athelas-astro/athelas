@@ -17,6 +17,8 @@ CompositionData::CompositionData(const int nX, const int nnodes,
   electron_number_density_ = AthelasArray2D<double>("ye", nX, nnodes + 2);
   charge_ = AthelasArray1D<int>("charge", n_species);
   neutron_number_ = AthelasArray1D<int>("neutron_number", n_species);
+  inverse_atomic_mass_ =
+      AthelasArray1D<double>("inverse atomic mass", n_species);
 
   if (n_species <= 0) {
     THROW_ATHELAS_ERROR("CompositionData :: n_species must be > 0!");
@@ -30,6 +32,10 @@ CompositionData::CompositionData(const int nX, const int nnodes,
 [[nodiscard]] auto CompositionData::neutron_number() const noexcept
     -> AthelasArray1D<int> {
   return neutron_number_;
+}
+[[nodiscard]] auto CompositionData::inverse_atomic_mass() const noexcept
+    -> AthelasArray1D<double> {
+  return inverse_atomic_mass_;
 }
 [[nodiscard]] auto CompositionData::ye() const noexcept
     -> AthelasArray2D<double> {
@@ -77,7 +83,7 @@ IonizationState::IonizationState(const int nX, const int nNodes,
                             n_states),
       atomic_data_(std::make_unique<AtomicData>(fn_ionization, fn_degeneracy)),
       zbar_("zbar", nX, nNodes + 2, n_species), ybar_("ybar", nX, nNodes + 2),
-      e_ion_corr_("e_ion_corr", nX, nNodes + 2),
+      e_ion_corr_("e_ion_corr", nX, nNodes + 2), saha_f_("saha_f", n_states),
       sigma1_("sigma1", nX, nNodes + 2), sigma2_("sigma2", nX, nNodes + 2),
       sigma3_("sigma3", nX, nNodes + 2) {
   if (n_species <= 0) {
@@ -115,6 +121,11 @@ IonizationState::IonizationState(const int nX, const int nNodes,
 [[nodiscard]] auto IonizationState::e_ion_corr() const noexcept
     -> AthelasArray2D<double> {
   return e_ion_corr_;
+}
+
+[[nodiscard]] auto IonizationState::saha_factor() const noexcept
+    -> AthelasArray1D<double> {
+  return saha_f_;
 }
 
 [[nodiscard]] auto IonizationState::sigma1() const noexcept

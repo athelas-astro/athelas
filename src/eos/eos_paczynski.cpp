@@ -1,6 +1,7 @@
 #include <cmath>
 
 #include "eos/eos.hpp"
+#include "eos_variant.hpp"
 #include "solvers/root_finders.hpp"
 #include "utils/constants.hpp"
 namespace athelas::eos {
@@ -42,14 +43,12 @@ Paczynski::temperature_from_density_sie(const double rho, const double sie,
                                         const double *const lambda) const
     -> double {
   const double temperature_guess = lambda[7];
-  const double e_i = lambda[6];
-  const double e_min = eps_min(rho, lambda);
-  auto target = [&sie, &e_i, &e_min](const double temperature, const double rho,
-                                     const double *const lambda) {
+  auto target = [&sie](const double temperature, const double rho,
+                       const double *const lambda) {
     return sie_from_density_temperature(rho, temperature, lambda) - sie;
   };
   const double res =
-      root_finder_.solve(target, 1.0, 5.0e12, temperature_guess, rho, lambda);
+      root_finder_.solve(target, 100.0, 1.0e12, temperature_guess, rho, lambda);
   return res;
 }
 
@@ -320,14 +319,15 @@ Paczynski::sie_from_density_temperature(const double rho,
                                       const double *const lambda) -> double {
   static constexpr double THREE_HALVES = 3.0 / 2.0;
   static constexpr double kb = constants::k_B;
-  const double kT = kb * T;
+  const double inv_T = 1.0 / T;
+  const double inv_kT = inv_T / (kb);
   const double N = lambda[0];
   const double ye = lambda[1];
   const double ybar = lambda[2];
   const double sigma1 = lambda[3];
   const double sigma2 = lambda[4];
   const double sigma3 = lambda[5];
-  const double sigma1_plus_ybar = sigma1 + ybar;
+  const double inv_sigma1_plus_ybar = 1.0 / (sigma1 + ybar);
   const double pednr = p_ednr(rho, ye);
   const double pedr = p_edr(rho, ye);
   const double ped = p_ed(pednr, pedr);
@@ -336,12 +336,12 @@ Paczynski::sie_from_density_temperature(const double rho,
   const double f = degeneracy_factor(ped, pednr, pedr);
 
   return THREE_HALVES * N * kb +
-         (pend * pend) / (pe * rho * T * (f - 1)) *
-             (1.0 + (1.0 / (sigma1_plus_ybar)) *
-                        (THREE_HALVES * sigma1 + sigma2 / kT)) +
-         (N / T) * ((sigma2 / (sigma1_plus_ybar)) *
-                        (THREE_HALVES * ybar - sigma2 / kT) +
-                    sigma3 / kT);
+         (pend * pend * inv_T) / (pe * rho * (f - 1)) *
+             (1.0 + (1.0 * inv_sigma1_plus_ybar) *
+                        (THREE_HALVES * sigma1 + sigma2 * inv_kT)) +
+         (N * inv_T) * ((sigma2 * inv_sigma1_plus_ybar) *
+                            (THREE_HALVES * ybar - sigma2 * inv_kT) +
+                        sigma3 * inv_kT);
 }
 
 /*
