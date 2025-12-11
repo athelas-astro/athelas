@@ -126,9 +126,6 @@ class AtomicData {
         // Level n represents ionization from state n to state n+1
         ion_data_host(level_idx).chi =
             ionization_energies[chi_idx + n] * constants::ev_to_erg;
-        sum_pot_h(level_idx + 1) =
-            sum_pot_h(level_idx) +
-            ionization_energies[chi_idx + n + 1] * constants::ev_to_erg;
         ion_data_host(level_idx).g_lower = weights[g_idx + n]; // g[n]
         ion_data_host(level_idx).g_upper = weights[g_idx + n + 1]; // g[n+1]
 
@@ -138,6 +135,29 @@ class AtomicData {
       // Advance indices for next species
       chi_idx += Z;
       g_idx += Z + 1;
+    }
+    chi_idx = 0; // index into flattened ionization_energies
+    level_idx = 0; // index into flattened sum_pot_h
+
+    for (int s = 0; s < num_species_; ++s) {
+      const int Z = atomic_numbers_host(s);
+
+      // Initialize prefix sum for first ionization level of this species
+      sum_pot_h(level_idx) =
+          ionization_energies[chi_idx] * constants::ev_to_erg;
+
+      // 2. Accumulate remaining ionization energies
+      for (int n = 1; n < Z; ++n) {
+        sum_pot_h(level_idx + 1) =
+            sum_pot_h(level_idx) +
+            ionization_energies[chi_idx + n] * constants::ev_to_erg;
+
+        level_idx++;
+      }
+
+      level_idx++;
+
+      chi_idx += Z;
     }
 
     Kokkos::deep_copy(offsets_, offs_host);
