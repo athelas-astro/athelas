@@ -28,7 +28,10 @@ class State {
   [[nodiscard]] auto u_cf_stages() const noexcept -> AthelasArray4D<double>;
   [[nodiscard]] auto u_pf() const noexcept -> AthelasArray3D<double>;
   [[nodiscard]] auto u_af() const noexcept -> AthelasArray3D<double>;
+  [[nodiscard]] auto u_pf(int stage) const noexcept -> AthelasArray3D<double>;
+  [[nodiscard]] auto u_af(int stage) const noexcept -> AthelasArray3D<double>;
   [[nodiscard]] auto vars() const noexcept -> AthelasArray3D<double>;
+  void stage(int stage) noexcept;
 
   [[nodiscard]] auto composition_enabled() const noexcept -> bool;
   [[nodiscard]] auto ionization_enabled() const noexcept -> bool;
@@ -49,13 +52,16 @@ class State {
  private:
   std::unique_ptr<Params> params_;
 
+  // TODO(astrobarker): more uCF into stages
   AthelasArray3D<double> uCF_; // Conserved fluid
   AthelasArray4D<double> uCF_s_; // Conserved fluid (stage storage)
-  AthelasArray3D<double> uPF_; // primitive fluid
-  AthelasArray3D<double> uAF_; // auxiliary fluid
+  AthelasArray4D<double> uPF_; // primitive fluid [nstages, nx, nnodes, nvars]
+  AthelasArray4D<double> uAF_; // auxiliary fluid 
 
   std::shared_ptr<atom::CompositionData> comps_;
   std::shared_ptr<atom::IonizationState> ionization_state_;
+
+  int stage_; // don't like this but works. hold current stage for convenience
 };
 
 } // namespace athelas

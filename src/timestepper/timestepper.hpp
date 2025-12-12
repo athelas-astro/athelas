@@ -76,6 +76,7 @@ class TimeStepper {
     for (int iS = 0; iS < nStages_; ++iS) {
       auto left_interface = grid_s_[iS].x_l();
       dt_info.stage = iS;
+      state->stage(iS);
       // re-zero the summation variables `SumVar`
       athelas::par_for(
           DEFAULT_LOOP_PATTERN, "Timestepper :: EX :: Reset sumvar",
@@ -83,16 +84,19 @@ class TimeStepper {
           KOKKOS_CLASS_LAMBDA(const int i, const int k) {
             for (int v = vb.s; v <= vb.e; ++v) {
               SumVar_U_(i, k, v) = U(i, k, v);
+              U_s(iS, i, k, v) = U(i, k, v);
             }
             stage_data_(iS, i) = left_interface(i);
           });
 
       // --- Inner update loop ---
 
+        pkgs->fill_derived(state, grid_s_[iS], dt_info);
       for (int j = 0; j < iS; ++j) {
+        state->stage(j);
         dt_info.stage = j;
         dt_info.t = t + integrator_.explicit_tableau.c_i(j) * dt;
-        pkgs->fill_derived(state, grid_s_[j], dt_info);
+        //pkgs->fill_derived(state, grid_s_[j], dt_info);
         pkgs->update_explicit(state, grid_s_[j], dt_info);
 
         // inner sum
@@ -133,10 +137,11 @@ class TimeStepper {
     } // end outer loop
 
     for (int iS = 0; iS < nStages_; ++iS) {
+      state->stage(iS);
       dt_info.stage = iS;
       dt_info.t = t + integrator_.explicit_tableau.c_i(iS) * dt;
 
-      pkgs->fill_derived(state, grid_s_[iS], dt_info);
+      //pkgs->fill_derived(state, grid_s_[iS], dt_info);
       pkgs->update_explicit(state, grid_s_[iS], dt_info);
 
       const double dt_b_ex = dt * integrator_.explicit_tableau.b_i(iS);
@@ -197,6 +202,7 @@ class TimeStepper {
     TimeStepInfo dt_info{.t = t, .dt = dt, .dt_a = dt, .stage = 0};
 
     for (int iS = 0; iS < nStages_; ++iS) {
+      state->stage(iS);
       auto left_interface = grid_s_[iS].x_l();
       dt_info.stage = iS;
       dt_info.t = t + integrator_.explicit_tableau.c_i(iS) * dt;
@@ -211,6 +217,7 @@ class TimeStepper {
       // --- Inner update loop ---
 
       for (int j = 0; j < iS; ++j) {
+        state->stage(j);
         dt_info.stage = j;
         dt_info.t = t + integrator_.explicit_tableau.c_i(j) * dt;
         const double dt_a = dt * integrator_.explicit_tableau.a_ij(iS, j);
@@ -308,6 +315,7 @@ class TimeStepper {
     } // end outer loop
 
     for (int iS = 0; iS < nStages_; ++iS) {
+      state->stage(iS);
       dt_info.stage = iS;
       dt_info.t = t + integrator_.explicit_tableau.c_i(iS) * dt;
       const double dt_b = dt * integrator_.explicit_tableau.b_i(iS);

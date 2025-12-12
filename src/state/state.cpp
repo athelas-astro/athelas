@@ -7,7 +7,7 @@ namespace athelas {
 using atom::CompositionData;
 using atom::IonizationState;
 State::State(const ProblemIn *const pin, const int nstages)
-    : params_(std::make_unique<Params>()) {
+    : params_(std::make_unique<Params>()), stage_(0) {
   static const bool rad_enabled = pin->param()->get<bool>("physics.rad_active");
   static const bool composition_enabled =
       pin->param()->get<bool>("physics.composition_enabled");
@@ -32,8 +32,8 @@ State::State(const ProblemIn *const pin, const int nstages)
 
   uCF_ = AthelasArray3D<double>("uCF", nx + 2, porder, nvars_cons);
   uCF_s_ = AthelasArray4D<double>("uCF_s", nstages, nx + 2, porder, nvars_cons);
-  uPF_ = AthelasArray3D<double>("uPF", nx + 2, n_nodes + 2, nvars_prim);
-  uAF_ = AthelasArray3D<double>("uAF", nx + 2, n_nodes + 2, nvars_aux);
+  uPF_ = AthelasArray4D<double>("uPF", nstages, nx + 2, n_nodes + 2, nvars_prim);
+  uAF_ = AthelasArray4D<double>("uAF", nstages, nx + 2, n_nodes + 2, nvars_aux);
 
   params_->add("nvars_cons", nvars_cons);
   params_->add("nvars_prim", nvars_prim);
@@ -131,13 +131,48 @@ auto State::p_order() const noexcept -> int {
   return params_->get<int>("p_order");
 }
 
+void State::stage(int stage) noexcept {
+  stage_ = stage;
+}
+
 // view accessors
 auto State::u_cf() const noexcept -> AthelasArray3D<double> { return uCF_; }
 auto State::u_cf_stages() const noexcept -> AthelasArray4D<double> {
   return uCF_s_;
 }
-auto State::u_pf() const noexcept -> AthelasArray3D<double> { return uPF_; }
-auto State::u_af() const noexcept -> AthelasArray3D<double> { return uAF_; }
+
+// These getters are a little weird. Just calling u_pf() qill get 
+// the primitives for the current RK stage (stored in the private var stage_)
+// Otherwise you can query for a specific stage by calling u_pf(target_stage).
+// This second option has one special mode: if target_stage == -1, grab 
+// the previous stage (stage_ - 1) as long as we are not on stage 0.
+// If we are on stage 0, take stage 0.
+auto State::u_pf() const noexcept -> AthelasArray3D<double> { 
+  return Kokkos::subview(uPF_, stage_, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
+}
+auto State::u_pf(int target_stage) const noexcept -> AthelasArray3D<double> { 
+  assert(target_stage >= -1 && "Bad RK stage in u_pf(int stage)");
+  if (target_stage == -1 && stage_ > 0) {
+    target_stage = stage_ - 1;
+  }
+  if (target_stage == -1 && stage_ == 0) {
+    target_stage = stage_;
+  }
+  return Kokkos::subview(uPF_, target_stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
+}
+auto State::u_af() const noexcept -> AthelasArray3D<double> { 
+  return Kokkos::subview(uAF_, stage_, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
+}
+auto State::u_af(int target_stage) const noexcept -> AthelasArray3D<double> { 
+  assert(target_stage >= -1 && "Bad RK stage in u_af(int stage)");
+  if (target_stage == -1 && stage_ > 0) {
+    target_stage = stage_ - 1;
+  }
+  if (target_stage == -1 && stage_ == 0) {
+    target_stage = stage_;
+  }
+  return Kokkos::subview(uAF_, target_stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
+}
 auto State::vars() const noexcept -> AthelasArray3D<double> {
   return Kokkos::subview(uCF_, Kokkos::ALL, Kokkos::ALL,
                          Kokkos::make_pair(0, nvars()));
