@@ -472,6 +472,7 @@ void compute_temperature_with_saha(const eos::EOS *eos, State *state,
   static const IndexRange nb(nnodes + 2);
 
   auto uaf = state->u_af();
+  auto uaf_guess = state->u_af(-1); // get previous stage data when possible.
 
   const auto *const comps = state->comps();
   auto mass_fractions = state->mass_fractions();
@@ -530,7 +531,7 @@ void compute_temperature_with_saha(const eos::EOS *eos, State *state,
 
         const double rho =
             1.0 / basis::basis_eval(phi, ucf, i, vars::cons::SpecificVolume, q);
-        const double temperature_guess = uaf(i, q, vars::aux::Tgas);
+        const double temperature_guess = uaf_guess(i, q, vars::aux::Tgas);
 
         double target_var = 0.0;
         if constexpr (Inversion == eos::EOSInversion::Pressure) {
