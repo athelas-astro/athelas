@@ -48,10 +48,10 @@ void NickelHeatingPackage::update_explicit(const State *const state,
   const int &order = basis_->order();
   static const IndexRange kb(order);
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  const auto u_stages = state->u_cf_stages();
+  auto u_stages = state->u_cf_stages();
 
   const auto stage = dt_info.stage;
-  const auto ucf =
+  auto ucf =
       Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
 
   auto *comps = state->comps();
@@ -220,7 +220,7 @@ void NickelHeatingPackage::fill_derived(State *state, const GridStructure &grid,
   const int nnodes = grid.n_nodes();
   const int nx = grid.n_elements();
   static const RadialGridIndexer grid_indexer(nx, nnodes);
-  const auto coords = grid.nodal_grid();
+  auto coords = grid.nodal_grid();
   static const IndexRange ib(grid.domain<Domain::Interior>());
   static const IndexRange nb(nnodes);
 
@@ -233,7 +233,8 @@ void NickelHeatingPackage::fill_derived(State *state, const GridStructure &grid,
   const double dtheta = (th_max - th_min) / (nangles);
   const double r_outer = grid.get_x_r();
   const double r_outer2 = r_outer * r_outer;
-  const auto centers = grid.centers();
+  auto centers = grid.centers();
+
   const std::size_t scratch_size = 0;
   const int scratch_level = 1;
   athelas::par_for_outer(
@@ -261,8 +262,8 @@ void NickelHeatingPackage::fill_derived(State *state, const GridStructure &grid,
 
               // Compute optical depth for this specific (ix, node, iangle)
               double optical_depth = 0.0;
-              for (int i = 0; i < nr + 1; ++i) {
-                const double rx = i * dr;
+              for (int l = 0; l < nr; ++l) {
+                const double rx = l * dr;
                 const double rj = std::sqrt(ri2 + rx * rx + two_ri_cos * rx);
                 const int index = utilities::find_closest_cell(centers, rj, nx);
                 const double rho_interp =
@@ -271,10 +272,11 @@ void NickelHeatingPackage::fill_derived(State *state, const GridStructure &grid,
                                       vars::cons::SpecificVolume),
                             1.0 / uCF(index + 1, vars::modes::CellAverage,
                                       vars::cons::SpecificVolume),
-                            rx);
+                            rj);
+
                 const double ye_interp =
                     LINTERP(centers(index), centers(index + 1), ye(index, 0),
-                            ye(index + 1, nnodes + 1), rx);
+                            ye(index + 1, nnodes + 1), rj);
                 optical_depth += dtau(rho_interp, kappa_gamma(ye_interp), dr);
               }
 
