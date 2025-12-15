@@ -48,8 +48,8 @@ struct IndexRange {
   explicit IndexRange(std::pair<int, int> domain)
       : s(domain.first), e(domain.second) {}
 
-  int s = 0; /// Starting Index (inclusive)
-  int e = 0; /// Ending Index (inclusive)
+  int s = 0; // Starting Index (inclusive)
+  int e = 0; // Ending Index (inclusive)
   [[nodiscard]] auto size() const -> int { return e - s + 1; }
   explicit operator std::pair<int, int>() const { return {s, e}; }
 };
@@ -61,7 +61,7 @@ struct IndexRange {
 struct TimeStepInfo {
   double t;
   double dt;
-  double dt_a; // dt * tableau coefficient TODO(astrobarker): remove dt_a
+  double dt_coef_implicit; // dt * tableau coefficient
   double dt_coef; // dt * tableau coefficient
   int stage;
 };

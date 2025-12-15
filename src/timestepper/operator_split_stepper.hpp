@@ -18,7 +18,7 @@ class OperatorSplitStepper {
  public:
   OperatorSplitStepper() = default;
 
-  void step(PackageManager *pkgs, State *state, const GridStructure &grid,
+  static void step(PackageManager *pkgs, State *state, const GridStructure &grid,
             double t, double dt);
 };
 

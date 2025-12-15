@@ -19,6 +19,7 @@ using utilities::to_lower;
 NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,
                                            ModalBasis *basis,
                                            const Params *indexer,
+                                           const int n_stages,
                                            const bool active)
     : active_(active), basis_(basis) {
   // set up heating deposition model
@@ -33,7 +34,7 @@ NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,
   int_etau_domega_ =
       AthelasArray2D<double>("int_etau_domega", nx + 2,
                              nnodes); // integration of e^-tau dOmega
-  delta_ = AthelasArray3D<double>("nickel delta", nx + 2, basis->order(), 4);
+  delta_ = AthelasArray4D<double>("nickel delta", n_stages, nx + 2, basis->order(), 4);
 
   ind_ni_ = indexer->get<int>("ni56");
   ind_co_ = indexer->get<int>("co56");
@@ -54,19 +55,6 @@ void NickelHeatingPackage::update_explicit(const State *const state,
 
   auto *comps = state->comps();
 
-  // --- Zero out delta  ---
-  // TODO(astrobarker): perhaps care to be taken here once mixing is in.
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "NickelHeating :: Zero delta", DevExecSpace(),
-      ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-        for (int k = kb.s; k <= kb.e; ++k) {
-          delta_(i, k, pkg_vars::Energy) = 0.0;
-          delta_(i, k, pkg_vars::Nickel) = 0.0;
-          delta_(i, k, pkg_vars::Cobalt) = 0.0;
-          delta_(i, k, pkg_vars::Iron) = 0.0;
-        }
-      });
-
   if (model_ == NiHeatingModel::Swartz) [[likely]] {
     ni_update<NiHeatingModel::Swartz>(state, comps, grid, dt_info);
   } else if (model_ == NiHeatingModel::Jeffery) {
@@ -86,21 +74,23 @@ void NickelHeatingPackage::ni_update(const State *const state,
   static const IndexRange ib(grid.domain<Domain::Interior>());
   static const IndexRange kb(order);
 
-  const auto u_stages = state->u_cf_stages();
+  const int stage = dt_info.stage;
 
-  const auto ucf = Kokkos::subview(u_stages, dt_info.stage, Kokkos::ALL,
+  auto u_stages = state->u_cf_stages();
+
+  auto ucf = Kokkos::subview(u_stages, dt_info.stage, Kokkos::ALL,
                                    Kokkos::ALL, Kokkos::ALL);
 
-  const auto mass_fractions_stages = state->mass_fractions_stages();
-  const auto mass_fractions =
+  auto mass_fractions_stages = state->mass_fractions_stages();
+  auto mass_fractions =
       Kokkos::subview(mass_fractions_stages, dt_info.stage, Kokkos::ALL,
                       Kokkos::ALL, Kokkos::ALL);
   const auto *const species_indexer = comps->species_indexer();
 
-  const auto mass = grid.mass();
-  const auto weights = grid.weights();
-  const auto phi = basis_->phi();
-  const auto inv_mkk = basis_->inv_mass_matrix();
+  auto mass = grid.mass();
+  auto weights = grid.weights();
+  auto phi = basis_->phi();
+  auto inv_mkk = basis_->inv_mass_matrix();
 
   // NOTE: This source term uses a mass integral instead of a volumetric one.
   // It's just simpler and natural here.
@@ -115,7 +105,7 @@ void NickelHeatingPackage::ni_update(const State *const state,
         }
 
         const double dx_o_mkk = mass(i) * inv_mkk(i, k);
-        delta_(i, k, pkg_vars::Energy) += local_sum * dx_o_mkk;
+        delta_(stage, i, k, pkg_vars::Energy) += local_sum * dx_o_mkk;
       });
 
   static const auto ind_ni = species_indexer->get<int>("ni56");
@@ -135,9 +125,9 @@ void NickelHeatingPackage::ni_update(const State *const state,
         const double rhs_fe = LAMBDA_CO_ * x_co;
 
         // Decay only alters cell average mass fractions!
-        delta_(i, vars::modes::CellAverage, pkg_vars::Nickel) += rhs_ni;
-        delta_(i, vars::modes::CellAverage, pkg_vars::Cobalt) += rhs_co;
-        delta_(i, vars::modes::CellAverage, pkg_vars::Iron) += rhs_fe;
+        delta_(stage, i, vars::modes::CellAverage, pkg_vars::Nickel) += rhs_ni;
+        delta_(stage, i, vars::modes::CellAverage, pkg_vars::Cobalt) += rhs_co;
+        delta_(stage, i, vars::modes::CellAverage, pkg_vars::Iron) += rhs_fe;
       });
 }
 
@@ -151,14 +141,34 @@ void NickelHeatingPackage::apply_delta(AthelasArray3D<double> lhs,
   static const IndexRange ib(std::make_pair(1, nx - 2));
   static const IndexRange kb(nk);
 
+  const int stage = dt_info.stage;
+
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Nickel :: Apply delta", DevExecSpace(), ib.s, ib.e,
       kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         lhs(i, k, vars::cons::Energy) +=
-            dt_info.dt_coef * delta_(i, k, pkg_vars::Energy);
-        lhs(i, k, ind_ni_) += dt_info.dt_coef * delta_(i, k, pkg_vars::Nickel);
-        lhs(i, k, ind_co_) += dt_info.dt_coef * delta_(i, k, pkg_vars::Cobalt);
-        lhs(i, k, ind_fe_) += dt_info.dt_coef * delta_(i, k, pkg_vars::Iron);
+            dt_info.dt_coef * delta_(stage, i, k, pkg_vars::Energy);
+        lhs(i, k, ind_ni_) += dt_info.dt_coef * delta_(stage, i, k, pkg_vars::Nickel);
+        lhs(i, k, ind_co_) += dt_info.dt_coef * delta_(stage, i, k, pkg_vars::Cobalt);
+        lhs(i, k, ind_fe_) += dt_info.dt_coef * delta_(stage, i, k, pkg_vars::Iron);
+      });
+}
+
+/**
+ * @brief zero delta field
+ */
+void NickelHeatingPackage::zero_delta() const noexcept {
+  static const IndexRange sb(static_cast<int>(delta_.extent(0)));
+  static const IndexRange ib(static_cast<int>(delta_.extent(1)));
+  static const IndexRange kb(static_cast<int>(delta_.extent(2)));
+  static const IndexRange vb(static_cast<int>(delta_.extent(3)));
+
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "Nickel :: Zero delta", DevExecSpace(), sb.s, sb.e, ib.s, ib.e,
+      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int s, const int i, const int k) {
+        for (int v = vb.s; v <= vb.e; ++v) {
+          delta_(s, i, k, v) = 0.0;
+        }
       });
 }
 

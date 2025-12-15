@@ -39,7 +39,7 @@ auto Driver::execute() -> int {
 
   dt_ = dt_init;
   TimeStepInfo dt_info{
-      .t = time_, .dt = dt_, .dt_a = dt_, .dt_coef = dt_, .stage = -1};
+      .t = time_, .dt = dt_, .dt_coef_implicit = dt_, .dt_coef = dt_, .stage = -1};
 
   // some startup io
   manager_->fill_derived(state_.get(), grid_, dt_info);
@@ -64,7 +64,7 @@ auto Driver::execute() -> int {
 
     dt_ = std::min(manager_->min_timestep(
                        state_.get(), grid_,
-                       {.t = time_, .dt = dt_, .dt_a = 0.0, .stage = 0}),
+                       {.t = time_, .dt = dt_, .stage = 0}),
                    dt_ * dt_init_frac);
     if (time_ + dt_ > t_end_) {
       dt_ = t_end_ - time_;
@@ -221,15 +221,17 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
 
   bool split = false;
 
+  const int n_stages = ssprk_.n_stages();
+
   // --- Init physics package manager ---
   // NOTE: Hydro/RadHydro should be registered first
   if (rad_active) {
     manager_->add_package(RadHydroPackage{
-        pin, ssprk_.n_stages(), eos_.get(), opac_.get(), fluid_basis_.get(),
+        pin, n_stages, eos_.get(), opac_.get(), fluid_basis_.get(),
         radiation_basis_.get(), bcs_.get(), cfl, nx, true});
   } else [[unlikely]] {
     // pure Hydro
-    manager_->add_package(HydroPackage{pin, ssprk_.n_stages(), eos_.get(),
+    manager_->add_package(HydroPackage{pin, n_stages, eos_.get(),
                                        fluid_basis_.get(), bcs_.get(), cfl, nx,
                                        true});
   }
@@ -238,37 +240,38 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
       manager_->add_package(
           GravityPackage{pin, pin->param()->get<GravityModel>("gravity.model"),
                          pin->param()->get<double>("gravity.gval"),
-                         fluid_basis_.get(), cfl, true});
+                         fluid_basis_.get(), cfl, n_stages, true});
     } else {
       split = true;
       split_manager_->add_package(
           GravityPackage{pin, pin->param()->get<GravityModel>("gravity.model"),
                          pin->param()->get<double>("gravity.gval"),
-                         fluid_basis_.get(), cfl, true});
+                         fluid_basis_.get(), cfl, n_stages, true});
     }
   }
   if (ni_heating_active) {
     if (!pin->param()->get<bool>("physics.heating.nickel.split")) {
       manager_->add_package(NickelHeatingPackage{
-          pin, fluid_basis_.get(), state_->comps()->species_indexer(), true});
+          pin, fluid_basis_.get(), state_->comps()->species_indexer(), n_stages, true});
     } else {
       split = true;
       split_manager_->add_package(NickelHeatingPackage{
-          pin, fluid_basis_.get(), state_->comps()->species_indexer(), true});
+          pin, fluid_basis_.get(), state_->comps()->species_indexer(), n_stages, true});
     }
   }
   if (thermal_engine_active) {
     if (!pin->param()->get<bool>("physics.engine.thermal.split")) {
       manager_->add_package(ThermalEnginePackage{pin, state_.get(), &grid_,
-                                                 fluid_basis_.get(), true});
+                                                 fluid_basis_.get(), n_stages, true});
     } else {
       split = true;
       split_manager_->add_package(ThermalEnginePackage{
-          pin, state_.get(), &grid_, fluid_basis_.get(), true});
+          pin, state_.get(), &grid_, fluid_basis_.get(), n_stages, true});
     }
   }
+  // TODO(astrobarker): [split] Could add option to split.. not important..
   if (geometry) {
-    manager_->add_package(GeometryPackage{pin, fluid_basis_.get(), true});
+    manager_->add_package(GeometryPackage{pin, fluid_basis_.get(), n_stages, true});
   }
 
   // set up operator split stepper

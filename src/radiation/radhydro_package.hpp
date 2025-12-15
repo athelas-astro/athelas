@@ -43,6 +43,8 @@ class RadHydroPackage {
   void apply_delta(AthelasArray3D<double> lhs,
                    const TimeStepInfo &dt_info) const;
 
+  void zero_delta() const noexcept;
+
   auto
   radhydro_source(const State *const state, const AthelasArray2D<double> uCRH,
                   const AthelasArray1D<double> dx,
@@ -96,8 +98,8 @@ class RadHydroPackage {
   AthelasArray2D<double> u_f_r_; // right faces
   AthelasArray2D<double> flux_u_; // Riemann velocities
 
-  AthelasArray3D<double> delta_; // rhs delta
-  AthelasArray3D<double> delta_im_; // rhs delta
+  AthelasArray4D<double> delta_; // rhs delta [nstages, nx, order, nvars]
+  AthelasArray4D<double> delta_im_; // rhs delta
 
   // iterative solver storage
   AthelasArray3D<double> scratch_k_;
@@ -132,6 +134,7 @@ auto compute_increment_radhydro_source(
   double local_sum_m_r = 0.0; // radiation momentum (flux) source
   double local_sum_e_g = 0.0; // gas energy source
   double local_sum_m_g = 0.0; // gas momentum (velocity) source
+  double lambda[8];
   for (int q = 0; q < nNodes; ++q) {
     const int qp1 = q + 1;
     const double &wq = weights(q);
@@ -147,7 +150,6 @@ auto compute_increment_radhydro_source(
         basis_eval(phi_fluid, uCRH, i, vars::cons::Velocity, qp1);
     const double em_t = basis_eval(phi_fluid, uCRH, i, vars::cons::Energy, qp1);
 
-    double lambda[8];
     if (ionization_enabled) {
       atom::paczynski_terms(state, i, qp1, lambda);
     }

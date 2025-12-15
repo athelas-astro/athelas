@@ -11,11 +11,11 @@ namespace athelas::geometry {
 using basis::ModalBasis;
 
 GeometryPackage::GeometryPackage(const ProblemIn *pin, ModalBasis *basis,
-                                 const bool active)
+                                 const int n_stages, const bool active)
     : active_(active), order_(basis->order()), basis_(basis) {
   const int nx = pin->param()->get<int>("problem.nx");
   int nvars_geom = 1; // sources velocity
-  delta_ = AthelasArray3D<double>("geometry delta", nx + 2, basis->order(),
+  delta_ = AthelasArray4D<double>("geometry delta", n_stages, nx + 2, basis->order(),
                                   nvars_geom);
 }
 
@@ -25,28 +25,19 @@ void GeometryPackage::update_explicit(const State *const state,
   static const int nNodes = grid.n_nodes();
   static const IndexRange kb(order_);
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  const auto u_stages = state->u_cf_stages();
+  auto u_stages = state->u_cf_stages();
 
-  const auto uaf = state->u_af();
+  auto uaf = state->u_af();
   const auto stage = dt_info.stage;
-  const auto ucf =
+  auto ucf =
       Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
 
-  // --- Zero out delta  ---
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Geometry :: Zero delta", DevExecSpace(), ib.s,
-      ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-        for (int k = kb.s; k <= kb.e; ++k) {
-          delta_(i, k, pkg_vars::Velocity) = 0.0;
-        }
-      });
-
-  const auto sqrt_gm = grid.sqrt_gm();
-  const auto dx = grid.widths();
-  const auto weights = grid.weights();
-  const auto r = grid.nodal_grid();
-  const auto phi = basis_->phi();
-  const auto inv_mkk = basis_->inv_mass_matrix();
+  auto sqrt_gm = grid.sqrt_gm();
+  auto dx = grid.widths();
+  auto weights = grid.weights();
+  auto r = grid.nodal_grid();
+  auto phi = basis_->phi();
+  auto inv_mkk = basis_->inv_mass_matrix();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Hydro :: Geometry Source", DevExecSpace(), ib.s,
       ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
@@ -57,7 +48,7 @@ void GeometryPackage::update_explicit(const State *const state,
           local_sum += weights(q) * P * phi(i, q + 1, k) * r(i, q);
         }
 
-        delta_(i, k, pkg_vars::Velocity) +=
+        delta_(stage, i, k, pkg_vars::Velocity) +=
             (2.0 * local_sum * dx(i)) * inv_mkk(i, k);
       });
 }
@@ -72,11 +63,31 @@ void GeometryPackage::apply_delta(AthelasArray3D<double> lhs,
   static const IndexRange ib(std::make_pair(1, nx - 2));
   static const IndexRange kb(nk);
 
+  const int stage = dt_info.stage;
+
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Gravity :: Apply delta", DevExecSpace(), ib.s,
+      DEFAULT_LOOP_PATTERN, "Geometry :: Apply delta", DevExecSpace(), ib.s,
       ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         lhs(i, k, vars::cons::Velocity) +=
-            dt_info.dt_coef * delta_(i, k, pkg_vars::Velocity);
+            dt_info.dt_coef * delta_(stage, i, k, pkg_vars::Velocity);
+      });
+}
+
+/**
+ * @brief zero delta field
+ */
+void GeometryPackage::zero_delta() const noexcept {
+  static const IndexRange sb(static_cast<int>(delta_.extent(0)));
+  static const IndexRange ib(static_cast<int>(delta_.extent(1)));
+  static const IndexRange kb(static_cast<int>(delta_.extent(2)));
+  static const IndexRange vb(static_cast<int>(delta_.extent(3)));
+
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "Geometry :: Zero delta", DevExecSpace(), sb.s, sb.e, ib.s, ib.e,
+      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int s, const int i, const int k) {
+        for (int v = vb.s; v <= vb.e; ++v) {
+          delta_(s, i, k, v) = 0.0;
+        }
       });
 }
 

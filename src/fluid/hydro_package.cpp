@@ -32,8 +32,8 @@ HydroPackage::HydroPackage(const ProblemIn * /*pin*/, int n_stages, EOS *eos,
     : active_(active), nx_(nx), cfl_(cfl), eos_(eos), basis_(basis), bcs_(bcs),
       dFlux_num_("hydro::dFlux_num_", nx + 2 + 1, 3),
       u_f_l_("hydro::u_f_l_", nx + 2, 3), u_f_r_("hydro::u_f_r_", nx + 2, 3),
-      flux_u_("hydro::flux_u_", n_stages + 1, nx + 2 + 1),
-      delta_("hydro :: delta", nx_ + 2, basis->order(), 3) {
+      flux_u_("hydro::flux_u_", n_stages, nx + 2 + 1),
+      delta_("hydro :: delta", n_stages, nx_ + 2, basis->order(), 3) {
 } // Need long term solution for flux_u_
 
 void HydroPackage::update_explicit(const State *const state,
@@ -60,15 +60,6 @@ void HydroPackage::update_explicit(const State *const state,
     bc::fill_ghost_zones_composition(ucf, vb_comps);
   }
 
-  // --- Zero out delta  ---
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Hydro :: Zero delta", DevExecSpace(), ib.s, ib.e,
-      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-        for (int v = vb.s; v <= vb.e; ++v) {
-          delta_(i, k, v) = 0.0;
-        }
-      });
-
   // --- Fluid Increment : Divergence ---
   fluid_divergence(state, grid, stage);
 
@@ -79,7 +70,7 @@ void HydroPackage::update_explicit(const State *const state,
       kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         const double &invmkk = inv_mkk(i, k);
         for (int v = vb.s; v <= vb.e; ++v) {
-          delta_(i, k, v) *= invmkk;
+          delta_(stage, i, k, v) *= invmkk;
         }
       });
 }
@@ -156,7 +147,7 @@ void HydroPackage::fluid_divergence(const State *const state,
       DEFAULT_LOOP_PATTERN, "Hydro :: Surface Term", DevExecSpace(), ib.s, ib.e,
       kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         for (int v = vb.s; v <= vb.e; ++v) {
-          delta_(i, k, v) -=
+          delta_(stage, i, k, v) -=
               (+dFlux_num_(i + 1, v) * phi(i, nNodes + 1, k) *
                    sqrt_gm(i, nNodes + 1) -
                dFlux_num_(i + 0, v) * phi(i, 0, k) * sqrt_gm(i, 0));
@@ -185,9 +176,9 @@ void HydroPackage::fluid_divergence(const State *const state,
             local_sum3 += w * flux3 * dphi * sqrtgm;
           }
 
-          delta_(i, k, vars::cons::SpecificVolume) += local_sum1;
-          delta_(i, k, vars::cons::Velocity) += local_sum2;
-          delta_(i, k, vars::cons::Energy) += local_sum3;
+          delta_(stage, i, k, vars::cons::SpecificVolume) += local_sum1;
+          delta_(stage, i, k, vars::cons::Velocity) += local_sum2;
+          delta_(stage, i, k, vars::cons::Energy) += local_sum3;
         });
   }
 }
@@ -203,11 +194,31 @@ void HydroPackage::apply_delta(AthelasArray3D<double> lhs,
   static const IndexRange kb(nk);
   static const IndexRange vb(NUM_VARS_);
 
+  const int stage = dt_info.stage;
+
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Hydro :: Apply delta", DevExecSpace(), ib.s, ib.e,
       kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         for (int v = vb.s; v <= vb.e; ++v) {
-          lhs(i, k, v) += dt_info.dt_coef * delta_(i, k, v);
+          lhs(i, k, v) += dt_info.dt_coef * delta_(stage, i, k, v);
+        }
+      });
+}
+
+/**
+ * @brief zero delta field
+ */
+void HydroPackage::zero_delta() const noexcept {
+  static const IndexRange sb(static_cast<int>(delta_.extent(0)));
+  static const IndexRange ib(static_cast<int>(delta_.extent(1)));
+  static const IndexRange kb(static_cast<int>(delta_.extent(2)));
+  static const IndexRange vb(static_cast<int>(delta_.extent(3)));
+
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "Hydro :: Zero delta", DevExecSpace(), sb.s, sb.e, ib.s, ib.e,
+      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int s, const int i, const int k) {
+        for (int v = vb.s; v <= vb.e; ++v) {
+          delta_(s, i, k, v) = 0.0;
         }
       });
 }
@@ -219,10 +230,11 @@ auto HydroPackage::min_timestep(const State *const state,
                                 const GridStructure &grid,
                                 const TimeStepInfo & /*dt_info*/) const
     -> double {
-  const auto ucf = state->u_cf();
-  const auto uaf = state->u_af();
   static constexpr double MAX_DT = std::numeric_limits<double>::max();
   static constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
+
+  const auto ucf = state->u_cf();
+  const auto uaf = state->u_af();
 
   static const int nnodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());

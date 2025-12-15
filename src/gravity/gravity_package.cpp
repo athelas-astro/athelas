@@ -20,9 +20,9 @@ using basis::ModalBasis;
 
 GravityPackage::GravityPackage(const ProblemIn *pin, GravityModel model,
                                const double gval, ModalBasis *basis,
-                               const double cfl, const bool active)
+                               const double cfl, const int n_stages, const bool active)
     : active_(active), model_(model), gval_(gval), basis_(basis), cfl_(cfl),
-      delta_("gravity delta", pin->param()->get<int>("problem.nx") + 2,
+      delta_("gravity delta", n_stages, pin->param()->get<int>("problem.nx") + 2,
              basis_->order(), 2) {}
 
 void GravityPackage::update_explicit(const State *const state,
@@ -37,39 +37,31 @@ void GravityPackage::update_explicit(const State *const state,
   const int &order = basis_->order();
   static const IndexRange kb(order);
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Gravity :: Zero delta", DevExecSpace(), ib.s,
-      ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-        for (int k = kb.s; k <= kb.e; ++k) {
-          delta_(i, k, pkg_vars::Energy) = 0.0;
-          delta_(i, k, pkg_vars::Velocity) = 0.0;
-        }
-      });
 
   if (model_ == GravityModel::Spherical) {
-    gravity_update<GravityModel::Spherical>(ucf, grid);
+    gravity_update<GravityModel::Spherical>(ucf, grid, stage);
   } else [[unlikely]] {
-    gravity_update<GravityModel::Constant>(ucf, grid);
+    gravity_update<GravityModel::Constant>(ucf, grid, stage);
   }
 }
 
 template <GravityModel Model>
 void GravityPackage::gravity_update(const AthelasArray3D<double> state,
-                                    const GridStructure &grid) const {
+                                    const GridStructure &grid, const int stage) const {
   using basis::basis_eval;
   const int nNodes = grid.n_nodes();
   const int &order = basis_->order();
   static const IndexRange ib(grid.domain<Domain::Interior>());
   static const IndexRange kb(order);
 
-  const auto r = grid.nodal_grid();
-  const auto dr = grid.widths();
-  const auto enclosed_mass = grid.enclosed_mass();
+  auto r = grid.nodal_grid();
+  auto dr = grid.widths();
+  auto enclosed_mass = grid.enclosed_mass();
   auto mass = grid.mass();
-  const auto weights = grid.weights();
-  const auto sqrt_gm = grid.sqrt_gm();
-  const auto phi = basis_->phi();
-  const auto inv_mkk = basis_->inv_mass_matrix();
+  auto weights = grid.weights();
+  auto sqrt_gm = grid.sqrt_gm();
+  auto phi = basis_->phi();
+  auto inv_mkk = basis_->inv_mass_matrix();
 
   const double gval = gval_;
   // This can probably be simplified.
@@ -99,9 +91,9 @@ void GravityPackage::gravity_update(const AthelasArray3D<double> state,
         }
 
         const double dm_o_mkk = mass(i) * inv_mkk(i, k);
-        delta_(i, k, pkg_vars::Velocity) -=
+        delta_(stage, i, k, pkg_vars::Velocity) -=
             constants::G_GRAV * local_sum_v * dm_o_mkk;
-        delta_(i, k, pkg_vars::Energy) -=
+        delta_(stage, i, k, pkg_vars::Energy) -=
             constants::G_GRAV * local_sum_e * dm_o_mkk;
       });
 }
@@ -117,11 +109,31 @@ void GravityPackage::apply_delta(AthelasArray3D<double> lhs,
   static const IndexRange kb(nk);
   static const IndexRange vb(NUM_VARS_);
 
+  const int stage = dt_info.stage;
+
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Gravity :: Apply delta", DevExecSpace(), ib.s,
       ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         for (int v = vb.s; v <= vb.e; ++v) {
-          lhs(i, k, v + 1) += dt_info.dt_coef * delta_(i, k, v);
+          lhs(i, k, v + 1) += dt_info.dt_coef * delta_(stage, i, k, v);
+        }
+      });
+}
+
+/**
+ * @brief zero delta field
+ */
+void GravityPackage::zero_delta() const noexcept {
+  static const IndexRange sb(static_cast<int>(delta_.extent(0)));
+  static const IndexRange ib(static_cast<int>(delta_.extent(1)));
+  static const IndexRange kb(static_cast<int>(delta_.extent(2)));
+  static const IndexRange vb(static_cast<int>(delta_.extent(3)));
+
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "Gravity :: Zero delta", DevExecSpace(), sb.s, sb.e, ib.s, ib.e,
+      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int s, const int i, const int k) {
+        for (int v = vb.s; v <= vb.e; ++v) {
+          delta_(s, i, k, v) = 0.0;
         }
       });
 }
@@ -141,9 +153,9 @@ auto GravityPackage::min_timestep(const State *const /*state*/,
   static constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
 
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  const auto dr = grid.widths();
-  const auto r = grid.centers();
-  const auto m = grid.enclosed_mass();
+  auto dr = grid.widths();
+  auto r = grid.centers();
+  auto m = grid.enclosed_mass();
 
   double dt_out = 0.0;
   athelas::par_reduce(

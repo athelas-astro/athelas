@@ -25,17 +25,19 @@ using bc::BoundaryConditions;
 class GravityPackage {
  public:
   GravityPackage(const ProblemIn * /*pin*/, GravityModel model, double gval,
-                 basis::ModalBasis *basis, double cfl, bool active = true);
+                 basis::ModalBasis *basis, double cfl, int n_stages, bool active = true);
 
   void update_explicit(const State *const state, const GridStructure &grid,
                        const TimeStepInfo &dt_info) const;
 
   template <GravityModel Model>
   void gravity_update(const AthelasArray3D<double> state,
-                      const GridStructure &grid) const;
+                      const GridStructure &grid, int stage) const;
 
   void apply_delta(AthelasArray3D<double> lhs,
                    const TimeStepInfo &dt_info) const;
+
+  void zero_delta() const noexcept;
 
   [[nodiscard]] auto min_timestep(const State *const /*state*/,
                                   const GridStructure & /*grid*/,
@@ -61,7 +63,7 @@ class GravityPackage {
 
   double cfl_;
 
-  AthelasArray3D<double> delta_; // rhs delta
+  AthelasArray4D<double> delta_; // rhs delta [nstages, nx, order, nvars]
 
   static constexpr int NUM_VARS_ = 2;
 };

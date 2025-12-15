@@ -20,13 +20,15 @@ class ThermalEnginePackage {
  public:
   ThermalEnginePackage(const ProblemIn *pin, const State *state,
                        const GridStructure *grid, basis::ModalBasis *basis,
-                       bool active = true);
+                       int n_stages, bool active = true);
 
   void update_explicit(const State *const state, const GridStructure &grid,
                        const TimeStepInfo &dt_info);
 
   void apply_delta(AthelasArray3D<double> lhs,
                    const TimeStepInfo &dt_info) const;
+
+  void zero_delta() const noexcept;
 
   [[nodiscard]] auto min_timestep(const State * /*state*/,
                                   const GridStructure & /*grid*/,
@@ -47,7 +49,7 @@ class ThermalEnginePackage {
 
   basis::ModalBasis *basis_;
 
-  AthelasArray3D<double> delta_;
+  AthelasArray4D<double> delta_; // [nstages, nx, order, nvars]
 
   double energy_target_;
   double energy_dep_; // actual energy to be deposited
