@@ -27,9 +27,10 @@ RadHydroPackage::RadHydroPackage(const ProblemIn *pin, int n_stages, EOS *eos,
       fluid_basis_(fluid_basis), rad_basis_(rad_basis), bcs_(bcs),
       dFlux_num_("hydro::dFlux_num_", nx + 2 + 1, 5),
       u_f_l_("hydro::u_f_l_", nx + 2, 5), u_f_r_("hydro::u_f_r_", nx + 2, 5),
-      flux_u_("hydro::flux_u_", n_stages + 1, nx + 2 + 1),
-      delta_("radhydro delta", nx + 2, fluid_basis_->order(), 5),
-      delta_im_("radhydro delta implicit", nx + 2, fluid_basis_->order(), 5),
+      flux_u_("hydro::flux_u_", n_stages, nx + 2 + 1),
+      delta_("radhydro delta", n_stages, nx + 2, fluid_basis_->order(), 5),
+      delta_im_("radhydro delta implicit", n_stages, nx + 2,
+                fluid_basis_->order(), 5),
       scratch_k_("scratch_k_", nx + 2, fluid_basis_->order(), 5),
       scratch_km1_("scratch_km1_", nx + 2, fluid_basis_->order(), 5),
       scratch_sol_("scratch_k_", nx + 2, fluid_basis_->order(), 5) {
@@ -54,14 +55,6 @@ void RadHydroPackage::update_explicit(const State *const state,
   bc::fill_ghost_zones<2>(ucf, &grid, rad_basis_, bcs_, {3, 4});
   bc::fill_ghost_zones<3>(ucf, &grid, fluid_basis_, bcs_, {0, 2});
 
-  // --- Zero out delta  ---
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "RadHydro :: Zero delta", DevExecSpace(), ib.s,
-      ib.e, kb.s, kb.e, vb.s, vb.e,
-      KOKKOS_CLASS_LAMBDA(const int i, const int k, const int v) {
-        delta_(i, k, v) = 0.0;
-      });
-
   // --- radiation Increment : Divergence ---
   radhydro_divergence(state, grid, stage);
 
@@ -75,11 +68,11 @@ void RadHydroPackage::update_explicit(const State *const state,
         const double &rad_imm = inv_mkk_rad(i, k);
 
         for (int v = 0; v < 3; ++v) {
-          delta_(i, k, v) *= fluid_imm;
+          delta_(stage, i, k, v) *= fluid_imm;
         }
 
         for (int v = 3; v < NUM_VARS_; ++v) {
-          delta_(i, k, v) *= rad_imm;
+          delta_(stage, i, k, v) *= rad_imm;
         }
       });
 } // update_explicit
@@ -97,28 +90,18 @@ void RadHydroPackage::update_implicit(const State *const state,
   static const IndexRange kb(order);
   static const IndexRange vb(NUM_VARS_);
 
-  const auto u_stages = state->u_cf_stages();
+  auto u_stages = state->u_cf_stages();
 
   const auto stage = dt_info.stage;
-  const auto ucf =
+  auto ucf =
       Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
 
-  // --- Zero out delta  ---
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "RadHydro :: Implicit :: Zero delta",
-      DevExecSpace(), ib.s, ib.e, kb.s, kb.e,
-      KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-        for (int v = vb.s; v <= vb.e; ++v) {
-          delta_(i, k, v) = 0.0;
-        }
-      });
-
-  const auto phi_rad = rad_basis_->phi();
-  const auto phi_fluid = fluid_basis_->phi();
-  const auto inv_mkk_fluid = fluid_basis_->inv_mass_matrix();
-  const auto inv_mkk_rad = rad_basis_->inv_mass_matrix();
-  const auto dr = grid.widths();
-  const auto weights = grid.weights();
+  auto phi_rad = rad_basis_->phi();
+  auto phi_fluid = fluid_basis_->phi();
+  auto inv_mkk_fluid = fluid_basis_->inv_mass_matrix();
+  auto inv_mkk_rad = rad_basis_->inv_mass_matrix();
+  auto dr = grid.widths();
+  auto weights = grid.weights();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "RadHydro :: Implicit", DevExecSpace(), ib.s, ib.e,
       kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
@@ -126,10 +109,10 @@ void RadHydroPackage::update_implicit(const State *const state,
         const auto [du1, du2, du3, du4] =
             radhydro_source(state, ucf_i, dr, weights, phi_fluid, phi_rad,
                             inv_mkk_fluid, inv_mkk_rad, i, k);
-        delta_(i, k, vars::cons::Velocity) = du1;
-        delta_(i, k, vars::cons::Energy) = du2;
-        delta_(i, k, vars::cons::RadEnergy) = du3;
-        delta_(i, k, vars::cons::RadFlux) = du4;
+        delta_im_(stage, i, k, vars::cons::Velocity) = du1;
+        delta_im_(stage, i, k, vars::cons::Energy) = du2;
+        delta_im_(stage, i, k, vars::cons::RadEnergy) = du3;
+        delta_im_(stage, i, k, vars::cons::RadFlux) = du4;
       });
 } // update_implicit
 
@@ -141,18 +124,18 @@ void RadHydroPackage::update_implicit_iterative(const State *const state,
   const auto &order = fluid_basis_->order();
   static const IndexRange ib(grid.domain<Domain::Interior>());
 
-  const auto u_stages = state->u_cf_stages();
+  auto u_stages = state->u_cf_stages();
 
   const auto stage = dt_info.stage;
-  const auto ucf =
+  auto ucf =
       Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
 
-  const auto phi_rad = rad_basis_->phi();
-  const auto phi_fluid = fluid_basis_->phi();
-  const auto inv_mkk_fluid = fluid_basis_->inv_mass_matrix();
-  const auto inv_mkk_rad = rad_basis_->inv_mass_matrix();
-  const auto dr = grid.widths();
-  const auto weights = grid.weights();
+  auto phi_rad = rad_basis_->phi();
+  auto phi_fluid = fluid_basis_->phi();
+  auto inv_mkk_fluid = fluid_basis_->inv_mass_matrix();
+  auto inv_mkk_rad = rad_basis_->inv_mass_matrix();
+  auto dr = grid.widths();
+  auto weights = grid.weights();
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Implicit iterative",
@@ -176,7 +159,7 @@ void RadHydroPackage::update_implicit_iterative(const State *const state,
           }
         }
 
-        fixed_point_radhydro(R_i, dt_info.dt_a, scratch_sol_i_k,
+        fixed_point_radhydro(R_i, dt_info.dt_coef, scratch_sol_i_k,
                              scratch_sol_i_km1, scratch_sol_i, state, dr,
                              weights, phi_fluid, phi_rad, inv_mkk_fluid,
                              inv_mkk_rad, eos_, opac_, i);
@@ -201,11 +184,33 @@ void RadHydroPackage::apply_delta(AthelasArray3D<double> lhs,
   static const IndexRange kb(nk);
   static const IndexRange vb(NUM_VARS_);
 
+  const int stage = dt_info.stage;
+
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "RadHydro :: Apply delta", DevExecSpace(), ib.s,
       ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         for (int v = vb.s; v <= vb.e; ++v) {
-          lhs(i, k, v) += dt_info.dt_coef * delta_(i, k, v);
+          lhs(i, k, v) += dt_info.dt_coef * delta_(stage, i, k, v);
+          lhs(i, k, v) += dt_info.dt_coef_implicit * delta_im_(stage, i, k, v);
+        }
+      });
+}
+
+/**
+ * @brief zero delta field
+ */
+void RadHydroPackage::zero_delta() const noexcept {
+  static const IndexRange sb(static_cast<int>(delta_.extent(0)));
+  static const IndexRange ib(static_cast<int>(delta_.extent(1)));
+  static const IndexRange kb(static_cast<int>(delta_.extent(2)));
+  static const IndexRange vb(static_cast<int>(delta_.extent(3)));
+
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "RadHydro :: Zero delta", DevExecSpace(), sb.s,
+      sb.e, ib.s, ib.e, kb.s, kb.e,
+      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int k) {
+        for (int v = vb.s; v <= vb.e; ++v) {
+          delta_(s, i, k, v) = 0.0;
         }
       });
 }
@@ -321,7 +326,7 @@ void RadHydroPackage::radhydro_divergence(const State *const state,
         for (int v = vb.s; v <= vb.e; ++v) {
           const auto phi_v = (v < 3) ? phi_fluid : phi_rad;
 
-          delta_(i, k, v) -=
+          delta_(stage, i, k, v) -=
               (+dFlux_num_(i + 1, v) * phi_v(i, nNodes + 1, k) *
                    sqrt_gm(i, nNodes + 1) -
                dFlux_num_(i + 0, v) * phi_v(i, 0, k) * sqrt_gm(i, 0));
@@ -365,11 +370,11 @@ void RadHydroPackage::radhydro_divergence(const State *const state,
                 weights(q) * flux_f * dphi_rad(i, qp1, k) * sqrt_gm(i, qp1);
           }
 
-          delta_(i, k, vars::cons::SpecificVolume) += local_sum1;
-          delta_(i, k, vars::cons::Velocity) += local_sum2;
-          delta_(i, k, vars::cons::Energy) += local_sum3;
-          delta_(i, k, vars::cons::RadEnergy) += local_sum_e;
-          delta_(i, k, vars::cons::RadFlux) += local_sum_f;
+          delta_(stage, i, k, vars::cons::SpecificVolume) += local_sum1;
+          delta_(stage, i, k, vars::cons::Velocity) += local_sum2;
+          delta_(stage, i, k, vars::cons::Energy) += local_sum3;
+          delta_(stage, i, k, vars::cons::RadEnergy) += local_sum_e;
+          delta_(stage, i, k, vars::cons::RadFlux) += local_sum_f;
         });
   }
 } // radhydro_divergence

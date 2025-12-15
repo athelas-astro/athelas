@@ -43,7 +43,7 @@ inline auto parse_model(const std::string &model) -> NiHeatingModel {
 class NickelHeatingPackage {
  public:
   NickelHeatingPackage(const ProblemIn *pin, basis::ModalBasis *basis,
-                       const Params *indexer, bool active = true);
+                       const Params *indexer, int n_stages, bool active = true);
 
   void update_explicit(const State *const state, const GridStructure &grid,
                        const TimeStepInfo &dt_info);
@@ -54,6 +54,8 @@ class NickelHeatingPackage {
 
   void apply_delta(AthelasArray3D<double> lhs,
                    const TimeStepInfo &dt_info) const;
+
+  void zero_delta() const noexcept;
 
   // NOTE: E_LAMBDA_NI etc are energy release per gram per second
   KOKKOS_FORCEINLINE_FUNCTION
@@ -140,7 +142,7 @@ class NickelHeatingPackage {
 
   basis::ModalBasis *basis_;
 
-  AthelasArray3D<double> delta_;
+  AthelasArray4D<double> delta_; // [nstages, nx, order, nvars]
 
   // We need to store the indices of our required species.
   // These are indices in the "full" ucons.

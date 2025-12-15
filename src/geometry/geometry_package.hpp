@@ -14,7 +14,7 @@ constexpr int Velocity = 0;
 
 class GeometryPackage {
  public:
-  GeometryPackage(const ProblemIn *pin, basis::ModalBasis *basis,
+  GeometryPackage(const ProblemIn *pin, basis::ModalBasis *basis, int n_stages,
                   bool active = true);
 
   void update_explicit(const State *const state, const GridStructure &grid,
@@ -22,6 +22,8 @@ class GeometryPackage {
 
   void apply_delta(AthelasArray3D<double> lhs,
                    const TimeStepInfo &dt_info) const;
+
+  void zero_delta() const noexcept;
 
   [[nodiscard]] auto min_timestep(const State * /*state*/,
                                   const GridStructure & /*grid*/,
@@ -41,7 +43,7 @@ class GeometryPackage {
   bool active_;
   int order_;
   basis::ModalBasis *basis_;
-  AthelasArray3D<double> delta_;
+  AthelasArray4D<double> delta_; // [nstages, nx, order, nvars]
 };
 
 } // namespace athelas::geometry

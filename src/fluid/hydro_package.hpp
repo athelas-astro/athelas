@@ -31,6 +31,8 @@ class HydroPackage {
   void apply_delta(AthelasArray3D<double> lhs,
                    const TimeStepInfo &dt_info) const;
 
+  void zero_delta() const noexcept;
+
   void fluid_divergence(const State *const state, const GridStructure &grid,
                         int stage) const;
 
@@ -71,7 +73,7 @@ class HydroPackage {
   AthelasArray2D<double> u_f_r_; // right faces
   AthelasArray2D<double> flux_u_; // Riemann velocities
 
-  AthelasArray3D<double> delta_; // rhs delta
+  AthelasArray4D<double> delta_; // rhs delta [nstages, nx, order, vars]
 
   // constants
   static constexpr int NUM_VARS_ = 3;
