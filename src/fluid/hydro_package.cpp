@@ -234,35 +234,26 @@ auto HydroPackage::min_timestep(const State *const state,
   static constexpr double MAX_DT = std::numeric_limits<double>::max();
   static constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
 
-  const auto ucf = state->u_cf();
-  const auto uaf = state->u_af();
+  auto uaf = state->u_af();
 
   static const int nnodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  const auto dr = grid.widths();
-  const auto weights = grid.weights();
-  const auto phi = basis_->phi();
-  const auto inv_mkk = basis_->inv_mass_matrix();
+  auto dr = grid.widths();
 
   double dt_out = 0.0;
   athelas::par_reduce(
       DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Timestep", DevExecSpace(), ib.s,
       ib.e,
       KOKKOS_CLASS_LAMBDA(const int i, double &lmin) {
-        // --- Using cell average velocity
-        const double vel_x =
-            ucf(i, vars::modes::CellAverage, vars::cons::Velocity);
-
         // Find the max sound speed across the element including the interfaces
         double Cs = uaf(i, 0, vars::aux::Cs);
         for (int q = 1; q <= nnodes; ++q) {
           Cs = std::max(Cs, uaf(i, q, vars::aux::Cs));
         }
-        const double eigval = Cs + std::abs(vel_x);
 
-        const double dt_old = dr(i) / eigval;
+        const double dt = dr(i) / Cs;
 
-        lmin = std::min(dt_old, lmin);
+        lmin = std::min(dt, lmin);
       },
       Kokkos::Min<double>(dt_out));
 
