@@ -234,7 +234,6 @@ auto HydroPackage::min_timestep(const State *const state,
   static constexpr double MAX_DT = std::numeric_limits<double>::max();
   static constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
 
-  auto ucf = state->u_cf();
   auto uaf = state->u_af();
 
   static const int nnodes = grid.n_nodes();
@@ -252,9 +251,9 @@ auto HydroPackage::min_timestep(const State *const state,
           Cs = std::max(Cs, uaf(i, q, vars::aux::Cs));
         }
 
-        const double dt_old = dr(i) / Cs;
+        const double dt = dr(i) / Cs;
 
-        lmin = std::min(dt_old, lmin);
+        lmin = std::min(dt, lmin);
       },
       Kokkos::Min<double>(dt_out));
 
