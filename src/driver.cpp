@@ -38,8 +38,11 @@ auto Driver::execute() -> int {
   const auto dt_hdf5 = pin_->param()->get<double>("output.dt_hdf5");
 
   dt_ = dt_init;
-  TimeStepInfo dt_info{
-      .t = time_, .dt = dt_, .dt_coef_implicit = dt_, .dt_coef = dt_, .stage = -1};
+  TimeStepInfo dt_info{.t = time_,
+                       .dt = dt_,
+                       .dt_coef_implicit = dt_,
+                       .dt_coef = dt_,
+                       .stage = -1};
 
   // some startup io
   manager_->fill_derived(state_.get(), grid_, dt_info);
@@ -62,9 +65,8 @@ auto Driver::execute() -> int {
   std::println("# Step    t       dt       zone_cycles / wall_second");
   while (time_ < t_end_ && iStep <= nlim) {
 
-    dt_ = std::min(manager_->min_timestep(
-                       state_.get(), grid_,
-                       {.t = time_, .dt = dt_, .stage = 0}),
+    dt_ = std::min(manager_->min_timestep(state_.get(), grid_,
+                                          {.t = time_, .dt = dt_, .stage = 0}),
                    dt_ * dt_init_frac);
     if (time_ + dt_ > t_end_) {
       dt_ = t_end_ - time_;
@@ -252,17 +254,19 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   if (ni_heating_active) {
     if (!pin->param()->get<bool>("physics.heating.nickel.split")) {
       manager_->add_package(NickelHeatingPackage{
-          pin, fluid_basis_.get(), state_->comps()->species_indexer(), n_stages, true});
+          pin, fluid_basis_.get(), state_->comps()->species_indexer(), n_stages,
+          true});
     } else {
       split = true;
       split_manager_->add_package(NickelHeatingPackage{
-          pin, fluid_basis_.get(), state_->comps()->species_indexer(), n_stages, true});
+          pin, fluid_basis_.get(), state_->comps()->species_indexer(), n_stages,
+          true});
     }
   }
   if (thermal_engine_active) {
     if (!pin->param()->get<bool>("physics.engine.thermal.split")) {
-      manager_->add_package(ThermalEnginePackage{pin, state_.get(), &grid_,
-                                                 fluid_basis_.get(), n_stages, true});
+      manager_->add_package(ThermalEnginePackage{
+          pin, state_.get(), &grid_, fluid_basis_.get(), n_stages, true});
     } else {
       split = true;
       split_manager_->add_package(ThermalEnginePackage{
@@ -271,7 +275,8 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   }
   // TODO(astrobarker): [split] Could add option to split.. not important..
   if (geometry) {
-    manager_->add_package(GeometryPackage{pin, fluid_basis_.get(), n_stages, true});
+    manager_->add_package(
+        GeometryPackage{pin, fluid_basis_.get(), n_stages, true});
   }
 
   // set up operator split stepper

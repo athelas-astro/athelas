@@ -70,8 +70,7 @@ class TimeStepper {
 
     grid_s_[0] = grid;
 
-    TimeStepInfo dt_info{
-        .t = t, .dt = dt, .stage = 0};
+    TimeStepInfo dt_info{.t = t, .dt = dt, .stage = 0};
 
     for (int iS = 0; iS < nStages_; ++iS) {
       auto left_interface = grid_s_[iS].x_l();
@@ -275,7 +274,7 @@ class TimeStepper {
       dt_info.dt_coef = dt * integrator_.implicit_tableau.a_ij(iS, iS);
 
       // Need a fill derived?
-      //pkgs->fill_derived(state, grid_s_[iS], dt_info);
+      // pkgs->fill_derived(state, grid_s_[iS], dt_info);
       pkgs->update_implicit_iterative(state, SumVar_U_, grid_s_[iS], dt_info);
 
       apply_slope_limiter(

@@ -174,9 +174,7 @@ class PackageWrapper {
       package_.apply_delta(lhs, dt_info);
     }
 
-    void zero_delta() const noexcept override {
-      package_.zero_delta();
-    }
+    void zero_delta() const noexcept override { package_.zero_delta(); }
 
     [[nodiscard]] auto min_timestep(const State *const state,
                                     const GridStructure &grid,

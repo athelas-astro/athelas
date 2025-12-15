@@ -215,8 +215,9 @@ void HydroPackage::zero_delta() const noexcept {
   static const IndexRange vb(static_cast<int>(delta_.extent(3)));
 
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Hydro :: Zero delta", DevExecSpace(), sb.s, sb.e, ib.s, ib.e,
-      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int s, const int i, const int k) {
+      DEFAULT_LOOP_PATTERN, "Hydro :: Zero delta", DevExecSpace(), sb.s, sb.e,
+      ib.s, ib.e, kb.s, kb.e,
+      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int k) {
         for (int v = vb.s; v <= vb.e; ++v) {
           delta_(s, i, k, v) = 0.0;
         }

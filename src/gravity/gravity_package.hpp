@@ -25,7 +25,8 @@ using bc::BoundaryConditions;
 class GravityPackage {
  public:
   GravityPackage(const ProblemIn * /*pin*/, GravityModel model, double gval,
-                 basis::ModalBasis *basis, double cfl, int n_stages, bool active = true);
+                 basis::ModalBasis *basis, double cfl, int n_stages,
+                 bool active = true);
 
   void update_explicit(const State *const state, const GridStructure &grid,
                        const TimeStepInfo &dt_info) const;

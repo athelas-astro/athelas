@@ -14,8 +14,8 @@ constexpr int Velocity = 0;
 
 class GeometryPackage {
  public:
-  GeometryPackage(const ProblemIn *pin, basis::ModalBasis *basis,
-                  int n_stages, bool active = true);
+  GeometryPackage(const ProblemIn *pin, basis::ModalBasis *basis, int n_stages,
+                  bool active = true);
 
   void update_explicit(const State *const state, const GridStructure &grid,
                        const TimeStepInfo &dt_info);

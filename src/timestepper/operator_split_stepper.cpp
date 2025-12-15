@@ -15,7 +15,8 @@ void OperatorSplitStepper::step(PackageManager *pkgs, State *state,
 
   auto U = state->u_cf();
 
-  const TimeStepInfo dt_info{.t = t, .dt = dt, .dt_coef_implicit = dt, .dt_coef = dt, .stage = 0};
+  const TimeStepInfo dt_info{
+      .t = t, .dt = dt, .dt_coef_implicit = dt, .dt_coef = dt, .stage = 0};
 
   pkgs->fill_derived(state, grid, dt_info);
   pkgs->update_explicit(state, grid, dt_info);

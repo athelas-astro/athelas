@@ -24,14 +24,14 @@ using utilities::to_lower;
  *
  * It might be nice to pass in to the constructor t_start
  */
-ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
-                                           const State *state,
-                                           const GridStructure *grid,
-                                           ModalBasis *basis, const int n_stages, const bool active)
+ThermalEnginePackage::ThermalEnginePackage(
+    const ProblemIn *pin, const State *state, const GridStructure *grid,
+    ModalBasis *basis, const int n_stages, const bool active)
     : active_(active), basis_(basis), mend_idx_(1) {
 
   const int nx = pin->param()->get<int>("problem.nx");
-  delta_ = AthelasArray4D<double>("thermal engine delta", n_stages, nx + 2, basis->order(), 1);
+  delta_ = AthelasArray4D<double>("thermal engine delta", n_stages, nx + 2,
+                                  basis->order(), 1);
 
   energy_target_ = pin->param()->get<double>("physics.engine.thermal.energy");
   mode_ =
@@ -149,9 +149,9 @@ void ThermalEnginePackage::update_explicit(const State *const state,
       KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         const double b_coeff = d_coeff_ * std::exp(-c_coeff_ * time) / b_int_;
         for (int q = qb.s; q <= qb.e; ++q) {
-          delta_(stage, i, k, pkg_vars::Energy) += weights(q) * phi(i, q + 1, k) *
-                                            b_coeff *
-                                            std::exp(-a_coeff_ * menc(i, q));
+          delta_(stage, i, k, pkg_vars::Energy) +=
+              weights(q) * phi(i, q + 1, k) * b_coeff *
+              std::exp(-a_coeff_ * menc(i, q));
         }
         delta_(stage, i, k, pkg_vars::Energy) *= mass(i);
       });
@@ -196,8 +196,9 @@ void ThermalEnginePackage::zero_delta() const noexcept {
   static const IndexRange vb(static_cast<int>(delta_.extent(3)));
 
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Thermal engine :: Zero delta", DevExecSpace(), sb.s, sb.e, ib.s, ib.e,
-      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int s, const int i, const int k) {
+      DEFAULT_LOOP_PATTERN, "Thermal engine :: Zero delta", DevExecSpace(),
+      sb.s, sb.e, ib.s, ib.e, kb.s, kb.e,
+      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int k) {
         for (int v = vb.s; v <= vb.e; ++v) {
           delta_(s, i, k, v) = 0.0;
         }

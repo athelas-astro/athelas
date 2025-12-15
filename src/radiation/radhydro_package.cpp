@@ -29,7 +29,8 @@ RadHydroPackage::RadHydroPackage(const ProblemIn *pin, int n_stages, EOS *eos,
       u_f_l_("hydro::u_f_l_", nx + 2, 5), u_f_r_("hydro::u_f_r_", nx + 2, 5),
       flux_u_("hydro::flux_u_", n_stages, nx + 2 + 1),
       delta_("radhydro delta", n_stages, nx + 2, fluid_basis_->order(), 5),
-      delta_im_("radhydro delta implicit", n_stages, nx + 2, fluid_basis_->order(), 5),
+      delta_im_("radhydro delta implicit", n_stages, nx + 2,
+                fluid_basis_->order(), 5),
       scratch_k_("scratch_k_", nx + 2, fluid_basis_->order(), 5),
       scratch_km1_("scratch_km1_", nx + 2, fluid_basis_->order(), 5),
       scratch_sol_("scratch_k_", nx + 2, fluid_basis_->order(), 5) {
@@ -205,8 +206,9 @@ void RadHydroPackage::zero_delta() const noexcept {
   static const IndexRange vb(static_cast<int>(delta_.extent(3)));
 
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "RadHydro :: Zero delta", DevExecSpace(), sb.s, sb.e, ib.s, ib.e,
-      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int s, const int i, const int k) {
+      DEFAULT_LOOP_PATTERN, "RadHydro :: Zero delta", DevExecSpace(), sb.s,
+      sb.e, ib.s, ib.e, kb.s, kb.e,
+      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int k) {
         for (int v = vb.s; v <= vb.e; ++v) {
           delta_(s, i, k, v) = 0.0;
         }

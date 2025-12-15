@@ -15,8 +15,8 @@ GeometryPackage::GeometryPackage(const ProblemIn *pin, ModalBasis *basis,
     : active_(active), order_(basis->order()), basis_(basis) {
   const int nx = pin->param()->get<int>("problem.nx");
   int nvars_geom = 1; // sources velocity
-  delta_ = AthelasArray4D<double>("geometry delta", n_stages, nx + 2, basis->order(),
-                                  nvars_geom);
+  delta_ = AthelasArray4D<double>("geometry delta", n_stages, nx + 2,
+                                  basis->order(), nvars_geom);
 }
 
 void GeometryPackage::update_explicit(const State *const state,
@@ -83,8 +83,9 @@ void GeometryPackage::zero_delta() const noexcept {
   static const IndexRange vb(static_cast<int>(delta_.extent(3)));
 
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Geometry :: Zero delta", DevExecSpace(), sb.s, sb.e, ib.s, ib.e,
-      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int s, const int i, const int k) {
+      DEFAULT_LOOP_PATTERN, "Geometry :: Zero delta", DevExecSpace(), sb.s,
+      sb.e, ib.s, ib.e, kb.s, kb.e,
+      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int k) {
         for (int v = vb.s; v <= vb.e; ++v) {
           delta_(s, i, k, v) = 0.0;
         }

@@ -20,10 +20,11 @@ using basis::ModalBasis;
 
 GravityPackage::GravityPackage(const ProblemIn *pin, GravityModel model,
                                const double gval, ModalBasis *basis,
-                               const double cfl, const int n_stages, const bool active)
+                               const double cfl, const int n_stages,
+                               const bool active)
     : active_(active), model_(model), gval_(gval), basis_(basis), cfl_(cfl),
-      delta_("gravity delta", n_stages, pin->param()->get<int>("problem.nx") + 2,
-             basis_->order(), 2) {}
+      delta_("gravity delta", n_stages,
+             pin->param()->get<int>("problem.nx") + 2, basis_->order(), 2) {}
 
 void GravityPackage::update_explicit(const State *const state,
                                      const GridStructure &grid,
@@ -47,7 +48,8 @@ void GravityPackage::update_explicit(const State *const state,
 
 template <GravityModel Model>
 void GravityPackage::gravity_update(const AthelasArray3D<double> state,
-                                    const GridStructure &grid, const int stage) const {
+                                    const GridStructure &grid,
+                                    const int stage) const {
   using basis::basis_eval;
   const int nNodes = grid.n_nodes();
   const int &order = basis_->order();
@@ -130,8 +132,9 @@ void GravityPackage::zero_delta() const noexcept {
   static const IndexRange vb(static_cast<int>(delta_.extent(3)));
 
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Gravity :: Zero delta", DevExecSpace(), sb.s, sb.e, ib.s, ib.e,
-      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int s, const int i, const int k) {
+      DEFAULT_LOOP_PATTERN, "Gravity :: Zero delta", DevExecSpace(), sb.s, sb.e,
+      ib.s, ib.e, kb.s, kb.e,
+      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int k) {
         for (int v = vb.s; v <= vb.e; ++v) {
           delta_(s, i, k, v) = 0.0;
         }
