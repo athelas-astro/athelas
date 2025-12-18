@@ -20,7 +20,8 @@ class HistoryOutput {
       const State &, const GridStructure &, const basis::ModalBasis *,
       const basis::ModalBasis *)>;
 
-  explicit HistoryOutput(const std::string &filename, const std::string &output_dir, bool enabled);
+  explicit HistoryOutput(const std::string &filename,
+                         const std::string &output_dir, bool enabled);
 
   void add_quantity(const std::string &name, QuantityFunction func);
 

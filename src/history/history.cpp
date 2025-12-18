@@ -18,8 +18,10 @@ using QuantityFunction =
     std::function<double(const State &, const GridStructure &,
                          const ModalBasis *, const ModalBasis *)>;
 
-HistoryOutput::HistoryOutput(const std::string &filename, const std::string &output_dir, const bool enabled)
-    : enabled_(enabled), header_written_(false), filename_(filename), output_dir_(output_dir) {
+HistoryOutput::HistoryOutput(const std::string &filename,
+                             const std::string &output_dir, const bool enabled)
+    : enabled_(enabled), header_written_(false), filename_(filename),
+      output_dir_(output_dir) {
   if (!enabled_) {
     return;
   }
