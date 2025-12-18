@@ -207,9 +207,11 @@ class HDF5Writer {
 };
 
 // Generate filename with proper padding
-auto generate_filename(const std::string &problem_name, int i_write,
+auto generate_filename(const std::string &problem_name,
+                       const std::string &output_dir, int i_write,
                        int max_digits = 4) -> std::string {
   std::ostringstream oss;
+  oss << output_dir << "/";
   oss << problem_name << "_";
 
   if (i_write != -1) {
@@ -247,9 +249,11 @@ void write_state(State *state, GridStructure &grid, SlopeLimiter *SL,
 
   // Generate filename
   static constexpr int max_digits = 6;
+  const auto &output_dir = pin->param()->get_ref<std::string>("output.dir");
   const auto &problem_name =
       pin->param()->get_ref<std::string>("problem.problem");
-  std::string filename = generate_filename(problem_name, i_write, max_digits);
+  std::string filename =
+      generate_filename(problem_name, output_dir, i_write, max_digits);
 
   // Create HDF5 writer
   HDF5Writer writer(filename);

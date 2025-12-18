@@ -12,7 +12,7 @@ auto ProblemIn::param() -> Params * { return params_.get(); }
   return params_.get();
 }
 
-ProblemIn::ProblemIn(const std::string &fn) {
+ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   // toml++ wants a string_view
   std::string_view const fn_in{fn};
 
@@ -23,7 +23,7 @@ ProblemIn::ProblemIn(const std::string &fn) {
     config_ = toml::parse_file(fn_in);
   } catch (const toml::parse_error &err) {
     std::cerr << err << "\n";
-    THROW_ATHELAS_ERROR(" ! Issue reading input deck!");
+    THROW_ATHELAS_ERROR("Issue reading input deck!");
   }
   params_ = std::make_unique<Params>();
 
@@ -690,6 +690,7 @@ ProblemIn::ProblemIn(const std::string &fn) {
   // ----------------------------
   // ---------- output ----------
   // ----------------------------
+  params_->add("output.dir", output_dir);
   // In principle everything below can be defaulted, but
   // I still require the block present.
   if (!config_["output"].is_table()) {
