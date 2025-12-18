@@ -1,6 +1,7 @@
 #include <cfenv>
 #include <csignal>
 #include <expected>
+#include <filesystem>
 #include <print>
 #include <string>
 
@@ -15,6 +16,12 @@ using athelas::Driver, athelas::AthelasExitCodes, athelas::ProblemIn,
     athelas::segfault_handler;
 
 namespace {
+struct CommandLineOptions {
+  std::string input_file;
+  std::string output_dir = "./";
+};
+
+/*
 auto parse_input_file(std::span<char *> args)
     -> std::expected<std::string, std::string> {
   for (std::size_t i = 1; i < args.size(); ++i) {
@@ -28,6 +35,39 @@ auto parse_input_file(std::span<char *> args)
   }
   return std::unexpected("No input file passed! Use -i <path>");
 }
+*/
+auto parse_input_file(std::span<char *> args)
+    -> std::expected<CommandLineOptions, std::string> {
+  CommandLineOptions opts;
+  bool has_input = false;
+
+  for (std::size_t i = 1; i < args.size(); ++i) {
+    std::string_view arg = args[i];
+
+    if (arg == "-i" || arg == "--input") {
+      if (i + 1 >= args.size()) {
+        return std::unexpected("Missing input file after -i");
+      }
+      opts.input_file = args[i + 1];
+      has_input = true;
+      ++i; // Skip the next argument since we consumed it
+    } else if (arg == "-o" || arg == "--output-dir") {
+      if (i + 1 >= args.size()) {
+        return std::unexpected("Missing output directory after -o");
+      }
+      opts.output_dir = args[i + 1];
+      ++i; // Skip the next argument since we consumed it
+    } else {
+      return std::unexpected(std::format("Unknown argument: {}", arg));
+    }
+  }
+
+  if (!has_input) {
+    return std::unexpected("No input file passed! Use -i <path>");
+  }
+
+  return opts;
+}
 } // namespace
 
 auto main(int argc, char **argv) -> int {
@@ -36,8 +76,17 @@ auto main(int argc, char **argv) -> int {
     std::println("Error: {}", input_result.error());
     return AthelasExitCodes::FAILURE;
   }
+  const auto &opts = input_result.value();
 
-  std::string input_path = *input_result;
+  namespace fs = std::filesystem;
+  if (!fs::exists(opts.input_file)) {
+    athelas::THROW_ATHELAS_ERROR("Input file does not exist!");
+  }
+  if (opts.output_dir != "./") {
+    if (!fs::exists(opts.output_dir) || !fs::is_directory(opts.output_dir)) {
+      athelas::THROW_ATHELAS_ERROR("Output directory does not exist!");
+    }
+  }
 
 #ifdef ATHELAS_DEBUG
   feenableexcept(FE_INVALID | FE_DIVBYZERO | FE_OVERFLOW);
@@ -57,7 +106,8 @@ auto main(int argc, char **argv) -> int {
   Kokkos::initialize(argc, argv);
   {
     // pin
-    const auto pin = std::make_shared<ProblemIn>(input_path);
+    const auto pin =
+        std::make_shared<ProblemIn>(opts.input_file, opts.output_dir);
 
     // --- Create Driver ---
     Driver driver(pin);

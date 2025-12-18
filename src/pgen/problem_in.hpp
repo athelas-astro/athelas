@@ -22,7 +22,7 @@ namespace athelas {
 class ProblemIn {
 
  public:
-  explicit ProblemIn(const std::string &fn);
+  ProblemIn(const std::string &fn, const std::string &output_dir);
 
   auto param() -> Params *;
   [[nodiscard]] auto param() const -> Params *;
