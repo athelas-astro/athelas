@@ -33,7 +33,7 @@ class Driver {
         restart_(pin->param()->get<bool>("problem.restart")),
         bcs_(std::make_unique<BoundaryConditions>(
             bc::make_boundary_conditions(pin.get()))),
-        time_(0.0), dt_(pin_->param()->get<double>("output.initial_dt")),
+        time_(0.0), dt_(pin_->param()->get<double>("output.dt_init")),
         t_end_(pin->param()->get<double>("problem.tf")),
         eos_(std::make_unique<eos::EOS>(eos::initialize_eos(pin.get()))),
         opac_(std::make_unique<Opacity>(initialize_opacity(pin.get()))),

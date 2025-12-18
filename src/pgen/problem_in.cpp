@@ -700,14 +700,14 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   const double dt_hdf5 =
       config_["output"]["dt_hdf5"].value_or(tf.value() / 100.0);
   const double dt_init_frac = config_["output"]["dt_init_frac"].value_or(1.05);
-  const double initial_dt = config_["output"]["initial_dt"].value_or(1.0e-16);
+  const double dt_init = config_["output"]["dt_init"].value_or(1.0e-16);
   const bool history_enabled = config_["output"]["history"].is_table();
   const std::string hist_fn =
       config_["output"]["history"]["fn"].value_or("athelas.hst");
   const double hist_dt =
       config_["output"]["history"]["dt"].value_or(dt_hdf5 / 10);
-  if (initial_dt <= 0.0) {
-    THROW_ATHELAS_ERROR("initial_dt must be strictly > 0.0\n");
+  if (dt_init <= 0.0) {
+    THROW_ATHELAS_ERROR("dt_init must be strictly > 0.0\n");
   }
   if (dt_init_frac <= 1.0) {
     THROW_ATHELAS_ERROR("dt_init_frac must be strictly > 1.0\n");
@@ -721,7 +721,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   params_->add("output.ncycle_out", ncycle_out);
   params_->add("output.dt_hdf5", dt_hdf5);
   params_->add("output.dt_init_frac", dt_init_frac);
-  params_->add("output.initial_dt", initial_dt);
+  params_->add("output.dt_init", dt_init);
   params_->add("output.history_enabled", history_enabled);
   params_->add("output.hist_fn", hist_fn);
   params_->add("output.hist_dt", hist_dt);

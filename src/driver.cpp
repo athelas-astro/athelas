@@ -33,7 +33,7 @@ auto Driver::execute() -> int {
                           ? std::numeric_limits<double>::infinity()
                           : pin_->param()->get<double>("problem.nlim");
   const auto ncycle_out = pin_->param()->get<int>("output.ncycle_out");
-  const auto dt_init = pin_->param()->get<double>("output.initial_dt");
+  const auto dt_init = pin_->param()->get<double>("output.dt_init");
   const auto dt_init_frac = pin_->param()->get<double>("output.dt_init_frac");
   const auto dt_hdf5 = pin_->param()->get<double>("output.dt_hdf5");
 
