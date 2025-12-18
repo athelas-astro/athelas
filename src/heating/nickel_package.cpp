@@ -86,6 +86,8 @@ void NickelHeatingPackage::ni_update(const State *const state,
   auto mass_fractions = Kokkos::subview(mass_fractions_stages, dt_info.stage,
                                         Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
   const auto *const species_indexer = comps->species_indexer();
+  static const auto ind_ni = species_indexer->get<int>("ni56");
+  static const auto ind_co = species_indexer->get<int>("co56");
 
   auto mass = grid.mass();
   auto weights = grid.weights();
@@ -99,17 +101,17 @@ void NickelHeatingPackage::ni_update(const State *const state,
       ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
+          const double x_ni = ucf(i, vars::modes::CellAverage, ind_ni);
+          const double x_co = ucf(i, vars::modes::CellAverage, ind_co);
           const double f_dep =
-              this->template deposition_function<Model>(ucf, comps, phi, i, q);
-          local_sum += f_dep * weights(q) * phi(i, q + 1, k);
+              this->template deposition_function<Model>(i, q);
+          const double source = ni_source(x_ni, x_co, f_dep);
+          local_sum += f_dep * source * weights(q) * phi(i, q + 1, k);
         }
 
         const double dx_o_mkk = mass(i) * inv_mkk(i, k);
         delta_(stage, i, k, pkg_vars::Energy) += local_sum * dx_o_mkk;
       });
-
-  static const auto ind_ni = species_indexer->get<int>("ni56");
-  static const auto ind_co = species_indexer->get<int>("co56");
 
   // TODO(astrobarker): Should this be an option?
   // NOTE: Nickel decay chain only affects cell averages.
