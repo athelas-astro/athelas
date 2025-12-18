@@ -56,9 +56,7 @@ void NickelHeatingPackage::update_explicit(const State *const state,
 
   auto *comps = state->comps();
 
-  if (model_ == NiHeatingModel::Swartz) [[likely]] {
-    ni_update<NiHeatingModel::Swartz>(state, comps, grid, dt_info);
-  } else if (model_ == NiHeatingModel::Jeffery) {
+  if (model_ == NiHeatingModel::Jeffery) {
     ni_update<NiHeatingModel::Jeffery>(state, comps, grid, dt_info);
   } else {
     ni_update<NiHeatingModel::FullTrapping>(state, comps, grid, dt_info);
