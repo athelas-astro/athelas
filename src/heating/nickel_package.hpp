@@ -23,9 +23,8 @@ constexpr int Iron = 3;
 using bc::BoundaryConditions;
 
 // FullTrapping
-// Swartz
 // Jeffery 1999
-enum class NiHeatingModel { FullTrapping, Swartz, Jeffery };
+enum class NiHeatingModel { FullTrapping, Jeffery };
 
 inline auto parse_model(const std::string &model) -> NiHeatingModel {
   if (model == "full_trapping") {
@@ -33,9 +32,6 @@ inline auto parse_model(const std::string &model) -> NiHeatingModel {
   }
   if (model == "jeffery") {
     return NiHeatingModel::Jeffery;
-  }
-  if (model == "swartz") {
-    return NiHeatingModel::Swartz;
   }
   THROW_ATHELAS_ERROR("Unknown nickel heating model!");
 }
@@ -83,35 +79,26 @@ class NickelHeatingPackage {
    */
   template <NiHeatingModel Model>
   [[nodiscard]]
-  KOKKOS_INLINE_FUNCTION auto
-  deposition_function(const AthelasArray3D<double> ucf,
-                      const atom::CompositionData *const comps,
-                      const AthelasArray3D<double> phi, const int ix,
-                      const int node) const -> double {
+  KOKKOS_INLINE_FUNCTION auto deposition_function(const int i,
+                                                  const int q) const -> double {
     using basis::basis_eval;
     if constexpr (Model == NiHeatingModel::FullTrapping) {
-      static const auto *const species_indexer = comps->species_indexer();
-      static const auto ind_ni = species_indexer->get<int>("ni56");
-      static const auto ind_co = species_indexer->get<int>("co56");
-      const double x_ni = basis_eval(phi, ucf, ix, ind_ni, node + 1);
-      const double x_co = basis_eval(phi, ucf, ix, ind_co, node + 1);
-      return eps_nickel_cobalt(x_ni, x_co);
-    } else if constexpr (Model == NiHeatingModel::Swartz) {
-      THROW_ATHELAS_ERROR("Swartz model not implemented!");
+      return 1.0;
     } else if constexpr (Model == NiHeatingModel::Jeffery) {
       // Here we assume that the integral
       // (1/4pi) e^(-tau) dOmega is already done during fill_derived
       // and the results stored in int_etau_domega_
-      const double I = 1.0 - 0.5 * int_etau_domega_(ix, node);
-
-      static const auto *const species_indexer = comps->species_indexer();
-      static const auto ind_ni = species_indexer->get<int>("ni56");
-      static const auto ind_co = species_indexer->get<int>("co56");
-      const double x_ni = basis_eval(phi, ucf, ix, ind_ni, node + 1);
-      const double x_co = basis_eval(phi, ucf, ix, ind_co, node + 1);
-      return eps_nickel(x_ni) * (F_PE_NI_ + F_GM_NI_ * I) +
-             eps_cobalt(x_co) * (F_PE_CO_ + F_GM_CO_ * I);
+      const double I = 1.0 - 0.5 * int_etau_domega_(i, q);
+      return I;
     }
+  }
+
+  // TODO(astrobarker): use fma?
+  KOKKOS_INLINE_FUNCTION
+  static auto ni_source(const double x_ni, const double x_co,
+                        const double f_dep) -> double {
+    return eps_nickel(x_ni) * (F_PE_NI_ + F_GM_NI_ * f_dep) +
+           eps_cobalt(x_co) * (F_PE_CO_ + F_GM_CO_ * f_dep);
   }
 
   KOKKOS_FORCEINLINE_FUNCTION
@@ -162,7 +149,7 @@ class NickelHeatingPackage {
   static constexpr double E_LAMBDA_CO = 6.78e9; // erg / g / s
 
   // Jeffery 1999
-  // The following are fractions of decay energy that go into gammas (F_NI_*)
+  // The following are fractions of decay energy that go into gammas (F_GM_*)
   // and into positrons (F_PE_*).
   static constexpr double F_PE_NI_ = 0.004;
   static constexpr double F_GM_NI_ = 0.996;
