@@ -706,6 +706,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
       config_["output"]["history"]["fn"].value_or("athelas.hst");
   const double hist_dt =
       config_["output"]["history"]["dt"].value_or(dt_hdf5 / 10);
+  auto fixed_dt = config_["output"]["dt_fixed"].value<double>();
   if (dt_init <= 0.0) {
     THROW_ATHELAS_ERROR("dt_init must be strictly > 0.0\n");
   }
@@ -725,6 +726,9 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   params_->add("output.history_enabled", history_enabled);
   params_->add("output.hist_fn", hist_fn);
   params_->add("output.hist_dt", hist_dt);
+  if (fixed_dt) {
+    params_->add("output.dt_fixed", fixed_dt.value());
+  }
 
   // --------------------------
   // ---------- time ----------

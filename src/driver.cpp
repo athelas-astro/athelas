@@ -36,6 +36,7 @@ auto Driver::execute() -> int {
   const auto dt_init = pin_->param()->get<double>("output.dt_init");
   const auto dt_init_frac = pin_->param()->get<double>("output.dt_init_frac");
   const auto dt_hdf5 = pin_->param()->get<double>("output.dt_hdf5");
+  const auto fixed_dt = pin_->param()->contains("output.dt_fixed");
 
   dt_ = dt_init;
   TimeStepInfo dt_info{.t = time_,
@@ -65,9 +66,14 @@ auto Driver::execute() -> int {
   std::println("# Step    t       dt       zone_cycles / wall_second");
   while (time_ < t_end_ && iStep <= nlim) {
 
-    dt_ = std::min(manager_->min_timestep(state_.get(), grid_,
+    if (!fixed_dt) {
+      dt_ =
+          std::min(manager_->min_timestep(state_.get(), grid_,
                                           {.t = time_, .dt = dt_, .stage = 0}),
                    dt_ * dt_init_frac);
+    } else {
+      dt_ = pin_->param()->get<double>("output.dt_fixed");
+    }
     if (time_ + dt_ > t_end_) {
       dt_ = t_end_ - time_;
     }
