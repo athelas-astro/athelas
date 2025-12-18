@@ -101,8 +101,7 @@ void NickelHeatingPackage::ni_update(const State *const state,
         for (int q = 0; q < nNodes; ++q) {
           const double x_ni = ucf(i, vars::modes::CellAverage, ind_ni);
           const double x_co = ucf(i, vars::modes::CellAverage, ind_co);
-          const double f_dep =
-              this->template deposition_function<Model>(i, q);
+          const double f_dep = this->template deposition_function<Model>(i, q);
           const double source = ni_source(x_ni, x_co, f_dep);
           local_sum += f_dep * source * weights(q) * phi(i, q + 1, k);
         }

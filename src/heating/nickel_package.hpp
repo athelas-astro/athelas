@@ -79,9 +79,8 @@ class NickelHeatingPackage {
    */
   template <NiHeatingModel Model>
   [[nodiscard]]
-  KOKKOS_INLINE_FUNCTION auto
-  deposition_function( const int i,
-                      const int q) const -> double {
+  KOKKOS_INLINE_FUNCTION auto deposition_function(const int i,
+                                                  const int q) const -> double {
     using basis::basis_eval;
     if constexpr (Model == NiHeatingModel::FullTrapping) {
       return 1.0;
@@ -96,7 +95,8 @@ class NickelHeatingPackage {
 
   // TODO(astrobarker): use fma?
   KOKKOS_INLINE_FUNCTION
-  static auto ni_source(const double x_ni, const double x_co, const double f_dep) -> double {
+  static auto ni_source(const double x_ni, const double x_co,
+                        const double f_dep) -> double {
     return eps_nickel(x_ni) * (F_PE_NI_ + F_GM_NI_ * f_dep) +
            eps_cobalt(x_co) * (F_PE_CO_ + F_GM_CO_ * f_dep);
   }
