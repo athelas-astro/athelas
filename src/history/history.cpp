@@ -1,10 +1,3 @@
-/**
- * @file history.cpp
- * --------------
- *
- * @brief HistoryOutput class
- */
-
 #include <format>
 #include <fstream>
 #include <functional>
@@ -25,12 +18,12 @@ using QuantityFunction =
     std::function<double(const State &, const GridStructure &,
                          const ModalBasis *, const ModalBasis *)>;
 
-HistoryOutput::HistoryOutput(const std::string &filename, const bool enabled)
-    : enabled_(enabled), header_written_(false), filename_(filename) {
+HistoryOutput::HistoryOutput(const std::string &filename, const std::string &output_dir, const bool enabled)
+    : enabled_(enabled), header_written_(false), filename_(filename), output_dir_(output_dir) {
   if (!enabled_) {
     return;
   }
-  file_.open(filename, std::ios::out | std::ios::app);
+  file_.open(output_dir_ + "/" + filename, std::ios::out | std::ios::app);
 }
 
 void HistoryOutput::add_quantity(const std::string &name,

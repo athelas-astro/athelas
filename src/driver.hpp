@@ -44,6 +44,7 @@ class Driver {
         ssprk_(pin.get(), &grid_, eos_.get()),
         history_(std::make_unique<HistoryOutput>(
             pin->param()->get<std::string>("output.hist_fn"),
+            pin->param()->get<std::string>("output.dir"),
             pin->param()->get<bool>("output.history_enabled"))) {
     static const int n_stages = ssprk_.n_stages();
     state_ = std::make_unique<State>(pin.get(), n_stages);

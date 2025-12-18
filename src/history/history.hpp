@@ -1,10 +1,3 @@
-/**
- * @file history.hpp
- * --------------
- *
- * @brief HistoryOutput class:
- */
-
 #pragma once
 
 #include <fstream>
@@ -27,7 +20,7 @@ class HistoryOutput {
       const State &, const GridStructure &, const basis::ModalBasis *,
       const basis::ModalBasis *)>;
 
-  explicit HistoryOutput(const std::string &filename, bool enabled);
+  explicit HistoryOutput(const std::string &filename, const std::string &output_dir, bool enabled);
 
   void add_quantity(const std::string &name, QuantityFunction func);
 
@@ -39,6 +32,7 @@ class HistoryOutput {
   bool enabled_;
   bool header_written_;
   std::string filename_;
+  std::string output_dir_;
   std::ofstream file_;
   std::unordered_map<std::string, QuantityFunction> quantities_;
   std::vector<std::string> quantity_names_;
