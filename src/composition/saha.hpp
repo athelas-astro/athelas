@@ -313,11 +313,15 @@ struct CoupledSolverContent {
   double target_var; // sie or pressure
 };
 
+/**
+ * @brief Residual function for Saha-coupled temperature inversion
+ */
 KOKKOS_FUNCTION
 template <eos::EOSInversion Inversion>
 auto temperature_residual(const double temperature, const double rho,
                           const eos::EOS *eos,
-                          const CoupledSolverContent &content) -> double {
+                          const CoupledSolverContent &content)
+    -> root_finders::RootEval<double> {
 
   auto ucf = content.ucf;
   auto uaf = content.uaf;
@@ -443,20 +447,68 @@ auto temperature_residual(const double temperature, const double rho,
   lambda[5] = sigma3(i, q);
   lambda[6] = e_ion_corr(i, q);
 
+  /*
   if constexpr (Inversion == eos::EOSInversion::Pressure) {
-    const double inv_dfdt =
-        1.0 / eos::Paczynski::dp_dt(temperature, rho, lambda);
     const double f =
         pressure_from_density_temperature(eos, rho, temperature, lambda) -
         content.target_var;
-    return temperature - inv_dfdt * f;
-  } else { // sie inversion
+    if constexpr (RHS == root_finders::RHSType::Newton) {
     const double inv_dfdt =
-        1.0 / eos::Paczynski::dsie_dt(temperature, rho, lambda);
+        1.0 / eos::Paczynski::dp_dt(temperature, rho, lambda);
+    return temperature - inv_dfdt * f;
+    } else {
+      return f;
+    }
+  } else { // sie inversion
     const double f =
         sie_from_density_temperature(eos, rho, temperature, lambda) -
         content.target_var;
-    return temperature - inv_dfdt * f;
+    if constexpr (RHS == root_finders::RHSType::Newton) {
+    double lam = 1.0;
+    const double inv_dfdt =
+        1.0 / eos::Paczynski::dsie_dt(temperature, rho, lambda);
+    if( temperature - inv_dfdt * f < 0.0) {
+      while (temperature - lam * inv_dfdt * f < 0.0) {
+        lam *= 0.5;
+      }
+    }
+    return temperature - lam * (inv_dfdt * f);
+    } else {
+      return f;
+    }
+  }
+  */
+
+  if constexpr (Inversion == eos::EOSInversion::Pressure) {
+    const double f =
+        pressure_from_density_temperature(eos, rho, temperature, lambda) -
+        content.target_var;
+    const double inv_dfdt =
+        1.0 / eos::Paczynski::dp_dt(temperature, rho, lambda);
+    const double g = temperature - inv_dfdt * f;
+
+    return root_finders::RootEval<double>{.g = g, .f = f};
+  } else { // sie inversion
+    const double f =
+        sie_from_density_temperature(eos, rho, temperature, lambda) -
+        content.target_var;
+    const double inv_dfdt =
+        1.0 / eos::Paczynski::dsie_dt(temperature, rho, lambda);
+
+    // Ensure positive update
+    double lam = 1.0;
+    /*
+    const double step = temperature - inv_dfdt * f;
+    if (step <= 0.0) {
+        while (temperature - lam * inv_dfdt * f < 0.0) {
+            lam *= 0.5;
+        }
+        std::println("lam = {}", lam);
+    }
+    */
+    const double g = temperature - lam * inv_dfdt * f;
+
+    return root_finders::RootEval<double>{.g = g, .f = f};
   }
 }
 
@@ -466,7 +518,8 @@ void compute_temperature_with_saha(const eos::EOS *eos, State *state,
                                    const GridStructure &grid,
                                    const basis::ModalBasis &basis) {
   using root_finders::RegulaFalsiAlgorithm, root_finders::FixedPointAlgorithm,
-      root_finders::AAFixedPointAlgorithm;
+      root_finders::AAFixedPointAlgorithm,
+      root_finders::BracketedFixedPointAlgorithm, root_finders::HybridError;
   static const auto &nnodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<MeshDomain>());
   static const IndexRange nb(nnodes + 2);
@@ -509,8 +562,9 @@ void compute_temperature_with_saha(const eos::EOS *eos, State *state,
   auto species_offsets = atomic_data->offsets();
   auto prefix_sum_pots = atomic_data->sum_pots();
 
-  static root_finders::RootFinder<double, AAFixedPointAlgorithm<double>> solver(
-      {.abs_tol = 1.0e-8, .rel_tol = 1.0e-8, .max_iterations = 32});
+  static root_finders::RootFinder<double, BracketedFixedPointAlgorithm<double>,
+                                  HybridError>
+      solver({.abs_tol = 250.0, .rel_tol = 1.0e-7, .max_iterations = 32});
 
   auto phi = basis.phi();
   // Allocate scratch space
@@ -585,7 +639,9 @@ void compute_temperature_with_saha(const eos::EOS *eos, State *state,
                                  n_e(i, q) += z * nk;
                                });
 
-        const double res = solver.solve(temperature_residual<Inversion>,
+        static constexpr double a = 500.0;
+        static constexpr double b = 1.0e12;
+        const double res = solver.solve(temperature_residual<Inversion>, a, b,
                                         temperature_guess, rho, eos, content);
         uaf(i, q, vars::aux::Tgas) = res;
       });

@@ -11,6 +11,30 @@
 // TODO(astrobarker): make a solvers namespace? If it grows beyond rf, yes.
 namespace athelas::root_finders {
 
+enum class RHSType {
+  Newton, // x - f(x)/f'(x)
+  Function // f(x)
+};
+
+/**
+ * @brief Holds evaluation results for a root-finding step.
+ *
+ * Contains the residual and the next iterate for a bracketed
+ * fixed-point or Newton-style root-finding algorithm.
+ *
+ * @tparam T Floating-point type
+ */
+template <typename T>
+struct RootEval {
+  T g; // fixed-point / Newton update: x - f/df
+  T f; // residual: f(x)
+};
+
+template <typename Fn, typename T, typename... Args>
+concept RootEvalCallable = requires(Fn func, T x, Args... args) {
+  { func(x, args...) } -> std::same_as<RootEval<T>>;
+};
+
 template <typename T, typename F, typename... Args>
 auto residual(F g, T x0, const int k, const int iC, Args... args) -> double {
   return g(x0, k, iC, args...) - x0(iC, k);
@@ -492,6 +516,14 @@ class RootFinder {
     return algorithm_(func, a, b, guess, config_, std::forward<Args>(args)...);
   }
 
+  template <typename F, typename G, typename... Args>
+    requires std::invocable<F, T, Args...> && std::invocable<G, T, Args...>
+  auto solve(F func, G target, double a, double b, double x0,
+             Args &&...args) const -> T {
+    return algorithm_(func, target, a, b, x0, config_,
+                      std::forward<Args>(args)...);
+  }
+
   auto config() const noexcept -> ToleranceConfig<T, ErrorMetric> & {
     return config_;
   }
@@ -658,6 +690,200 @@ class AAFixedPointAlgorithm {
       x = xkp1;
     }
 
+    return x;
+  }
+};
+
+/**
+ * @brief Bracketed fixed-point algorithm with bisection fallback.
+ *
+ * This class implements fixed-point iteration: x_{n+1} = g(x_n) with bounds
+ * checking. If the iteration exits the bracket [a,b], it falls back to
+ * bisection to maintain the bracket and ensure convergence.
+ *
+ * @tparam T Floating-point type for computations
+ *
+ * @par Usage Note:
+ * To solve f(x) = 0 on [a,b], reformulate as x = x - f(x) = g(x).
+ * The function f must have opposite signs at a and b (i.e., f(a)*f(b) < 0).
+ */
+/*
+template <typename T>
+class BracketedFixedPointAlgorithm {
+ public:
+  template <typename Fn, typename ErrorMetric, typename... Args>
+requires RootEvalCallable<Fn, T, Args...>
+  auto operator()(Fn func, T a, T b, T x0,
+                  const ToleranceConfig<T, ErrorMetric> &config,
+                  Args &&...args) const -> T {
+    // Verify bracketing condition
+    const RootEval<T> fa = func(a, std::forward<Args>(args)...);
+    const RootEval<T> fb = func(b, std::forward<Args>(args)...);
+
+    // Ensure a < b and track which endpoint is negative
+    T lower = a;
+    T upper = b;
+    T f_lower = fa.f;
+    T f_upper = fb.f;
+
+    if (f_upper * f_lower > 0) {
+      std::println("a b fa fb {:.5e} {:.5e} {:.5e} {:.5e}", a, b, f_lower,
+f_upper); THROW_ATHELAS_ERROR( "Bracketed fixed-point requires f(a) and f(b) to
+have opposite signs");
+    }
+
+    if (lower > upper) {
+      std::swap(lower, upper);
+      std::swap(f_lower, f_upper);
+    }
+
+    // Initialize with x0 if it's within bounds, otherwise use midpoint
+    T x = (x0 >= lower && x0 <= upper) ? x0 : (lower + upper) / 2;
+
+    for (int i = 0; i < config.max_iterations; ++i) {
+      // Try fixed-point iteration
+      const RootEval<T> re = func(x, std::forward<Args>(args)...);
+      const T x_new = re.g;
+
+      // Check if fixed-point result is within bounds
+      if ((x_new >= lower && x_new <= upper)) {
+        // Within bounds - check convergence
+        const T f_new = re.f;
+        const bool bracket_converged = upper - lower < config.abs_tol;
+        const bool x_converged = config.converged(x, x_new);
+        const bool f_converged = std::abs(f_new) < config.abs_tol;
+        if (bracket_converged || x_converged || f_converged) {
+          return x_new;
+        }
+
+        if (f_new * f_lower < 0) {
+          upper = x_new;
+          f_upper = f_new;
+        } else {
+          lower = x_new;
+          f_lower = f_new;
+        }
+
+        if (lower > upper) {
+          std::swap(lower, upper);
+          std::swap(f_lower, f_upper);
+        }
+
+        x = x_new;
+      } else {
+        // Out of bounds - fall back to bisection
+        x = (lower + upper) / 2;
+        const T f_mid = func(x, std::forward<Args>(args)...).f;
+
+        const bool bracket_converged = upper - lower < config.abs_tol;
+        const bool x_converged = config.converged(x, x_new);
+        const bool f_converged = std::abs(f_mid) < config.abs_tol;
+        if (bracket_converged || x_converged || f_converged) {
+          return x;
+        }
+
+        if (f_mid * f_lower < 0) {
+          upper = x;
+          f_upper = f_mid;
+        } else {
+          lower = x;
+          f_lower = f_mid;
+        }
+      if (i == config.max_iterations - 1) {
+          //std::println("x up lo {:.5e} {:.5e} {:.5e} {:.5e}", x, lower, upper,
+upper-lower); std::println("x x0 up-lo {:.5e} {:.5e} {:.5e}", x, x0,
+upper-lower); const bool bracket_converged = upper - lower < config.abs_tol;
+      }
+      }
+    }
+
+    return x;
+  }
+};
+*/
+
+template <typename T>
+class BracketedFixedPointAlgorithm {
+ public:
+  template <typename Fn, typename ErrorMetric, typename... Args>
+    requires RootEvalCallable<Fn, T, Args...>
+  auto operator()(Fn func, T a, T b, T x0,
+                  const ToleranceConfig<T, ErrorMetric> &config,
+                  Args &&...args) const -> T {
+    // Evaluate endpoints
+    RootEval<T> fa = func(a, std::forward<Args>(args)...);
+    RootEval<T> fb = func(b, std::forward<Args>(args)...);
+
+    T lower = a;
+    T upper = b;
+    T f_lower = fa.f;
+    T f_upper = fb.f;
+
+    if (f_lower * f_upper > 0) {
+      THROW_ATHELAS_ERROR("Bracketed fixed-point requires f(a) and f(b) to "
+                          "have opposite signs");
+    }
+
+    if (lower > upper) {
+      std::swap(lower, upper);
+      std::swap(f_lower, f_upper);
+    }
+
+    // Initialize iteration
+    T x = (x0 >= lower && x0 <= upper) ? x0 : (lower + upper) / 2;
+
+    for (int i = 0; i < config.max_iterations; ++i) {
+      // Evaluate Newton/fixed-point step
+      RootEval<T> re = func(x, std::forward<Args>(args)...);
+      T x_new = re.g;
+      T f_new = re.f;
+
+      // Clamp Newton step inside bracket
+      if (x_new < lower) x_new = lower;
+      if (x_new > upper) x_new = upper;
+
+      // Check convergence based on x or f
+      if (config.converged(x, x_new) || std::abs(f_new) < config.abs_tol) {
+        return x_new;
+      }
+
+      // Update bracket based on function sign
+      if (f_new * f_lower < 0) {
+        upper = x_new;
+        f_upper = f_new;
+      } else {
+        lower = x_new;
+        f_lower = f_new;
+      }
+
+      x = x_new;
+
+      // Bisection fallback if Newton step leaves the original bracket
+      if (x_new <= lower || x_new >= upper) {
+        x = (lower + upper) / 2;
+        f_new = func(x, std::forward<Args>(args)...).f;
+
+        if (std::abs(f_new) < config.abs_tol) {
+          return x;
+        }
+
+        if (f_new * f_lower < 0) {
+          upper = x;
+          f_upper = f_new;
+        } else {
+          lower = x;
+          f_lower = f_new;
+        }
+      }
+      if (i == config.max_iterations - 1) {
+        // std::println("x up lo {:.5e} {:.5e} {:.5e} {:.5e}", x, lower, upper,
+        // upper-lower);
+        std::println("x x0 up-lo {:.5e} {:.5e} {:.5e}", x, x0, upper - lower);
+        const bool bracket_converged = upper - lower < config.abs_tol;
+      }
+    }
+
+    // Return last iterate if max iterations reached
     return x;
   }
 };
