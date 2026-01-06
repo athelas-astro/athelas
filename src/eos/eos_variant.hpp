@@ -137,6 +137,16 @@ KOKKOS_INLINE_FUNCTION auto gamma1(const EOS *const eos) -> double {
   return std::visit([](auto &eos) { return eos.gamma1(); }, *eos);
 }
 
+KOKKOS_INLINE_FUNCTION auto min_sie(const EOS *const eos, const double rho,
+                                    const double *const lambda) -> double {
+  return std::visit(
+      [&rho, &lambda](auto &eos) {
+        using ::athelas::eos::min_sie;
+        return min_sie(eos, rho, lambda);
+      },
+      *eos);
+}
+
 KOKKOS_INLINE_FUNCTION auto initialize_eos(const ProblemIn *pin) -> EOS {
   EOS eos;
   const auto type = pin->param()->get<std::string>("eos.type");
