@@ -15,7 +15,7 @@ namespace athelas {
 using basis::ModalBasis;
 
 using QuantityFunction =
-    std::function<double(const State &, const GridStructure &,
+    std::function<double(const MeshState &, const GridStructure &,
                          const ModalBasis *, const ModalBasis *)>;
 
 HistoryOutput::HistoryOutput(const std::string &filename,
@@ -37,7 +37,8 @@ void HistoryOutput::add_quantity(const std::string &name,
   quantity_names_.push_back(name);
 }
 
-void HistoryOutput::write(const State &state, const GridStructure &grid,
+void HistoryOutput::write(const MeshState &mesh_state,
+                          const GridStructure &grid,
                           const ModalBasis *fluid_basis,
                           const ModalBasis *rad_basis, double time) {
   if (!enabled_) {
@@ -57,7 +58,8 @@ void HistoryOutput::write(const State &state, const GridStructure &grid,
   file_ << std::format("\n{:.15e}", time);
 
   for (const auto &name : quantity_names_) {
-    const double value = quantities_[name](state, grid, fluid_basis, rad_basis);
+    const double value =
+        quantities_[name](mesh_state, grid, fluid_basis, rad_basis);
     file_ << std::format(" {:.15e}", value);
   }
 

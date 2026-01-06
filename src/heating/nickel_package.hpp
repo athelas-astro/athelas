@@ -41,11 +41,11 @@ class NickelHeatingPackage {
   NickelHeatingPackage(const ProblemIn *pin, basis::ModalBasis *basis,
                        const Params *indexer, int n_stages, bool active = true);
 
-  void update_explicit(const State *const state, const GridStructure &grid,
+  void update_explicit(const StageData &stage_data, const GridStructure &grid,
                        const TimeStepInfo &dt_info);
 
   template <NiHeatingModel Model>
-  void ni_update(const State *const state, atom::CompositionData *comps,
+  void ni_update(const StageData &stage_data, atom::CompositionData *comps,
                  const GridStructure &grid, const TimeStepInfo &dt_info) const;
 
   void apply_delta(AthelasArray3D<double> lhs,
@@ -107,7 +107,7 @@ class NickelHeatingPackage {
     return -rho * kappa_gamma * dz;
   }
 
-  [[nodiscard]] auto min_timestep(const State * /*state*/,
+  [[nodiscard]] auto min_timestep(const StageData & /*stage_data*/,
                                   const GridStructure & /*grid*/,
                                   const TimeStepInfo & /*dt_info*/) const
       -> double;
@@ -116,7 +116,7 @@ class NickelHeatingPackage {
 
   [[nodiscard]] auto is_active() const noexcept -> bool;
 
-  void fill_derived(State *state, const GridStructure &grid,
+  void fill_derived(StageData &stage_data, const GridStructure &grid,
                     const TimeStepInfo &dt_info) const;
 
   void set_active(bool active);

@@ -19,18 +19,16 @@ GeometryPackage::GeometryPackage(const ProblemIn *pin, ModalBasis *basis,
                                   basis->order(), nvars_geom);
 }
 
-void GeometryPackage::update_explicit(const State *const state,
+void GeometryPackage::update_explicit(const StageData &stage_data,
                                       const GridStructure &grid,
                                       const TimeStepInfo &dt_info) {
   static const int nNodes = grid.n_nodes();
   static const IndexRange kb(order_);
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  auto u_stages = state->u_cf_stages();
 
-  auto uaf = state->u_af();
+  auto uaf = stage_data.get_field("u_af");
   const auto stage = dt_info.stage;
-  auto ucf =
-      Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
+  auto ucf = stage_data.get_field("u_cf");
 
   auto sqrt_gm = grid.sqrt_gm();
   auto dx = grid.widths();
@@ -96,7 +94,7 @@ void GeometryPackage::zero_delta() const noexcept {
  * @brief geometry timestep restriction
  * We do not enforce a timestep restriction from geometry sources.
  **/
-auto GeometryPackage::min_timestep(const State *const /*state*/,
+auto GeometryPackage::min_timestep(const StageData & /*state*/,
                                    const GridStructure & /*grid*/,
                                    const TimeStepInfo & /*dt_info*/) const
     -> double {
@@ -109,7 +107,7 @@ auto GeometryPackage::min_timestep(const State *const /*state*/,
  * @brief geometry package fill derived.
  * no-op at present
  */
-void GeometryPackage::fill_derived(State * /*state*/,
+void GeometryPackage::fill_derived(StageData & /*state*/,
                                    const GridStructure & /*grid*/,
                                    const TimeStepInfo & /*dt_info*/) const {}
 

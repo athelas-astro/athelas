@@ -43,17 +43,18 @@ auto Driver::execute() -> int {
                        .dt = dt_,
                        .dt_coef_implicit = dt_,
                        .dt_coef = dt_,
-                       .stage = -1};
+                       .stage = 0};
 
   // some startup io
-  manager_->fill_derived(state_.get(), grid_, dt_info);
+  auto sd0 = mesh_state_(0);
+  manager_->fill_derived(sd0, grid_, dt_info);
   write_basis(fluid_basis_.get(),
               pin_->param()->get<std::string>("problem.problem"));
   print_simulation_parameters(grid_, pin_.get());
-  write_state(state_.get(), grid_, &sl_hydro_, pin_.get(), time_,
+  write_state(sd0, grid_, &sl_hydro_, pin_.get(), time_,
               pin_->param()->get<int>("fluid.porder"), 0, rad_active);
-  history_->write(*state_, grid_, fluid_basis_.get(), radiation_basis_.get(),
-                  time_);
+  history_->write(mesh_state_, grid_, fluid_basis_.get(),
+                  radiation_basis_.get(), time_);
 
   // misc
   bool &thermal_engine_active =
@@ -68,7 +69,7 @@ auto Driver::execute() -> int {
 
     if (!fixed_dt) {
       dt_ =
-          std::min(manager_->min_timestep(state_.get(), grid_,
+          std::min(manager_->min_timestep(mesh_state_(0), grid_,
                                           {.t = time_, .dt = dt_, .stage = 0}),
                    dt_ * dt_init_frac);
     } else {
@@ -80,10 +81,10 @@ auto Driver::execute() -> int {
 
     // This logic could probably be cleaner..
     if (!rad_active) {
-      ssprk_.step(manager_.get(), state_.get(), grid_, time_, dt_, &sl_hydro_);
+      ssprk_.step(manager_.get(), mesh_state_, grid_, time_, dt_, &sl_hydro_);
     } else {
       try {
-        ssprk_.step_imex(manager_.get(), state_.get(), grid_, time_, dt_,
+        ssprk_.step_imex(manager_.get(), mesh_state_, grid_, time_, dt_,
                          &sl_hydro_, &sl_rad_);
       } catch (const AthelasError &e) {
         std::cerr << e.what() << "\n";
@@ -97,7 +98,7 @@ auto Driver::execute() -> int {
     // Call the operator split time stepper
     // Likely will need work if implicit physics is split.
     if (operator_split_physics_) {
-      split_stepper_->step(split_manager_.get(), state_.get(), grid_, time_,
+      split_stepper_->step(split_manager_.get(), mesh_state_, grid_, time_,
                            dt_);
     }
 
@@ -123,11 +124,11 @@ auto Driver::execute() -> int {
 
 #ifdef ATHELAS_DEBUG
     try {
-      check_state(state_.get(), grid_.get_ihi(), rad_active);
+      check_state(sd0, grid_.get_ihi(), rad_active);
     } catch (const AthelasError &e) {
-      std::cerr << e.what() << std::endl;
+      std::cerr << e.what() << "\n";
       std::println("!!! Bad State found, writing _final_ output file ...");
-      write_state(state_.get(), grid_, &sl_hydro_, pin_.get(), time_,
+      write_state(sd0, grid_, &sl_hydro_, pin_.get(), time_,
                   pin_->param()->get<int>("fluid.porder"), -1, rad_active);
       return AthelasExitCodes::FAILURE;
     }
@@ -137,14 +138,14 @@ auto Driver::execute() -> int {
 
     // Write state, other io
     if (time_ >= i_out_h5 * dt_hdf5) {
-      manager_->fill_derived(state_.get(), grid_, dt_info);
-      write_state(state_.get(), grid_, &sl_hydro_, pin_.get(), time_,
+      manager_->fill_derived(sd0, grid_, dt_info);
+      write_state(sd0, grid_, &sl_hydro_, pin_.get(), time_,
                   fluid_basis_->order(), i_out_h5, rad_active);
       i_out_h5 += 1;
     }
 
     if (time_ >= i_out_hist * pin_->param()->get<double>("output.hist_dt")) {
-      history_->write(*state_, grid_, fluid_basis_.get(),
+      history_->write(mesh_state_, grid_, fluid_basis_.get(),
                       radiation_basis_.get(), time_);
       i_out_hist += 1;
     }
@@ -160,8 +161,8 @@ auto Driver::execute() -> int {
     iStep++;
   }
 
-  manager_->fill_derived(state_.get(), grid_, dt_info);
-  write_state(state_.get(), grid_, &sl_hydro_, pin_.get(), time_,
+  manager_->fill_derived(sd0, grid_, dt_info);
+  write_state(sd0, grid_, &sl_hydro_, pin_.get(), time_,
               pin_->param()->get<int>("fluid.porder"), -1, rad_active);
 
   return AthelasExitCodes::SUCCESS;
@@ -180,6 +181,44 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
                pin_->param()->get<int>("radiation.porder", 1));
   const auto cfl =
       compute_cfl(pin_->param()->get<double>("problem.cfl"), max_order);
+  const bool rad_active = pin->param()->get<bool>("physics.rad_active");
+  const bool comps_active =
+      pin->param()->get<bool>("physics.composition_enabled");
+
+  // --- Set up mesh state ---
+  // First set up the conserved fields.
+  // Composition var names can't be known yet, so they are just set to
+  // comps_0, ...
+  int nvars_cons = 3;
+  std::vector<std::string> varnames_cons = {"tau", "vel", "fluid_energy"};
+  if (rad_active) {
+    nvars_cons += 2;
+    varnames_cons.emplace_back("rad_energy");
+    varnames_cons.emplace_back("rad_momentum");
+  }
+  if (comps_active) {
+    const auto ncomps = pin->param()->get<int>("composition.ncomps");
+    nvars_cons += ncomps;
+    for (int i = 0; i < ncomps; ++i) {
+      const auto str = "comps_" + std::to_string(i);
+      varnames_cons.emplace_back(str);
+    }
+  }
+  mesh_state_.register_field("u_cf", DataPolicy::Staged, "Conserved variables",
+                             varnames_cons, nx + 2, max_order, nvars_cons);
+
+  int nvars_aux = 3;
+  mesh_state_.register_field("u_af", DataPolicy::OneCopy, "Auxiliary variables",
+                             {"pressure", "gas temperature", "sound speed"},
+                             nx + 2, max_order + 2, nvars_aux);
+  int nvars_prim = 3;
+  mesh_state_.register_field("u_pf", DataPolicy::OneCopy, "Primitive variables",
+                             {"density", "momentum", "sie"}, nx + 2,
+                             max_order + 2, nvars_prim);
+  auto info = mesh_state_.field_info();
+  std::println("{}", info);
+  auto sd0 = mesh_state_(0);
+  auto prims = sd0.get_field("u_pf");
 
   if (!restart_) {
     // The pattern here is annoying and due to a chicken-and-egg
@@ -193,19 +232,19 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
     // initialize_fields call populates the conserved variables.
     // For simple cases, like Sod, the layering is redundant, as
     // the bases are never used.
-    initialize_fields(state_.get(), &grid_, eos_.get(), pin);
+    initialize_fields(mesh_state_, &grid_, eos_.get(), pin);
 
     // --- Datastructure for modal basis ---
     static const bool rad_active =
         pin_->param()->get<bool>("physics.rad_active");
     fluid_basis_ = std::make_unique<ModalBasis>(
-        poly_basis::legendre, state_->u_pf(), &grid_,
+        poly_basis::legendre, prims, &grid_,
         pin->param()->get<int>("fluid.porder"),
         pin->param()->get<int>("fluid.nnodes"),
         pin->param()->get<int>("problem.nx"), true);
     if (rad_active) {
       radiation_basis_ = std::make_unique<ModalBasis>(
-          poly_basis::legendre, state_->u_pf(), &grid_,
+          poly_basis::legendre, prims, &grid_,
           pin->param()->get<int>("radiation.porder"),
           pin->param()->get<int>("radiation.nnodes"),
           pin->param()->get<int>("problem.nx"), false);
@@ -214,11 +253,10 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
     // --- Phase 2: Re-initialize with modal projection ---
     // This will use the nodal density from Phase 1 to construct proper modal
     // coefficients
-    initialize_fields(state_.get(), &grid_, eos_.get(), pin, fluid_basis_.get(),
+    initialize_fields(mesh_state_, &grid_, eos_.get(), pin, fluid_basis_.get(),
                       radiation_basis_.get());
   }
 
-  const bool rad_active = pin->param()->get<bool>("physics.rad_active");
   const bool gravity_active = pin->param()->get<bool>("physics.gravity_active");
   const bool ni_heating_active =
       pin->param()->get<bool>("physics.heating.nickel.enabled");
@@ -259,27 +297,28 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   }
   if (ni_heating_active) {
     if (!pin->param()->get<bool>("physics.heating.nickel.split")) {
-      manager_->add_package(NickelHeatingPackage{
-          pin, fluid_basis_.get(), state_->comps()->species_indexer(), n_stages,
-          true});
+      manager_->add_package(NickelHeatingPackage{pin, fluid_basis_.get(),
+                                                 sd0.comps()->species_indexer(),
+                                                 n_stages, true});
     } else {
       split = true;
-      split_manager_->add_package(NickelHeatingPackage{
-          pin, fluid_basis_.get(), state_->comps()->species_indexer(), n_stages,
-          true});
+      split_manager_->add_package(
+          NickelHeatingPackage{pin, fluid_basis_.get(),
+                               sd0.comps()->species_indexer(), n_stages, true});
     }
   }
   if (thermal_engine_active) {
     if (!pin->param()->get<bool>("physics.engine.thermal.split")) {
       manager_->add_package(ThermalEnginePackage{
-          pin, state_.get(), &grid_, fluid_basis_.get(), n_stages, true});
+          pin, sd0, &grid_, fluid_basis_.get(), n_stages, true});
     } else {
       split = true;
       split_manager_->add_package(ThermalEnginePackage{
-          pin, state_.get(), &grid_, fluid_basis_.get(), n_stages, true});
+          pin, sd0, &grid_, fluid_basis_.get(), n_stages, true});
     }
   }
-  // TODO(astrobarker): [split] Could add option to split.. not important..
+  // TODO(astrobarker): [split, geometry] Could add option to split.. not
+  // important..
   if (geometry) {
     manager_->add_package(
         GeometryPackage{pin, fluid_basis_.get(), n_stages, true});
@@ -303,8 +342,8 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   std::print("\n\n");
 
   // --- slope limiter to initial condition ---
-  apply_slope_limiter(&sl_hydro_, state_->u_cf(), &grid_, fluid_basis_.get(),
-                      eos_.get());
+  apply_slope_limiter(&sl_hydro_, sd0.get_field("u_cf"), &grid_,
+                      fluid_basis_.get(), eos_.get());
 
   // --- Add history outputs ---
   // NOTE: Could be nice to have gravitational energy added

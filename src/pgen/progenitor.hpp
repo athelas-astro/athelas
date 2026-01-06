@@ -62,7 +62,7 @@ namespace athelas {
 /**
  * @brief Initialize supernova progenitor
  **/
-void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
+void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
                      const eos::EOS *eos,
                      basis::ModalBasis *fluid_basis = nullptr,
                      basis::ModalBasis *rad_basis = nullptr) {
@@ -140,18 +140,18 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
   }
 
   static const int nNodes = grid->n_nodes();
-  static const int order = state->p_order();
+  static const int order = mesh_state.p_order();
   static const int nx = grid->n_elements();
   static const IndexRange ib(grid->domain<Domain::Interior>());
 
-  auto uCF = state->u_cf();
-  auto uPF = state->u_pf();
-  auto uAF = state->u_af();
+  auto uCF = mesh_state(0).get_field("u_cf");
+  auto uAF = mesh_state(0).get_field("u_af");
+  auto uPF = mesh_state(0).get_field("u_pf");
 
   std::shared_ptr<atom::CompositionData> comps =
       std::make_shared<atom::CompositionData>(nx + 2, nNodes, ncomps);
 
-  auto mass_fractions = state->mass_fractions();
+  auto mass_fractions = mesh_state.mass_fractions("u_cf");
   auto charges = comps->charge();
   auto neutrons = comps->neutron_number();
   auto ye = comps->ye();
@@ -431,7 +431,8 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     // Now we need to do a nodal to modal projection of the mass fractions.
     // Before we can do that we need to interpolate them to our grid.
     // TODO(astrobarker): this can be device side.
-    auto mass_fractions_h = Kokkos::create_mirror_view(state->mass_fractions());
+    auto mass_fractions_h =
+        Kokkos::create_mirror_view(mesh_state.mass_fractions("u_cf"));
     auto r = grid->nodal_grid();
     auto r_h = Kokkos::create_mirror_view(r);
     auto mass_matrix_h = Kokkos::create_mirror_view(fluid_basis->mass_matrix());
@@ -475,7 +476,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
       }
     }
 
-    Kokkos::deep_copy(state->mass_fractions(), mass_fractions_h);
+    Kokkos::deep_copy(mesh_state.mass_fractions("u_cf"), mass_fractions_h);
     Kokkos::deep_copy(species, species_h);
     Kokkos::deep_copy(neutron_number, neutron_number_h);
     Kokkos::deep_copy(inv_atomic_mass, inv_atomic_mass_h);
@@ -489,7 +490,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
     // than 0, we can do it below. i.e., for species that we are not doing
     // Saha solves, what is their default ionization state?
     // This can probably be removed. (Zbar must be initialized)
-    auto mass_fractions = state->mass_fractions();
+    auto mass_fractions = mesh_state.mass_fractions("u_cf");
     auto charges = comps->charge();
     auto neutrons = comps->neutron_number();
     auto ionization_states = ionization_state->ionization_fractions();
@@ -541,8 +542,8 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
           }
         });
 
-    state->setup_composition(comps);
-    state->setup_ionization(ionization_state);
+    mesh_state.setup_composition(comps);
+    mesh_state.setup_ionization(ionization_state);
 
     // We need to do the nodal to modal projection for specific volume first
     // and separate, as a full modal basis representation of tau is needed
@@ -608,7 +609,8 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
         });
 
     // Compute necessary terms for using the Paczynski eos
-    atom::fill_derived_comps<Domain::Interior>(state, uCF, grid, fluid_basis);
+    auto sd0 = mesh_state(0);
+    atom::fill_derived_comps<Domain::Interior>(sd0, uCF, grid, fluid_basis);
 
     // Finally, compute the radhydro variables. This requires, as before,
     // interpolation of the progenitor data to nodal collocation points
@@ -661,7 +663,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
 
     atom::compute_temperature_with_saha<Domain::Interior,
                                         eos::EOSInversion::Pressure>(
-        eos, state, uCF, *grid, *fluid_basis);
+        eos, sd0, uCF, *grid, *fluid_basis);
 
     AthelasArray2D<double> energy_cell("supernova :: energy cell", nx + 2,
                                        nNodes);
@@ -675,7 +677,7 @@ void progenitor_init(State *state, GridStructure *grid, ProblemIn *pin,
             tau_cell(i, q) = basis::basis_eval(phi_fluid, uCF, i,
                                                vars::cons::SpecificVolume, q);
             const double temperature_q = uAF(i, q + 1, vars::aux::Tgas);
-            atom::paczynski_terms(state, i, q, lambda);
+            atom::paczynski_terms(sd0, i, q, lambda);
             energy_cell(i, q) =
                 eos::sie_from_density_temperature(eos, 1.0 / tau_cell(i, q),
                                                   temperature_q, lambda) +

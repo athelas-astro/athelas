@@ -44,9 +44,9 @@ auto h5_predtype() -> H5::PredType {
     static_assert(std::is_arithmetic_v<T>, "Unsupported scalar type for HDF5");
   }
 }
-void write_state(State *state, GridStructure &grid, SlopeLimiter *SL,
-                 ProblemIn *pin, double time, int order, int i_write,
-                 bool do_rad);
+void write_state(const StageData &stage_data, GridStructure &grid,
+                 SlopeLimiter *SL, ProblemIn *pin, double time, int order,
+                 int i_write, bool do_rad);
 
 void print_simulation_parameters(GridStructure &grid, ProblemIn *pin);
 

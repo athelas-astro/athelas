@@ -21,7 +21,7 @@ namespace athelas {
 /**
  * @brief Initialize radiating shock
  **/
-void marshak_init(State *state, GridStructure *grid, ProblemIn *pin,
+void marshak_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
                   const eos::EOS * /*eos*/,
                   basis::ModalBasis * /*fluid_basis = nullptr*/,
                   basis::ModalBasis * /*radiation_basis = nullptr*/) {
@@ -34,8 +34,8 @@ void marshak_init(State *state, GridStructure *grid, ProblemIn *pin,
     THROW_ATHELAS_ERROR("Marshak requires radiation enabled!");
   }
 
-  AthelasArray3D<double> uCF = state->u_cf();
-  AthelasArray3D<double> uPF = state->u_pf();
+  auto uCF = mesh_state(0).get_field("u_cf");
+  auto uPF = mesh_state(0).get_field("u_pf");
 
   static const IndexRange ib(grid->domain<Domain::Interior>());
   const int nNodes = grid->n_nodes();

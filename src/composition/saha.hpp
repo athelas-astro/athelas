@@ -167,16 +167,16 @@ void saha_solve(AthelasArray1D<double> ionization_states, const int Z,
  * Word of warning: the code here is a gold medalist in index gymnastics.
  */
 template <Domain MeshDomain>
-void solve_saha_ionization(State &state, AthelasArray3D<double> ucf,
+void solve_saha_ionization(StageData &stage_data, AthelasArray3D<double> ucf,
                            const GridStructure &grid, const eos::EOS &eos,
                            const basis::ModalBasis &fluid_basis) {
   using basis::basis_eval;
 
-  const auto uaf = state.u_af();
-  const auto *const comps = state.comps();
-  auto *const ionization_states = state.ionization_state();
+  const auto uaf = stage_data.get_field("u_af");
+  const auto *const comps = stage_data.comps();
+  auto *const ionization_states = stage_data.ionization_state();
   const auto *const atomic_data = ionization_states->atomic_data();
-  const auto mass_fractions = state.mass_fractions();
+  const auto mass_fractions = stage_data.mass_fractions("u_cf");
   const auto species = comps->charge();
   const auto neutron_number = comps->neutron_number();
   auto inv_atomic_mass = comps->inverse_atomic_mass();
@@ -461,7 +461,7 @@ auto temperature_residual(const double temperature, const double rho,
 }
 
 template <Domain MeshDomain, eos::EOSInversion Inversion>
-void compute_temperature_with_saha(const eos::EOS *eos, State *state,
+void compute_temperature_with_saha(const eos::EOS *eos, StageData &stage_data,
                                    AthelasArray3D<double> ucf,
                                    const GridStructure &grid,
                                    const basis::ModalBasis &basis) {
@@ -471,10 +471,10 @@ void compute_temperature_with_saha(const eos::EOS *eos, State *state,
   static const IndexRange ib(grid.domain<MeshDomain>());
   static const IndexRange nb(nnodes + 2);
 
-  auto uaf = state->u_af();
+  auto uaf = stage_data.get_field("u_af");
 
-  const auto *const comps = state->comps();
-  auto mass_fractions = state->mass_fractions();
+  const auto *const comps = stage_data.comps();
+  auto mass_fractions = stage_data.mass_fractions("u_cf");
   auto species = comps->charge();
   auto neutron_number = comps->neutron_number();
   auto inv_atomic_mass = comps->inverse_atomic_mass();
@@ -484,7 +484,7 @@ void compute_temperature_with_saha(const eos::EOS *eos, State *state,
   auto number_density = comps->number_density();
   auto *species_indexer = comps->species_indexer();
 
-  auto *const ionization_state = state->ionization_state();
+  auto *const ionization_state = stage_data.ionization_state();
   auto ybar = ionization_state->ybar();
   auto ionization_fractions = ionization_state->ionization_fractions();
   auto zbars = ionization_state->zbar();

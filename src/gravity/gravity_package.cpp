@@ -26,14 +26,11 @@ GravityPackage::GravityPackage(const ProblemIn *pin, GravityModel model,
       delta_("gravity delta", n_stages,
              pin->param()->get<int>("problem.nx") + 2, basis_->order(), 2) {}
 
-void GravityPackage::update_explicit(const State *const state,
+void GravityPackage::update_explicit(const StageData &stage_data,
                                      const GridStructure &grid,
                                      const TimeStepInfo &dt_info) const {
-  const auto u_stages = state->u_cf_stages();
-
   const auto stage = dt_info.stage;
-  const auto ucf =
-      Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
+  auto ucf = stage_data.get_field("u_cf");
 
   const int &order = basis_->order();
   static const IndexRange kb(order);
@@ -47,7 +44,7 @@ void GravityPackage::update_explicit(const State *const state,
 }
 
 template <GravityModel Model>
-void GravityPackage::gravity_update(const AthelasArray3D<double> state,
+void GravityPackage::gravity_update(AthelasArray3D<double> state,
                                     const GridStructure &grid,
                                     const int stage) const {
   using basis::basis_eval;
@@ -143,10 +140,9 @@ void GravityPackage::zero_delta() const noexcept {
 
 /**
  * @brief Gravitational timestep restriction
- * @note This just returns max dt
  **/
 KOKKOS_FUNCTION
-auto GravityPackage::min_timestep(const State *const /*state*/,
+auto GravityPackage::min_timestep(const StageData & /*stage_data*/,
                                   const GridStructure &grid,
                                   const TimeStepInfo & /*dt_info*/) const
     -> double {
@@ -178,7 +174,7 @@ auto GravityPackage::min_timestep(const State *const /*state*/,
   return dt_out;
 }
 
-void GravityPackage::fill_derived(State * /*state*/,
+void GravityPackage::fill_derived(StageData & /*stage_data*/,
                                   const GridStructure & /*grid*/,
                                   const TimeStepInfo & /*dt_info*/) const {}
 

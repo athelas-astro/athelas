@@ -29,7 +29,7 @@ TimeStepper::TimeStepper(const ProblemIn *pin, GridStructure *grid, EOS *eos)
       SumVar_U_("SumVar_U", mSize_ + 1, pin->param()->get<int>("fluid.porder"),
                 nvars_evolved_),
       grid_s_(nStages_ + 1, GridStructure(pin)),
-      stage_data_("StageData", nStages_ + 1, mSize_ + 1), eos_(eos) {}
+      x_l_sumvar_("x_l_sumvar_", nStages_ + 1, mSize_ + 1), eos_(eos) {}
 
 [[nodiscard]] auto TimeStepper::n_stages() const noexcept -> int {
   return integrator_.num_stages;

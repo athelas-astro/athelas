@@ -21,15 +21,15 @@ namespace athelas {
 /**
  * @brief Initialize ejecta csm test
  **/
-void ejecta_csm_init(State *state, GridStructure *grid, ProblemIn *pin,
+void ejecta_csm_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
                      const eos::EOS *eos,
                      basis::ModalBasis *fluid_basis = nullptr) {
   if (pin->param()->get<std::string>("eos.type") != "ideal") {
     THROW_ATHELAS_ERROR("Shu Osher requires ideal gas eos!");
   }
 
-  AthelasArray3D<double> uCF = state->u_cf();
-  AthelasArray3D<double> uPF = state->u_pf();
+  auto uCF = mesh_state(0).get_field("u_cf");
+  auto uPF = mesh_state(0).get_field("u_pf");
 
   static const IndexRange ib(grid->domain<Domain::Interior>());
   static const int nNodes = grid->n_nodes();

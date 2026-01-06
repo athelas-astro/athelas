@@ -26,16 +26,16 @@ using basis::ModalBasis;
  * TODO(astrobarker): should inputs to this be subviews?
  * Should this exist?
  */
-void paczynski_terms(const State *const state, const int ix, const int node,
+void paczynski_terms(const StageData &stage_data, const int ix, const int node,
                      double *const lambda) {
-  const auto ucf = state->u_cf();
-  const auto uaf = state->u_af();
+  const auto ucf = stage_data.get_field("u_cf");
+  const auto uaf = stage_data.get_field("u_af");
 
-  const auto *const comps = state->comps();
+  const auto *const comps = stage_data.comps();
   const auto number_density = comps->number_density();
   const auto ye = comps->ye();
 
-  const auto *const ionization_states = state->ionization_state();
+  const auto *const ionization_states = stage_data.ionization_state();
   const auto ybar = ionization_states->ybar();
   const auto e_ion_corr = ionization_states->e_ion_corr();
   const auto sigma1 = ionization_states->sigma1();
