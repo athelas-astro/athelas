@@ -20,7 +20,8 @@ namespace athelas::analysis {
 
 // Perhaps the below will be more optimal by calculating
 // with cell mass
-inline auto total_fluid_energy(const State &state, const GridStructure &grid,
+inline auto total_fluid_energy(const MeshState &mesh_state,
+                               const GridStructure &grid,
                                const basis::ModalBasis *fluid_basis,
                                const basis::ModalBasis * /*rad_basis*/)
     -> double {
@@ -28,13 +29,13 @@ inline auto total_fluid_energy(const State &state, const GridStructure &grid,
   const auto &nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
   const auto dr = grid.widths();
-  const auto sqrt_gm = grid.sqrt_gm();
-  const auto weights = grid.weights();
-  const auto mcell = grid.mass();
+  auto sqrt_gm = grid.sqrt_gm();
+  auto weights = grid.weights();
+  auto mcell = grid.mass();
 
-  const auto phi = fluid_basis->phi();
+  auto phi = fluid_basis->phi();
 
-  const auto u = state.u_cf();
+  auto u = mesh_state(0).get_field("u_cf");
 
   double output = 0.0;
   athelas::par_reduce(
@@ -60,19 +61,20 @@ inline auto total_fluid_energy(const State &state, const GridStructure &grid,
   return output;
 }
 
-inline auto total_fluid_momentum(const State &state, const GridStructure &grid,
+inline auto total_fluid_momentum(const MeshState &mesh_state,
+                                 const GridStructure &grid,
                                  const basis::ModalBasis *fluid_basis,
                                  const basis::ModalBasis * /*rad_basis*/)
     -> double {
   using basis::basis_eval;
   const auto &nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  const auto dr = grid.widths();
-  const auto sqrt_gm = grid.sqrt_gm();
-  const auto weights = grid.weights();
+  auto dr = grid.widths();
+  auto sqrt_gm = grid.sqrt_gm();
+  auto weights = grid.weights();
 
-  const auto phi = fluid_basis->phi();
-  const auto u = state.u_cf();
+  auto phi = fluid_basis->phi();
+  auto u = mesh_state(0).get_field("u_cf");
 
   double output = 0.0;
   athelas::par_reduce(
@@ -97,19 +99,20 @@ inline auto total_fluid_momentum(const State &state, const GridStructure &grid,
   return output;
 }
 
-inline auto total_internal_energy(const State &state, const GridStructure &grid,
+inline auto total_internal_energy(const MeshState &mesh_state,
+                                  const GridStructure &grid,
                                   const basis::ModalBasis *fluid_basis,
                                   const basis::ModalBasis * /*rad_basis*/)
     -> double {
   using basis::basis_eval;
   const auto &nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  const auto dr = grid.widths();
-  const auto sqrt_gm = grid.sqrt_gm();
-  const auto weights = grid.weights();
+  auto dr = grid.widths();
+  auto sqrt_gm = grid.sqrt_gm();
+  auto weights = grid.weights();
 
-  const auto phi = fluid_basis->phi();
-  const auto u = state.u_cf();
+  auto phi = fluid_basis->phi();
+  auto u = mesh_state(0).get_field("u_cf");
 
   double output = 0.0;
   athelas::par_reduce(
@@ -135,7 +138,7 @@ inline auto total_internal_energy(const State &state, const GridStructure &grid,
   return output;
 }
 
-inline auto total_gravitational_energy(const State &state,
+inline auto total_gravitational_energy(const MeshState &mesh_state,
                                        const GridStructure &grid,
                                        const basis::ModalBasis *fluid_basis,
                                        const basis::ModalBasis * /*rad_basis*/)
@@ -143,13 +146,13 @@ inline auto total_gravitational_energy(const State &state,
   using basis::basis_eval;
   const auto &nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  const auto weights = grid.weights();
-  const auto enclosed_mass = grid.enclosed_mass();
-  const auto mass_cell = grid.mass();
-  const auto r = grid.nodal_grid();
+  auto weights = grid.weights();
+  auto enclosed_mass = grid.enclosed_mass();
+  auto mass_cell = grid.mass();
+  auto r = grid.nodal_grid();
 
-  const auto phi = fluid_basis->phi();
-  const auto u = state.u_cf();
+  auto phi = fluid_basis->phi();
+  auto u = mesh_state(0).get_field("u_cf");
 
   const bool do_geometry = grid.do_geometry();
 
@@ -174,19 +177,20 @@ inline auto total_gravitational_energy(const State &state,
   return -constants::G_GRAV * output;
 }
 
-inline auto total_kinetic_energy(const State &state, const GridStructure &grid,
+inline auto total_kinetic_energy(const MeshState &mesh_state,
+                                 const GridStructure &grid,
                                  const basis::ModalBasis *fluid_basis,
                                  const basis::ModalBasis * /*rad_basis*/)
     -> double {
   using basis::basis_eval;
   const auto &nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  const auto dr = grid.widths();
-  const auto sqrt_gm = grid.sqrt_gm();
-  const auto weights = grid.weights();
+  auto dr = grid.widths();
+  auto sqrt_gm = grid.sqrt_gm();
+  auto weights = grid.weights();
 
-  const auto phi = fluid_basis->phi();
-  const auto u = state.u_cf();
+  auto phi = fluid_basis->phi();
+  auto u = mesh_state(0).get_field("u_cf");
 
   double output = 0.0;
   athelas::par_reduce(
@@ -212,18 +216,19 @@ inline auto total_kinetic_energy(const State &state, const GridStructure &grid,
 }
 
 // This total_energy is only radiation
-inline auto total_rad_energy(const State &state, const GridStructure &grid,
+inline auto total_rad_energy(const MeshState &mesh_state,
+                             const GridStructure &grid,
                              const basis::ModalBasis * /*fluid_basis*/,
                              const basis::ModalBasis *rad_basis) -> double {
   using basis::basis_eval;
   const auto &nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  const auto dr = grid.widths();
-  const auto sqrt_gm = grid.sqrt_gm();
-  const auto weights = grid.weights();
+  auto dr = grid.widths();
+  auto sqrt_gm = grid.sqrt_gm();
+  auto weights = grid.weights();
 
-  const auto phi_rad = rad_basis->phi();
-  const auto u = state.u_cf();
+  auto phi_rad = rad_basis->phi();
+  auto u = mesh_state(0).get_field("u_cf");
 
   double output = 0.0;
   athelas::par_reduce(
@@ -246,18 +251,19 @@ inline auto total_rad_energy(const State &state, const GridStructure &grid,
 }
 
 // TODO(astrobarker): confirm
-inline auto total_rad_momentum(const State &state, const GridStructure &grid,
+inline auto total_rad_momentum(const MeshState &mesh_state,
+                               const GridStructure &grid,
                                const basis::ModalBasis * /*fluid_basis*/,
                                const basis::ModalBasis *rad_basis) -> double {
   using basis::basis_eval;
   const auto &nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  const auto dr = grid.widths();
-  const auto sqrt_gm = grid.sqrt_gm();
-  const auto weights = grid.weights();
+  auto dr = grid.widths();
+  auto sqrt_gm = grid.sqrt_gm();
+  auto weights = grid.weights();
 
-  const auto phi_rad = rad_basis->phi();
-  const auto u = state.u_cf();
+  auto phi_rad = rad_basis->phi();
+  auto u = mesh_state(0).get_field("u_cf");
 
   double output = 0.0;
   athelas::par_reduce(
@@ -280,19 +286,19 @@ inline auto total_rad_momentum(const State &state, const GridStructure &grid,
 }
 
 // This total_energy is matter and radiation
-inline auto total_energy(const State &state, const GridStructure &grid,
+inline auto total_energy(const MeshState &mesh_state, const GridStructure &grid,
                          const basis::ModalBasis *fluid_basis,
                          const basis::ModalBasis *rad_basis) -> double {
   using basis::basis_eval;
   const auto &nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  const auto dr = grid.widths();
-  const auto sqrt_gm = grid.sqrt_gm();
-  const auto weights = grid.weights();
+  auto dr = grid.widths();
+  auto sqrt_gm = grid.sqrt_gm();
+  auto weights = grid.weights();
 
-  const auto phi_fluid = fluid_basis->phi();
-  const auto phi_rad = rad_basis->phi();
-  const auto u = state.u_cf();
+  auto phi_fluid = fluid_basis->phi();
+  auto phi_rad = rad_basis->phi();
+  auto u = mesh_state(0).get_field("u_cf");
 
   double output = 0.0;
   athelas::par_reduce(
@@ -319,19 +325,20 @@ inline auto total_energy(const State &state, const GridStructure &grid,
 }
 
 // This total_energy is matter and radiation
-inline auto total_momentum(const State &state, const GridStructure &grid,
+inline auto total_momentum(const MeshState &mesh_state,
+                           const GridStructure &grid,
                            const basis::ModalBasis *fluid_basis,
                            const basis::ModalBasis *rad_basis) -> double {
   using basis::basis_eval;
   const auto &nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  const auto dr = grid.widths();
-  const auto sqrt_gm = grid.sqrt_gm();
-  const auto weights = grid.weights();
+  auto dr = grid.widths();
+  auto sqrt_gm = grid.sqrt_gm();
+  auto weights = grid.weights();
 
-  const auto phi_fluid = fluid_basis->phi();
-  const auto phi_rad = rad_basis->phi();
-  const auto u = state.u_cf();
+  auto phi_fluid = fluid_basis->phi();
+  auto phi_rad = rad_basis->phi();
+  auto u = mesh_state(0).get_field("u_cf");
 
   double output = 0.0;
   athelas::par_reduce(
@@ -357,18 +364,18 @@ inline auto total_momentum(const State &state, const GridStructure &grid,
   return output;
 }
 
-inline auto total_mass(const State &state, const GridStructure &grid,
+inline auto total_mass(const MeshState &mesh_state, const GridStructure &grid,
                        const basis::ModalBasis *fluid_basis,
                        const basis::ModalBasis * /*rad_basis*/) -> double {
   using basis::basis_eval;
   const auto &nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  const auto dr = grid.widths();
-  const auto sqrt_gm = grid.sqrt_gm();
-  const auto weights = grid.weights();
+  auto dr = grid.widths();
+  auto sqrt_gm = grid.sqrt_gm();
+  auto weights = grid.weights();
 
-  const auto phi = fluid_basis->phi();
-  const auto u = state.u_cf();
+  auto phi = fluid_basis->phi();
+  auto u = mesh_state(0).get_field("u_cf");
 
   double output = 0.0;
   athelas::par_reduce(
@@ -393,19 +400,21 @@ inline auto total_mass(const State &state, const GridStructure &grid,
 
 // TODO(astrobarker): surely there is a non-invasive way to combine
 // these total_mass_x. Would need to pass in either index or string for indexer
-inline auto total_mass_ni56(const State &state, const GridStructure &grid,
+inline auto total_mass_ni56(const MeshState &mesh_state,
+                            const GridStructure &grid,
                             const basis::ModalBasis *fluid_basis,
                             const basis::ModalBasis * /*rad_basis*/) {
   using basis::basis_eval;
   const auto &nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  const auto dr = grid.widths();
-  const auto sqrt_gm = grid.sqrt_gm();
-  const auto weights = grid.weights();
+  auto dr = grid.widths();
+  auto sqrt_gm = grid.sqrt_gm();
+  auto weights = grid.weights();
 
-  const auto phi = fluid_basis->phi();
-  const auto u = state.u_cf();
-  const auto *const species_indexer = state.comps()->species_indexer();
+  auto phi = fluid_basis->phi();
+  auto u = mesh_state(0).get_field("u_cf");
+
+  const auto *const species_indexer = mesh_state.comps()->species_indexer();
   const auto ind_x = species_indexer->get<int>("ni56");
 
   double output = 0.0;
@@ -431,19 +440,20 @@ inline auto total_mass_ni56(const State &state, const GridStructure &grid,
   return output;
 }
 
-inline auto total_mass_co56(const State &state, const GridStructure &grid,
+inline auto total_mass_co56(const MeshState &mesh_state,
+                            const GridStructure &grid,
                             const basis::ModalBasis *fluid_basis,
                             const basis::ModalBasis * /*rad_basis*/) {
   using basis::basis_eval;
   const auto &nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  const auto dr = grid.widths();
-  const auto sqrt_gm = grid.sqrt_gm();
-  const auto weights = grid.weights();
+  auto dr = grid.widths();
+  auto sqrt_gm = grid.sqrt_gm();
+  auto weights = grid.weights();
 
-  const auto phi = fluid_basis->phi();
-  const auto u = state.u_cf();
-  const auto *const species_indexer = state.comps()->species_indexer();
+  auto phi = fluid_basis->phi();
+  auto u = mesh_state(0).get_field("u_cf");
+  const auto *const species_indexer = mesh_state.comps()->species_indexer();
   const auto ind_x = species_indexer->get<int>("co56");
 
   double output = 0.0;
@@ -469,19 +479,20 @@ inline auto total_mass_co56(const State &state, const GridStructure &grid,
   return output;
 }
 
-inline auto total_mass_fe56(const State &state, const GridStructure &grid,
+inline auto total_mass_fe56(const MeshState &mesh_state,
+                            const GridStructure &grid,
                             const basis::ModalBasis *fluid_basis,
                             const basis::ModalBasis * /*rad_basis*/) {
   using basis::basis_eval;
   const auto &nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  const auto dr = grid.widths();
-  const auto sqrt_gm = grid.sqrt_gm();
-  const auto weights = grid.weights();
+  auto dr = grid.widths();
+  auto sqrt_gm = grid.sqrt_gm();
+  auto weights = grid.weights();
 
-  const auto phi = fluid_basis->phi();
-  const auto u = state.u_cf();
-  const auto *const species_indexer = state.comps()->species_indexer();
+  auto phi = fluid_basis->phi();
+  auto u = mesh_state(0).get_field("u_cf");
+  const auto *const species_indexer = mesh_state.comps()->species_indexer();
   const auto ind_x = species_indexer->get<int>("fe56");
 
   double output = 0.0;

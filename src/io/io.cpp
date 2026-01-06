@@ -229,20 +229,17 @@ auto generate_filename(const std::string &problem_name,
  *
  * Bad stuff in here.
  */
-void write_state(State *state, GridStructure &grid, SlopeLimiter *SL,
-                 ProblemIn *pin, double time, int order, int i_write,
-                 bool do_rad) {
+void write_state(const StageData &stage_data, GridStructure &grid,
+                 SlopeLimiter *SL, ProblemIn *pin, double time, int order,
+                 int i_write, bool do_rad) {
   Kokkos::Profiling::pushRegion("HDF5 IO");
 
-  const bool ionization_active =
-      pin->param()->get<bool>("physics.ionization_enabled");
-  const bool composition_active =
-      pin->param()->get<bool>("physics.composition_enabled");
+  const bool ionization_active = stage_data.ionization_enabled();
+  const bool composition_active = stage_data.composition_enabled();
 
-  // Get views
-  const AthelasArray3D<double> uCF = state->u_cf();
-  const AthelasArray3D<double> uPF = state->u_pf();
-  const AthelasArray3D<double> uAF = state->u_af();
+  auto uCF = stage_data.get_field("u_cf");
+  auto uPF = stage_data.get_field("u_pf");
+  auto uAF = stage_data.get_field("u_af");
 
   // Grid parameters
   const int nX = grid.n_elements();
@@ -285,10 +282,11 @@ void write_state(State *state, GridStructure &grid, SlopeLimiter *SL,
   writer.write_view(grid.enclosed_mass(), "/grid/enclosed_mass");
 
   if (composition_active) {
-    // const auto mass_fractions = state->mass_fractions();
-    const auto charges = state->comps()->charge();
-    const auto neutron_numbers = state->comps()->neutron_number();
-    const auto ye = state->comps()->ye();
+    // const auto mass_fractions = stage_data.mass_fractions("u_cf");
+    const auto *const comps = stage_data.comps();
+    auto charges = comps->charge();
+    auto neutron_numbers = comps->neutron_number();
+    auto ye = comps->ye();
     writer.write_view(charges, "/composition/proton_number");
     writer.write_view(neutron_numbers, "/composition/neutron_number");
     // writer.write_view(mass_fractions, "/composition/mass_fractions");
@@ -296,9 +294,9 @@ void write_state(State *state, GridStructure &grid, SlopeLimiter *SL,
   }
 
   if (ionization_active) {
-    const auto ionization_fractions =
-        state->ionization_state()->ionization_fractions();
-    auto e_ionization = state->ionization_state()->e_ion_corr();
+    auto *const ion_state = stage_data.ionization_state();
+    auto ionization_fractions = ion_state->ionization_fractions();
+    auto e_ionization = ion_state->e_ion_corr();
     writer.write_view(ionization_fractions,
                       "/composition/ionization_fractions");
     writer.write_view(e_ionization, "/composition/ionization_energy");

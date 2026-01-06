@@ -24,9 +24,12 @@ using utilities::to_lower;
  *
  * It might be nice to pass in to the constructor t_start
  */
-ThermalEnginePackage::ThermalEnginePackage(
-    const ProblemIn *pin, const State *state, const GridStructure *grid,
-    ModalBasis *basis, const int n_stages, const bool active)
+ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
+                                           const StageData &stage_data,
+                                           const GridStructure *grid,
+                                           ModalBasis *basis,
+                                           const int n_stages,
+                                           const bool active)
     : active_(active), basis_(basis), mend_idx_(1) {
 
   const int nx = pin->param()->get<int>("problem.nx");
@@ -66,8 +69,8 @@ ThermalEnginePackage::ThermalEnginePackage(
   // Now we need to compute the actual deposition energy
   // If we specify an asymptotic explosion energy then offset by
   // the model's total energy
-  const auto mcell = grid->mass();
-  const auto menc = grid->enclosed_mass();
+  auto mcell = grid->mass();
+  auto menc = grid->enclosed_mass();
   if (mode_ == "direct") {
     energy_dep_ = energy_target_;
   } else {
@@ -75,10 +78,10 @@ ThermalEnginePackage::ThermalEnginePackage(
     const bool gravity_active =
         pin->param()->get<bool>("physics.gravity_active");
     const int grav_active = gravity_active ? 1 : 0;
-    const auto phi = basis_->phi();
-    const auto ucf = state->u_cf();
-    const auto r = grid->nodal_grid();
-    const auto weights = grid->weights();
+    auto phi = basis_->phi();
+    auto ucf = stage_data.get_field("u_cf");
+    auto r = grid->nodal_grid();
+    auto weights = grid->weights();
     double total_energy = 0.0;
     athelas::par_reduce(
         DEFAULT_LOOP_PATTERN, "ThermalEngine :: Total energy", DevExecSpace(),
@@ -122,27 +125,25 @@ ThermalEnginePackage::ThermalEnginePackage(
   b_int_ = b_int;
 }
 
-void ThermalEnginePackage::update_explicit(const State *const state,
+void ThermalEnginePackage::update_explicit(const StageData &stage_data,
                                            const GridStructure &grid,
                                            const TimeStepInfo &dt_info) {
+  const auto time = dt_info.t;
   const int &order = basis_->order();
   static const auto &nnodes = grid.n_nodes();
   static const IndexRange qb(nnodes);
   static const IndexRange kb(order);
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  const auto u_stages = state->u_cf_stages();
 
   const auto stage = dt_info.stage;
-  const auto ucf =
-      Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
+  auto ucf = stage_data.get_field("u_cf");
 
   const IndexRange ib_dep(std::make_pair(1, mend_idx_));
-  const auto weights = grid.weights();
-  const auto dr = grid.widths();
-  const auto mass = grid.mass();
-  const auto menc = grid.enclosed_mass();
-  const auto phi = basis_->phi();
-  const auto time = dt_info.t;
+  auto weights = grid.weights();
+  auto dr = grid.widths();
+  auto mass = grid.mass();
+  auto menc = grid.enclosed_mass();
+  auto phi = basis_->phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "ThermalEngine :: Update", DevExecSpace(),
       ib_dep.s, ib_dep.e, kb.s, kb.e,
@@ -157,7 +158,7 @@ void ThermalEnginePackage::update_explicit(const State *const state,
       });
 
   // --- Divide update by mass matrix ---
-  const auto inv_mkk = basis_->inv_mass_matrix();
+  auto inv_mkk = basis_->inv_mass_matrix();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "ThermalEngine :: delta / M_kk", DevExecSpace(),
       ib_dep.s, ib_dep.e, kb.s, kb.e,
@@ -210,19 +211,18 @@ void ThermalEnginePackage::zero_delta() const noexcept {
  * @note We require that the engine is spread through 2500 timesteps at least.
  * The actual heating restriction is prohibitively expensive.
  **/
-auto ThermalEnginePackage::min_timestep(const State *const state,
-                                        const GridStructure &grid,
-                                        const TimeStepInfo &dt_info) const
+auto ThermalEnginePackage::min_timestep(const StageData & /*stage_data*/,
+                                        const GridStructure & /*grid*/,
+                                        const TimeStepInfo & /*dt_info*/) const
     -> double {
-  static const double MAX_DT = tend_ / 2500.0;
-  static double dt_out = MAX_DT;
-  return dt_out;
+  return tend_ / 2500.0;
 }
 
 /**
  * @brief ThermalEngine fill derived
  */
-void ThermalEnginePackage::fill_derived(State *state, const GridStructure &grid,
+void ThermalEnginePackage::fill_derived(StageData &stage_data,
+                                        const GridStructure &grid,
                                         const TimeStepInfo &dt_info) const {}
 
 [[nodiscard]] KOKKOS_FUNCTION auto ThermalEnginePackage::name() const noexcept

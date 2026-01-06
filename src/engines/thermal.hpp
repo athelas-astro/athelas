@@ -18,11 +18,11 @@ constexpr int Energy = 0;
 
 class ThermalEnginePackage {
  public:
-  ThermalEnginePackage(const ProblemIn *pin, const State *state,
+  ThermalEnginePackage(const ProblemIn *pin, const StageData &stage_data,
                        const GridStructure *grid, basis::ModalBasis *basis,
                        int n_stages, bool active = true);
 
-  void update_explicit(const State *const state, const GridStructure &grid,
+  void update_explicit(const StageData &stage_data, const GridStructure &grid,
                        const TimeStepInfo &dt_info);
 
   void apply_delta(AthelasArray3D<double> lhs,
@@ -30,7 +30,7 @@ class ThermalEnginePackage {
 
   void zero_delta() const noexcept;
 
-  [[nodiscard]] auto min_timestep(const State * /*state*/,
+  [[nodiscard]] auto min_timestep(const StageData & /*stage_data*/,
                                   const GridStructure & /*grid*/,
                                   const TimeStepInfo & /*dt_info*/) const
       -> double;
@@ -39,7 +39,7 @@ class ThermalEnginePackage {
 
   [[nodiscard]] auto is_active() const noexcept -> bool;
 
-  void fill_derived(State *state, const GridStructure &grid,
+  void fill_derived(StageData &stage_data, const GridStructure &grid,
                     const TimeStepInfo &dt_info) const;
 
   void set_active(bool active);

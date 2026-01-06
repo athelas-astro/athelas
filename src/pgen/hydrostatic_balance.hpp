@@ -21,16 +21,16 @@ namespace athelas {
 /**
  * @brief Initialize hydrostatic balance self gravity test
  **/
-void hydrostatic_balance_init(State *state, GridStructure *grid, ProblemIn *pin,
-                              const eos::EOS *eos,
+void hydrostatic_balance_init(MeshState &mesh_state, GridStructure *grid,
+                              ProblemIn *pin, const eos::EOS *eos,
                               basis::ModalBasis *fluid_basis = nullptr) {
   if (pin->param()->get<std::string>("eos.type") != "polytropic") {
     THROW_ATHELAS_ERROR("Hydrostatic balance requires polytropic eos!");
   }
 
-  AthelasArray3D<double> uCF = state->u_cf();
-  AthelasArray3D<double> uPF = state->u_pf();
-  AthelasArray3D<double> uAF = state->u_af();
+  auto uCF = mesh_state(0).get_field("u_cf");
+  auto uPF = mesh_state(0).get_field("u_pf");
+  auto uAF = mesh_state(0).get_field("u_af");
 
   static const IndexRange ib(grid->domain<Domain::Interior>());
   const int nNodes = grid->n_nodes();
@@ -57,7 +57,7 @@ void hydrostatic_balance_init(State *state, GridStructure *grid, ProblemIn *pin,
     auto solver = HydrostaticEquilibrium(rho_c, p_thresh, eos,
                                          pin->param()->get<double>("eos.k"),
                                          pin->param()->get<double>("eos.n"));
-    solver.solve(state, grid, pin);
+    solver.solve(mesh_state, grid, pin);
 
     // Phase 1: Initialize nodal values (always done)
     athelas::par_for(

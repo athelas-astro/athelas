@@ -31,11 +31,11 @@ class RadHydroPackage {
                   basis::ModalBasis *rad_basis, BoundaryConditions *bcs,
                   double cfl, int nx, bool active = true);
 
-  void update_explicit(const State *const state, const GridStructure &grid,
+  void update_explicit(const StageData &stage_data, const GridStructure &grid,
                        const TimeStepInfo &dt_info) const;
-  void update_implicit(const State *const state, const GridStructure &grid,
+  void update_implicit(const StageData &stage_data, const GridStructure &grid,
                        const TimeStepInfo &dt_info) const;
-  void update_implicit_iterative(const State *const state,
+  void update_implicit_iterative(const StageData &stage_data,
                                  AthelasArray3D<double> R,
                                  const GridStructure &grid,
                                  const TimeStepInfo &dt_info);
@@ -45,8 +45,8 @@ class RadHydroPackage {
 
   void zero_delta() const noexcept;
 
-  auto
-  radhydro_source(const State *const state, const AthelasArray2D<double> uCRH,
+  [[nodiscard]] auto
+  radhydro_source(const StageData &StageData, const AthelasArray2D<double> uCRH,
                   const AthelasArray1D<double> dx,
                   const AthelasArray1D<double> weights,
                   const AthelasArray3D<double> phi_fluid,
@@ -55,10 +55,10 @@ class RadHydroPackage {
                   const AthelasArray2D<double> inv_mkk_rad, int i, int k) const
       -> std::tuple<double, double, double, double>;
 
-  void radhydro_divergence(const State *const state, const GridStructure &grid,
-                           int stage) const;
+  void radhydro_divergence(const StageData &stage_data,
+                           const GridStructure &grid, int stage) const;
 
-  [[nodiscard]] auto min_timestep(const State *const /*ucf*/,
+  [[nodiscard]] auto min_timestep(const StageData & /*stage_data*/,
                                   const GridStructure &grid,
                                   const TimeStepInfo & /*dt_info*/) const
       -> double;
@@ -67,7 +67,7 @@ class RadHydroPackage {
 
   [[nodiscard]] auto is_active() const noexcept -> bool;
 
-  void fill_derived(State *state, const GridStructure &grid,
+  void fill_derived(StageData &stage_data, const GridStructure &grid,
                     const TimeStepInfo &dt_info) const;
 
   void set_active(bool active);
@@ -114,7 +114,7 @@ class RadHydroPackage {
 // The code needs some refactoring in order to get rid of this version.
 KOKKOS_INLINE_FUNCTION
 auto compute_increment_radhydro_source(
-    const AthelasArray2D<double> uCRH, const int k, const State *const state,
+    const AthelasArray2D<double> uCRH, const int k, const StageData &stage_data,
     const AthelasArray1D<double> dx, const AthelasArray1D<double> weights,
     const AthelasArray3D<double> phi_fluid,
     const AthelasArray3D<double> phi_rad,
@@ -125,7 +125,7 @@ auto compute_increment_radhydro_source(
   using basis::basis_eval;
   constexpr static double c = constants::c_cgs;
   constexpr static double c2 = c * c;
-  static const bool ionization_enabled = state->ionization_enabled();
+  static const bool ionization_enabled = stage_data.ionization_enabled();
 
   static const int nNodes = static_cast<int>(weights.size());
   const double &dr_i = dx(i);
@@ -151,7 +151,7 @@ auto compute_increment_radhydro_source(
     const double em_t = basis_eval(phi_fluid, uCRH, i, vars::cons::Energy, qp1);
 
     if (ionization_enabled) {
-      atom::paczynski_terms(state, i, qp1, lambda);
+      atom::paczynski_terms(stage_data, i, qp1, lambda);
     }
     const double t_g = eos::temperature_from_density_sie(
         eos, rho, em_t - 0.5 * vel * vel, lambda);

@@ -7,12 +7,13 @@
  * @details Timestppers for hydro and rad hydro.
  *          Uses explicit for transport terms and implicit for coupling.
  *
- * TODO(astrobaker) move to calling step<fluid> / step<radhydro>
+ * TODO(astrobarker) move to calling step<fluid> / step<radhydro>
  */
 
 #pragma once
 
 #include "basic_types.hpp"
+#include "bc/boundary_conditions.hpp"
 #include "bc/boundary_conditions_base.hpp"
 #include "eos/eos_variant.hpp"
 #include "fluid/hydro_package.hpp"
@@ -44,26 +45,21 @@ class TimeStepper {
   /**
    * Update fluid solution with SSPRK methods
    **/
-  void step(PackageManager *pkgs, State *state, GridStructure &grid,
+  void step(PackageManager *pkgs, MeshState &mesh_state, GridStructure &grid,
             const double t, const double dt, SlopeLimiter *sl_hydro) {
-
     // hydro explicit update
-    update_fluid_explicit(pkgs, state, grid, t, dt, sl_hydro);
+    update_fluid_explicit(pkgs, mesh_state, grid, t, dt, sl_hydro);
   }
 
   /**
    * Explicit fluid update with SSPRK methods
    **/
-  void update_fluid_explicit(PackageManager *pkgs, State *state,
+  void update_fluid_explicit(PackageManager *pkgs, MeshState &mesh_state,
                              GridStructure &grid, const double t,
                              const double dt, SlopeLimiter *sl_hydro) {
+    const auto &order = mesh_state.p_order();
 
-    const auto &order = state->p_order();
-
-    auto U = state->u_cf();
-    auto U_s = state->u_cf_stages();
-
-    const int nvars = state->n_cf();
+    static const int nvars = mesh_state.nvars("u_cf");
     static const IndexRange ib(grid.domain<Domain::Entire>());
     static const IndexRange kb(order);
     static const IndexRange vb(nvars);
@@ -72,18 +68,22 @@ class TimeStepper {
 
     TimeStepInfo dt_info{.t = t, .dt = dt, .stage = 0};
 
+    auto u0 = mesh_state(0).get_field("u_cf");
     for (int iS = 0; iS < nStages_; ++iS) {
       auto left_interface = grid_s_[iS].x_l();
       dt_info.stage = iS;
+
       // re-set the summation variables `SumVar`
+      auto stage_data = mesh_state.stage(iS);
+      auto u = stage_data.get_field("u_cf");
       athelas::par_for(
           DEFAULT_LOOP_PATTERN, "Timestepper :: EX :: Reset sumvar",
           DevExecSpace(), ib.s, ib.e, kb.s, kb.e,
           KOKKOS_CLASS_LAMBDA(const int i, const int k) {
             for (int v = vb.s; v <= vb.e; ++v) {
-              SumVar_U_(i, k, v) = U(i, k, v);
+              SumVar_U_(i, k, v) = u0(i, k, v);
             }
-            stage_data_(iS, i) = left_interface(i);
+            x_l_sumvar_(iS, i) = left_interface(i);
           });
 
       // --- Inner update loop ---
@@ -91,16 +91,15 @@ class TimeStepper {
       for (int j = 0; j < iS; ++j) {
         dt_info.stage = j;
         dt_info.t = t + integrator_.explicit_tableau.c_i(j) * dt;
-
-        // inner sum
         const double dt_a_ex = dt * integrator_.explicit_tableau.a_ij(iS, j);
         dt_info.dt_coef = dt_a_ex;
+
         pkgs->apply_delta(SumVar_U_, dt_info);
 
         athelas::par_for(
             DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: EX :: grid",
             DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              stage_data_(iS, i) +=
+              x_l_sumvar_(iS, i) +=
                   dt_a_ex *
                   pkgs->get_package<HydroPackage>("Hydro")->get_flux_u(j, i);
             });
@@ -112,53 +111,53 @@ class TimeStepper {
           ib.s, ib.e, kb.s, kb.e,
           KOKKOS_CLASS_LAMBDA(const int i, const int k) {
             for (int v = vb.s; v <= vb.e; ++v) {
-              U_s(iS, i, k, v) = SumVar_U_(i, k, v);
+              u(i, k, v) = SumVar_U_(i, k, v);
             }
           });
 
-      auto stage_data_j = Kokkos::subview(stage_data_, iS, Kokkos::ALL);
+      auto x_l_sumvar_s = Kokkos::subview(x_l_sumvar_, iS, Kokkos::ALL);
       grid_s_[iS] = grid;
-      grid_s_[iS].update_grid(stage_data_j);
+      grid_s_[iS].update_grid(x_l_sumvar_s);
 
-      auto Us_j =
-          Kokkos::subview(U_s, iS, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
-      apply_slope_limiter(sl_hydro, Us_j, &grid_s_[iS],
+      apply_slope_limiter(sl_hydro, u, &grid_s_[iS],
                           pkgs->get_package<HydroPackage>("Hydro")->basis(),
                           eos_);
       bel::apply_bound_enforcing_limiter(
-          Us_j, pkgs->get_package<HydroPackage>("Hydro")->basis());
+          u, pkgs->get_package<HydroPackage>("Hydro")->basis());
 
       dt_info.stage = iS;
-      pkgs->fill_derived(state, grid_s_[iS], dt_info);
-      pkgs->update_explicit(state, grid_s_[iS], dt_info);
+      pkgs->fill_derived(stage_data, grid_s_[iS], dt_info);
+      pkgs->update_explicit(stage_data, grid_s_[iS], dt_info);
     } // end outer loop
+
+    // --- Final U^n update ---
 
     for (int iS = 0; iS < nStages_; ++iS) {
       dt_info.stage = iS;
       dt_info.t = t + integrator_.explicit_tableau.c_i(iS) * dt;
-
       const double dt_b_ex = dt * integrator_.explicit_tableau.b_i(iS);
       dt_info.dt_coef = dt_b_ex;
-      pkgs->apply_delta(U, dt_info);
+
+      pkgs->apply_delta(u0, dt_info);
 
       athelas::par_for(
           DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: EX :: Finalize grid",
           DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-            stage_data_(0, i) +=
+            x_l_sumvar_(0, i) +=
                 dt_b_ex *
                 pkgs->get_package<HydroPackage>("Hydro")->get_flux_u(iS, i);
           });
-      auto stage_data_j = Kokkos::subview(stage_data_, 0, Kokkos::ALL);
+      auto x_l_sumvar_j = Kokkos::subview(x_l_sumvar_, 0, Kokkos::ALL);
       grid_s_[iS] = grid;
-      grid_s_[iS].update_grid(stage_data_j);
+      grid_s_[iS].update_grid(x_l_sumvar_j);
     }
 
     grid = grid_s_[nStages_ - 1];
-    apply_slope_limiter(sl_hydro, U, &grid,
+    apply_slope_limiter(sl_hydro, u0, &grid,
                         pkgs->get_package<HydroPackage>("Hydro")->basis(),
                         eos_);
     bel::apply_bound_enforcing_limiter(
-        U, pkgs->get_package<HydroPackage>("Hydro")->basis());
+        u0, pkgs->get_package<HydroPackage>("Hydro")->basis());
 
     pkgs->zero_delta();
   }
@@ -166,27 +165,23 @@ class TimeStepper {
   /**
    * Update rad hydro solution with SSPRK methods
    **/
-  void step_imex(PackageManager *pkgs, State *state, GridStructure &grid,
-                 const double t, const double dt, SlopeLimiter *sl_hydro,
-                 SlopeLimiter *sl_rad) {
+  void step_imex(PackageManager *pkgs, MeshState &mesh_state,
+                 GridStructure &grid, const double t, const double dt,
+                 SlopeLimiter *sl_hydro, SlopeLimiter *sl_rad) {
 
-    update_rad_hydro_imex(pkgs, state, grid, t, dt, sl_hydro, sl_rad);
+    update_rad_hydro_imex(pkgs, mesh_state, grid, t, dt, sl_hydro, sl_rad);
   }
 
   /**
    * Fully coupled IMEX rad hydro update with SSPRK methods
    **/
-  void update_rad_hydro_imex(PackageManager *pkgs, State *state,
+  void update_rad_hydro_imex(PackageManager *pkgs, MeshState &mesh_state,
                              GridStructure &grid, const double t,
                              const double dt, SlopeLimiter *sl_hydro,
                              SlopeLimiter *sl_rad) {
+    const auto &order = mesh_state.p_order();
 
-    const auto &order = state->p_order();
-
-    auto uCF = state->u_cf();
-    auto U_s = state->u_cf_stages();
-
-    const int nvars = state->n_cf();
+    static const int nvars = mesh_state.nvars("u_cf");
     static const IndexRange ib(grid.domain<Domain::Entire>());
     static const IndexRange kb(order);
     static const IndexRange vb(nvars);
@@ -195,16 +190,19 @@ class TimeStepper {
 
     TimeStepInfo dt_info{.t = t, .dt = dt, .stage = 0};
 
+    auto u0 = mesh_state(0).get_field("u_cf");
     for (int iS = 0; iS < nStages_; ++iS) {
       auto left_interface = grid_s_[iS].x_l();
       dt_info.stage = iS;
       dt_info.t = t + integrator_.explicit_tableau.c_i(iS) * dt;
+      auto stage_data = mesh_state.stage(iS);
+      auto u = stage_data.get_field("u_cf");
       athelas::par_for(
           DEFAULT_LOOP_PATTERN, "Timestepper :: IMEX :: Reset sumvar",
           DevExecSpace(), ib.s, ib.e, kb.s, kb.e, vb.s, vb.e,
           KOKKOS_CLASS_LAMBDA(const int i, const int k, const int v) {
-            SumVar_U_(i, k, v) = uCF(i, k, v);
-            stage_data_(iS, i) = left_interface(i);
+            SumVar_U_(i, k, v) = u0(i, k, v);
+            x_l_sumvar_(iS, i) = left_interface(i);
           });
 
       // --- Inner update loop ---
@@ -214,42 +212,40 @@ class TimeStepper {
         dt_info.t = t + integrator_.explicit_tableau.c_i(j) * dt;
         const double dt_a = dt * integrator_.explicit_tableau.a_ij(iS, j);
         const double dt_a_im = dt * integrator_.implicit_tableau.a_ij(iS, j);
-
         dt_info.dt_coef = dt_a;
         dt_info.dt_coef_implicit = dt_a_im;
+
         pkgs->apply_delta(SumVar_U_, dt_info);
 
         athelas::par_for(
             DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: IMEX :: Update grid",
             DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              stage_data_(iS, i) +=
+              x_l_sumvar_(iS, i) +=
                   dt_a * pkgs->get_package<RadHydroPackage>("RadHydro")
                              ->get_flux_u(j, i);
             });
       } // End inner loop
 
-      auto stage_data_j = Kokkos::subview(stage_data_, iS, Kokkos::ALL);
+      auto x_l_sumvar_j = Kokkos::subview(x_l_sumvar_, iS, Kokkos::ALL);
       grid_s_[iS] = grid;
-      grid_s_[iS].update_grid(stage_data_j);
+      grid_s_[iS].update_grid(x_l_sumvar_j);
 
-      // set U_s
+      // set U_s (stage data)
       athelas::par_for(
           DEFAULT_LOOP_PATTERN, "Timestepper :: IMEX :: Update Us",
           DevExecSpace(), ib.s, ib.e, kb.s, kb.e, vb.s, vb.e,
           KOKKOS_CLASS_LAMBDA(const int i, const int k, const int v) {
-            U_s(iS, i, k, v) = SumVar_U_(i, k, v);
+            u(i, k, v) = SumVar_U_(i, k, v);
           });
 
       // NOTE: The limiting strategies in this function will fail if
       // the pkg does not have access to a rad_basis and fluid_basis
-      auto Us_j =
-          Kokkos::subview(U_s, iS, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
       // limiting madness
       apply_slope_limiter(
-          sl_hydro, Us_j, &grid_s_[iS],
+          sl_hydro, u, &grid_s_[iS],
           pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis(), eos_);
       apply_slope_limiter(
-          sl_rad, Us_j, &grid_s_[iS],
+          sl_rad, u, &grid_s_[iS],
           pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis(), eos_);
       apply_slope_limiter(
           sl_rad, SumVar_U_, &grid_s_[iS],
@@ -258,9 +254,9 @@ class TimeStepper {
           sl_hydro, SumVar_U_, &grid_s_[iS],
           pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis(), eos_);
       bel::apply_bound_enforcing_limiter(
-          Us_j, pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis());
+          u, pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis());
       bel::apply_bound_enforcing_limiter_rad(
-          Us_j, pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis());
+          u, pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis());
       bel::apply_bound_enforcing_limiter_rad(
           SumVar_U_,
           pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis());
@@ -274,24 +270,25 @@ class TimeStepper {
       dt_info.dt_coef = dt * integrator_.implicit_tableau.a_ij(iS, iS);
 
       // Need a fill derived?
-      // pkgs->fill_derived(state, grid_s_[iS], dt_info);
-      pkgs->update_implicit_iterative(state, SumVar_U_, grid_s_[iS], dt_info);
+      // pkgs->fill_derived(stage_data, grid_s_[iS], dt_info);
+      pkgs->update_implicit_iterative(stage_data, SumVar_U_, grid_s_[iS],
+                                      dt_info);
 
       apply_slope_limiter(
-          sl_hydro, Us_j, &grid_s_[iS],
+          sl_hydro, u, &grid_s_[iS],
           pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis(), eos_);
       apply_slope_limiter(
-          sl_rad, Us_j, &grid_s_[iS],
+          sl_rad, u, &grid_s_[iS],
           pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis(), eos_);
       bel::apply_bound_enforcing_limiter(
-          Us_j, pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis());
+          u, pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis());
       bel::apply_bound_enforcing_limiter_rad(
-          Us_j, pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis());
+          u, pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis());
 
       dt_info.stage = iS;
-      pkgs->fill_derived(state, grid_s_[iS], dt_info);
-      pkgs->update_explicit(state, grid_s_[iS], dt_info);
-      pkgs->update_implicit(state, grid_s_[iS], dt_info);
+      pkgs->fill_derived(stage_data, grid_s_[iS], dt_info);
+      pkgs->update_explicit(stage_data, grid_s_[iS], dt_info);
+      pkgs->update_implicit(stage_data, grid_s_[iS], dt_info);
     } // end outer loop
 
     for (int iS = 0; iS < nStages_; ++iS) {
@@ -299,34 +296,34 @@ class TimeStepper {
       dt_info.t = t + integrator_.explicit_tableau.c_i(iS) * dt;
       const double dt_b = dt * integrator_.explicit_tableau.b_i(iS);
       const double dt_b_im = dt * integrator_.implicit_tableau.b_i(iS);
-
       dt_info.dt_coef = dt_b;
       dt_info.dt_coef_implicit = dt_b_im;
-      pkgs->apply_delta(uCF, dt_info);
+
+      pkgs->apply_delta(u0, dt_info);
 
       athelas::par_for(
           DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: IMEX :: Finalize grid",
           DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-            stage_data_(0, i) +=
+            x_l_sumvar_(0, i) +=
                 dt_b * pkgs->get_package<RadHydroPackage>("RadHydro")
                            ->get_flux_u(iS, i);
           });
-      auto stage_data_j = Kokkos::subview(stage_data_, 0, Kokkos::ALL);
+      auto x_l_sumvar_j = Kokkos::subview(x_l_sumvar_, 0, Kokkos::ALL);
       grid_s_[iS] = grid;
-      grid_s_[iS].update_grid(stage_data_j);
+      grid_s_[iS].update_grid(x_l_sumvar_j);
     }
 
     grid = grid_s_[nStages_ - 1];
     apply_slope_limiter(
-        sl_hydro, uCF, &grid,
+        sl_hydro, u0, &grid,
         pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis(), eos_);
     apply_slope_limiter(
-        sl_rad, uCF, &grid,
+        sl_rad, u0, &grid,
         pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis(), eos_);
     bel::apply_bound_enforcing_limiter(
-        uCF, pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis());
+        u0, pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis());
     bel::apply_bound_enforcing_limiter_rad(
-        uCF, pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis());
+        u0, pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis());
 
     pkgs->zero_delta();
   }
@@ -348,8 +345,8 @@ class TimeStepper {
   AthelasArray3D<double> SumVar_U_;
   std::vector<GridStructure> grid_s_;
 
-  // stage_data_ Holds cell left interface positions
-  AthelasArray2D<double> stage_data_;
+  // x_l_sumvar_ Holds cell left interface positions
+  AthelasArray2D<double> x_l_sumvar_;
 
   // Variables to pass to update step
   eos::EOS *eos_;

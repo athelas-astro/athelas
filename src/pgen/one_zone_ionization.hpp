@@ -22,8 +22,8 @@ namespace athelas {
 /**
  * Initialize one_zone_ionization test
  **/
-void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
-                              const eos::EOS *eos,
+void one_zone_ionization_init(MeshState &mesh_state, GridStructure *grid,
+                              ProblemIn *pin, const eos::EOS *eos,
                               basis::ModalBasis *fluid_basis = nullptr) {
   const bool ionization_active =
       pin->param()->get<bool>("physics.ionization_enabled");
@@ -48,13 +48,14 @@ void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
                         "[composition.ncomps] = 3!");
   }
 
-  AthelasArray3D<double> uCF = state->u_cf();
-  AthelasArray3D<double> uPF = state->u_pf();
-  auto uAF = state->u_af();
+  auto uCF = mesh_state(0).get_field("u_cf");
+  auto uPF = mesh_state(0).get_field("u_pf");
+  auto uAF = mesh_state(0).get_field("u_af");
+  auto sd0 = mesh_state(0);
 
   static const IndexRange ib(grid->domain<Domain::Interior>());
   static const int nNodes = grid->n_nodes();
-  static const int order = state->p_order();
+  static const int order = mesh_state.p_order();
 
   const auto temperature =
       pin->param()->get<double>("problem.params.temperature", 5800); // K
@@ -79,7 +80,7 @@ void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
       std::make_shared<atom::IonizationState>(grid->n_elements() + 2, nNodes,
                                               ncomps, 7, saha_ncomps,
                                               fn_ionization, fn_deg);
-  auto mass_fractions = state->mass_fractions();
+  auto mass_fractions = mesh_state.mass_fractions("u_cf");
   auto charges = comps->charge();
   auto neutrons = comps->neutron_number();
   auto inv_atomic_mass = comps->inverse_atomic_mass();
@@ -122,8 +123,8 @@ void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
         neutrons(i_C) = 6;
         inv_atomic_mass(i_C) = 1.0 / 12.0;
       });
-  state->setup_composition(comps);
-  state->setup_ionization(ionization_state);
+  mesh_state.setup_composition(comps);
+  mesh_state.setup_ionization(ionization_state);
 
   if (fluid_basis != nullptr) {
     athelas::par_for(
@@ -139,7 +140,7 @@ void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
             uPF(i, q, vars::prim::Rho) = rho;
             uAF(i, q, vars::aux::Tgas) = temperature;
             if (eos_type == "paczynski") {
-              atom::paczynski_terms(state, i, q, lambda);
+              atom::paczynski_terms(sd0, i, q, lambda);
             }
             uAF(i, q, vars::aux::Pressure) = pressure_from_density_temperature(
                 eos, rho, temperature, lambda);
@@ -178,10 +179,10 @@ void one_zone_ionization_init(State *state, GridStructure *grid, ProblemIn *pin,
           }
         });
 
-    atom::fill_derived_comps<Domain::Interior>(state, uCF, grid, fluid_basis);
-    atom::solve_saha_ionization<Domain::Interior>(*state, uCF, *grid, *eos,
+    atom::fill_derived_comps<Domain::Interior>(sd0, uCF, grid, fluid_basis);
+    atom::solve_saha_ionization<Domain::Interior>(sd0, uCF, *grid, *eos,
                                                   *fluid_basis);
-    atom::fill_derived_ionization<Domain::Interior>(state, uCF, grid,
+    atom::fill_derived_ionization<Domain::Interior>(sd0, uCF, grid,
                                                     fluid_basis);
     // composition boundary condition
     static const IndexRange vb_comps(std::make_pair(3, 3 + ncomps - 1));
