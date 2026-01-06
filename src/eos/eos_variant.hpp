@@ -140,9 +140,9 @@ KOKKOS_INLINE_FUNCTION auto gamma1(const EOS *const eos) -> double {
 KOKKOS_INLINE_FUNCTION auto min_sie(const EOS *const eos, const double rho,
                                     const double *const lambda) -> double {
   return std::visit(
-      [&rho, &lambda](auto &eos) { 
+      [&rho, &lambda](auto &eos) {
         using ::athelas::eos::min_sie;
-        return min_sie(eos, rho, lambda); 
+        return min_sie(eos, rho, lambda);
       },
       *eos);
 }

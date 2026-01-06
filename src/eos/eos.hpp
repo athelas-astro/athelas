@@ -244,10 +244,11 @@ class Marshak : public EosBase<Marshak> {
  * @brief Template function to get minimum specific internal energy for an EOS
  *
  * @details Default implementation returns 0.0. Specializations can be provided
- *          for EOS models that have a non-zero minimum specific internal energy.
+ *          for EOS models that have a non-zero minimum specific internal
+ * energy.
  */
 template <class EOS>
-[[nodiscard]] auto min_sie(const EOS& /*eos*/, double /*rho*/,
+[[nodiscard]] auto min_sie(const EOS & /*eos*/, double /*rho*/,
                            const double * /*lambda*/) -> double {
   return 0.0;
 }
@@ -259,9 +260,9 @@ template <class EOS>
  *          energy for the Paczynski equation of state.
  */
 template <>
-[[nodiscard]] inline auto min_sie<Paczynski>(const Paczynski& /*eos*/,
-                                              double rho,
-                                              const double *lambda) -> double {
+[[nodiscard]] inline auto min_sie<Paczynski>(const Paczynski & /*eos*/,
+                                             double rho, const double *lambda)
+    -> double {
   return Paczynski::eps_min(rho, lambda);
 }
 
