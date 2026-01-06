@@ -298,6 +298,13 @@ class MeshState {
   void register_field(std::string name, DataPolicy policy,
                       std::string description,
                       std::vector<std::string> var_names, Dims... dims) {
+    std::array<std::size_t, sizeof...(dims)> checker{
+        static_cast<std::size_t>(dims)...};
+
+    if (checker.back() != var_names.size()) {
+      THROW_ATHELAS_ERROR("MeshState::register_field: Last input dimension "
+                          "must match var_names.size()!");
+    }
     register_field(name, policy, description, dims...);
 
     auto var_map = std::make_shared<VariableMap>();
