@@ -1,44 +1,72 @@
 #include "state/state.hpp"
-#include "compdata.hpp"
+#include "composition/compdata.hpp"
 #include "utils/error.hpp"
 
 namespace athelas {
 
 using atom::CompositionData;
 using atom::IonizationState;
-State::State(const ProblemIn *const pin, const int nstages)
-    : params_(std::make_unique<Params>()) {
-  static const bool rad_enabled = pin->param()->get<bool>("physics.rad_active");
-  static const bool composition_enabled =
+
+// --- StageData ---
+
+[[nodiscard]] auto StageData::ionization_enabled() const noexcept -> bool {
+  return parent_->ionization_enabled();
+}
+[[nodiscard]] auto StageData::composition_enabled() const noexcept -> bool {
+  return parent_->composition_enabled();
+}
+
+auto StageData::get_field(const std::string &name) const
+    -> AthelasArray3D<double> {
+  assert(parent_->is_allocated(name) && "Field not allocated!");
+  const auto &metadata = parent_->get_metadata(name);
+
+  if (metadata.policy == DataPolicy::Staged) {
+    return parent_->get_field_at_stage(name, stage_);
+  }
+  return parent_->get_field<AthelasArray3D<double>>(name);
+}
+
+auto StageData::get_var(const std::string &field, const std::string &var_name,
+                        const int i, const int q) const -> double {
+  const int var_idx = parent_->var_index(field, var_name);
+  auto var = get_field(field);
+  return var(i, q, var_idx);
+}
+
+[[nodiscard]] auto StageData::nvars(const std::string &field) const -> int {
+  return parent_->nvars(field);
+}
+
+auto StageData::comps() const -> atom::CompositionData * {
+  return parent_->comps();
+}
+
+auto StageData::ionization_state() const -> atom::IonizationState * {
+  return parent_->ionization_state();
+}
+
+auto StageData::mass_fractions(const std::string &name) const
+    -> AthelasArray3D<double> {
+  return parent_->mass_fractions(name, stage_);
+}
+
+// --- MeshState ---
+
+MeshState::MeshState(const ProblemIn *const pin, const int nstages)
+    : params_(std::make_unique<Params>()), nstages_(nstages) {
+
+  const bool composition_enabled =
       pin->param()->get<bool>("physics.composition_enabled");
-  static const bool ionization_enabled =
+  const bool ionization_enabled =
       pin->param()->get<bool>("physics.ionization_enabled");
   // NOTE: This will need to be extended when mixing is added.
-  static const bool composition_evolved =
+  const bool composition_evolved =
       pin->param()->get<bool>("physics.heating.nickel.enabled");
-  static const bool nickel_evolved =
+  const bool nickel_evolved =
       pin->param()->get<bool>("physics.heating.nickel.enabled");
-  int nvars_cons = (rad_enabled) ? 5 : 3;
-  if (composition_enabled) {
-    const int ncomps = pin->param()->get<int>("composition.ncomps");
-    nvars_cons += ncomps;
-    params_->add("ncomps", ncomps);
-  }
-  static const int nvars_prim = 3; // Maybe this can be smarter
-  static const int nvars_aux = (rad_enabled) ? 5 : 3;
-  static const int nx = pin->param()->get<int>("problem.nx");
-  static const int n_nodes = pin->param()->get<int>("fluid.nnodes");
-  static const int porder = pin->param()->get<int>("fluid.porder");
+  const int porder = pin->param()->get<int>("fluid.porder");
 
-  uCF_ = AthelasArray3D<double>("uCF", nx + 2, porder, nvars_cons);
-  uCF_s_ = AthelasArray4D<double>("uCF_s", nstages, nx + 2, porder, nvars_cons);
-  uPF_ = AthelasArray3D<double>("uPF", nx + 2, n_nodes + 2, nvars_prim);
-  uAF_ = AthelasArray3D<double>("uAF", nx + 2, n_nodes + 2, nvars_aux);
-
-  params_->add("nvars_cons", nvars_cons);
-  params_->add("nvars_prim", nvars_prim);
-  params_->add("nvars_aux", nvars_aux);
-  params_->add("n_nodes", n_nodes);
   params_->add("p_order", porder);
   params_->add("n_stages", nstages);
   params_->add("composition_enabled", composition_enabled);
@@ -47,100 +75,139 @@ State::State(const ProblemIn *const pin, const int nstages)
   params_->add("nickel_evolved", nickel_evolved);
 }
 
-void State::setup_composition(std::shared_ptr<CompositionData> comps) {
-  if (!composition_enabled()) {
-    THROW_ATHELAS_ERROR(
-        "Trying to set composition but composition is not enabled!");
-  }
-  comps_ = std::move(comps);
-}
-
-void State::setup_ionization(std::shared_ptr<IonizationState> ion) {
-  if (!ionization_enabled()) {
-    THROW_ATHELAS_ERROR(
-        "Trying to set ionization but ionization is not enabled!");
-  }
-  ionization_state_ = std::move(ion);
-}
-
-[[nodiscard]] auto State::comps() const -> CompositionData * {
-  if (!composition_enabled()) {
-    THROW_ATHELAS_ERROR("Composition not enabled!");
-  }
+[[nodiscard]] auto MeshState::comps() const -> atom::CompositionData * {
   return comps_.get();
 }
 
-[[nodiscard]] auto State::ionization_state() const -> IonizationState * {
-  if (!ionization_enabled()) {
-    THROW_ATHELAS_ERROR("Ionization not enabled!");
-  }
+[[nodiscard]] auto MeshState::ionization_state() const
+    -> atom::IonizationState * {
   return ionization_state_.get();
 }
-
-[[nodiscard]] auto State::composition_enabled() const noexcept -> bool {
-  return params_->get<bool>("composition_enabled");
-}
-
-[[nodiscard]] auto State::ionization_enabled() const noexcept -> bool {
-  return params_->get<bool>("ionization_enabled");
-}
-
-[[nodiscard]] auto State::composition_evolved() const noexcept -> bool {
-  return params_->get<bool>("composition_evolved");
-}
-
-[[nodiscard]] auto State::nickel_evolved() const noexcept -> bool {
-  return params_->get<bool>("nickel_evolved");
-}
-
-[[nodiscard]] auto State::mass_fractions() const noexcept
-    -> AthelasArray3D<double> {
-  return Kokkos::subview(uCF_, Kokkos::ALL, Kokkos::ALL,
-                         Kokkos::make_pair(nvars(), nvars() + ncomps()));
-}
-
-[[nodiscard]] auto State::mass_fractions_stages() const noexcept
-    -> AthelasArray4D<double> {
-  return Kokkos::subview(uCF_s_, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL,
-                         Kokkos::make_pair(nvars(), nvars() + ncomps()));
-}
-
-auto State::params() noexcept -> Params * { return params_.get(); }
-
-// num var accessors
-auto State::n_cf() const noexcept -> int {
-  return params_->get<int>("nvars_cons");
-}
-auto State::n_pf() const noexcept -> int {
-  return params_->get<int>("nvars_prim");
-}
-auto State::n_af() const noexcept -> int {
-  return params_->get<int>("nvars_aux");
-}
-auto State::ncomps() const noexcept -> int {
-  if (composition_enabled()) {
-    return params_->get<int>("ncomps");
+// Variable index access
+[[nodiscard]] auto MeshState::var_index(const std::string &field,
+                                        const std::string &var_name) const
+    -> int {
+  const auto &meta = get_metadata(field);
+  if (!meta.var_map) {
+    throw std::runtime_error("Field " + field + " has no variable mapping");
   }
-  return 0;
+  return meta.var_map->index(var_name);
 }
+
+[[nodiscard]] auto MeshState::var_name(const std::string &field,
+                                       int index) const -> std::string {
+  const auto &meta = get_metadata(field);
+  if (!meta.var_map) {
+    throw std::runtime_error("Field " + field + " has no variable mapping");
+  }
+  return meta.var_map->name(index);
+}
+
 /**
- * @brief return number of rad hydro variables
+ * @brief returns number of variables in a field
  */
-auto State::nvars() const noexcept -> int { return n_cf() - ncomps(); }
-auto State::p_order() const noexcept -> int {
-  return params_->get<int>("p_order");
+[[nodiscard]] auto MeshState::nvars(const std::string &field) const -> int {
+  auto it = arrays_.find(field);
+  if (it == arrays_.end()) {
+    THROW_ATHELAS_ERROR("Field not allocated: " + field);
+  }
+
+  // Use visitor to get the last extent
+  return std::visit(
+      [](auto &&arr) -> int {
+        using ArrayType = std::decay_t<decltype(arr)>;
+        constexpr int rank = ArrayType::rank;
+        return static_cast<int>(arr.extent(rank - 1)); // Last dimension
+      },
+      it->second);
 }
 
-// view accessors
-auto State::u_cf() const noexcept -> AthelasArray3D<double> { return uCF_; }
-auto State::u_cf_stages() const noexcept -> AthelasArray4D<double> {
-  return uCF_s_;
-}
-auto State::u_pf() const noexcept -> AthelasArray3D<double> { return uPF_; }
-auto State::u_af() const noexcept -> AthelasArray3D<double> { return uAF_; }
-auto State::vars() const noexcept -> AthelasArray3D<double> {
-  return Kokkos::subview(uCF_, Kokkos::ALL, Kokkos::ALL,
-                         Kokkos::make_pair(0, nvars()));
+[[nodiscard]] auto MeshState::has_field(const std::string &field) const
+    -> bool {
+  return metadata_.contains(field);
 }
 
+[[nodiscard]] auto MeshState::is_allocated(const std::string &field) const
+    -> bool {
+  auto it = metadata_.find(field);
+  return it != metadata_.end() && it->second.allocated;
+}
+
+[[nodiscard]] auto MeshState::is_staged(const std::string &field) const
+    -> bool {
+  return get_metadata(field).policy == DataPolicy::Staged;
+}
+
+[[nodiscard]] auto MeshState::is_onecopy(const std::string &field) const
+    -> bool {
+  return get_metadata(field).policy == DataPolicy::OneCopy;
+}
+
+[[nodiscard]] auto
+MeshState::get_comp_start_index(const std::string &field_name) const -> int {
+  const auto &metadata = get_metadata(field_name);
+  if (!metadata.var_map) {
+    return -1;
+  }
+
+  if (!metadata.var_map->has("comps_0")) {
+    return -1;
+  }
+
+  return metadata.var_map->index("comps_0");
+}
+
+[[nodiscard]] auto MeshState::mass_fractions(const std::string &field_name,
+                                             int stage) const
+    -> AthelasArray3D<double> {
+  int comp_start = get_comp_start_index(field_name);
+  if (comp_start < 0) {
+    THROW_ATHELAS_ERROR("Field " + field_name + " has no composition data!");
+  }
+
+  const auto &meta = get_metadata(field_name);
+  int total_vars = nvars(field_name);
+
+  if (meta.policy == DataPolicy::Staged) {
+    auto field = get_field<AthelasArray4D<double>>(field_name);
+    return Kokkos::subview(field, stage, Kokkos::ALL, Kokkos::ALL,
+                           Kokkos::make_pair(comp_start, total_vars));
+  }
+  auto field = get_field<AthelasArray3D<double>>(field_name);
+  return Kokkos::subview(field, Kokkos::ALL, Kokkos::ALL,
+                         Kokkos::make_pair(comp_start, total_vars));
+}
+
+[[nodiscard]] auto MeshState::field_info() const -> std::string {
+  std::string info = "# --- Registered Fields ---\n";
+
+  for (const auto &[name, arr_variant] : arrays_) {
+    const auto &metadata = get_metadata(name);
+
+    // Field name and policy
+    info += "\n" + metadata.name;
+    info += " [" +
+            std::string(metadata.policy == DataPolicy::Staged ? "Staged"
+                                                              : "OneCopy") +
+            "]";
+
+    info += ":\n";
+    info += "#  Description: " + metadata.description + "\n";
+
+    // Variable names if available
+    if (metadata.var_map) {
+      info += "#  Variables: ";
+      const auto &vars = metadata.var_map->list();
+      for (size_t i = 0; i < vars.size(); ++i) {
+        if (i > 0) {
+          info += ", ";
+        }
+        info += vars[i];
+      }
+      info += "\n";
+    }
+  }
+
+  return info;
+}
 } // namespace athelas

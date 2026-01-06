@@ -17,7 +17,7 @@ class GeometryPackage {
   GeometryPackage(const ProblemIn *pin, basis::ModalBasis *basis, int n_stages,
                   bool active = true);
 
-  void update_explicit(const State *const state, const GridStructure &grid,
+  void update_explicit(const StageData &stage_data, const GridStructure &grid,
                        const TimeStepInfo &dt_info);
 
   void apply_delta(AthelasArray3D<double> lhs,
@@ -25,7 +25,7 @@ class GeometryPackage {
 
   void zero_delta() const noexcept;
 
-  [[nodiscard]] auto min_timestep(const State * /*state*/,
+  [[nodiscard]] auto min_timestep(const StageData & /*stage_data*/,
                                   const GridStructure & /*grid*/,
                                   const TimeStepInfo & /*dt_info*/) const
       -> double;
@@ -34,7 +34,7 @@ class GeometryPackage {
 
   [[nodiscard]] auto is_active() const noexcept -> bool;
 
-  void fill_derived(State *state, const GridStructure &grid,
+  void fill_derived(StageData &stage_data, const GridStructure &grid,
                     const TimeStepInfo &dt_info) const;
 
   void set_active(bool active);

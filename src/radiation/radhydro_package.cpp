@@ -36,7 +36,7 @@ RadHydroPackage::RadHydroPackage(const ProblemIn *pin, int n_stages, EOS *eos,
       scratch_sol_("scratch_k_", nx + 2, fluid_basis_->order(), 5) {
 } // Need long term solution for flux_u_
 
-void RadHydroPackage::update_explicit(const State *const state,
+void RadHydroPackage::update_explicit(const StageData &stage_data,
                                       const GridStructure &grid,
                                       const TimeStepInfo &dt_info) const {
   // TODO(astrobarker) handle separate fluid and rad orders
@@ -45,18 +45,15 @@ void RadHydroPackage::update_explicit(const State *const state,
   static const IndexRange kb(order);
   static const IndexRange vb(NUM_VARS_);
 
-  const auto u_stages = state->u_cf_stages();
-
   const auto stage = dt_info.stage;
-  const auto ucf =
-      Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
+  const auto ucf = stage_data.get_field("u_cf");
 
   // --- Apply BC ---
   bc::fill_ghost_zones<2>(ucf, &grid, rad_basis_, bcs_, {3, 4});
   bc::fill_ghost_zones<3>(ucf, &grid, fluid_basis_, bcs_, {0, 2});
 
   // --- radiation Increment : Divergence ---
-  radhydro_divergence(state, grid, stage);
+  radhydro_divergence(stage_data, grid, stage);
 
   // --- Divide update by mass matrix ---
   const auto inv_mkk_fluid = fluid_basis_->inv_mass_matrix();
@@ -81,7 +78,7 @@ void RadHydroPackage::update_explicit(const State *const state,
  * @brief radiation hydrodynamic implicit term
  * Computes delta from source terms
  **/
-void RadHydroPackage::update_implicit(const State *const state,
+void RadHydroPackage::update_implicit(const StageData &stage_data,
                                       const GridStructure &grid,
                                       const TimeStepInfo &dt_info) const {
   // TODO(astrobarker) handle separate fluid and rad orders
@@ -90,11 +87,8 @@ void RadHydroPackage::update_implicit(const State *const state,
   static const IndexRange kb(order);
   static const IndexRange vb(NUM_VARS_);
 
-  auto u_stages = state->u_cf_stages();
-
   const auto stage = dt_info.stage;
-  auto ucf =
-      Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
+  auto ucf = stage_data.get_field("u_cf");
 
   auto phi_rad = rad_basis_->phi();
   auto phi_fluid = fluid_basis_->phi();
@@ -107,7 +101,7 @@ void RadHydroPackage::update_implicit(const State *const state,
       kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
         const auto ucf_i = Kokkos::subview(ucf, i, Kokkos::ALL, Kokkos::ALL);
         const auto [du1, du2, du3, du4] =
-            radhydro_source(state, ucf_i, dr, weights, phi_fluid, phi_rad,
+            radhydro_source(stage_data, ucf_i, dr, weights, phi_fluid, phi_rad,
                             inv_mkk_fluid, inv_mkk_rad, i, k);
         delta_im_(stage, i, k, vars::cons::Velocity) = du1;
         delta_im_(stage, i, k, vars::cons::Energy) = du2;
@@ -116,7 +110,7 @@ void RadHydroPackage::update_implicit(const State *const state,
       });
 } // update_implicit
 
-void RadHydroPackage::update_implicit_iterative(const State *const state,
+void RadHydroPackage::update_implicit_iterative(const StageData &stage_data,
                                                 AthelasArray3D<double> R,
                                                 const GridStructure &grid,
                                                 const TimeStepInfo &dt_info) {
@@ -124,11 +118,7 @@ void RadHydroPackage::update_implicit_iterative(const State *const state,
   const auto &order = fluid_basis_->order();
   static const IndexRange ib(grid.domain<Domain::Interior>());
 
-  auto u_stages = state->u_cf_stages();
-
-  const auto stage = dt_info.stage;
-  auto ucf =
-      Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
+  auto ucf = stage_data.get_field("u_cf");
 
   auto phi_rad = rad_basis_->phi();
   auto phi_fluid = fluid_basis_->phi();
@@ -160,7 +150,7 @@ void RadHydroPackage::update_implicit_iterative(const State *const state,
         }
 
         fixed_point_radhydro(R_i, dt_info.dt_coef, scratch_sol_i_k,
-                             scratch_sol_i_km1, scratch_sol_i, state, dr,
+                             scratch_sol_i_km1, scratch_sol_i, stage_data, dr,
                              weights, phi_fluid, phi_rad, inv_mkk_fluid,
                              inv_mkk_rad, eos_, opac_, i);
 
@@ -217,14 +207,11 @@ void RadHydroPackage::zero_delta() const noexcept {
 
 // Compute the divergence of the flux term for the update
 // TODO(astrobarker): dont pass in stage
-void RadHydroPackage::radhydro_divergence(const State *const state,
+void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
                                           const GridStructure &grid,
                                           const int stage) const {
-  const auto u_stages = state->u_cf_stages();
-
-  const auto ucf =
-      Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
-  const auto uaf = state->u_af();
+  auto ucf = stage_data.get_field("u_cf");
+  auto uaf = stage_data.get_field("u_af");
 
   const auto &nNodes = grid.n_nodes();
   const auto &order = rad_basis_->order();
@@ -234,13 +221,13 @@ void RadHydroPackage::radhydro_divergence(const State *const state,
   static const IndexRange kb(order);
   static const IndexRange vb(NUM_VARS_);
 
-  const auto sqrt_gm = grid.sqrt_gm();
-  const auto weights = grid.weights();
+  auto sqrt_gm = grid.sqrt_gm();
+  auto weights = grid.weights();
 
-  const auto phi_rad = rad_basis_->phi();
-  const auto phi_fluid = fluid_basis_->phi();
-  const auto dphi_rad = rad_basis_->dphi();
-  const auto dphi_fluid = fluid_basis_->dphi();
+  auto phi_rad = rad_basis_->phi();
+  auto phi_fluid = fluid_basis_->phi();
+  auto dphi_rad = rad_basis_->dphi();
+  auto dphi_fluid = fluid_basis_->dphi();
 
   // --- Interpolate Conserved Variable to Interfaces ---
 
@@ -384,14 +371,14 @@ void RadHydroPackage::radhydro_divergence(const State *const state,
  * @note Returns tuple<S_egas, S_vgas, S_erad, S_frad>
  **/
 auto RadHydroPackage::radhydro_source(
-    const State *const state, const AthelasArray2D<double> uCRH,
+    const StageData &stage_data, const AthelasArray2D<double> uCRH,
     const AthelasArray1D<double> dx, const AthelasArray1D<double> weights,
     const AthelasArray3D<double> phi_fluid,
     const AthelasArray3D<double> phi_rad,
     const AthelasArray2D<double> inv_mkk_fluid,
     const AthelasArray2D<double> inv_mkk_rad, const int i, const int k) const
     -> std::tuple<double, double, double, double> {
-  return compute_increment_radhydro_source(uCRH, k, state, dx, weights,
+  return compute_increment_radhydro_source(uCRH, k, stage_data, dx, weights,
                                            phi_fluid, phi_rad, inv_mkk_fluid,
                                            inv_mkk_rad, eos_, opac_, i);
 }
@@ -399,7 +386,7 @@ auto RadHydroPackage::radhydro_source(
 /**
  * @brief explicit radiation hydrodynamic timestep restriction
  **/
-auto RadHydroPackage::min_timestep(const State *const /*ucf*/,
+auto RadHydroPackage::min_timestep(const StageData & /*stage_data*/,
                                    const GridStructure &grid,
                                    const TimeStepInfo & /*dt_info*/) const
     -> double {
@@ -433,23 +420,20 @@ auto RadHydroPackage::min_timestep(const State *const /*ucf*/,
  *
  * TODO(astrobarker): extend
  */
-void RadHydroPackage::fill_derived(State *state, const GridStructure &grid,
+void RadHydroPackage::fill_derived(StageData &stage_data,
+                                   const GridStructure &grid,
                                    const TimeStepInfo &dt_info) const {
-  const int stage = dt_info.stage;
-
-  auto u_s = state->u_cf_stages();
-
-  auto uCF = Kokkos::subview(u_s, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
+  auto uCF = stage_data.get_field("u_cf");
   // hacky
-  if (stage == -1) {
-    uCF = state->u_cf();
-  }
-  auto uPF = state->u_pf();
-  auto uAF = state->u_af();
+  // if (stage == -1) {
+  //   uCF = stage_data.get_field("u_cf");
+  //}
+  auto uPF = stage_data.get_field("u_pf");
+  auto uAF = stage_data.get_field("u_af");
 
   const int nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Entire>());
-  static const bool ionization_enabled = state->ionization_enabled();
+  static const bool ionization_enabled = stage_data.ionization_enabled();
 
   auto phi_fluid = fluid_basis_->phi();
 
@@ -457,13 +441,14 @@ void RadHydroPackage::fill_derived(State *state, const GridStructure &grid,
   bc::fill_ghost_zones<2>(uCF, &grid, rad_basis_, bcs_, {3, 4});
   bc::fill_ghost_zones<3>(uCF, &grid, fluid_basis_, bcs_, {0, 2});
 
-  if (state->composition_enabled()) {
+  if (stage_data.composition_enabled()) {
     static constexpr int nvars = 5; // non-comps
     // composition boundary condition
     static const IndexRange vb_comps(
-        std::make_pair(nvars, nvars + state->ncomps() - 1));
+        std::make_pair(nvars, stage_data.nvars("u_cf") - 1));
     bc::fill_ghost_zones_composition(uCF, vb_comps);
-    atom::fill_derived_comps<Domain::Entire>(state, uCF, &grid, fluid_basis_);
+    atom::fill_derived_comps<Domain::Entire>(stage_data, uCF, &grid,
+                                             fluid_basis_);
   }
 
   // First we get the temperature from the density and specific internal
@@ -471,7 +456,7 @@ void RadHydroPackage::fill_derived(State *state, const GridStructure &grid,
   // separately. In that case the temperature solve is coupled to a Saha solve.
   if (ionization_enabled) {
     atom::compute_temperature_with_saha<Domain::Entire, eos::EOSInversion::Sie>(
-        eos_, state, uCF, grid, *fluid_basis_);
+        eos_, stage_data, uCF, grid, *fluid_basis_);
   } else {
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Fill derived :: temperature",
@@ -515,7 +500,7 @@ void RadHydroPackage::fill_derived(State *state, const GridStructure &grid,
           // ionization enabled and Paczynski disbled are an outlier.
           double lambda[8];
           if (ionization_enabled) {
-            atom::paczynski_terms(state, i, q, lambda);
+            atom::paczynski_terms(stage_data, i, q, lambda);
           }
 
           const double t_gas = uAF(i, q, vars::aux::Tgas);

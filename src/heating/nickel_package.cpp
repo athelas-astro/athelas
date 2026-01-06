@@ -42,29 +42,26 @@ NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,
   ind_fe_ = indexer->get<int>("fe56");
 }
 
-void NickelHeatingPackage::update_explicit(const State *const state,
+void NickelHeatingPackage::update_explicit(const StageData &stage_data,
                                            const GridStructure &grid,
                                            const TimeStepInfo &dt_info) {
   const int &order = basis_->order();
   static const IndexRange kb(order);
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  auto u_stages = state->u_cf_stages();
 
-  const auto stage = dt_info.stage;
-  auto ucf =
-      Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
+  auto ucf = stage_data.get_field("u_cf");
 
-  auto *comps = state->comps();
+  auto *comps = stage_data.comps();
 
   if (model_ == NiHeatingModel::Jeffery) {
-    ni_update<NiHeatingModel::Jeffery>(state, comps, grid, dt_info);
+    ni_update<NiHeatingModel::Jeffery>(stage_data, comps, grid, dt_info);
   } else {
-    ni_update<NiHeatingModel::FullTrapping>(state, comps, grid, dt_info);
+    ni_update<NiHeatingModel::FullTrapping>(stage_data, comps, grid, dt_info);
   }
 }
 
 template <NiHeatingModel Model>
-void NickelHeatingPackage::ni_update(const State *const state,
+void NickelHeatingPackage::ni_update(const StageData &stage_data,
                                      CompositionData *comps,
                                      const GridStructure &grid,
                                      const TimeStepInfo &dt_info) const {
@@ -75,14 +72,9 @@ void NickelHeatingPackage::ni_update(const State *const state,
 
   const int stage = dt_info.stage;
 
-  auto u_stages = state->u_cf_stages();
+  auto ucf = stage_data.get_field("u_cf");
 
-  auto ucf = Kokkos::subview(u_stages, dt_info.stage, Kokkos::ALL, Kokkos::ALL,
-                             Kokkos::ALL);
-
-  auto mass_fractions_stages = state->mass_fractions_stages();
-  auto mass_fractions = Kokkos::subview(mass_fractions_stages, dt_info.stage,
-                                        Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
+  auto mass_fractions = stage_data.mass_fractions("u_cf");
   const auto *const species_indexer = comps->species_indexer();
   static const auto ind_ni = species_indexer->get<int>("ni56");
   static const auto ind_co = species_indexer->get<int>("co56");
@@ -180,7 +172,7 @@ void NickelHeatingPackage::zero_delta() const noexcept {
  * @note We simply require the timestep to be smaller than the 56Ni mean
  * lifetime / 10. I doubt that this will ever be needed.
  **/
-auto NickelHeatingPackage::min_timestep(const State *const /*state*/,
+auto NickelHeatingPackage::min_timestep(const StageData & /*stage_data*/,
                                         const GridStructure & /*grid*/,
                                         const TimeStepInfo & /*dt_info*/) const
     -> double {
@@ -189,7 +181,8 @@ auto NickelHeatingPackage::min_timestep(const State *const /*state*/,
   return dt_out;
 }
 
-void NickelHeatingPackage::fill_derived(State *state, const GridStructure &grid,
+void NickelHeatingPackage::fill_derived(StageData &stage_data,
+                                        const GridStructure &grid,
                                         const TimeStepInfo &dt_info) const {
 
   if (model_ != NiHeatingModel::Jeffery) {
@@ -202,19 +195,16 @@ void NickelHeatingPackage::fill_derived(State *state, const GridStructure &grid,
   // I think we assume that tau = 0 at the outer interface, but
   // don't include that point on the array, so start from
   // outermost quadrature point
-  const int stage = dt_info.stage;
 
-  auto u_s = state->u_cf_stages();
-
-  auto uCF = Kokkos::subview(u_s, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
+  auto uCF = stage_data.get_field("u_cf");
   // hacky
-  if (stage == -1) {
-    uCF = state->u_cf();
-  }
-  auto uPF = state->u_pf();
-  auto uAF = state->u_af();
+  // if (stage == -1) {
+  //  uCF = stage_data.get_field("u_cf");
+  //}
+  auto uPF = stage_data.get_field("u_pf");
+  auto uAF = stage_data.get_field("u_af");
 
-  const auto ye = state->comps()->ye();
+  const auto ye = stage_data.comps()->ye();
 
   const int nnodes = grid.n_nodes();
   const int nx = grid.n_elements();

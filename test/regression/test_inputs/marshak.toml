@@ -1,6 +1,6 @@
 [problem]
 problem = "marshak"
-t_end = 5.781e-14
+t_end = 1.0e-14
 nlim = -1
 geometry = "planar"
 restart = false

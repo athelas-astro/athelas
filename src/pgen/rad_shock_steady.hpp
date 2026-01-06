@@ -39,8 +39,8 @@ namespace athelas {
  *   - Density: 3.598 g/cm^3
  *   - Temperature: 9.9302e6 K (855.720 eV)
  **/
-void rad_shock_steady_init(State *state, GridStructure *grid, ProblemIn *pin,
-                           const eos::EOS *eos,
+void rad_shock_steady_init(MeshState &mesh_state, GridStructure *grid,
+                           ProblemIn *pin, const eos::EOS *eos,
                            basis::ModalBasis * /*fluid_basis = nullptr*/,
                            basis::ModalBasis * /*radiation_basis = nullptr*/) {
   const bool rad_active = pin->param()->get<bool>("physics.rad_active");
@@ -52,8 +52,8 @@ void rad_shock_steady_init(State *state, GridStructure *grid, ProblemIn *pin,
     THROW_ATHELAS_ERROR("Steady radiative shock requires ideal gas eos!");
   }
 
-  AthelasArray3D<double> uCF = state->u_cf();
-  AthelasArray3D<double> uPF = state->u_pf();
+  auto uCF = mesh_state(0).get_field("u_cf");
+  auto uPF = mesh_state(0).get_field("u_pf");
 
   static const IndexRange ib(grid->domain<Domain::Interior>());
   static const int nNodes = grid->n_nodes();

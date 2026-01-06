@@ -25,7 +25,7 @@ class HydroPackage {
                basis::ModalBasis *basis, BoundaryConditions *bcs, double cfl,
                int nx, bool active = true);
 
-  void update_explicit(const State *const state, const GridStructure &grid,
+  void update_explicit(const StageData &stage_data, const GridStructure &grid,
                        const TimeStepInfo &dt_info) const;
 
   void apply_delta(AthelasArray3D<double> lhs,
@@ -33,10 +33,10 @@ class HydroPackage {
 
   void zero_delta() const noexcept;
 
-  void fluid_divergence(const State *const state, const GridStructure &grid,
+  void fluid_divergence(const StageData &stage_data, const GridStructure &grid,
                         int stage) const;
 
-  [[nodiscard]] auto min_timestep(const State *const state,
+  [[nodiscard]] auto min_timestep(const StageData &stage_data,
                                   const GridStructure &grid,
                                   const TimeStepInfo & /*dt_info*/) const
       -> double;
@@ -45,8 +45,8 @@ class HydroPackage {
 
   [[nodiscard]] auto is_active() const noexcept -> bool;
 
-  void fill_derived(State *state, const GridStructure &grid,
-                    const TimeStepInfo &dt_info) const;
+  void fill_derived(StageData &stage_data, const GridStructure &grid,
+                    const TimeStepInfo & /*dt_info*/) const;
 
   void set_active(bool active);
 

@@ -45,9 +45,8 @@ class Driver {
         history_(std::make_unique<HistoryOutput>(
             pin->param()->get<std::string>("output.hist_fn"),
             pin->param()->get<std::string>("output.dir"),
-            pin->param()->get<bool>("output.history_enabled"))) {
-    static const int n_stages = ssprk_.n_stages();
-    state_ = std::make_unique<State>(pin.get(), n_stages);
+            pin->param()->get<bool>("output.history_enabled"))),
+        mesh_state_(pin.get(), ssprk_.n_stages()) {
     initialize(pin.get());
   }
 
@@ -94,7 +93,7 @@ class Driver {
   std::unique_ptr<basis::ModalBasis> fluid_basis_; // init in constr body
   std::unique_ptr<basis::ModalBasis> radiation_basis_; // init in constr body
 
-  std::unique_ptr<State> state_;
+  MeshState mesh_state_;
 }; // class Driver
 
 } // namespace athelas

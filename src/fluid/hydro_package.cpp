@@ -36,16 +36,13 @@ HydroPackage::HydroPackage(const ProblemIn * /*pin*/, int n_stages, EOS *eos,
       delta_("hydro :: delta", n_stages, nx_ + 2, basis->order(), 3) {
 } // Need long term solution for flux_u_
 
-void HydroPackage::update_explicit(const State *const state,
+void HydroPackage::update_explicit(const StageData &stage_data,
                                    const GridStructure &grid,
                                    const TimeStepInfo &dt_info) const {
   const int stage = dt_info.stage;
-  const auto u_stages = state->u_cf_stages();
+  auto ucf = stage_data.get_field("u_cf");
 
-  const auto ucf =
-      Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
-
-  const auto uaf = state->u_af();
+  auto uaf = stage_data.get_field("u_af");
 
   const auto &order = basis_->order();
   static const IndexRange ib(grid.domain<Domain::Interior>());
@@ -54,14 +51,14 @@ void HydroPackage::update_explicit(const State *const state,
 
   // --- Apply BC ---
   bc::fill_ghost_zones<3>(ucf, &grid, basis_, bcs_, {0, 2});
-  if (state->composition_enabled()) {
+  if (stage_data.composition_enabled()) {
     static const IndexRange vb_comps(
-        std::make_pair(NUM_VARS_, 3 + state->ncomps() - 1));
+        std::make_pair(NUM_VARS_, stage_data.nvars("u_cf") - 1));
     bc::fill_ghost_zones_composition(ucf, vb_comps);
   }
 
   // --- Fluid Increment : Divergence ---
-  fluid_divergence(state, grid, stage);
+  fluid_divergence(stage_data, grid, stage);
 
   // --- Dvbide update by mass mastrix ---
   const auto inv_mkk = basis_->inv_mass_matrix();
@@ -77,14 +74,12 @@ void HydroPackage::update_explicit(const State *const state,
 
 // Compute the dvbergence of the flux term for the update
 // TODO(astrobarker): dont pass in stage
-void HydroPackage::fluid_divergence(const State *const state,
+void HydroPackage::fluid_divergence(const StageData &stage_data,
                                     const GridStructure &grid,
                                     const int stage) const {
-  const auto u_stages = state->u_cf_stages();
+  auto ucf = stage_data.get_field("u_cf");
 
-  const auto ucf =
-      Kokkos::subview(u_stages, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
-  const auto uaf = state->u_af();
+  auto uaf = stage_data.get_field("u_af");
 
   const auto &nNodes = grid.n_nodes();
   const auto &order = basis_->order();
@@ -92,12 +87,12 @@ void HydroPackage::fluid_divergence(const State *const state,
   static const IndexRange kb(order);
   static const IndexRange vb(NUM_VARS_);
 
-  const auto x_l = grid.x_l();
-  const auto sqrt_gm = grid.sqrt_gm();
-  const auto weights = grid.weights();
+  auto x_l = grid.x_l();
+  auto sqrt_gm = grid.sqrt_gm();
+  auto weights = grid.weights();
 
-  const auto phi = basis_->phi();
-  const auto dphis = basis_->dphi();
+  auto phi = basis_->phi();
+  auto dphis = basis_->dphi();
 
   // --- Interpolate Conserved Variable to Interfaces ---
 
@@ -227,14 +222,14 @@ void HydroPackage::zero_delta() const noexcept {
 /**
  * @brief explicit hydrodynamic timestep restriction
  **/
-auto HydroPackage::min_timestep(const State *const state,
+auto HydroPackage::min_timestep(const StageData &stage_data,
                                 const GridStructure &grid,
                                 const TimeStepInfo & /*dt_info*/) const
     -> double {
   static constexpr double MAX_DT = std::numeric_limits<double>::max();
   static constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
 
-  auto uaf = state->u_af();
+  auto uaf = stage_data.get_field("u_af");
 
   static const int nnodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
@@ -266,34 +261,26 @@ auto HydroPackage::min_timestep(const State *const state,
 /**
  * @brief fill Hydro derived quantities
  */
-void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
-                                const TimeStepInfo &dt_info) const {
-  const int stage = dt_info.stage;
-
-  auto u_s = state->u_cf_stages();
-
-  auto uCF = Kokkos::subview(u_s, stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
-  // hacky
-  if (stage == -1) {
-    uCF = state->u_cf();
-  }
-  auto uPF = state->u_pf();
-  auto uAF = state->u_af();
+void HydroPackage::fill_derived(StageData &stage_data,
+                                const GridStructure &grid,
+                                const TimeStepInfo & /*dt_info*/) const {
+  auto uCF = stage_data.get_field("u_cf");
+  auto uPF = stage_data.get_field("u_pf");
+  auto uAF = stage_data.get_field("u_af");
 
   const int nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Entire>());
-  static const bool ionization_enabled = state->ionization_enabled();
+  static const bool ionization_enabled = stage_data.ionization_enabled();
 
   // --- Apply BC ---
   bc::fill_ghost_zones<3>(uCF, &grid, basis_, bcs_, {0, 2});
 
-  if (state->composition_enabled()) {
-    static constexpr int nvars = 3; // non-comps
+  if (stage_data.composition_enabled()) {
     // composition boundary condition
     static const IndexRange vb_comps(
-        std::make_pair(nvars, nvars + state->ncomps() - 1));
+        std::make_pair(NUM_VARS_, stage_data.nvars("u_cf") - 1));
     bc::fill_ghost_zones_composition(uCF, vb_comps);
-    atom::fill_derived_comps<Domain::Entire>(state, uCF, &grid, basis_);
+    atom::fill_derived_comps<Domain::Entire>(stage_data, uCF, &grid, basis_);
   }
 
   auto phi = basis_->phi();
@@ -303,7 +290,7 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
   // separately. In that case the temperature solve is coupled to a Saha solve.
   if (ionization_enabled) {
     atom::compute_temperature_with_saha<Domain::Entire, eos::EOSInversion::Sie>(
-        eos_, state, uCF, grid, *basis_);
+        eos_, stage_data, uCF, grid, *basis_);
   } else {
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Fill derived :: temperature",
@@ -337,7 +324,7 @@ void HydroPackage::fill_derived(State *const state, const GridStructure &grid,
           // ionization enabled and Paczynski disbled are an outlier.
           double lambda[8];
           if (ionization_enabled) {
-            atom::paczynski_terms(state, i, q, lambda);
+            atom::paczynski_terms(stage_data, i, q, lambda);
           }
           const double t_gas = uAF(i, q, vars::aux::Tgas);
           const double pressure =

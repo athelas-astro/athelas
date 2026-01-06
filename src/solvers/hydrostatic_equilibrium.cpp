@@ -21,9 +21,10 @@ auto HydrostaticEquilibrium::rhs(const double mass_enc, const double p,
   return -G * mass_enc * rho / (r * r);
 }
 
-void HydrostaticEquilibrium::solve(State *state, GridStructure *grid,
+void HydrostaticEquilibrium::solve(MeshState &mesh_state, GridStructure *grid,
                                    ProblemIn *pin) {
-  auto uAF = state->u_af();
+  auto uAF = mesh_state(0).get_field("u_af");
+  auto sd0 = mesh_state(0);
 
   static constexpr int ilo = 1;
   const int ihi = grid->get_ihi();
@@ -35,8 +36,8 @@ void HydrostaticEquilibrium::solve(State *state, GridStructure *grid,
   const double vel = 0.0;
   const double energy = 0.0;
   double lambda[8];
-  if (state->ionization_enabled()) {
-    atom::paczynski_terms(state, 1, 0, lambda);
+  if (mesh_state.ionization_enabled()) {
+    atom::paczynski_terms(sd0, 1, 0, lambda);
   }
   const double p_c = pressure_from_conserved(eos_, rho_c_, vel, energy, lambda);
 

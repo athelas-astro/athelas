@@ -1,6 +1,6 @@
 [problem]
 problem = "ejecta_csm"
-t_end = 0.05
+t_end = 0.025
 nlim = -1
 geometry = "spherical"
 restart = false

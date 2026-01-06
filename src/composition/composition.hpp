@@ -12,7 +12,8 @@
 
 namespace athelas::atom {
 
-void paczynski_terms(const State *state, int ix, int node, double *lambda);
+void paczynski_terms(const StageData &mesh_state, int ix, int node,
+                     double *lambda);
 
 /**
  * @brief Number density of atomic species in particles/cm^3
@@ -32,7 +33,7 @@ auto element_number_density(const double mass_frac,
  * TODO(astrobarker): Explore hierarchical parallelism for inner loops
  */
 template <Domain MeshDomain>
-void fill_derived_comps(State *const state, AthelasArray3D<double> ucf,
+void fill_derived_comps(StageData &stage_data, AthelasArray3D<double> ucf,
                         const GridStructure *const grid,
                         const basis::ModalBasis *const basis) {
   static const auto &nnodes = grid->n_nodes();
@@ -41,8 +42,8 @@ void fill_derived_comps(State *const state, AthelasArray3D<double> ucf,
 
   auto phi = basis->phi();
 
-  auto *const comps = state->comps();
-  auto mass_fractions = state->mass_fractions();
+  auto *const comps = stage_data.comps();
+  auto mass_fractions = stage_data.mass_fractions("u_cf");
   auto species = comps->charge();
   auto neutron_number = comps->neutron_number();
   auto inv_atomic_mass = comps->inverse_atomic_mass();
@@ -153,21 +154,21 @@ auto fill_derived_ionization(const basis::ModalBasis *basis,
  * If this changes then the inner looping needs to be optimized.
  */
 template <Domain MeshDomain>
-void fill_derived_ionization(State *const state, AthelasArray3D<double> ucf,
+void fill_derived_ionization(StageData &stage_data, AthelasArray3D<double> ucf,
                              const GridStructure *const grid,
                              const basis::ModalBasis *const basis) {
   static const auto &nnodes = grid->n_nodes();
   static const IndexRange ib(grid->domain<MeshDomain>());
   static const IndexRange nb(nnodes + 2);
 
-  const auto *const comps = state->comps();
-  const auto mass_fractions = state->mass_fractions();
+  const auto *const comps = stage_data.comps();
+  const auto mass_fractions = stage_data.mass_fractions("u_cf");
   const auto number_density = comps->number_density();
   const auto electron_number_density = comps->electron_number_density();
   const size_t num_species = comps->n_species();
   auto *species_indexer = comps->species_indexer();
 
-  auto *const ionization_state = state->ionization_state();
+  auto *const ionization_state = stage_data.ionization_state();
   static const auto &ncomps_saha = ionization_state->ncomps();
   auto ybar = ionization_state->ybar();
   auto sigma1 = ionization_state->sigma1();

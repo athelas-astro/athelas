@@ -29,6 +29,8 @@ template <typename T>
 using AthelasArray3D = Kokkos::View<T ***, LayoutWrapper, DevMemSpace>;
 template <typename T>
 using AthelasArray4D = Kokkos::View<T ****, LayoutWrapper, DevMemSpace>;
+template <typename T>
+using AthelasArray5D = Kokkos::View<T *****, LayoutWrapper, DevMemSpace>;
 
 // Host mirrors
 template <typename T>
@@ -41,6 +43,8 @@ template <typename T>
 using HostArray3D = typename AthelasArray3D<T>::HostMirror;
 template <typename T>
 using HostArray4D = typename AthelasArray4D<T>::HostMirror;
+template <typename T>
+using HostArray5D = typename AthelasArray5D<T>::HostMirror;
 
 using team_policy = Kokkos::TeamPolicy<>;
 using team_mbr_t = Kokkos::TeamPolicy<>::member_type;

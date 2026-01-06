@@ -12,7 +12,7 @@ namespace athelas {
 /**
  * Initialize ni_decay test
  **/
-void ni_decay_init(State *state, GridStructure *grid, ProblemIn *pin,
+void ni_decay_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
                    const eos::EOS *eos,
                    basis::ModalBasis *fluid_basis = nullptr) {
   const bool composition_active =
@@ -30,9 +30,9 @@ void ni_decay_init(State *state, GridStructure *grid, ProblemIn *pin,
     THROW_ATHELAS_ERROR("Ni decay requires ideal gas eos!");
   }
 
-  AthelasArray3D<double> uCF = state->u_cf();
-  AthelasArray3D<double> uPF = state->u_pf();
-  auto uAF = state->u_af();
+  auto uCF = mesh_state(0).get_field("u_cf");
+  auto uPF = mesh_state(0).get_field("u_pf");
+  auto uAF = mesh_state(0).get_field("u_af");
 
   static const IndexRange ib(grid->domain<Domain::Interior>());
   static const int nNodes = grid->n_nodes();
@@ -63,7 +63,7 @@ void ni_decay_init(State *state, GridStructure *grid, ProblemIn *pin,
   std::shared_ptr<atom::CompositionData> comps =
       std::make_shared<atom::CompositionData>(grid->n_elements() + 2, order,
                                               ncomps);
-  auto mass_fractions = state->mass_fractions();
+  auto mass_fractions = mesh_state.mass_fractions("u_cf");
   auto charges = comps->charge();
   auto neutrons = comps->neutron_number();
   auto ye = comps->ye();
@@ -106,7 +106,7 @@ void ni_decay_init(State *state, GridStructure *grid, ProblemIn *pin,
         inv_atomic_mass(2) = 1.0 / (56.0);
       });
 
-  state->setup_composition(comps);
+  mesh_state.setup_composition(comps);
 
   // composition boundary condition
   static const IndexRange vb_comps(std::make_pair(3, 3 + ncomps - 1));
