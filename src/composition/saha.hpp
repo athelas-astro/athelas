@@ -6,6 +6,7 @@
 #include "composition/compdata.hpp"
 #include "composition/composition.hpp"
 #include "constants.hpp"
+#include "eos.hpp"
 #include "eos/eos_variant.hpp"
 #include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
@@ -112,7 +113,7 @@ void saha_solve(AthelasArray1D<double> ionization_states, const int Z,
   // Set up static root finder for Saha ionization
   // TODO(astrobarker): make tolerances runtime
   static RootFinder<double, NewtonAlgorithm<double>> solver(
-      {.abs_tol = 1.0e-10, .rel_tol = 1.0e-10, .max_iterations = 16});
+      {.abs_tol = 1.0e-10, .rel_tol = 1.0e-10, .max_iterations = 32});
   static constexpr double ZBARTOL = 1.0e-15;
   static constexpr double ZBARTOLINV = 1.0e15;
 
@@ -413,6 +414,7 @@ auto temperature_residual(const double temperature, const double rho,
     const int z = species(e);
     const double x_e = basis::basis_eval(phi, mass_fractions, i, e, q);
     const double inv_A = inv_atomic_mass(e);
+    const double nk = atom::element_number_density(x_e, inv_A, rho);
 
     // species atomic data
     const auto species_atomic_data = species_data(ion_data, species_offsets, z);
@@ -423,11 +425,13 @@ auto temperature_residual(const double temperature, const double rho,
 
     const double sum_ion_pot = species_sum_pot(z - 1);
     const double nu_k = abar * x_e * inv_A;
+    n_e_solve += z * nk;
 
     sum_e_ion_corr += nu_k * sum_ion_pot;
   }
 
-  ybar(i, q) = (n_e(i, q) + n_e_solve) / N / rho;
+  n_e(i, q) = n_e_solve;
+  ybar(i, q) = n_e_solve / N / rho;
   sigma1(i, q) = sum1;
   sigma2(i, q) = sum2;
   sigma3(i, q) = sum3;
@@ -510,7 +514,7 @@ void compute_temperature_with_saha(const eos::EOS *eos, StageData &stage_data,
   auto prefix_sum_pots = atomic_data->sum_pots();
 
   static root_finders::RootFinder<double, AAFixedPointAlgorithm<double>> solver(
-      {.abs_tol = 1.0e-8, .rel_tol = 1.0e-8, .max_iterations = 32});
+      {.abs_tol = 1.0e-8, .rel_tol = 1.0e-8, .max_iterations = 64});
 
   auto phi = basis.phi();
   // Allocate scratch space
@@ -572,18 +576,6 @@ void compute_temperature_with_saha(const eos::EOS *eos, StageData &stage_data,
                                            i,
                                            q,
                                            target_var};
-
-        // TODO(astrobarker): [Saha] There must be a cleaner way to do this.
-        athelas::par_for_inner(DEFAULT_INNER_LOOP_PATTERN, member,
-                               eb_saha.e + 1, eb.e, [&](const int e) {
-                                 const int &z = species(e);
-                                 const double x_e = basis::basis_eval(
-                                     phi, mass_fractions, i, e, q);
-                                 const double inv_A = inv_atomic_mass(e);
-                                 const double nk =
-                                     element_number_density(x_e, inv_A, rho);
-                                 n_e(i, q) += z * nk;
-                               });
 
         const double res = solver.solve(temperature_residual<Inversion>,
                                         temperature_guess, rho, eos, content);
