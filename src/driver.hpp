@@ -48,9 +48,6 @@ class Driver {
             pin->param()->get<bool>("output.history_enabled"))),
         mesh_state_(pin.get(), ssprk_.n_stages()) {
     initialize(pin.get());
-
-    // now that all is said and done, perform post init work
-    post_init_work();
   }
 
   auto execute() -> int;

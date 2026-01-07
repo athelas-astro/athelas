@@ -9,7 +9,9 @@
 #include "initialization.hpp"
 #include "interface/packages_base.hpp"
 #include "io/io.hpp"
+#include "kokkos_types.hpp"
 #include "limiters/slope_limiter.hpp"
+#include "loop_layout.hpp"
 #include "pgen/problem_in.hpp"
 #include "state/state.hpp"
 #include "thermal.hpp"
@@ -215,8 +217,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   mesh_state_.register_field("u_pf", DataPolicy::OneCopy, "Primitive variables",
                              {"density", "momentum", "sie"}, nx + 2,
                              max_order + 2, nvars_prim);
-  auto info = mesh_state_.field_info();
-  std::println("{}", info);
+  // auto info = mesh_state_.field_info();
   auto sd0 = mesh_state_(0);
   auto prims = sd0.get_field("u_pf");
 
@@ -256,6 +257,10 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
     initialize_fields(mesh_state_, &grid_, eos_.get(), pin, fluid_basis_.get(),
                       radiation_basis_.get());
   }
+
+  // now that all is said and done, perform post init work
+  // We may need to do this before packages are constructed.
+  post_init_work();
 
   const bool gravity_active = pin->param()->get<bool>("physics.gravity_active");
   const bool ni_heating_active =
@@ -387,13 +392,48 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
  * - If composition is enabled
  *   - Compute inv_atomic_mass
  * - If ionization if enabled
- *   - Ensure that if neutrons are present, saha_ncomps < ncomps
- */ 
+ *   - Ensure that if neutrons are present
+ *     - saha_ncomps < ncomps
+ */
 void Driver::post_init_work() {
-  const bool comps_active =
-      pin_->param()->get<bool>("physics.composition_enabled");
-  const bool ionization_active =
-      pin_->param()->get<bool>("physics.ionization_enabled");
-}
+  const bool comps_active = mesh_state_.composition_enabled();
+  const bool ionization_active = mesh_state_.ionization_enabled();
+
+  // This is a weird one. When ionization is active and needed to be computed
+  // in the pgen, then this _must_ be computed there. That is the case
+  // for the progenitor pgen, for example. It is here as a safety and
+  // convenience for any composition-enabled problems that don't need
+  // Saha solved in the pgen.
+  if (comps_active) {
+    auto *comps = mesh_state_(0).comps();
+    const auto ncomps = pin_->param()->get<int>("composition.ncomps");
+    auto inv_atomic_mass = comps->inverse_atomic_mass();
+    auto charge = comps->charge();
+    auto neutron_number = comps->neutron_number();
+    const IndexRange eb(ncomps);
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "post_init_work::inv_atomic_mass",
+        DevExecSpace(), eb.s, eb.e, KOKKOS_LAMBDA(const int e) {
+          inv_atomic_mass(e) = 1.0 / (charge(e) + neutron_number(e));
+        });
+  }
+
+  if (ionization_active) {
+    // Likely checked elsewhere
+    athelas_requires(comps_active,
+                     "Ionization cannot be enabled without composition!");
+    auto *comps = mesh_state_(0).comps();
+    auto *species_indexer = comps->species_indexer();
+    const bool neut_present = species_indexer->contains("neut");
+    if (neut_present) {
+      const auto saha_ncomps = pin_->param()->get<int>("ionization.ncomps");
+      const auto ncomps = pin_->param()->get<int>("composition.ncomps");
+      athelas_requires(
+          saha_ncomps < ncomps,
+          "Ionization is enabled and neutrons are present in the composition. "
+          "Please set [ionization.ncomps] < [composition.ncomps].");
+    }
+  }
+} // post_init_work
 
 } // namespace athelas
