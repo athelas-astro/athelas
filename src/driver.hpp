@@ -56,6 +56,8 @@ class Driver {
   // init
   void initialize(ProblemIn *pin);
 
+  void post_init_work();
+
   std::shared_ptr<ProblemIn> pin_;
 
   std::unique_ptr<PackageManager> manager_;

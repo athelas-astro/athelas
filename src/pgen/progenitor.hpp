@@ -103,7 +103,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
     inject_ni = true;
   }
 
-  athelas_requires(saha_ncomps > ncomps,
+  athelas_requires(saha_ncomps <= ncomps,
                    "The 'supernova' problem requires [ionization.ncomps] <= "
                    "[composition.ncomps]!");
 
