@@ -45,12 +45,12 @@ void read_toml_array(T toml_array, G &out_array) {
         out_array[index] = static_cast<double>(*elem);
       } else {
         std::cerr << "Type mismatch at index " << index << "\n";
-        THROW_ATHELAS_ERROR(" ! Error reading dirichlet boundary conditions.");
+        throw_athelas_error(" ! Error reading dirichlet boundary conditions.");
       }
       index++;
     } else {
       std::cerr << "TOML array is larger than C++ array." << "\n";
-      THROW_ATHELAS_ERROR(" ! Error reading dirichlet boundary conditions.");
+      throw_athelas_error(" ! Error reading dirichlet boundary conditions.");
     }
   }
 }

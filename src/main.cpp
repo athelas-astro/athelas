@@ -73,18 +73,20 @@ auto parse_input_file(std::span<char *> args)
 auto main(int argc, char **argv) -> int {
   auto input_result = parse_input_file({argv, static_cast<std::size_t>(argc)});
   if (!input_result) {
-    std::println("Error: {}", input_result.error());
+    std::println(std::cerr, "Error: {}", input_result.error());
     return AthelasExitCodes::FAILURE;
   }
   const auto &opts = input_result.value();
 
   namespace fs = std::filesystem;
   if (!fs::exists(opts.input_file)) {
-    athelas::THROW_ATHELAS_ERROR("Input file does not exist!");
+    std::println(std::cerr, "Input file does not exist!");
+    return athelas::AthelasExitCodes::FAILURE;
   }
   if (opts.output_dir != "./") {
     if (!fs::exists(opts.output_dir) || !fs::is_directory(opts.output_dir)) {
-      athelas::THROW_ATHELAS_ERROR("Output directory does not exist!");
+      std::println(std::cerr, "Output directory does not exist!");
+      return athelas::AthelasExitCodes::FAILURE;
     }
   }
 

@@ -50,7 +50,7 @@ auto parse_bc_type(const std::string &name) -> BcType {
   if (name == "marshak") {
     return BcType::Marshak;
   }
-  THROW_ATHELAS_ERROR(" ! bc_type not known!");
+  throw_athelas_error(" ! bc_type not known!");
   return BcType::Null;
 }
 
@@ -89,7 +89,7 @@ auto make_boundary_conditions(const ProblemIn *pin) -> BoundaryConditions {
   // --- Radiation BCs ---
   if (do_rad) {
     if (rad_bc_i == "" || rad_bc_o == "") {
-      THROW_ATHELAS_ERROR(" ! Radiation enabled but rad_bc_i/o is not set.");
+      throw_athelas_error(" ! Radiation enabled but rad_bc_i/o is not set.");
     }
 
     my_bc.do_rad = true;

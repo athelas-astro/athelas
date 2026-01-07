@@ -75,16 +75,45 @@ class AthelasError : public std::exception {
   }
 };
 
-template <typename... Args>
-[[noreturn]] inline void THROW_ATHELAS_ERROR(
+[[noreturn]] inline void throw_athelas_error(
     const std::string &message, const char *function = __builtin_FUNCTION(),
     const char *file = __builtin_FILE(), int line = __builtin_LINE()) {
   throw AthelasError(message, function, file, line);
 }
 
-inline void WARNING_ATHELAS(const std::string &message) {
-  std::println("!!! Athelas Warning: {}", message);
+inline void athelas_warning(const std::string &message,
+                            const char *function = __builtin_FUNCTION(),
+                            const char *file = __builtin_FILE(),
+                            int line = __builtin_LINE()) {
   std::println(std::cerr, "!!! Athelas Warning: {}", message);
+
+  if (static_cast<bool>(function) && static_cast<bool>(*function)) {
+    std::println(std::cerr, "In function: {}", function);
+  }
+
+  if (static_cast<bool>(file) && static_cast<bool>(*file) && line > 0) {
+    std::println(std::cerr, "Location: {}:{}", file, line);
+  }
+
+  std::println(std::cerr, ""); // blank line for readability
+}
+
+// Helper function that throws if condition is false
+template <typename... Args>
+[[noreturn]] inline void throw_requirement_error(
+    const std::string &message, const char *function = __builtin_FUNCTION(),
+    const char *file = __builtin_FILE(), int line = __builtin_LINE()) {
+  throw AthelasError(message, function, file, line);
+}
+
+// The main requires function
+inline void athelas_requires(bool condition, const std::string &message,
+                             const char *function = __builtin_FUNCTION(),
+                             const char *file = __builtin_FILE(),
+                             int line = __builtin_LINE()) {
+  if (!condition) {
+    throw AthelasError(message, function, file, line);
+  }
 }
 
 template <typename T>
@@ -107,29 +136,29 @@ void check_state(T state, const int ihi, const bool do_rad) {
 
     if (tau <= 0.0) {
       std::println("Error on cell {}", ix);
-      THROW_ATHELAS_ERROR("Negative or zero density!");
+      throw_athelas_error("Negative or zero density!");
     }
     if (std::isnan(tau)) {
       std::println("Error on cell {}", ix);
-      THROW_ATHELAS_ERROR("Specific volume NaN!");
+      throw_athelas_error("Specific volume NaN!");
     }
 
     if (std::fabs(vel) >= c) {
       std::println("Error on cell {}", ix);
-      THROW_ATHELAS_ERROR("Velocity reached or exceeded speed of light!");
+      throw_athelas_error("Velocity reached or exceeded speed of light!");
     }
     if (std::isnan(vel)) {
       std::println("Error on cell {}", ix);
-      THROW_ATHELAS_ERROR("Velocity NaN!");
+      throw_athelas_error("Velocity NaN!");
     }
 
     if (e_m <= 0.0) {
       std::println("Error on cell {}", ix);
-      THROW_ATHELAS_ERROR("Negative or zero specific total energy!");
+      throw_athelas_error("Negative or zero specific total energy!");
     }
     if (std::isnan(e_m)) {
       std::println("Error on cell {}", ix);
-      THROW_ATHELAS_ERROR("Specific energy NaN!");
+      throw_athelas_error("Specific energy NaN!");
     }
 
     if (do_rad) {
@@ -138,16 +167,16 @@ void check_state(T state, const int ihi, const bool do_rad) {
 
       if (std::isnan(e_rad)) {
         std::println("Error on cell {}", ix);
-        THROW_ATHELAS_ERROR("Radiation energy NaN!");
+        throw_athelas_error("Radiation energy NaN!");
       }
       if (e_rad <= 0.0) {
         std::println("Error on cell {}", ix);
-        THROW_ATHELAS_ERROR("Negative or zero radiation energy density!");
+        throw_athelas_error("Negative or zero radiation energy density!");
       }
 
       if (std::isnan(f_rad)) {
         std::println("Error on cell {}", ix);
-        THROW_ATHELAS_ERROR("Radiation flux NaN!");
+        throw_athelas_error("Radiation flux NaN!");
       }
     }
   }

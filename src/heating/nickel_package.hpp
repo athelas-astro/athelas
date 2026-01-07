@@ -33,7 +33,7 @@ inline auto parse_model(const std::string &model) -> NiHeatingModel {
   if (model == "jeffery") {
     return NiHeatingModel::Jeffery;
   }
-  THROW_ATHELAS_ERROR("Unknown nickel heating model!");
+  throw_athelas_error("Unknown nickel heating model!");
 }
 
 class NickelHeatingPackage {

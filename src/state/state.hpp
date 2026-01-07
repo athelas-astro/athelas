@@ -27,7 +27,7 @@ class VariableMap {
   [[nodiscard]] auto index(const std::string &name) const -> int {
     auto it = name_to_index_.find(name);
     if (it == name_to_index_.end()) {
-      THROW_ATHELAS_ERROR("Variable not found: " + name);
+      throw_athelas_error("Variable not found: " + name);
     }
     return it->second;
   }
@@ -35,7 +35,7 @@ class VariableMap {
   [[nodiscard]] auto name(int index) const -> std::string {
     auto it = index_to_name_.find(index);
     if (it == index_to_name_.end()) {
-      THROW_ATHELAS_ERROR("Invalid variable index: " + std::to_string(index));
+      throw_athelas_error("Invalid variable index: " + std::to_string(index));
     }
     return it->second;
   }
@@ -186,7 +186,7 @@ class MeshState {
   [[nodiscard]] auto get_field(const std::string &name) const -> T {
     auto it = arrays_.find(name);
     if (it == arrays_.end()) {
-      THROW_ATHELAS_ERROR("Field does not exist: " + name);
+      throw_athelas_error("Field does not exist: " + name);
     }
 
     return std::get<T>(it->second);
@@ -217,7 +217,7 @@ class MeshState {
       -> const FieldMetadata & {
     auto it = metadata_.find(field);
     if (it == metadata_.end()) {
-      THROW_ATHELAS_ERROR("Field not found: " + field);
+      throw_athelas_error("Field not found: " + field);
     }
     return it->second;
   }
@@ -267,7 +267,7 @@ class MeshState {
             allocate_nd<AthelasArray5D<double>>(name, nstages_, dims...);
         break;
       default:
-        THROW_ATHELAS_ERROR("MeshState: Field registration of rank " +
+        throw_athelas_error("MeshState: Field registration of rank " +
                             std::to_string(rank) + " is not supported!");
         break;
       }
@@ -286,7 +286,7 @@ class MeshState {
         arrays_[name] = allocate_nd<AthelasArray4D<double>>(name, dims...);
         break;
       default:
-        THROW_ATHELAS_ERROR("MeshState: Field registration of rank " +
+        throw_athelas_error("MeshState: Field registration of rank " +
                             std::to_string(rank) + " is not supported!");
         break;
       }
@@ -302,7 +302,7 @@ class MeshState {
         static_cast<std::size_t>(dims)...};
 
     if (checker.back() != var_names.size()) {
-      THROW_ATHELAS_ERROR("MeshState::register_field: Last input dimension "
+      throw_athelas_error("MeshState::register_field: Last input dimension "
                           "must match var_names.size()!");
     }
     register_field(name, policy, description, dims...);
