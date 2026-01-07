@@ -57,6 +57,7 @@ class Driver {
   void initialize(ProblemIn *pin);
 
   void post_init_work();
+  void post_step_work();
 
   std::shared_ptr<ProblemIn> pin_;
 

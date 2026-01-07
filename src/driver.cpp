@@ -58,10 +58,6 @@ auto Driver::execute() -> int {
   history_->write(mesh_state_, grid_, fluid_basis_.get(),
                   radiation_basis_.get(), time_);
 
-  // misc
-  bool &thermal_engine_active =
-      pin_->param()->get_mutable_ref<bool>("physics.engine.thermal.enabled");
-
   // --- Evolution loop ---
   int iStep = 0;
   int i_out_h5 = 1; // output label, start 1
@@ -104,39 +100,8 @@ auto Driver::execute() -> int {
                            dt_);
     }
 
-    // Check if we need to disable any packages
-    // I wonder if this should be internal to packages
-    if (thermal_engine_active) {
-      using thermal_engine::ThermalEnginePackage;
-      static const auto tend_te =
-          pin_->param()->get<double>("physics.engine.thermal.tend");
-      static const bool split_te =
-          pin_->param()->get<bool>("physics.engine.thermal.split");
-      if (time_ >= tend_te && !split_te) {
-        manager_->get_package<ThermalEnginePackage>("ThermalEngine")
-            ->set_active(false);
-        thermal_engine_active = false;
-      }
-      if (time_ >= tend_te && split_te) {
-        split_manager_->get_package<ThermalEnginePackage>("ThermalEngine")
-            ->set_active(false);
-        thermal_engine_active = false;
-      }
-    }
-
-#ifdef ATHELAS_DEBUG
-    try {
-      check_state(sd0, grid_.get_ihi(), rad_active);
-    } catch (const AthelasError &e) {
-      std::cerr << e.what() << "\n";
-      std::println("!!! Bad State found, writing _final_ output file ...");
-      write_state(sd0, grid_, &sl_hydro_, pin_.get(), time_,
-                  pin_->param()->get<int>("fluid.porder"), -1, rad_active);
-      return AthelasExitCodes::FAILURE;
-    }
-#endif
-
     time_ += dt_;
+    post_step_work();
 
     // Write state, other io
     if (time_ >= i_out_h5 * dt_hdf5) {
@@ -435,5 +400,50 @@ void Driver::post_init_work() {
     }
   }
 } // post_init_work
+
+/**
+ * @brief post timestep work
+ * @note Does not include IO work.
+ * Contains:
+ *  - Checks for package enable/disable
+ *  - In debug mode calls check_state
+ */
+void Driver::post_step_work() {
+  bool &thermal_engine_active =
+      pin_->param()->get_mutable_ref<bool>("physics.engine.thermal.enabled");
+
+  // Check if we need to disable any packages
+  // I wonder if this should be internal to packages
+  if (thermal_engine_active) {
+    using thermal_engine::ThermalEnginePackage;
+    static const auto tend_te =
+        pin_->param()->get<double>("physics.engine.thermal.tend");
+    static const bool split_te =
+        pin_->param()->get<bool>("physics.engine.thermal.split");
+    if (time_ >= tend_te && !split_te) {
+      manager_->get_package<ThermalEnginePackage>("ThermalEngine")
+          ->set_active(false);
+      thermal_engine_active = false;
+    }
+    if (time_ >= tend_te && split_te) {
+      split_manager_->get_package<ThermalEnginePackage>("ThermalEngine")
+          ->set_active(false);
+      thermal_engine_active = false;
+    }
+  }
+
+#ifdef ATHELAS_DEBUG
+  auto sd0 = mesh_state_(0);
+  const bool rad_active = pin_->param()->get<bool>("physics.rad_active");
+  try {
+    check_state(sd0, grid_.get_ihi(), rad_active);
+  } catch (const AthelasError &e) {
+    std::cerr << e.what() << "\n";
+    std::println("!!! Bad State found, writing _final_ output file ...");
+    write_state(sd0, grid_, &sl_hydro_, pin_.get(), time_,
+                pin_->param()->get<int>("fluid.porder"), -1, rad_active);
+  }
+#endif
+} // post_step_work
 
 } // namespace athelas
