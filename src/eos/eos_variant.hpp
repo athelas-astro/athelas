@@ -166,7 +166,7 @@ KOKKOS_INLINE_FUNCTION auto initialize_eos(const ProblemIn *pin) -> EOS {
   } else if (type == "marshak") {
     eos = Marshak(pin->param()->get<double>("eos.gamma"));
   } else {
-    THROW_ATHELAS_ERROR("Please choose a valid eos!");
+    throw_athelas_error("Please choose a valid eos!");
   }
   return eos;
 }

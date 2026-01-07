@@ -24,11 +24,11 @@ void rad_wave_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
                    basis::ModalBasis * /*radiation_basis = nullptr*/) {
   const bool rad_active = pin->param()->get<bool>("physics.rad_active");
   if (!rad_active) {
-    THROW_ATHELAS_ERROR("Radiation wave requires radiation enabled!");
+    throw_athelas_error("Radiation wave requires radiation enabled!");
   }
 
   if (pin->param()->get<std::string>("eos.type") != "ideal") {
-    THROW_ATHELAS_ERROR("Radiation wave requires ideal gas eos!");
+    throw_athelas_error("Radiation wave requires ideal gas eos!");
   }
 
   auto uCF = mesh_state(0).get_field("u_cf");

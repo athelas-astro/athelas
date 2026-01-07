@@ -89,7 +89,7 @@ void initialize_fields(MeshState &mesh_state, GridStructure *grid,
   } else if (problem_name == "ni_decay") {
     ni_decay_init(mesh_state, grid, pin, eos, fluid_basis);
   } else {
-    THROW_ATHELAS_ERROR("Please choose a valid problem_name!");
+    throw_athelas_error("Please choose a valid problem_name!");
   }
 
   // set the first stage

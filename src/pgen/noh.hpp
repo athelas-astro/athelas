@@ -22,7 +22,7 @@ void noh_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
               const eos::EOS *eos,
               basis::ModalBasis * /*fluid_basis = nullptr*/) {
   if (pin->param()->get<std::string>("eos.type") != "ideal") {
-    THROW_ATHELAS_ERROR("Noh requires ideal gas eos!");
+    throw_athelas_error("Noh requires ideal gas eos!");
   }
 
   auto uCF = mesh_state(0).get_field("u_cf");

@@ -27,7 +27,7 @@ void rad_advection_init(MeshState &mesh_state, GridStructure *grid,
                         basis::ModalBasis * /*fluid_basis = nullptr*/,
                         basis::ModalBasis * /*radiation_basis = nullptr*/) {
   if (pin->param()->get<std::string>("eos.type") != "ideal") {
-    THROW_ATHELAS_ERROR("Radiation advection requires ideal gas eos!");
+    throw_athelas_error("Radiation advection requires ideal gas eos!");
   }
 
   auto uCF = mesh_state(0).get_field("u_cf");

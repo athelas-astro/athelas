@@ -109,7 +109,7 @@ MeshState::MeshState(const ProblemIn *const pin, const int nstages)
 [[nodiscard]] auto MeshState::nvars(const std::string &field) const -> int {
   auto it = arrays_.find(field);
   if (it == arrays_.end()) {
-    THROW_ATHELAS_ERROR("Field not allocated: " + field);
+    throw_athelas_error("Field not allocated: " + field);
   }
 
   // Use visitor to get the last extent
@@ -162,7 +162,7 @@ MeshState::get_comp_start_index(const std::string &field_name) const -> int {
     -> AthelasArray3D<double> {
   int comp_start = get_comp_start_index(field_name);
   if (comp_start < 0) {
-    THROW_ATHELAS_ERROR("Field " + field_name + " has no composition data!");
+    throw_athelas_error("Field " + field_name + " has no composition data!");
   }
 
   const auto &meta = get_metadata(field_name);

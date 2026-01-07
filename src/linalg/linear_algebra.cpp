@@ -52,7 +52,7 @@ void tri_sym_diag(int n, std::vector<double> &d, std::vector<double> &e,
   Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> solver(tri_matrix);
 
   if (solver.info() != Eigen::Success) {
-    THROW_ATHELAS_ERROR("Eigendecomposition failed in tri_sym_diag");
+    throw_athelas_error("Eigendecomposition failed in tri_sym_diag");
   }
 
   // Get eigenvalues and eigenvectors
@@ -84,7 +84,7 @@ void invert_matrix(std::vector<double> &M, int n) {
 
   // Check if the matrix is invertible by verifying determinant is non-zero
   if (std::abs(matrix.determinant()) < std::numeric_limits<double>::epsilon()) {
-    THROW_ATHELAS_ERROR(" ! Issue occurred in matrix inversion.");
+    throw_athelas_error(" ! Issue occurred in matrix inversion.");
   }
 
   // Copy the result back to the original vector

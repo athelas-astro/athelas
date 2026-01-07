@@ -71,26 +71,26 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
 
   // Perform a number of sanity checks
   if (pin->param()->get<std::string>("eos.type") != "paczynski") {
-    THROW_ATHELAS_ERROR("Problem 'supernova' requires paczynski eos!");
+    throw_athelas_error("Problem 'supernova' requires paczynski eos!");
   }
 
   if (!pin->param()->get<bool>("physics.composition_enabled")) {
-    THROW_ATHELAS_ERROR("Problem 'supernova' requires composition enabled!!");
+    throw_athelas_error("Problem 'supernova' requires composition enabled!!");
   }
 
   if (!pin->param()->get<bool>("physics.ionization_enabled")) {
-    THROW_ATHELAS_ERROR("Problem 'supernova' requires ionization enabled!!");
+    throw_athelas_error("Problem 'supernova' requires ionization enabled!!");
   }
 
   if (!pin->param()->get<bool>("physics.gravity_active")) {
-    THROW_ATHELAS_ERROR("Problem 'supernova' requires gravity enabled!!");
+    throw_athelas_error("Problem 'supernova' requires gravity enabled!!");
   }
 
   if (pin->param()->get<std::string>("problem.geometry") != "spherical") {
-    THROW_ATHELAS_ERROR("Problem 'supernova' requires spherical geometry!");
+    throw_athelas_error("Problem 'supernova' requires spherical geometry!");
   }
   if (!grid->do_geometry()) {
-    THROW_ATHELAS_ERROR("Supernova problem requires spherical symmetry.");
+    throw_athelas_error("Supernova problem requires spherical symmetry.");
   }
 
   const auto ncomps = pin->param()->get<int>("composition.ncomps");
@@ -107,7 +107,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
 
   // sanity checks
   if (ni_injection_mass < 0.0 || ni_injection_bndry < 0.0) {
-    THROW_ATHELAS_ERROR(
+    throw_athelas_error(
         "The nickel injection mass and boundry must be >= 0.0!");
   }
 
@@ -117,7 +117,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   }
 
   if (saha_ncomps > ncomps) {
-    THROW_ATHELAS_ERROR("One zone ionization requires [ionization.ncomps] <= "
+    throw_athelas_error("One zone ionization requires [ionization.ncomps] <= "
                         "[problem.params.ncomps]!");
   }
 
@@ -126,14 +126,14 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   if (pin->param()->contains("problem.params.mass_cut")) {
     mass_cut = pin->param()->get<double>("problem.params.mass_cut");
     if (mass_cut < 0.0) {
-      THROW_ATHELAS_ERROR("The mass cut cannot be negative!");
+      throw_athelas_error("The mass cut cannot be negative!");
     }
     if (mass_cut > ni_injection_bndry && inject_ni) {
-      THROW_ATHELAS_ERROR(
+      throw_athelas_error(
           "The mass cut should be smaller than the nickel injection boundary!");
     }
   } else {
-    WARNING_ATHELAS(
+    athelas_warning(
         "You are running a supernova problem but have not specified a mass "
         "cut! It is assumed then that the mass cut is already present in the "
         "input profile. If not, bad things may happen.");
@@ -164,13 +164,13 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   auto hydro_data = io::Parser::parse_file(fn_hydro);
 
   if (!hydro_data) {
-    THROW_ATHELAS_ERROR("Error reading hydro profile!");
+    throw_athelas_error("Error reading hydro profile!");
   }
 
   // Safety check on the structure of the profile.
   const size_t num_columns_hydro = hydro_data->rows[0].size();
   if (num_columns_hydro != NUM_COLS_HYDRO) {
-    THROW_ATHELAS_ERROR("Wrong number of columns in hydro profile!");
+    throw_athelas_error("Wrong number of columns in hydro profile!");
   }
 
   auto [radius_star, density_star, velocity_star, pressure_star,
@@ -303,13 +303,13 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
         pin->param()->get<std::string>("problem.params.fn_comps");
     auto comps_data = io::Parser::parse_file(fn_comps);
     if (!comps_data) {
-      THROW_ATHELAS_ERROR("Error reading composition profile!");
+      throw_athelas_error("Error reading composition profile!");
     }
 
     // check that the number of species in the profile matches the input deck
     const int num_columns_comps = static_cast<int>(comps_data->rows[0].size());
     if (num_columns_comps != ncomps) {
-      THROW_ATHELAS_ERROR(
+      throw_athelas_error(
           "The number of species in the compositional profile '" + fn_comps +
           "' does not match the number of species list in in the input deck "
           "([composition.ncomps])! There are " +
@@ -355,11 +355,11 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
       }
     }
     if (!ni56_present || !co56_present || !fe56_present) {
-      THROW_ATHELAS_ERROR("All of Ni/Co/Fe 56 are required to be present in "
+      throw_athelas_error("All of Ni/Co/Fe 56 are required to be present in "
                           "the composition profile!");
     }
     if (max_charge == 0) {
-      THROW_ATHELAS_ERROR(
+      throw_athelas_error(
           "Something weird possibly happening in supernova pgen -- max charge "
           "of species thought to be 0. Crashing out.");
     }

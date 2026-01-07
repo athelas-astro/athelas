@@ -25,7 +25,7 @@ void hydrostatic_balance_init(MeshState &mesh_state, GridStructure *grid,
                               ProblemIn *pin, const eos::EOS *eos,
                               basis::ModalBasis *fluid_basis = nullptr) {
   if (pin->param()->get<std::string>("eos.type") != "polytropic") {
-    THROW_ATHELAS_ERROR("Hydrostatic balance requires polytropic eos!");
+    throw_athelas_error("Hydrostatic balance requires polytropic eos!");
   }
 
   auto uCF = mesh_state(0).get_field("u_cf");

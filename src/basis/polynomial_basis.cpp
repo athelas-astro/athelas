@@ -52,7 +52,7 @@ ModalBasis::ModalBasis(poly_basis basis, const AthelasArray3D<double> uPF,
     func_ = taylor;
     dfunc_ = d_taylor;
   } else {
-    THROW_ATHELAS_ERROR(" ! Bad behavior in ModalBasis constructor !");
+    throw_athelas_error(" ! Bad behavior in ModalBasis constructor !");
   }
 
   initialize_basis(uPF, grid);
@@ -72,7 +72,7 @@ auto ModalBasis::taylor(const int order, const double eta, const double eta_c)
     -> double {
 
   if (order < 0) {
-    THROW_ATHELAS_ERROR(
+    throw_athelas_error(
         "! polynomial basis :: Please enter a valid polynomial order.");
   }
 
@@ -101,7 +101,7 @@ auto ModalBasis::d_taylor(const int order, const double eta, const double eta_c)
     -> double {
 
   if (order < 0) {
-    THROW_ATHELAS_ERROR(
+    throw_athelas_error(
         " ! polynomial basis :: Please enter a valid polynomial order.");
   }
 
@@ -344,12 +344,12 @@ void ModalBasis::check_orthogonality(const AthelasArray3D<double> uPF,
         }
 
         if (k1 == k2 && result == 0.0) {
-          THROW_ATHELAS_ERROR(
+          throw_athelas_error(
               " ! Basis not orthogonal: Diagonal term equal to zero.\n");
         }
         if (k1 != k2 && std::abs(result) > 1e-10) {
           std::println("{} {} {:.3e}", k1, k2, result);
-          THROW_ATHELAS_ERROR(
+          throw_athelas_error(
               " ! Basis not orthogonal: Off diagonal term non-zero.\n");
         }
       }

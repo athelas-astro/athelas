@@ -80,11 +80,11 @@ auto main(int argc, char **argv) -> int {
 
   namespace fs = std::filesystem;
   if (!fs::exists(opts.input_file)) {
-    athelas::THROW_ATHELAS_ERROR("Input file does not exist!");
+    athelas::throw_athelas_error("Input file does not exist!");
   }
   if (opts.output_dir != "./") {
     if (!fs::exists(opts.output_dir) || !fs::is_directory(opts.output_dir)) {
-      athelas::THROW_ATHELAS_ERROR("Output directory does not exist!");
+      athelas::throw_athelas_error("Output directory does not exist!");
     }
   }
 

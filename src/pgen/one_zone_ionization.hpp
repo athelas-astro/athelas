@@ -32,19 +32,19 @@ void one_zone_ionization_init(MeshState &mesh_state, GridStructure *grid,
   const auto ncomps =
       pin->param()->get<int>("composition.ncomps", 3); // mass fractions
   if (ncomps != 3) {
-    THROW_ATHELAS_ERROR("One zone ionization requires ncomps = 3");
+    throw_athelas_error("One zone ionization requires ncomps = 3");
   }
   if (!ionization_active) {
-    THROW_ATHELAS_ERROR("One zone ionization requires ionization enabled!");
+    throw_athelas_error("One zone ionization requires ionization enabled!");
   }
   const auto eos_type = pin->param()->get<std::string>("eos.type");
   //  if (pin->param()->get<std::string>("eos.type") != "ideal") {
-  //    THROW_ATHELAS_ERROR("One zone ionization requires ideal gas eos!");
+  //    throw_athelas_error("One zone ionization requires ideal gas eos!");
   //  }
   // Don't try to track ionization for more species than we use.
   // We will track ionization for the first saha_ncomps species
   if (saha_ncomps != 3) {
-    THROW_ATHELAS_ERROR("One zone ionization requires [ionization.ncomps] = "
+    throw_athelas_error("One zone ionization requires [ionization.ncomps] = "
                         "[composition.ncomps] = 3!");
   }
 
@@ -70,7 +70,7 @@ void one_zone_ionization_init(MeshState &mesh_state, GridStructure *grid,
       pin->param()->get<std::string>("ionization.fn_degeneracy");
 
   if (temperature <= 0.0 || rho <= 0.0) {
-    THROW_ATHELAS_ERROR("Temperature and denisty must be positive definite!");
+    throw_athelas_error("Temperature and denisty must be positive definite!");
   }
 
   std::shared_ptr<atom::CompositionData> comps =

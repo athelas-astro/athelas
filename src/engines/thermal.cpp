@@ -62,7 +62,7 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
   }
 
   if (mend_idx_ > nx) {
-    THROW_ATHELAS_ERROR(
+    throw_athelas_error(
         "ThermalEngine :: mass extent index (mend_idx) is greater than nx!");
   }
 
@@ -102,7 +102,7 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
   }
 
   if (energy_dep_ < 0.0) {
-    THROW_ATHELAS_ERROR("The thermal engine energy has become < 0.0!");
+    throw_athelas_error("The thermal engine energy has become < 0.0!");
   }
 
   // Below are the a, c, d coefficients for the injection profile
