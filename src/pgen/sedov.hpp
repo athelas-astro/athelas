@@ -23,10 +23,8 @@ namespace athelas {
 void sedov_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
                 const eos::EOS *eos,
                 basis::ModalBasis * /*fluid_basis = nullptr*/) {
-
-  if (pin->param()->get<std::string>("eos.type") != "ideal") {
-    throw_athelas_error("Sedov requires ideal gas eos!");
-  }
+  athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
+                   "Sedov requires ideal gas eos!");
 
   auto uCF = mesh_state(0).get_field("u_cf");
   auto uPF = mesh_state(0).get_field("u_pf");

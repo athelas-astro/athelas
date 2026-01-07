@@ -26,13 +26,9 @@ void rad_shock_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
                     basis::ModalBasis * /*fluid_basis = nullptr*/,
                     basis::ModalBasis * /*radiation_basis = nullptr*/) {
   const bool rad_active = pin->param()->get<bool>("physics.rad_active");
-  if (!rad_active) {
-    throw_athelas_error("Radiative shock requires radiation enabled!");
-  }
-
-  if (pin->param()->get<std::string>("eos.type") != "ideal") {
-    throw_athelas_error("Radiative shock requires ideal gas eos!");
-  }
+  athelas_requires(rad_active, "Radiative shock requires radiation enabled!");
+  athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
+                   "Radiative requires ideal gas eos!");
 
   auto uCF = mesh_state(0).get_field("u_cf");
   auto uPF = mesh_state(0).get_field("u_pf");

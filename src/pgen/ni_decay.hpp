@@ -20,15 +20,12 @@ void ni_decay_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   const bool ni_decay_active =
       pin->param()->get<bool>("physics.heating.nickel.enabled");
   const auto ncomps = 3; // Ni, Co, Fe
-  if (!composition_active) {
-    throw_athelas_error("Ni decay requires composition enabled!");
-  }
-  if (!ni_decay_active) {
-    throw_athelas_error("Ni decay requires nickel heating enabled!");
-  }
-  if (pin->param()->get<std::string>("eos.type") != "ideal") {
-    throw_athelas_error("Ni decay requires ideal gas eos!");
-  }
+  athelas_requires(composition_active,
+                   "Ni decay requires composition enabled!");
+  athelas_requires(ni_decay_active,
+                   "Ni decay requires nickel heating enabled!");
+  athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
+                   "Ni decay requires ideal gas eos!");
 
   auto uCF = mesh_state(0).get_field("u_cf");
   auto uPF = mesh_state(0).get_field("u_pf");

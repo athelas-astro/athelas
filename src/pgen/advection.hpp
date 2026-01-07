@@ -24,9 +24,8 @@ namespace athelas {
 void advection_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
                     const eos::EOS *eos,
                     basis::ModalBasis *fluid_basis = nullptr) {
-  if (pin->param()->get<std::string>("eos.type") != "ideal") {
-    throw_athelas_error("Advection requires ideal gas eos!");
-  }
+  athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
+                   "Advection requires ideal gas eos!");
 
   // Smooth advection problem
   auto uCF = mesh_state(0).get_field("u_cf");

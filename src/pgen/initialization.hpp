@@ -91,11 +91,6 @@ void initialize_fields(MeshState &mesh_state, GridStructure *grid,
   } else {
     throw_athelas_error("Please choose a valid problem_name!");
   }
-
-  // set the first stage
-  // auto u_s = mesh_state->u_cftages();
-  // auto uCF = Kokkos::subview(u_s, 0, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
-  // uCF = mesh_state->u_cf();
 }
 
 } // namespace athelas

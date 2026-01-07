@@ -70,28 +70,17 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   static constexpr int NUM_COLS_HYDRO = 6;
 
   // Perform a number of sanity checks
-  if (pin->param()->get<std::string>("eos.type") != "paczynski") {
-    throw_athelas_error("Problem 'supernova' requires paczynski eos!");
-  }
-
-  if (!pin->param()->get<bool>("physics.composition_enabled")) {
-    throw_athelas_error("Problem 'supernova' requires composition enabled!!");
-  }
-
-  if (!pin->param()->get<bool>("physics.ionization_enabled")) {
-    throw_athelas_error("Problem 'supernova' requires ionization enabled!!");
-  }
-
-  if (!pin->param()->get<bool>("physics.gravity_active")) {
-    throw_athelas_error("Problem 'supernova' requires gravity enabled!!");
-  }
-
-  if (pin->param()->get<std::string>("problem.geometry") != "spherical") {
-    throw_athelas_error("Problem 'supernova' requires spherical geometry!");
-  }
-  if (!grid->do_geometry()) {
-    throw_athelas_error("Supernova problem requires spherical symmetry.");
-  }
+  athelas_requires(pin->param()->get<std::string>("eos.type") == "paczynski",
+                   "Problem 'supernoa' requires Paczynski eos!");
+  athelas_requires(pin->param()->get<bool>("physics.composition_enabled"),
+                   "Problem 'supernova' requires composition enabled!");
+  athelas_requires(pin->param()->get<bool>("physics.ionization_enabled"),
+                   "Problem 'supernova' requires ionization enabled!");
+  athelas_requires(pin->param()->get<bool>("physics.gravity_active"),
+                   "Problem 'supernova' requires gravity enabled!");
+  athelas_requires(pin->param()->get<std::string>("problem.geometry") ==
+                       "spherical",
+                   "Problem 'supernova' requires spherical geometry!");
 
   const auto ncomps = pin->param()->get<int>("composition.ncomps");
   const auto fn_ionization =
@@ -106,28 +95,23 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   const auto rad_enabled = pin->param()->get<bool>("physics.rad_active");
 
   // sanity checks
-  if (ni_injection_mass < 0.0 || ni_injection_bndry < 0.0) {
-    throw_athelas_error(
-        "The nickel injection mass and boundry must be >= 0.0!");
-  }
+  athelas_requires(ni_injection_mass >= 0.0 && ni_injection_bndry >= 0.0,
+                   "The nickel injection mass and boundary must be >= 0.0!");
 
   bool inject_ni = false;
   if (ni_injection_mass > 0.0 && ni_injection_bndry > 0.0) {
     inject_ni = true;
   }
 
-  if (saha_ncomps > ncomps) {
-    throw_athelas_error("One zone ionization requires [ionization.ncomps] <= "
-                        "[problem.params.ncomps]!");
-  }
+  athelas_requires(saha_ncomps > ncomps,
+                   "The 'supernova' problem requires [ionization.ncomps] <= "
+                   "[composition.ncomps]!");
 
   // check if we want to do a mass cut
   double mass_cut = 0.0;
   if (pin->param()->contains("problem.params.mass_cut")) {
     mass_cut = pin->param()->get<double>("problem.params.mass_cut");
-    if (mass_cut < 0.0) {
-      throw_athelas_error("The mass cut cannot be negative!");
-    }
+    athelas_requires(mass_cut >= 0.0, "The mass cut cannot be negative!");
     if (mass_cut > ni_injection_bndry && inject_ni) {
       throw_athelas_error(
           "The mass cut should be smaller than the nickel injection boundary!");
