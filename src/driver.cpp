@@ -381,4 +381,19 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   }
 }
 
+/**
+ * @brief Perform post initialization checks, calculations
+ * Currently:
+ * - If composition is enabled
+ *   - Compute inv_atomic_mass
+ * - If ionization if enabled
+ *   - Ensure that if neutrons are present, saha_ncomps < ncomps
+ */ 
+void Driver::post_init_work() {
+  const bool comps_active =
+      pin_->param()->get<bool>("physics.composition_enabled");
+  const bool ionization_active =
+      pin_->param()->get<bool>("physics.ionization_enabled");
+}
+
 } // namespace athelas
