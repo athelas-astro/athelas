@@ -107,7 +107,7 @@ void GridStructure::create_grid(const ProblemIn *pin) {
   } else if (utilities::to_lower(grid_type_) == "logarithmic") {
     // Need to be careful of coordinates with log grid!
     if (xL_ < 0.0 || xR_ < 0.0) {
-      THROW_ATHELAS_ERROR(
+      throw_athelas_error(
           "Negative coordinates are not supported with logarithmic gridding!");
     }
     if (xL_ == 0.0) {
@@ -119,7 +119,7 @@ void GridStructure::create_grid(const ProblemIn *pin) {
       const double new_xl = 1.0e-4 * xR_;
       std::stringstream ss;
       ss << std::scientific << std::setprecision(3) << new_xl;
-      WARNING_ATHELAS("Logarithmic grid requestion with XL = 0.0. This does "
+      athelas_warning("Logarithmic grid requestion with XL = 0.0. This does "
                       "not work. Setting xL = 10^-4 * xR = " +
                       ss.str() +
                       ". You might consider setting a more appropriate value.");
@@ -131,7 +131,7 @@ void GridStructure::create_grid(const ProblemIn *pin) {
     }
     create_log_grid();
   } else {
-    THROW_ATHELAS_ERROR("Unknown grid type '" + grid_type_ + "' provided!");
+    throw_athelas_error("Unknown grid type '" + grid_type_ + "' provided!");
   }
 }
 

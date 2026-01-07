@@ -116,7 +116,7 @@ class IdealGas : public EosBase<IdealGas> {
   IdealGas() = default;
   explicit IdealGas(double gm) : gamma_(gm) {
     if (gamma_ <= 0.0) {
-      THROW_ATHELAS_ERROR(" ! IdealGas :: Adiabatic gamma <= 0.0!");
+      throw_athelas_error(" ! IdealGas :: Adiabatic gamma <= 0.0!");
     }
   }
 
@@ -158,10 +158,10 @@ class Polytropic : public EosBase<Polytropic> {
   Polytropic() = default;
   explicit Polytropic(double k, double n) : k_(k), n_(n) {
     if (k_ <= 0.0) {
-      THROW_ATHELAS_ERROR(" ! Polytropic :: k <= 0.0!");
+      throw_athelas_error(" ! Polytropic :: k <= 0.0!");
     }
     if (n_ <= 0.0 || n > 5) {
-      THROW_ATHELAS_ERROR(" ! Polytropic :: n must be in (0.0, 5.0]!");
+      throw_athelas_error(" ! Polytropic :: n must be in (0.0, 5.0]!");
     }
   }
 
@@ -208,7 +208,7 @@ class Marshak : public EosBase<Marshak> {
   Marshak() = default;
   explicit Marshak(double gm) : gamma_(gm) {
     if (gamma_ <= 0.0) {
-      THROW_ATHELAS_ERROR(" ! Marshak :: Adiabatic gamma <= 0.0!");
+      throw_athelas_error(" ! Marshak :: Adiabatic gamma <= 0.0!");
     }
   }
 

@@ -21,7 +21,7 @@ CompositionData::CompositionData(const int nX, const int nnodes,
       AthelasArray1D<double>("inverse atomic mass", n_species);
 
   if (n_species <= 0) {
-    THROW_ATHELAS_ERROR("CompositionData :: n_species must be > 0!");
+    throw_athelas_error("CompositionData :: n_species must be > 0!");
   }
 }
 
@@ -87,10 +87,10 @@ IonizationState::IonizationState(const int nX, const int nNodes,
       sigma1_("sigma1", nX, nNodes + 2), sigma2_("sigma2", nX, nNodes + 2),
       sigma3_("sigma3", nX, nNodes + 2) {
   if (n_species <= 0) {
-    THROW_ATHELAS_ERROR("IonizationState :: n_species must be > 0!");
+    throw_athelas_error("IonizationState :: n_species must be > 0!");
   }
   if (n_states <= 0) {
-    THROW_ATHELAS_ERROR("IonizationState :: n_states must be > 0!");
+    throw_athelas_error("IonizationState :: n_states must be > 0!");
   }
 }
 

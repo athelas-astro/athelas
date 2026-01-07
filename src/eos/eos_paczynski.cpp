@@ -221,7 +221,7 @@ Paczynski::sie_from_density_pressure(const double rho, const double pressure,
 }
 
 [[nodiscard]] auto Paczynski::gamma1() const -> double {
-  THROW_ATHELAS_ERROR("No arg gamma not supported for Paczynski eos!");
+  throw_athelas_error("No arg gamma not supported for Paczynski eos!");
   return NAN;
 }
 

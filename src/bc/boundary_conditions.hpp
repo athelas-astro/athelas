@@ -140,7 +140,7 @@ apply_bc(const BoundaryConditionsData<N> &bc, AthelasArray3D<double> U,
   // formality
   case BcType::Null:
     // TODO(astrobarker) not okay for device
-    THROW_ATHELAS_ERROR("Null BC is not for use!");
+    throw_athelas_error("Null BC is not for use!");
     break;
   }
 }

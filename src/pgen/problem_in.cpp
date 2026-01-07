@@ -23,7 +23,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
     config_ = toml::parse_file(fn_in);
   } catch (const toml::parse_error &err) {
     std::cerr << err << "\n";
-    THROW_ATHELAS_ERROR("Issue reading input deck!");
+    throw_athelas_error("Issue reading input deck!");
   }
   params_ = std::make_unique<Params>();
 
@@ -33,13 +33,13 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   // ---------- problem block ----------
   // -----------------------------------
   if (!config_["problem"].is_table()) {
-    THROW_ATHELAS_ERROR("Input deck must have a [problem] block!");
+    throw_athelas_error("Input deck must have a [problem] block!");
   }
 
   std::optional<std::string> pname =
       config_["problem"]["problem"].value<std::string>();
   if (!pname.has_value()) {
-    THROW_ATHELAS_ERROR("Missing or invalid 'problem' in [problem] block.");
+    throw_athelas_error("Missing or invalid 'problem' in [problem] block.");
   }
   params_->add("problem.problem", pname.value());
 
@@ -48,10 +48,10 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
 
   std::optional<double> tf = config_["problem"]["t_end"].value<double>();
   if (!tf.has_value()) {
-    THROW_ATHELAS_ERROR("Missing or invalid 'tf' in [problem] block.");
+    throw_athelas_error("Missing or invalid 'tf' in [problem] block.");
   }
   if (tf.value() <= 0.0) {
-    THROW_ATHELAS_ERROR("tf must be > 0.0!");
+    throw_athelas_error("tf must be > 0.0!");
   }
   params_->add("problem.tf", tf.value());
 
@@ -60,42 +60,42 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
 
   std::optional<double> xl = config_["problem"]["xl"].value<double>();
   if (!xl.has_value()) {
-    THROW_ATHELAS_ERROR("Missing or invalid 'xl' in [problem] block.");
+    throw_athelas_error("Missing or invalid 'xl' in [problem] block.");
   }
   params_->add("problem.xl", xl.value());
 
   std::optional<double> xr = config_["problem"]["xr"].value<double>();
   if (!xr.has_value()) {
-    THROW_ATHELAS_ERROR("Missing or invalid 'xr' in [problem] block.");
+    throw_athelas_error("Missing or invalid 'xr' in [problem] block.");
   }
   if (xr.value() <= xl.value()) {
-    THROW_ATHELAS_ERROR("xr must be > xl!");
+    throw_athelas_error("xr must be > xl!");
   }
   params_->add("problem.xr", xr.value());
 
   std::optional<int> nx = config_["problem"]["nx"].value<int>();
   if (!nx.has_value()) {
-    THROW_ATHELAS_ERROR("Missing nx in [problem] block!");
+    throw_athelas_error("Missing nx in [problem] block!");
   }
   if (nx.value() <= 0) {
-    THROW_ATHELAS_ERROR("nx must be > 0!");
+    throw_athelas_error("nx must be > 0!");
   }
   params_->add("problem.nx", nx.value());
 
   std::optional<double> cfl = config_["problem"]["cfl"].value<double>();
   // NOTE: It may be worthwhile to have cfl be registerd per physics.
   if (!cfl.has_value()) {
-    THROW_ATHELAS_ERROR("Missing or invalid 'cfl' in [problem] block.");
+    throw_athelas_error("Missing or invalid 'cfl' in [problem] block.");
   }
   if (cfl.value() <= 0.0) {
-    THROW_ATHELAS_ERROR("cfl must be > 0.0!");
+    throw_athelas_error("cfl must be > 0.0!");
   }
   params_->add("problem.cfl", cfl.value());
 
   std::optional<std::string> geom =
       config_["problem"]["geometry"].value<std::string>();
   if (!geom.has_value()) {
-    THROW_ATHELAS_ERROR("Missing or invalid 'geom' in [problem] block.");
+    throw_athelas_error("Missing or invalid 'geom' in [problem] block.");
   }
   params_->add("problem.geometry", geom.value());
   if (geom.value() == "planar") {
@@ -109,7 +109,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   std::optional<std::string> grid_type =
       config_["problem"]["grid_type"].value<std::string>();
   if (!grid_type.has_value()) {
-    THROW_ATHELAS_ERROR("Missing or invalid 'grid_type' in [problem] block.");
+    throw_athelas_error("Missing or invalid 'grid_type' in [problem] block.");
   }
   params_->add("problem.grid_type", grid_type.value());
 
@@ -117,7 +117,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   // ---------- handle [problem.params] ----------
   // ---------------------------------------------
   if (!config_["problem"]["params"].is_table()) {
-    THROW_ATHELAS_ERROR("No [params] block in [problem]!");
+    throw_athelas_error("No [params] block in [problem]!");
   }
 
   auto *pparams = config_["problem"]["params"].as_table();
@@ -151,7 +151,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
       break;
 
     default:
-      THROW_ATHELAS_ERROR("Unsupported TOML type for key: " + std::string(key));
+      throw_athelas_error("Unsupported TOML type for key: " + std::string(key));
     }
   }
 
@@ -159,45 +159,45 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   // ---------- physics block ----------
   // -----------------------------------
   if (!config_["physics"].is_table()) {
-    THROW_ATHELAS_ERROR("Input deck must have a [physics] block!");
+    throw_athelas_error("Input deck must have a [physics] block!");
   }
   std::optional<bool> rad = config_["physics"]["radiation"].value<bool>();
   if (!rad) {
-    THROW_ATHELAS_ERROR("Missing or invalid 'radiation' in [physics] block.");
+    throw_athelas_error("Missing or invalid 'radiation' in [physics] block.");
   }
   params_->add("physics.rad_active", rad.value());
 
   std::optional<bool> grav = config_["physics"]["gravity"].value<bool>();
   if (!grav) {
-    THROW_ATHELAS_ERROR("Missing or invalid 'gravity' in [physics] block.");
+    throw_athelas_error("Missing or invalid 'gravity' in [physics] block.");
   }
   params_->add("physics.gravity_active", grav.value());
 
   std::optional<bool> comps = config_["physics"]["composition"].value<bool>();
   if (!comps) {
-    THROW_ATHELAS_ERROR("Missing or invalid 'composition' in [physics] block.");
+    throw_athelas_error("Missing or invalid 'composition' in [physics] block.");
   }
   params_->add("physics.composition_enabled", comps.value());
 
   std::optional<bool> ion = config_["physics"]["ionization"].value<bool>();
   if (!ion) {
-    THROW_ATHELAS_ERROR("Missing or invalid 'ionization' in [physics] block.");
+    throw_athelas_error("Missing or invalid 'ionization' in [physics] block.");
   }
   params_->add("physics.ionization_enabled", ion.value());
 
   std::optional<bool> engine = config_["physics"]["engine"].value<bool>();
   if (!engine) {
-    THROW_ATHELAS_ERROR("Missing or invalid 'engine' in [physics] block.");
+    throw_athelas_error("Missing or invalid 'engine' in [physics] block.");
   }
   params_->add("physics.engine.enabled", engine.value());
 
   if (ion.value() && !comps.value()) {
-    THROW_ATHELAS_ERROR("Ionization enabled but composition disabled!");
+    throw_athelas_error("Ionization enabled but composition disabled!");
   }
 
   std::optional<bool> heating = config_["physics"]["heating"].value<bool>();
   if (!heating) {
-    THROW_ATHELAS_ERROR("Missing or invalid 'heating' in [physics] block.");
+    throw_athelas_error("Missing or invalid 'heating' in [physics] block.");
   }
   params_->add("physics.heating.active", heating.value());
 
@@ -205,28 +205,28 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   // ---------- fluid block ----------
   // ---------------------------------
   if (!config_["fluid"].is_table()) {
-    THROW_ATHELAS_ERROR("[fluid] block must be provided!");
+    throw_athelas_error("[fluid] block must be provided!");
   }
 
   if (config_["fluid"]["operator_split"].is_value()) {
-    THROW_ATHELAS_ERROR("Operator split not supported for fluid! Remove option "
+    throw_athelas_error("Operator split not supported for fluid! Remove option "
                         "from [fluid] block.");
   }
 
   std::optional<int> porder = config_["fluid"]["porder"].value<int>();
   if (!porder) {
-    THROW_ATHELAS_ERROR("fluid enabled but 'porder' missing in [fluid] block!");
+    throw_athelas_error("fluid enabled but 'porder' missing in [fluid] block!");
   }
   params_->add("fluid.porder", porder.value());
 
   std::optional<int> nnodes = config_["fluid"]["nnodes"].value<int>();
   if (!nnodes) {
-    THROW_ATHELAS_ERROR("fluid enabled but 'nnodes' missing in [fluid] block!");
+    throw_athelas_error("fluid enabled but 'nnodes' missing in [fluid] block!");
   }
   params_->add("fluid.nnodes", nnodes.value());
 
   if (!config_["fluid"]["limiter"].is_table()) {
-    WARNING_ATHELAS("No [limiter] block in [fluid] - defaulting to minmod with "
+    athelas_warning("No [limiter] block in [fluid] - defaulting to minmod with "
                     "standard values!");
   }
 
@@ -260,19 +260,19 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
       params_->add("fluid.limiter.gamma_r", gamma_r.value());
       params_->add("fluid.limiter.gamma_l", gamma_l.value());
     } else {
-      THROW_ATHELAS_ERROR("Error parsing weno gammas in [fluid] block: provide "
+      throw_athelas_error("Error parsing weno gammas in [fluid] block: provide "
                           "only gamma_i, or all gamma_l, gamma_i, gamma_r!");
     }
     const double sum_g = params_->get<double>("fluid.limiter.gamma_i") +
                          params_->get<double>("fluid.limiter.gamma_l") +
                          params_->get<double>("fluid.limiter.gamma_r");
     if (std::abs(sum_g - 1.0) > 1.0e-10) {
-      THROW_ATHELAS_ERROR(
+      throw_athelas_error(
           " ! Initialization Error: Linear WENO weights must sum to unity.");
     }
     const double weno_r = config_["fluid"]["limiter"]["weno_r"].value_or(2.0);
     if (weno_r <= 0.0) {
-      THROW_ATHELAS_ERROR(
+      throw_athelas_error(
           "[fluid] block: WENO limiter weno_r must be positive!");
     }
     params_->add("fluid.limiter.weno_r", weno_r);
@@ -285,7 +285,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
     std::optional<double> tci_val =
         config_["fluid"]["limiter"]["tci_val"].value<double>();
     if (!tci_val.has_value()) {
-      THROW_ATHELAS_ERROR(
+      throw_athelas_error(
           "[fluid] block: TCI requested but no tci_val provided!");
     }
     params_->add("fluid.limiter.tci_val", tci_val.value());
@@ -308,13 +308,13 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   if (fluid_bc_i.has_value()) {
     params_->add("fluid.bc.i", utilities::to_lower(fluid_bc_i.value()));
   } else {
-    THROW_ATHELAS_ERROR("Inner fluid boundary condition not supplied "
+    throw_athelas_error("Inner fluid boundary condition not supplied "
                         "in input deck.");
   }
   if (fluid_bc_o.has_value()) {
     params_->add("fluid.bc.o", utilities::to_lower(fluid_bc_o.value()));
   } else {
-    THROW_ATHELAS_ERROR("Outer fluid boundary condition not supplied "
+    throw_athelas_error("Outer fluid boundary condition not supplied "
                         "in input deck.");
   }
   check_bc(params_->get<std::string>("fluid.bc.i"));
@@ -330,7 +330,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
       const auto *array = node.as_array();
       read_toml_array(array, fluid_i_dirichlet_values);
     } else {
-      THROW_ATHELAS_ERROR(" ! Initialization Error: Failed to read fluid "
+      throw_athelas_error(" ! Initialization Error: Failed to read fluid "
                           "dirichlet_values_i as array.");
     }
   }
@@ -341,7 +341,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
       const auto *array = node.as_array();
       read_toml_array(array, fluid_o_dirichlet_values);
     } else {
-      THROW_ATHELAS_ERROR(" ! Initialization Error: Failed to read fluid "
+      throw_athelas_error(" ! Initialization Error: Failed to read fluid "
                           "dirichlet_values_o as array.");
     }
   }
@@ -356,31 +356,31 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   // the individual packages.
   if (rad.value()) {
     if (!config_["radiation"].is_table()) {
-      THROW_ATHELAS_ERROR(
+      throw_athelas_error(
           "Radiation is active but radiation block is missing!");
     }
 
     if (config_["radiation"]["operator_split"].is_value()) {
-      THROW_ATHELAS_ERROR("Operator split not supported for radiation! Remove "
+      throw_athelas_error("Operator split not supported for radiation! Remove "
                           "option from [radiation] block.");
     }
 
     std::optional<int> porder = config_["radiation"]["porder"].value<int>();
     if (!porder) {
-      THROW_ATHELAS_ERROR(
+      throw_athelas_error(
           "radiation enabled but 'porder' missing in [radiation] block!");
     }
     params_->add("radiation.porder", porder.value());
 
     std::optional<int> nnodes = config_["radiation"]["nnodes"].value<int>();
     if (!nnodes) {
-      THROW_ATHELAS_ERROR(
+      throw_athelas_error(
           "radiation enabled but 'nnodes' missing in [radiation] block!");
     }
     params_->add("radiation.nnodes", nnodes.value());
 
     if (!config_["radiation"]["limiter"].is_table()) {
-      WARNING_ATHELAS("No [limiter] block in [radiation] - defaulting to "
+      athelas_warning("No [limiter] block in [radiation] - defaulting to "
                       "minmod with standard values!");
     }
 
@@ -418,7 +418,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
         params_->add("radiation.limiter.gamma_r", gamma_r.value());
         params_->add("radiation.limiter.gamma_l", gamma_l.value());
       } else {
-        THROW_ATHELAS_ERROR(
+        throw_athelas_error(
             "Error parsing weno gammas in [radiation] block: provide only "
             "gamma_i, or all gamma_l, gamma_i, gamma_r!");
       }
@@ -426,13 +426,13 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
                            params_->get<double>("radiation.limiter.gamma_l") +
                            params_->get<double>("radiation.limiter.gamma_r");
       if (std::abs(sum_g - 1.0) > 1.0e-10) {
-        THROW_ATHELAS_ERROR(
+        throw_athelas_error(
             " ! Initialization Error: Linear WENO weights must sum to unity.");
       }
       const double weno_r =
           config_["radiation"]["limiter"]["weno_r"].value_or(2.0);
       if (weno_r <= 0.0) {
-        THROW_ATHELAS_ERROR(
+        throw_athelas_error(
             "[radiation] block: WENO limiter weno_r must be positive!");
       }
       params_->add("radiation.limiter.weno_r", weno_r);
@@ -446,7 +446,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
       std::optional<double> tci_val =
           config_["radiation"]["limiter"]["tci_val"].value<double>();
       if (!tci_val.has_value()) {
-        THROW_ATHELAS_ERROR(
+        throw_athelas_error(
             "[radiation] block: TCI requested but no tci_val provided!");
       }
       params_->add("radiation.limiter.tci_val", tci_val.value());
@@ -468,13 +468,13 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
     if (rad_bc_i.has_value()) {
       params_->add("radiation.bc.i", utilities::to_lower(rad_bc_i.value()));
     } else {
-      THROW_ATHELAS_ERROR("Inner radiation boundary condition not supplied "
+      throw_athelas_error("Inner radiation boundary condition not supplied "
                           "in input deck but radiation is enabled1");
     }
     if (rad_bc_o.has_value()) {
       params_->add("radiation.bc.o", utilities::to_lower(rad_bc_o.value()));
     } else {
-      THROW_ATHELAS_ERROR("Outer radiation boundary condition not supplied "
+      throw_athelas_error("Outer radiation boundary condition not supplied "
                           "in input deck but radiation is enabled!");
     }
     check_bc(params_->get<std::string>("radiation.bc.i"));
@@ -490,7 +490,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
         const auto *array = node.as_array();
         read_toml_array(array, rad_i_dirichlet_values);
       } else {
-        THROW_ATHELAS_ERROR(" ! Initialization Error: Failed to read radiation "
+        throw_athelas_error(" ! Initialization Error: Failed to read radiation "
                             "dirichlet_values_i as array.");
       }
     }
@@ -501,7 +501,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
         const auto *array = node.as_array();
         read_toml_array(array, rad_o_dirichlet_values);
       } else {
-        THROW_ATHELAS_ERROR(" ! Initialization Error: Failed to read radiation "
+        throw_athelas_error(" ! Initialization Error: Failed to read radiation "
                             "dirichlet_values_o as array.");
       }
     }
@@ -514,7 +514,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   // -----------------------------------
   if (grav.value()) {
     if (!config_["gravity"].is_table()) {
-      THROW_ATHELAS_ERROR(
+      throw_athelas_error(
           "Gravity is enabled but no [gravity] block exists in input deck!");
     }
     bool split_grav = config_["gravity"]["operator_split"].value_or(false);
@@ -528,7 +528,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
                                       : GravityModel::Constant);
     if (params_->get<GravityModel>("gravity.model") == GravityModel::Constant &&
         gval <= 0.0) {
-      THROW_ATHELAS_ERROR(
+      throw_athelas_error(
           "Constant gravitational potential requested but g <= 0.0!");
     }
   } // gravity block
@@ -537,12 +537,12 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   // ---------- composition ----------
   // ---------------------------------
   if (!config_["composition"].is_table() && comps.value()) {
-    THROW_ATHELAS_ERROR(
+    throw_athelas_error(
         "Composition enabled but no [composition] block provided!");
   }
   std::optional<int> ncomps = config_["composition"]["ncomps"].value<int>();
   if (!ncomps && comps.value()) {
-    THROW_ATHELAS_ERROR(
+    throw_athelas_error(
         "Composition enabled but no ncomps in composition block!");
   } else {
     params_->add("composition.ncomps", ncomps.value_or(0));
@@ -552,7 +552,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   // ---------- ionization ----------
   // --------------------------------
   if (!config_["ionization"].is_table() && ion.value()) {
-    THROW_ATHELAS_ERROR(
+    throw_athelas_error(
         "Ionization enabled but no [ionization] block provided!");
   }
   std::optional<std::string> fn_ion =
@@ -561,12 +561,12 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
       config_["ionization"]["fn_degeneracy"].value<std::string>();
   std::optional<int> saha_ncomps = config_["ionization"]["ncomps"].value<int>();
   if ((!fn_ion || !fn_deg) && ion.value()) {
-    THROW_ATHELAS_ERROR("With ionization enabled you must provide paths to "
+    throw_athelas_error("With ionization enabled you must provide paths to "
                         "atomic data (fn_ionization and fn_degeneracy). "
                         "Defaults are in athelas/data/");
   }
   if ((!saha_ncomps) && ion.value()) {
-    THROW_ATHELAS_ERROR(
+    throw_athelas_error(
         "Ionization enabled but ncomps not present in [ionization] block!");
   }
   if (ion.value()) {
@@ -580,14 +580,14 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   // -----------------------------------
   if (heating.value()) {
     if (!config_["heating"].is_table()) {
-      THROW_ATHELAS_ERROR(
+      throw_athelas_error(
           "Heating is enabled but no [heating] block exists in input deck!");
     }
     if (config_["heating"]["nickel"].is_table()) {
       std::optional<bool> nickel_enabled =
           config_["heating"]["nickel"]["enabled"].value<bool>();
       if (!nickel_enabled) {
-        THROW_ATHELAS_ERROR(
+        throw_athelas_error(
             "[heating.nickel] is requested but 'enabled' is missing!");
       }
       params_->add("physics.heating.nickel.enabled", nickel_enabled.value());
@@ -599,7 +599,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
       std::optional<std::string> nickel_model =
           config_["heating"]["nickel"]["model"].value<std::string>();
       if (!nickel_model) {
-        THROW_ATHELAS_ERROR(
+        throw_athelas_error(
             "[heating.nickel] is requested but 'model' is missing!");
       }
       params_->add("heating.nickel.model", nickel_model.value());
@@ -615,14 +615,14 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   // ----------------------------------
   if (engine.value()) {
     if (!config_["engine"].is_table()) {
-      THROW_ATHELAS_ERROR(
+      throw_athelas_error(
           "An engine is enabled but no [engine] block exists in input deck!");
     }
     if (config_["engine"]["thermal"].is_table()) {
       std::optional<bool> thermal_engine_enabled =
           config_["engine"]["thermal"]["enabled"].value<bool>();
       if (!thermal_engine_enabled) {
-        THROW_ATHELAS_ERROR(
+        throw_athelas_error(
             "[engine.thermal] is requested but 'enabled' is missing!");
       }
       params_->add("physics.engine.thermal.enabled",
@@ -632,7 +632,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
       std::optional<double> energy =
           config_["engine"]["thermal"]["energy"].value<double>();
       if (!energy) {
-        THROW_ATHELAS_ERROR(
+        throw_athelas_error(
             "[engine.thermal] is requested but 'energy' is missing!");
       }
       params_->add("physics.engine.thermal.energy", energy.value());
@@ -640,12 +640,12 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
       // Energy injection mode: direct or asymptotic
       auto mode = config_["engine"]["thermal"]["mode"].value<std::string>();
       if (!mode) {
-        THROW_ATHELAS_ERROR(
+        throw_athelas_error(
             "[engine.thermal] is requested but 'mode' is missing!");
       }
       if (utilities::to_lower(mode.value()) != "direct" &&
           utilities::to_lower(mode.value()) != "asymptotic") {
-        THROW_ATHELAS_ERROR(
+        throw_athelas_error(
             "[engine.thermal.mode] must be 'direct' or 'asymptotic'!");
       }
       params_->add("physics.engine.thermal.mode",
@@ -654,11 +654,11 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
       // time
       auto tend = config_["engine"]["thermal"]["tend"].value<double>();
       if (!tend) {
-        THROW_ATHELAS_ERROR(
+        throw_athelas_error(
             "[engine.thermal] is requested but 'tend' is missing!");
       }
       if (tend <= 0.0) {
-        THROW_ATHELAS_ERROR("[engine.thermal.tend] must be > 0!");
+        throw_athelas_error("[engine.thermal.tend] must be > 0!");
       }
       params_->add("physics.engine.thermal.tend", tend.value());
 
@@ -668,11 +668,11 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
 
       auto mend = config_["engine"]["thermal"]["mend"].value<double>();
       if (!mend) {
-        THROW_ATHELAS_ERROR(
+        throw_athelas_error(
             "[engine.thermal] is requested but 'mend' is missing!");
       }
       if (mend <= 0.0) {
-        THROW_ATHELAS_ERROR("[engine.thermal.mend] must be > 0!");
+        throw_athelas_error("[engine.thermal.mend] must be > 0!");
       }
       params_->add("physics.engine.thermal.mend", mend.value());
 
@@ -694,7 +694,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   // In principle everything below can be defaulted, but
   // I still require the block present.
   if (!config_["output"].is_table()) {
-    THROW_ATHELAS_ERROR("No [output] block provided!");
+    throw_athelas_error("No [output] block provided!");
   }
   const int ncycle_out = config_["output"]["ncycle_out"].value_or(1);
   const double dt_hdf5 =
@@ -708,16 +708,16 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
       config_["output"]["history"]["dt"].value_or(dt_hdf5 / 10);
   auto fixed_dt = config_["output"]["dt_fixed"].value<double>();
   if (dt_init <= 0.0) {
-    THROW_ATHELAS_ERROR("dt_init must be strictly > 0.0\n");
+    throw_athelas_error("dt_init must be strictly > 0.0\n");
   }
   if (dt_init_frac <= 1.0) {
-    THROW_ATHELAS_ERROR("dt_init_frac must be strictly > 1.0\n");
+    throw_athelas_error("dt_init_frac must be strictly > 1.0\n");
   }
   if (dt_hdf5 <= 0.0) {
-    THROW_ATHELAS_ERROR("dt_hdf5 must be strictly > 0.0\n");
+    throw_athelas_error("dt_hdf5 must be strictly > 0.0\n");
   }
   if (hist_dt <= 0.0) {
-    THROW_ATHELAS_ERROR("hist_dt must be strictly > 0.0\n");
+    throw_athelas_error("hist_dt must be strictly > 0.0\n");
   }
   params_->add("output.ncycle_out", ncycle_out);
   params_->add("output.dt_hdf5", dt_hdf5);
@@ -734,7 +734,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   // ---------- time ----------
   // --------------------------
   if (!config_["time"].is_table()) {
-    THROW_ATHELAS_ERROR("No [time] block provided!");
+    throw_athelas_error("No [time] block provided!");
   }
   std::optional<std::string> integrator =
       config_["time"]["integrator"].value<std::string>();
@@ -744,19 +744,19 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
     params_->add("time.integrator", method_id);
     params_->add("time.integrator_string", integrator.value()); // for IO
   } else {
-    THROW_ATHELAS_ERROR("You must list an integrator in the input deck!");
+    throw_athelas_error("You must list an integrator in the input deck!");
   }
 
   // -------------------------
   // ---------- eos ----------
   // -------------------------
   if (!config_["eos"].is_table()) {
-    THROW_ATHELAS_ERROR("No [eos] block provided!");
+    throw_athelas_error("No [eos] block provided!");
   }
   std::optional<std::string> eos_type =
       config_["eos"]["type"].value<std::string>();
   if (!eos_type.has_value()) {
-    THROW_ATHELAS_ERROR("'type' not provided in [eos] block!");
+    throw_athelas_error("'type' not provided in [eos] block!");
   }
   params_->add("eos.type", eos_type.value());
   params_->add("eos.gamma", config_["eos"]["gamma"].value_or(1.4));
@@ -770,12 +770,12 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   // --------------------------
   if (rad.value()) {
     if (!config_["opacity"].is_table()) {
-      THROW_ATHELAS_ERROR("Radiation abled but no [opac] block provided!");
+      throw_athelas_error("Radiation abled but no [opac] block provided!");
     }
     std::optional<std::string> opac_type =
         config_["opacity"]["type"].value<std::string>();
     if (!opac_type.has_value()) {
-      THROW_ATHELAS_ERROR("'type' not provided in [opac] block!");
+      throw_athelas_error("'type' not provided in [opac] block!");
     }
     params_->add("opac.type", opac_type.value());
 
@@ -783,7 +783,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
       std::optional<double> kr = config_["opacity"]["kR"].value<double>();
       std::optional<double> kp = config_["opacity"]["kP"].value<double>();
       if (!kr.has_value() || !kp.has_value()) {
-        THROW_ATHELAS_ERROR(
+        throw_athelas_error(
             "Constant opacity must specify mean opacities kR and kP!");
       }
       params_->add("opac.kR", kr.value());
@@ -795,7 +795,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
       std::optional<double> exp =
           config_["opacity"]["exp"].value<double>(); // exponent
       if (!kr.has_value() || !kp.has_value() || !exp.has_value()) {
-        THROW_ATHELAS_ERROR("Powerlaw rho opacity must specify mean opacities "
+        throw_athelas_error("Powerlaw rho opacity must specify mean opacities "
                             "kR and kP and an exponent exp!");
       }
       params_->add("opac.kR", kr.value());
@@ -810,7 +810,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
 auto check_bc(std::string bc) -> bool {
   if (bc != "outflow" && bc != "reflecting" && bc != "dirichlet" &&
       bc != "periodic" && bc != "marshak") {
-    THROW_ATHELAS_ERROR(
+    throw_athelas_error(
         " ! Initialization Error: Bad boundary condition choice. Choose: \n"
         " - outflow \n"
         " - reflecting \n"

@@ -74,12 +74,12 @@ class Params {
   auto get(const std::string &key) const -> T {
     auto it = params_.find(key);
     if (it == params_.end() || !it->second) {
-      THROW_ATHELAS_ERROR("Parameter '" + key + "' not found");
+      throw_athelas_error("Parameter '" + key + "' not found");
     }
     try {
       return std::any_cast<T>(*(it->second));
     } catch (const std::bad_any_cast &) {
-      THROW_ATHELAS_ERROR("Type mismatch for parameter '" + key + "'");
+      throw_athelas_error("Type mismatch for parameter '" + key + "'");
     }
   }
 
@@ -88,12 +88,12 @@ class Params {
   auto get_ref(const std::string &key) const -> const T & {
     auto it = params_.find(key);
     if (it == params_.end() || !it->second) {
-      THROW_ATHELAS_ERROR("Parameter '" + key + "' not found");
+      throw_athelas_error("Parameter '" + key + "' not found");
     }
     try {
       return std::any_cast<const T &>(*(it->second));
     } catch (const std::bad_any_cast &) {
-      THROW_ATHELAS_ERROR("Type mismatch for parameter '" + key + "'");
+      throw_athelas_error("Type mismatch for parameter '" + key + "'");
     }
   }
 
@@ -102,12 +102,12 @@ class Params {
   auto get_mutable_ref(const std::string &key) -> T & {
     auto it = params_.find(key);
     if (it == params_.end() || !it->second) {
-      THROW_ATHELAS_ERROR("Parameter '" + key + "' not found");
+      throw_athelas_error("Parameter '" + key + "' not found");
     }
     try {
       return std::any_cast<T &>(*(it->second));
     } catch (const std::bad_any_cast &) {
-      THROW_ATHELAS_ERROR("Type mismatch for parameter '" + key + "'");
+      throw_athelas_error("Type mismatch for parameter '" + key + "'");
     }
   }
 
@@ -122,7 +122,7 @@ class Params {
     try {
       return std::any_cast<T>(*(it->second));
     } catch (const std::bad_any_cast &) {
-      THROW_ATHELAS_ERROR("Type mismatch for parameter '" + key + "'");
+      throw_athelas_error("Type mismatch for parameter '" + key + "'");
     }
   }
 
