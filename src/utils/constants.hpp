@@ -37,4 +37,5 @@ static constexpr double seconds_to_days = 86400.0;
 static constexpr double ev_to_erg = 1.602e-12;
 
 static const double k_saha = std::pow(2. * PI * m_e * k_B / (h * h), 1.5);
+static const double ln_k_saha = 1.5 * std::log(2. * PI * m_e * k_B / (h * h));
 } // namespace athelas::constants

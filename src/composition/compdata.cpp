@@ -1,6 +1,8 @@
 #include <memory>
 
 #include "composition/compdata.hpp"
+#include "kokkos_abstraction.hpp"
+#include "loop_layout.hpp"
 #include "utils/error.hpp"
 
 namespace athelas::atom {
@@ -84,14 +86,18 @@ IonizationState::IonizationState(const int nX, const int nNodes,
       atomic_data_(std::make_unique<AtomicData>(fn_ionization, fn_degeneracy)),
       zbar_("zbar", nX, nNodes + 2, n_species), ybar_("ybar", nX, nNodes + 2),
       e_ion_corr_("e_ion_corr", nX, nNodes + 2), saha_f_("saha_f", n_states),
-      sigma1_("sigma1", nX, nNodes + 2), sigma2_("sigma2", nX, nNodes + 2),
-      sigma3_("sigma3", nX, nNodes + 2) {
-  if (n_species <= 0) {
-    throw_athelas_error("IonizationState :: n_species must be > 0!");
+      ln_i_("ln_i", n_states), sigma1_("sigma1", nX, nNodes + 2),
+      sigma2_("sigma2", nX, nNodes + 2), sigma3_("sigma3", nX, nNodes + 2) {
+  athelas_requires(n_species > 0, "IonizationState :: n_species must be > 0!");
+  athelas_requires(n_states > 0, "IonizationState :: n_states must be > 0!");
+
+  auto ln_i_h = Kokkos::create_mirror_view(ln_i_);
+
+  // precompute ln(i) for log Saha model
+  for (int i = 0; i < n_states; ++i) {
+    ln_i_h(i) = std::log(i);
   }
-  if (n_states <= 0) {
-    throw_athelas_error("IonizationState :: n_states must be > 0!");
-  }
+  Kokkos::deep_copy(ln_i_, ln_i_h);
 }
 
 [[nodiscard]] auto IonizationState::ncomps() const noexcept -> int {
@@ -126,6 +132,11 @@ IonizationState::IonizationState(const int nX, const int nNodes,
 [[nodiscard]] auto IonizationState::saha_factor() const noexcept
     -> AthelasArray1D<double> {
   return saha_f_;
+}
+
+[[nodiscard]] auto IonizationState::ln_i() const noexcept
+    -> AthelasArray1D<double> {
+  return ln_i_;
 }
 
 [[nodiscard]] auto IonizationState::sigma1() const noexcept
