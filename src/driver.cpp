@@ -182,6 +182,14 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   mesh_state_.register_field("u_pf", DataPolicy::OneCopy, "Primitive variables",
                              {"density", "momentum", "sie"}, nx + 2,
                              max_order + 2, nvars_prim);
+
+  if (comps_active) {
+    const auto ncomps = pin->param()->get<int>("composition.ncomps");
+    mesh_state_.register_field("x_q", DataPolicy::OneCopy,
+                               "Nodal mass fractions", nx + 2, max_order + 2,
+                               ncomps);
+  }
+
   // auto info = mesh_state_.field_info();
   auto sd0 = mesh_state_(0);
   auto prims = sd0.get_field("u_pf");

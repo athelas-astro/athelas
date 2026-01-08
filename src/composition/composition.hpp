@@ -44,13 +44,14 @@ void fill_derived_comps(StageData &stage_data, AthelasArray3D<double> ucf,
 
   auto *const comps = stage_data.comps();
   auto mass_fractions = stage_data.mass_fractions("u_cf");
+  auto mass_fractions_nodal = stage_data.get_field("x_q");
   auto species = comps->charge();
   auto neutron_number = comps->neutron_number();
   auto inv_atomic_mass = comps->inverse_atomic_mass();
   auto ye = comps->ye();
   auto abar = comps->abar();
   auto number_density = comps->number_density();
-  const size_t num_species = comps->n_species();
+  static const size_t num_species = comps->n_species();
 
   static constexpr double inv_m_p = 1.0 / constants::m_p;
   athelas::par_for(
@@ -60,15 +61,17 @@ void fill_derived_comps(StageData &stage_data, AthelasArray3D<double> ucf,
         double ye_q = 0.0;
         double sum_y = 0.0;
         for (size_t e = 0; e < num_species; ++e) {
-          const double Z = species(e);
-          const double inv_A = inv_atomic_mass(e);
+          const double &Z = species(e);
+          const double &inv_A = inv_atomic_mass(e);
           const double tau =
               basis::basis_eval(phi, ucf, i, vars::cons::SpecificVolume, q);
           const double rho = 1.0 / tau;
           const double xk = basis::basis_eval(phi, mass_fractions, i, e, q);
-          n += xk * inv_A;
-          ye_q += Z * xk * inv_A;
+          const double xk_invA = xk * inv_A;
+          n += xk_invA;
+          ye_q += Z * xk_invA;
           sum_y += element_number_density(xk, inv_A, rho) * tau;
+          mass_fractions_nodal(i, q, e) = xk;
         }
         number_density(i, q) = n * inv_m_p;
         ye(i, q) = ye_q;
