@@ -2,118 +2,125 @@
 
 Saha Ionization Model
 ========================
-``Athelas`` models ionization equilibrium with the non-degenerate Saha-Boltzmann formulation based on
-`Zaghloul`_ et al. (2000). This model is used to compute ionization fractions and the mean
-charge state of each atomic species.
-The ionization state enters the equation of state through contributions to the internal
-energy and pressure and is therefore solved repeatedly as part
-of the temperature inversion. It is a large computational expense.
+``Athelas`` models ionization equilibrium with the non-degenerate Saha-Boltzmann 
+equations based on the formalism of `Zaghloul`_ et al. (2000). 
+This model is used to compute ionization fractions and the mean charge state of 
+each atomic species. The ionization state enters the equation of state 
+through contributions to the internal energy and pressure and is therefore 
+solved repeatedly as part of the temperature inversion. 
+It is a large computational expense.
 
-.. math::
-  \frac{n_{i+1}}{n_i}
-  \frac{2 U_{i+1}(T)}{U_i(T)}
-  \left( \frac{2 \pi m_e k_B T}{h^2} \right)^{3/2}
-  \frac{1}{n_e}
-  \exp\left(-\frac{I_i}{k_B T}\right).
-
-Zaghloul Saha Formulation
---------------------------
-Consider an atomic species with charge :math:`Z`, temperature :math:`T`, and
-number density :math:`n_k`. Let :math:`n_i` denote the number density of the ion in
-charge state :math:`i`, where :math:`i = 0` corresponds to the neutral atom.
-
+The Saha-Boltzmann equations have the form
 
 .. math::
    :label: saha
 
-   1 - \bar{\mathbb{Z}}_k
-   \left(
-     \sum_{i=1}^{Z_k}
+  \frac{n_{s+1}n_{e}}{n_s} = 
+  \frac{2 g_{s+1}}{g_s}
+  \left[ \frac{2 \pi m_e k_B T}{h^2} \right]^{3/2}
+  e^{-\chi_s/(k_B T)}, \,\,
+   s = 0, 1, ..., \mathbb{Z} - 1
+
+where :math:`n_s` is the number density of atoms in the :math:`s`-th ionization state, 
+:math:`g_s` is the associated statistical weight, :math:`m_e` is the electron rest mass, 
+:math:`h` is Planck's constant, 
+:math:`k_B` is Boltzmann's constant, :math:`\chi_s` is the ionization energy for the 
+:math:`s \to (s+1)` process, and :math:`\mathbb{Z}` is the atomic number of the species.
+
+The Saha-Boltzmann equations can be combined with the condition of charge neutrality
+
+.. math::
+   :label: charge_neutrality
+
+   \sum_{s=1}^{\mathbb{Z}} s\, n_s = n_e
+
+and conservation of nuclei
+
+.. math::
+   :label: nuclei
+
+   \sum_{i=0}^{\mathbb{Z}} n_i = n_k = \text{constant},
+
+where :math:`n_k` is the number density of nuclei of species :math:`k`, 
+can be formed into a single set of transcendental equations that can be solved
+for the mean charge :math:`\bar{\mathbb{Z}}`. Let us denote the fraction of atoms 
+in the :math:`s`-th ionization state as :math:`y_s = n_s/n_k` and express the 
+mean charge as :math:`\bar{\mathbb{Z}} = n_e/n_k` we can, 
+following `Zaghloul`_ , reexpress the above equations in the following forms
+
+.. math::
+   :label: conservation
+
+   \sum_{s=0}^{\mathbb{Z}} y_s = 1
+
+.. math::
+   :label: charge
+
+   \sum_{s=0}^{\mathbb{Z}} s\, y_s = \bar{\mathbb{Z}}
+
+.. math::
+   :label: new_saha
+
+  \frac{y_{s+1}\bar{\mathbb{Z}}n_{k}}{y_s} = 
+  2\frac{g_{s+1}}{g_s}
+  \left[ \frac{2 \pi m_e k_B T}{h^2} \right]^{3/2}
+  e^{-\chi_s/(k_B T)} = f_s, \,\,
+   s = 0, 1, ..., \mathbb{Z} - 1
+
+and observe the recurrence relation
+
+.. math::
+   y_{s+1} = y_s \frac{f_s}{\bar{\mathbb{Z}}n_k}.
+
+Substituting this into :eq:`charge` we get
+an expression for the neutral fraction
+
+.. math::
+   y_0 = \bar{\mathbb{Z}}
+   \left[ \sum_{s=1}^{\mathbb{Z}} \frac{s\prod_{j=1}^{s} f_j}{(\bar{\mathbb{Z}} n_k)^s} \right].
+
+Finally, combining the relations for the ionization fractions :math:`y` with the 
+condition for conservation :eq:`conservation` of nuclei we 
+arrive at a transcendental equation for :math:`\bar{\mathbb{Z}}`
+
+.. math::
+   :label: saha_eq
+
+   F(\bar{\mathbb{Z}}) = 1 - \bar{\mathbb{Z}}_k
+   \left[
+     \sum_{s=1}^{Z_k}
      \frac{
-       i \displaystyle\prod_{j=1}^{i} f_{k,j}
+       s \displaystyle\prod_{j=1}^{s} f_{k,j}
      }{
        (\bar{\mathbb{Z}}_k n_k)^i
      }
-   \right)^{-1}
+   \right]^{-1}
    \left[
-     1 + \sum_{i=1}^{Z_k}
+     1 + \sum_{s=1}^{Z_k}
      \frac{
        \displaystyle\prod_{j=1}^{i} f_{k,j}
      }{
-       (\bar{\mathbb{Z}}_k n_k)^i
+       (\bar{\mathbb{Z}}_k n_k)^s
      }
    \right]
-   = 0 \, .
 
-.. math::
+Equation :eq:`saha_eq` may be solved iteratively for :math:`\bar{\mathbb{Z}}` using a any 
+root finding algorithm. ``Athelas`` implements a couple of method for finding 
+:math:`\bar{\mathbb{Z}}`.
 
-   \begin{aligned}
-   f_{k,i+1} &= 2 \frac{g_{k,i+1}}{g_{k,i}}
-   \left[
-     \frac{2 \pi m_e k_{\rm B} T}{h^2}
-   \right]^{3/2}
-   \exp\left(
-     -\frac{I_{k,i}}{k_{\rm B} T}
-   \right) \, , \\
-   i &= 0,1,\ldots,(Z_k-1) \, .
-   \end{aligned}
+Once :math:`\bar{\mathbb{Z}}` is known then the constribution from this species 
+to the electron number density can be tallied as :math:`n_e = \bar{\mathbb{Z}}n_k`.
 
-The ratio of successive ionization states is given by the Saha relation
+Numerical Methods
+---------------------
+``Athelas`` implements two methods for solving equation :eq:`saha_eq`.
 
-.. math::
-  \frac{n_{i+1}}{n_i} = f_i(T, n_k),
-
-where
-
-.. math::
-  f_i(T, n_k) =
-  \frac{2 U_{i+1}(T)}{U_i(T)}
-  \left( \frac{2 \pi m_e k_B T}{h^2} \right)^{3/2}
-  \frac{1}{n_k}
-  \exp\left(-\frac{I_i}{k_B T}\right).
-
-Here:
-
-:math:`U_i(T)` is the partition function of charge state :math:`i`,
-:math:`I_i` is the ionization energy from state :math:`i` to :math:`i+1`,
-:math:`m_e` is the electron mass,
-:math:`k_B` is Boltzmann’s constant,
-:math:`h` is Planck’s constant.
-
-Following Zaghloul et al., we define the cumulative product
-
-.. math::
-  F_i = \prod_{j=0}^{i-1} f_j,
-
-with :math:`F_0 = 1`. The number density of each charge state can then be written as
-
-.. math::
-  n_i = \frac{F_i}{Z_k^i} n_0,
-
-where :math:`Z_k` is the mean ion charge and :math:`n_0` is the neutral density.
-
-Mean Charge Constraint
------------------------
-The mean charge state :math:`\bar{Z}` is defined by
-
-.. math::
-  \bar{Z} = \frac{1}{n_k} \sum_{i=0}^{Z} i n_i.
-
-Substituting the Saha ladder expression yields a transcendental equation for
-:math:`\bar{Z}`:
-
-.. math::
-  \bar{Z} =
-  \frac{\displaystyle \sum_{i=1}^{Z} i \frac{F_i}{\bar{Z}^i}}
-  {\displaystyle \sum_{i=0}^{Z} \frac{F_i}{\bar{Z}^i}}.
-
-This equation is solved numerically for :math:`\bar{Z}`. Once :math:`\bar{Z}` is known,
-the individual ion fractions follow directly from the Saha relations.
 
 Numerical Challenges
 ---------------------
-For species with many ionization states or at high temperatures, the cumulative products
-:math:`F_i` can span many orders of magnitude. Direct evaluation of the Saha ladder may
+For species with many ionization states, at very high temperatures, 
+or at low number densities, the cumulative products
+can grow quickly. Direct evaluation of the Saha ladder may
 therefore suffer from floating-point overflow or underflow, even when the final physical
 result is well-behaved.
 
@@ -165,3 +172,12 @@ previous timestep or spatially neighboring solution.
 
 The linear Saha solver is faster but numerically fragile and intended for light elements only.
 The logarithmic solver is robust for all species and thermodynamic conditions, at increased cost.
+
+Atomic Data
+------------
+
+Configuration
+--------------
+
+Input Deck
+-----------
