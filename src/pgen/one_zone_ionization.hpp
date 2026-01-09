@@ -71,9 +71,9 @@ void one_zone_ionization_init(MeshState &mesh_state, GridStructure *grid,
       std::make_shared<atom::CompositionData>(grid->n_elements() + 2, order,
                                               ncomps);
   std::shared_ptr<atom::IonizationState> ionization_state =
-      std::make_shared<atom::IonizationState>(grid->n_elements() + 2, nNodes,
-                                              ncomps, 7, saha_ncomps,
-                                              fn_ionization, fn_deg);
+      std::make_shared<atom::IonizationState>(
+          grid->n_elements() + 2, nNodes, ncomps, 7, saha_ncomps, fn_ionization,
+          fn_deg, pin->param()->get<std::string>("ionization.solver"));
   auto mass_fractions = mesh_state.mass_fractions("u_cf");
   auto charges = comps->charge();
   auto neutrons = comps->neutron_number();
@@ -174,8 +174,8 @@ void one_zone_ionization_init(MeshState &mesh_state, GridStructure *grid,
         });
 
     atom::fill_derived_comps<Domain::Interior>(sd0, uCF, grid, fluid_basis);
-    atom::solve_saha_ionization<Domain::Interior>(sd0, uCF, *grid, *eos,
-                                                  *fluid_basis);
+    atom::solve_saha_ionization<Domain::Interior, atom::SahaSolver::Linear>(
+        sd0, uCF, *grid, *eos, *fluid_basis);
     atom::fill_derived_ionization<Domain::Interior>(sd0, uCF, grid,
                                                     fluid_basis);
     // composition boundary condition

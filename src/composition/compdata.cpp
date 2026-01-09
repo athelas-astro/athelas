@@ -79,7 +79,8 @@ IonizationState::IonizationState(const int nX, const int nNodes,
                                  const int n_species, const int n_states,
                                  const int saha_ncomps,
                                  const std::string &fn_ionization,
-                                 const std::string &fn_degeneracy)
+                                 const std::string &fn_degeneracy,
+                                 const std::string &solver)
     : saha_ncomps_(saha_ncomps),
       ionization_fractions_("ionization_fractions", nX, nNodes + 2, n_species,
                             n_states),
@@ -98,6 +99,13 @@ IonizationState::IonizationState(const int nX, const int nNodes,
     ln_i_h(i) = std::log(i);
   }
   Kokkos::deep_copy(ln_i_, ln_i_h);
+
+  if (solver == "linear") {
+    solver_ = SahaSolver::Linear;
+  }
+  if (solver == "log") {
+    solver_ = SahaSolver::Log;
+  }
 }
 
 [[nodiscard]] auto IonizationState::ncomps() const noexcept -> int {
@@ -152,6 +160,10 @@ IonizationState::IonizationState(const int nX, const int nNodes,
 [[nodiscard]] auto IonizationState::sigma3() const noexcept
     -> AthelasArray2D<double> {
   return sigma3_;
+}
+
+[[nodiscard]] auto IonizationState::solver() const noexcept -> SahaSolver {
+  return solver_;
 }
 
 } // namespace athelas::atom

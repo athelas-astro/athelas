@@ -289,8 +289,17 @@ void HydroPackage::fill_derived(StageData &stage_data,
   // energy. The ionization case is involved and so this is all done
   // separately. In that case the temperature solve is coupled to a Saha solve.
   if (ionization_enabled) {
-    atom::compute_temperature_with_saha<Domain::Entire, eos::EOSInversion::Sie>(
-        eos_, stage_data, uCF, grid, *basis_);
+    auto *const ionization_state = stage_data.ionization_state();
+    if (ionization_state->solver() == atom::SahaSolver::Linear) {
+      atom::compute_temperature_with_saha<
+          Domain::Entire, eos::EOSInversion::Sie, atom::SahaSolver::Linear>(
+          eos_, stage_data, uCF, grid, *basis_);
+    }
+    if (ionization_state->solver() == atom::SahaSolver::Log) {
+      atom::compute_temperature_with_saha<
+          Domain::Entire, eos::EOSInversion::Sie, atom::SahaSolver::Log>(
+          eos_, stage_data, uCF, grid, *basis_);
+    }
   } else {
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Fill derived :: temperature",

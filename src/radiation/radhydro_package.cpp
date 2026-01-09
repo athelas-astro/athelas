@@ -424,10 +424,6 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
                                    const GridStructure &grid,
                                    const TimeStepInfo &dt_info) const {
   auto uCF = stage_data.get_field("u_cf");
-  // hacky
-  // if (stage == -1) {
-  //   uCF = stage_data.get_field("u_cf");
-  //}
   auto uPF = stage_data.get_field("u_pf");
   auto uAF = stage_data.get_field("u_af");
 
@@ -455,8 +451,18 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
   // energy. The ionization case is involved and so this is all done
   // separately. In that case the temperature solve is coupled to a Saha solve.
   if (ionization_enabled) {
-    atom::compute_temperature_with_saha<Domain::Entire, eos::EOSInversion::Sie>(
-        eos_, stage_data, uCF, grid, *fluid_basis_);
+    auto *const ionization_state = stage_data.ionization_state();
+    if (ionization_state->solver() == atom::SahaSolver::Linear) {
+      atom::compute_temperature_with_saha<Domain::Interior,
+                                          eos::EOSInversion::Pressure,
+                                          atom::SahaSolver::Linear>(
+          eos_, stage_data, uCF, grid, *fluid_basis_);
+    }
+    if (ionization_state->solver() == atom::SahaSolver::Log) {
+      atom::compute_temperature_with_saha<
+          Domain::Interior, eos::EOSInversion::Pressure, atom::SahaSolver::Log>(
+          eos_, stage_data, uCF, grid, *fluid_basis_);
+    }
   } else {
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Fill derived :: temperature",

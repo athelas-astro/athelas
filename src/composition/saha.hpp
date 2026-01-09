@@ -14,47 +14,56 @@
 #include "loop_layout.hpp"
 #include "solvers/root_finders.hpp"
 #include "state/state.hpp"
-#include "utils/error.hpp"
 
 namespace athelas::atom {
 
 // NOTE: a lot of logic in here is 1-indexed.
 // I need to change it.
 
-KOKKOS_INLINE_FUNCTION
+KOKKOS_FUNCTION
+template <SahaSolver SolverType>
 auto saha_f(const double T, const IonLevel &ion_data) -> double {
-  /*
-  const double prefix = 2.0 * (ion_data.g_upper / ion_data.g_lower) *
-                        constants::k_saha * std::pow(T, 1.5);
-  const double suffix = std::exp(-ion_data.chi / (constants::k_B * T));
+  if constexpr (SolverType == SahaSolver::Linear) {
+    const double prefix = 2.0 * (ion_data.g_upper / ion_data.g_lower) *
+                          constants::k_saha * std::pow(T, 1.5);
+    const double suffix = std::exp(-ion_data.chi / (constants::k_B * T));
 
-  return prefix * suffix;
-  */
-  // TODO(astrobarker): [Saha] combine logs?
-  return (-ion_data.chi / (constants::k_B * T)) +
-         std::log(2.0 * ion_data.g_upper / ion_data.g_lower) +
-         constants::ln_k_saha + 1.5 * std::log(T);
+    return prefix * suffix;
+  } else {
+    return (-ion_data.chi / (constants::k_B * T)) +
+           std::log(2.0 * ion_data.g_upper / ion_data.g_lower) +
+           constants::ln_k_saha + 1.5 * std::log(T);
+  }
 }
 
 /**
  * @brief Compute neutral ionization fraction. Eq 8 of Zaghloul et al 2000.
+ * @note Original linear form.
+ */
+KOKKOS_INLINE_FUNCTION
+auto ion_frac0(const double zbar, const ScratchPad1D<double> saha_factors,
+               const double nk, const int min_state, const int max_state)
+    -> double {
+  const double inv_zbar_nk = 1.0 / (zbar * nk);
+
+  double denominator = 0.0;
+  double prod = 1.0;
+  for (int i = min_state; i < max_state; ++i) {
+    prod *= inv_zbar_nk * saha_factors(i - 1);
+    denominator += i * prod;
+  }
+  denominator += (min_state - 1.0);
+  return zbar / denominator;
+}
+
+/**
+ * @brief Compute neutral ionization fraction. Eq 8 of Zaghloul et al 2000.
+ * @note modified log form
  */
 KOKKOS_INLINE_FUNCTION
 auto ion_frac0(const double lnz, const ScratchPad1D<double> saha_factors,
                AthelasArray1D<double> ln_i, const double ln_nk,
                const int min_state, const int max_state) -> double {
-  /*
-  const double inv_zbar_nk = 1.0 / (Zbar * nk);
-
-  double denominator = 0.0;
-  double prod = 1.0;
-  for (int i = min_state; i < max_state; ++i) {
-    prod *= inv_zbar_nk * std::exp(saha_factors(i - 1));
-    denominator += i * prod;
-  }
-  denominator += (min_state - 1.0);
-  return Zbar / denominator;
-  */
   const double xplnk = lnz + ln_nk;
 
   double lnD = -std::numeric_limits<double>::infinity();
@@ -71,8 +80,12 @@ auto ion_frac0(const double lnz, const ScratchPad1D<double> saha_factors,
   return lnz - lnD;
 }
 
+/**
+ * @brief Root finder target function for Saha solve
+ * @note Log solver
+ */
 KOKKOS_INLINE_FUNCTION
-auto new_saha_target(const double lnz, const ScratchPad1D<double> saha_factors,
+auto saha_target_log(const double lnz, const ScratchPad1D<double> saha_factors,
                      AthelasArray1D<double> ln_i, const double ln_nk,
                      const int min_state, const int max_state)
     -> std::tuple<double, double> {
@@ -105,62 +118,49 @@ auto new_saha_target(const double lnz, const ScratchPad1D<double> saha_factors,
   return {f, fprime};
 }
 
+/**
+ * @brief Root finder target function for Saha solve
+ * @note Original linear solver
+ */
 KOKKOS_INLINE_FUNCTION
-auto saha_target(const double Zbar, const ScratchPad1D<double> saha_factors,
-                 const double nk, const int min_state, const int max_state)
-    -> double {
+auto saha_target_linear(const double Zbar,
+                        const ScratchPad1D<double> saha_factors,
+                        const double nk, const int min_state,
+                        const int max_state) -> std::tuple<double, double> {
   const double inv_zbar_nk = 1.0 / (Zbar * nk);
-  double result = Zbar;
+  double f = Zbar;
+  double fp = 0.0;
 
   double prod = 1.0;
   double sum0 = 0.0;
   double sum1 = 0.0;
+  double sum2 = 0.0;
+  double sum3 = 0.0;
   for (int i = min_state; i < max_state; ++i) {
     prod *= saha_factors(i - 1) * inv_zbar_nk;
     sum0 += prod;
     sum1 += i * prod;
+    sum2 += (i - min_state + 1.0) * prod;
+    sum3 += i * (i - min_state + 1.0) * prod;
   }
   const double denominator = (min_state - 1.0 + sum1);
   const double numerator = 1.0 + sum0;
 
-  result *= (numerator / denominator);
-  result = 1.0 - result;
-  return result;
-}
+  const double denom = 1.0 / (min_state - 1.0 + sum1);
+  fp = (sum2 - (1.0 + sum0) * (1.0 + sum3 * denom)) * denom;
 
-KOKKOS_INLINE_FUNCTION
-auto saha_d_target(const double Zbar, const ScratchPad1D<double> saha_factors,
-                   const double nk, const int min_state, const int max_state)
-    -> double {
-
-  double product = 1.0;
-  double sigma0 = 0.0;
-  double sigma1 = 0.0;
-  double sigma2 = 0.0;
-  double sigma3 = 0.0;
-
-  const double inv_zbar_nk = 1.0 / (Zbar * nk);
-  for (int i = min_state; i < max_state; ++i) {
-    product *= saha_factors(i - 1) * inv_zbar_nk;
-    sigma0 += product;
-    sigma1 += i * product;
-    sigma2 += (i - min_state + 1.0) * product;
-    sigma3 += i * (i - min_state + 1.0) * product;
-  }
-
-  const double denom = 1.0 / (min_state - 1.0 + sigma1);
-  return (sigma2 - (1.0 + sigma0) * (1.0 + sigma3 * denom)) * denom;
+  f *= (numerator / denominator);
+  return {1.0 - f, fp};
 }
 
 /**
- * @brief Saha solve on a given cell
+ * @brief Saha solve on a given cell using original Linear method
  * @return zbar
  */
 KOKKOS_INLINE_FUNCTION
-void saha_solve(AthelasArray1D<double> ionization_states, const int Z,
-                const ScratchPad1D<double> saha_factors,
-                AthelasArray1D<double> ln_i, const double rho,
-                const double ln_nk, double &zbar_old) {
+void saha_solve_linear(AthelasArray1D<double> ionization_states, const int Z,
+                       const ScratchPad1D<double> saha_factors,
+                       const double rho, const double nk, double &zbar_old) {
 
   using root_finders::RootFinder, root_finders::NewtonAlgorithm,
       root_finders::NewtonAlgorithmBundled, root_finders::AANewtonAlgorithm,
@@ -177,9 +177,8 @@ void saha_solve(AthelasArray1D<double> ionization_states, const int Z,
   int min_state = 1;
   int max_state = num_states;
 
-  // const double Zbar_nk_inv = 1.0 / (Z * nk);
+  const double Zbar_nk_inv = 1.0 / (Z * nk);
 
-  /*
   for (int i = 1; i < num_states; ++i) {
     const double f_saha = saha_factors(i - 1);
 
@@ -191,9 +190,7 @@ void saha_solve(AthelasArray1D<double> ionization_states, const int Z,
       break;
     }
   }
-  */
 
-  /*
   if (max_state == 1) {
     ionization_states(0) = 1.0; // neutral
     zbar_old = 1.0e-16; // uncharged (but don't want division by 0)
@@ -204,24 +201,44 @@ void saha_solve(AthelasArray1D<double> ionization_states, const int Z,
     zbar_old = min_state - 1.0;
     ionization_states(min_state - 1) = 1.0; // only one state possible
   } else {
-   */
+    const double guess = zbar_old;
+
+    // we use a Newton Raphson iteration
+    zbar_old = solver.solve(saha_target_linear, guess, saha_factors, nk,
+                            min_state, max_state);
+  }
+}
+
+/**
+ * @brief Saha solve on a given cell using original Log method
+ * @note This is currently the preferred method for large Z
+ * @return zbar
+ */
+KOKKOS_INLINE_FUNCTION
+void saha_solve_log(AthelasArray1D<double> ionization_states, const int Z,
+                    const ScratchPad1D<double> saha_factors,
+                    AthelasArray1D<double> ln_i, const double rho,
+                    const double ln_nk, double &zbar_old) {
+
+  using root_finders::RootFinder, root_finders::NewtonAlgorithm,
+      root_finders::NewtonAlgorithmBundled, root_finders::AANewtonAlgorithm,
+      root_finders::RegulaFalsiAlgorithm, root_finders::FixedPointAlgorithm,
+      root_finders::RelativeError, root_finders::AbsoluteError;
+  // Set up static root finder for Saha ionization
+  // TODO(astrobarker): make tolerances runtime
+  static RootFinder<double, NewtonAlgorithmBundled<double>, AbsoluteError>
+      solver({.abs_tol = 1.0e-10, .rel_tol = 1.0e-10, .max_iterations = 32});
+
+  const int num_states = Z + 1;
+  static constexpr int min_state = 1;
+  const int max_state = num_states;
+
   // iterative solve
   const double guess = std::log(zbar_old);
 
   // we use a Newton Raphson iteration
-  zbar_old = solver.solve(new_saha_target, guess, saha_factors, ln_i, ln_nk,
+  zbar_old = solver.solve(saha_target_log, guess, saha_factors, ln_i, ln_nk,
                           min_state, max_state);
-
-  /*
-  ionization_states(min_state - 1) =
-      std::exp(ion_frac0(zbar_old, saha_factors, ln_i, ln_nk, min_state,
-  max_state)); zbar_old = std::exp(zbar_old); const double inv_zbar_nk = 1.0 /
-  (zbar_old * std::exp(ln_nk)); for (int i = min_state; i <= max_state - 1; ++i)
-  { ionization_states(i) = ionization_states(i - 1) * std::exp(saha_factors(i -
-  1)) * inv_zbar_nk;
-  }
-  */
-  //}
 }
 
 /**
@@ -229,7 +246,7 @@ void saha_solve(AthelasArray1D<double> ionization_states, const int Z,
  *
  * Word of warning: the code here is a gold medalist in index gymnastics.
  */
-template <Domain MeshDomain>
+template <Domain MeshDomain, SahaSolver SolverType>
 void solve_saha_ionization(StageData &stage_data, AthelasArray3D<double> ucf,
                            const GridStructure &grid, const eos::EOS &eos,
                            const basis::ModalBasis &fluid_basis) {
@@ -311,22 +328,34 @@ void solve_saha_ionization(StageData &stage_data, AthelasArray3D<double> ucf,
                   Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
 
               for (int s = 0; s <= z; ++s) {
-                saha_factors(s) = saha_f(temperature, species_atomic_data(s));
+                saha_factors(s) =
+                    saha_f<SolverType>(temperature, species_atomic_data(s));
               }
 
               double &zbar = zbars(i, q, e);
-              const double ln_nk = std::log(nk);
-
-              saha_solve(ionization_fractions_e, z, saha_factors, ln_i, rho,
-                         ln_nk, zbar);
-              ionization_fractions_e(0) = std::exp(
-                  ion_frac0(zbar, saha_factors, ln_i, ln_nk, 1, z + 1));
-              zbar = std::exp(zbar);
               const double inv_zbar_nk = 1.0 / (zbar * nk);
-              for (int i = 1; i <= z; ++i) {
-                ionization_fractions_e(i) = ionization_fractions_e(i - 1) *
-                                            std::exp(saha_factors(i - 1)) *
-                                            inv_zbar_nk;
+              if constexpr (SolverType == SahaSolver::Log) {
+                const double ln_nk = std::log(nk);
+
+                saha_solve_log(ionization_fractions_e, z, saha_factors, ln_i,
+                               rho, ln_nk, zbar);
+                ionization_fractions_e(0) = std::exp(
+                    ion_frac0(zbar, saha_factors, ln_i, ln_nk, 1, z + 1));
+                zbar = std::exp(zbar);
+                for (int i = 1; i <= z; ++i) {
+                  ionization_fractions_e(i) = ionization_fractions_e(i - 1) *
+                                              std::exp(saha_factors(i - 1)) *
+                                              inv_zbar_nk;
+                }
+              } else {
+                saha_solve_linear(ionization_fractions_e, z, saha_factors, rho,
+                                  nk, zbar);
+                ionization_fractions_e(0) =
+                    ion_frac0(zbar, saha_factors, nk, 1, z + 1);
+                for (int i = 1; i <= z; ++i) {
+                  ionization_fractions_e(i) = ionization_fractions_e(i - 1) *
+                                              saha_factors(i - 1) * inv_zbar_nk;
+                }
               }
               n_e(i, q) += zbar * nk;
             });
@@ -390,7 +419,7 @@ struct CoupledSolverContent {
 };
 
 KOKKOS_FUNCTION
-template <eos::EOSInversion Inversion>
+template <eos::EOSInversion Inversion, SahaSolver SolverType>
 auto temperature_residual(const double temperature, const double rho,
                           const eos::EOS *eos,
                           const CoupledSolverContent &content) -> double {
@@ -455,27 +484,36 @@ auto temperature_residual(const double temperature, const double rho,
 
     // reset ionization fractions, setup saha factors
     for (int s = 0; s <= z; ++s) {
-      saha_factors(s) = saha_f(temperature, species_atomic_data(s));
+      saha_factors(s) = saha_f<SolverType>(temperature, species_atomic_data(s));
     }
 
     double &zbar = zbars(i, q, e);
-    const double ln_nk = std::log(nk);
+    if constexpr (SolverType == SahaSolver::Log) {
+      const double ln_nk = std::log(nk);
 
-    saha_solve(ionization_fractions_e, z, saha_factors, ln_i, rho, ln_nk, zbar);
-
+      saha_solve_log(ionization_fractions_e, z, saha_factors, ln_i, rho, ln_nk,
+                     zbar);
+      ionization_fractions_e(0) =
+          std::exp(ion_frac0(zbar, saha_factors, ln_i, ln_nk, 1, z + 1));
+      zbar = std::exp(zbar);
+    } else {
+      saha_solve_linear(ionization_fractions_e, z, saha_factors, rho, nk, zbar);
+      ionization_fractions_e(0) = ion_frac0(zbar, saha_factors, nk, 1, z + 1);
+    }
     const int nstates = z + 1;
-
-    ionization_fractions_e(0) =
-        std::exp(ion_frac0(zbar, saha_factors, ln_i, ln_nk, 1, z + 1));
-    zbar = std::exp(zbar);
     n_e_solve += zbar * nk;
     const double inv_zbar_nk = 1.0 / (zbar * nk);
     double y_r = ionization_fractions_e(0);
     double chi_r = 0.0;
     double sum_ion_pot = 0.0;
     for (int s = 1; s < nstates; ++s) {
-      ionization_fractions_e(s) = ionization_fractions_e(s - 1) *
-                                  std::exp(saha_factors(s - 1)) * inv_zbar_nk;
+      if constexpr (SolverType == SahaSolver::Log) {
+        ionization_fractions_e(s) = ionization_fractions_e(s - 1) *
+                                    std::exp(saha_factors(s - 1)) * inv_zbar_nk;
+      } else {
+        ionization_fractions_e(s) =
+            ionization_fractions_e(s - 1) * saha_factors(s - 1) * inv_zbar_nk;
+      }
       sum_ion_pot += ionization_fractions_e(s) * species_sum_pot(s - 1);
       const double y = ionization_fractions_e(s);
       if (y > y_r) {
@@ -548,7 +586,7 @@ auto temperature_residual(const double temperature, const double rho,
   }
 }
 
-template <Domain MeshDomain, eos::EOSInversion Inversion>
+template <Domain MeshDomain, eos::EOSInversion Inversion, SahaSolver SolverType>
 void compute_temperature_with_saha(const eos::EOS *eos, StageData &stage_data,
                                    AthelasArray3D<double> ucf,
                                    const GridStructure &grid,
@@ -665,8 +703,9 @@ void compute_temperature_with_saha(const eos::EOS *eos, StageData &stage_data,
                                            q,
                                            target_var};
 
-        const double res = solver.solve(temperature_residual<Inversion>,
-                                        temperature_guess, rho, eos, content);
+        const double res =
+            solver.solve(temperature_residual<Inversion, SolverType>,
+                         temperature_guess, rho, eos, content);
         uaf(i, q, vars::aux::Tgas) = res;
       });
 }

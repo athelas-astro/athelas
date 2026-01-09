@@ -9,6 +9,14 @@
 namespace athelas::atom {
 
 /**
+ * @struct SahaSolver
+ * @brief Tag for Saha solver
+ * Linear: standard
+ * Log: Rewrites as log-sum-exp
+ */
+enum class SahaSolver { Linear, Log };
+
+/**
  * @class IonizationState
  * @brief class for holding ionization state. We store here the ionization
  * fractions of species, an AtomicData object (see atom.hpp), the mean
@@ -19,7 +27,7 @@ class IonizationState {
  public:
   IonizationState(int nX, int nNodes, int n_species, int n_states,
                   int saha_ncomps, const std::string &fn_ionization,
-                  const std::string &fn_degeneracy);
+                  const std::string &fn_degeneracy, const std::string &solver);
 
   [[nodiscard]] auto ionization_fractions() const noexcept
       -> AthelasArray4D<double>;
@@ -33,12 +41,14 @@ class IonizationState {
   [[nodiscard]] auto sigma2() const noexcept -> AthelasArray2D<double>;
   [[nodiscard]] auto sigma3() const noexcept -> AthelasArray2D<double>;
   [[nodiscard]] auto ncomps() const noexcept -> int;
+  [[nodiscard]] auto solver() const noexcept -> SahaSolver;
 
  private:
   int saha_ncomps_;
   AthelasArray4D<double>
       ionization_fractions_; // [nX][nNodes][n_species][max_charge+1]
   std::unique_ptr<AtomicData> atomic_data_;
+  SahaSolver solver_;
 
   AthelasArray3D<double> zbar_;
 
