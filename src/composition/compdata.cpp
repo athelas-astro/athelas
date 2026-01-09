@@ -95,7 +95,8 @@ IonizationState::IonizationState(const int nX, const int nNodes,
   auto ln_i_h = Kokkos::create_mirror_view(ln_i_);
 
   // precompute ln(i) for log Saha model
-  for (int i = 0; i < n_states; ++i) {
+  ln_i_h(0) = -std::numeric_limits<double>::infinity();
+  for (int i = 1; i < n_states; ++i) {
     ln_i_h(i) = std::log(i);
   }
   Kokkos::deep_copy(ln_i_, ln_i_h);
