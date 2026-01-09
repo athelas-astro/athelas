@@ -103,6 +103,8 @@ auto saha_target_log(const double lnz, const ScratchPad1D<double> saha_factors,
     const double b_i = a_i + lni;
     const double c_i = a_i + 2.0 * lni;
 
+    // Numerically stable update of e.g., lnN = ln(sum_i exp(a_i)) using
+    // log-sum-exp
     lnN = std::max(lnN, a_i) + std::log1p(std::exp(-std::abs(lnN - a_i)));
     lnD = std::max(lnD, b_i) + std::log1p(std::exp(-std::abs(lnD - b_i)));
     lnE = std::max(lnE, c_i) + std::log1p(std::exp(-std::abs(lnE - c_i)));
