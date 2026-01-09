@@ -96,7 +96,7 @@ arrive at a transcendental equation for :math:`\bar{\mathbb{Z}}`
      \frac{
        s \displaystyle\prod_{j=1}^{s} f_{k,j}
      }{
-       (\bar{\mathbb{Z}}_k n_k)^i
+       (\bar{\mathbb{Z}}_k n_k)^s
      }
    \right]^{-1}
    \left[
@@ -133,11 +133,106 @@ at increased cost.
 
 Linear
 ^^^^^^
+The original Saha solver in ``Athelas``, which we refer to as ``linear``, 
+solves Eq :eq:`saha_eq` directly using a Newton-Raphson iteration. 
+Before writing down the derivative :math:`F'(\mathbb{\bar{Z}})` we note that 
+this formulation can be subject to numerical instabilities. An attempt to 
+circumvent this, inspired by the implementation in ``SNEC``, is to introduce thresholds on 
+prospective electron number densities such that they are ignored. This serves 
+both as a guard to instability and improves performance.
+We rewrite Eqs :eq:`saha_eq` and :eq:`y0` as
+
+.. math::
+
+   y_{\rm min} = \bar{\mathbb{Z}}
+   \left[ s_{\rm min} - 1 + \sum_{s=s_{\rm min}}^{s_{\rm max}} 
+   \frac{s\prod_{j=s_{\rm min}}^{s} f_j}{(\bar{\mathbb{Z}} n_k)^s} \right].
+
+.. math::
+
+   F(\bar{\mathbb{Z}}) = 1 - \bar{\mathbb{Z}}_k
+   \left[
+     s_{\rm min} - 1 +
+     \sum_{s=s_{\rm min}}^{s_{\rm max}}
+     \frac{
+       s \displaystyle\prod_{j=s_{\rm min}}^{s} f_{k,j}
+     }{
+       (\bar{\mathbb{Z}}_k n_k)^s
+     }
+   \right]^{-1}
+   \left[
+     1 + \sum_{s=s_{\rm min}}^{s_{\rm max}}
+     \frac{
+       \displaystyle\prod_{j=1}^{i} f_{k,j}
+     }{
+       (\bar{\mathbb{Z}}_k n_k)^s
+     }
+   \right]
+
+:math:`s_{\rm min}` and :math:`s_{\rm max}` are set based on thresholds 
+``ZBARTOL`` and ``ZBARTOLINV`` as compared to :math:`f_s/(\bar{\mathbb{Z}} n_k)`.
+If :math:`f_s/(\bar{\mathbb{Z}} n_k) <` ``ZBARTOL`` then we do not solve for the 
+:math:`(s+1)`-th ionization state and assume that state and all following are empty.
+Similarly, if :math:`f_s/(\bar{\mathbb{Z}} n_k) >` ``ZBARTOLINV`` we assume that the 
+:math:`s`-th ionization state and all preceeding are empty.
+
+With this in hand we may write down the derivative :math:`F'(\bar{\mathbb{Z}})`
+
+.. math::
+   F'(\bar{\mathbb{Z}}) = \left[ \Sigma_1 - 
+   \left( 1 + \Sigma_0 \right)
+   \left[ 1 + \Sigma_3(s_{\rm min} - 1 + \Sigma_1)^{-1} \right]
+   \right] (s_{\rm min} - 1 + \Sigma_1)
+
+where we have defined
+
+.. math::
+   \begin{aligned}
+   \Sigma_0 &= \sum_{s=s_{\rm min}}^{s=s_{\rm max}} 
+     \left( \prod_{j=s_{\rm min}}^{s} \frac{f_j}{\bar{\mathcal{Z}}n_k}\right) \\
+   \Sigma_1 &= \sum_{s=s_{\rm min}}^{s=s_{\rm max}} 
+     \left( s\prod_{j=s_{\rm min}}^{s} 
+   \frac{f_j}{\bar{\mathcal{Z}}n_k}\right) \\
+   \Sigma_2 &= \sum_{s=s_{\rm min}}^{s=s_{\rm max}} 
+     \left( (s-s_{\rm min} + 1)\prod_{j=s_{\rm min}}^{s} 
+   \frac{f_j}{\bar{\mathcal{Z}}n_k}\right) \\
+   \Sigma_3 &= \sum_{s=s_{\rm min}}^{s=s_{\rm max}} 
+     \left( s(s-s_{\rm min} + 1)\prod_{j=s_{\rm min}}^{s} 
+   \frac{f_j}{\bar{\mathcal{Z}}n_k}\right)
+   \end{aligned}
+
 
 Log
 ^^^
-To improve numerical stability, Athelas evaluates the Saha ladder in logarithmic
-space. We define
+The products of exponentials in Eq. :eq:`saha_eq` can overflow for sufficiently 
+high-:math:`\mathbb{Z}` atoms.
+To improve numerical stability, Athelas can express the Saha ladder in logarithmic
+space. Begin by compactifying Eq :eq:`saha_eq` as 
+
+.. math::
+   F(\bar{\mathbb{Z}}) = 1 - \bar{\mathbb{Z}}\frac{\mathcal{N}}{\mathcal{D}}
+
+where :math:`\mathcal{N}` and :math:`\mathcal{D}` can be identified from 
+Eq :eq:`saha_eq`.
+Taking the natural logarithm of :math:`F(\bar{\mathbb{Z}})` and rearranging, 
+we notice that a root of :math:`F` corresponds to a root of
+
+.. math::
+   G(\bar{\mathbb{Z}}) = \ln \bar{\mathbb{Z}} + \ln \mathcal{N} - \ln \mathcal{D}
+
+In what follows we will exploit the "LogSumExp" trick borrowed from 
+machine learning. The core idea is to notice that
+
+.. math::
+   \ln \left( \sum_i e^{a_i} \right) 
+   = a_{\rm max} + \ln \left( \sum_i e^{a_i - a_{\rm max}} \right).
+
+All that remains is to express :math:`\mathcal{N}` and :math:`\mathcal{D}`
+in a useful form. Note that the above can be written into an 
+inline algorithm that doesn't require a-priori knowledge of 
+:math:`a_{\rm max}`.
+
+We define
 
 .. math::
   \ell_i = \ln f_i, \quad
@@ -148,18 +243,19 @@ The transcendental equation for :math:`\bar{\mathbb{Z}}` is rewritten in terms o
 
 .. math::
   \mathcal{N}(x) = \sum_{i=1}^{Z} \exp\left(L_i - i(x - \ln n_k)\right), \\
-  \mathcal{D}(x) = \sum_{i=1}^{Z} i \exp\left(L_i - i(x - \ln n_k)\right),
+  \mathcal{D}(x) = \sum_{i=1}^{Z} i \exp\left(L_i - i(x - \ln n_k)\right).
 
-the mean charge condition becomes
+With manipulation these can be identified as the numerator and denominator of 
+Eq :eq:`saha_eq`. The mean charge equation then becomes
 
 .. math::
-  G(x) = x + \ln \mathcal{N}(x) - \ln \mathcal{D}(x) = 0.
+  G(x) = x + \ln \mathcal{N}(x) - \ln \mathcal{D}(x).
 
 This form avoids explicit products and powers of :math:`\bar{\mathbb{Z}}`, 
 and all summations are evaluated using stable log-sum-exp techniques.
-
 The equation :math:`G(x) = 0` is solved using a Newton–Raphson iteration in logarithmic
-space.
+space. This requires the derivative which, with respect to :math:`x`, can easily be 
+written down:
 
 .. math::
   G'(x) = 1 - \frac{\mathcal{D}(x)}{\mathcal{N}(x)} 
@@ -168,15 +264,69 @@ space.
 where
 
 .. math::
-  E(x) = \sum_{i=1}^{Z} i^2 \exp\left(L_i - i(x - \ln n_k)\right).
+  \mathcal{E}(x) = \sum_{i=1}^{Z} i^2 \exp\left(L_i - i(x - \ln n_k)\right).
 
+Then we may recover :math:`\bar{\mathbb{Z}} = e^{x}`. 
 The iteration typically converges in one or two steps.
+
+.. note::
+   The minimum/maximum ionization state tricks used above in the ``linear``
+   solver are not yet implemented in the ``log`` solver.
+
+.. tip::
+   We recommend the ``linear`` solver for most use cases. It is slightly 
+   faster and stable for most species of concern in the context of 
+   supernova ejecta.
 
 Atomic Data
 ------------
+We take ionization potentials and statistical weights from the NIST database.
+Ionization potentials are stored in ``athelas/data/atomic_data_ionization.dat`` 
+and statistical weights in ``athelas/data/atomic_data_degeneracy_factors.dat``.
+These are provided for convenience but the user can supply their own.
+
+.. attention::
+   We assume, as is common, that the ground states are the dominant 
+   contributors in the Saha-Boltzmann equation. Therefore, there is no
+   temperature dependence in the partition functions and we 
+   simply use the ground state statistical weights.
 
 Configuration
 --------------
+The ``ionization`` physics has a few controls in the ``[ionization]`` block.
+The paths to the ionization potentials and degeneracy factors must 
+be specified. The provided data are stored in ``athelas/data`` and can be set 
+with ``fn_ionization`` and ``fn_degeneracy``. These are required when 
+ionization is enabled. Then, the number of species to solve Saha ionization for 
+may be set with the ``ncomps`` option. Finally, the solver method may be set
+as ``solver = linear`` or ``solver = log``.
+
+As is inferred above, we do not require that we do Saha ionization solves 
+for all species present on the domain. Instead, we can do ionization for 
+any number of species.
+
+.. note::
+   We currently assume full ionization for species which 
+   we do not do Saha solves. This can be extended with little work 
+   if desired.
+
+.. note::
+   The number of Saha species must be less than or equal 
+   to the total number of species set in the ``composition`` block.
+   If neutrons are present in the compositional profile then this 
+   inequality is strict.
 
 Input Deck
 -----------
+Ionization is controlled in the input deck as follows:
+
+.. code::
+
+   [physics]
+   ionization = true
+
+   [ionization]
+   fn_ionization = "../data/atomic_data_ionization.dat"
+   fn_degeneracy = "../data/atomic_data_degeneracy_factors.dat"
+   ncomps = 3 # must be <= [composition.ncomps] !!
+   solver = "linear" # or "log"
