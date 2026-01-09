@@ -15,10 +15,10 @@ The Saha-Boltzmann equations have the form
 .. math::
    :label: saha
 
-  \frac{n_{s+1}n_{e}}{n_s} = 
-  \frac{2 g_{s+1}}{g_s}
-  \left[ \frac{2 \pi m_e k_B T}{h^2} \right]^{3/2}
-  e^{-\chi_s/(k_B T)}, \,\,
+   \frac{n_{s+1}n_{e}}{n_s} = 
+   \frac{2 g_{s+1}}{g_s}
+   \left[ \frac{2 \pi m_e k_B T}{h^2} \right]^{3/2}
+   e^{-\chi_s/(k_B T)}, \,\,
    s = 0, 1, ..., \mathbb{Z} - 1
 
 where :math:`n_s` is the number density of atoms in the :math:`s`-th ionization state, 
@@ -61,21 +61,25 @@ following `Zaghloul`_ , reexpress the above equations in the following forms
 .. math::
    :label: new_saha
 
-  \frac{y_{s+1}\bar{\mathbb{Z}}n_{k}}{y_s} = 
-  2\frac{g_{s+1}}{g_s}
-  \left[ \frac{2 \pi m_e k_B T}{h^2} \right]^{3/2}
-  e^{-\chi_s/(k_B T)} = f_s, \,\,
+   \frac{y_{s+1}\bar{\mathbb{Z}}n_{k}}{y_s} = 
+   2\frac{g_{s+1}}{g_s}
+   \left[ \frac{2 \pi m_e k_B T}{h^2} \right]^{3/2}
+   e^{-\chi_s/(k_B T)} = f_s, \,\,
    s = 0, 1, ..., \mathbb{Z} - 1
 
 and observe the recurrence relation
 
 .. math::
+   :label: y
+
    y_{s+1} = y_s \frac{f_s}{\bar{\mathbb{Z}}n_k}.
 
 Substituting this into :eq:`charge` we get
 an expression for the neutral fraction
 
 .. math::
+   :label: y0
+
    y_0 = \bar{\mathbb{Z}}
    \left[ \sum_{s=1}^{\mathbb{Z}} \frac{s\prod_{j=1}^{s} f_j}{(\bar{\mathbb{Z}} n_k)^s} \right].
 
@@ -114,6 +118,12 @@ to the electron number density can be tallied as :math:`n_e = \bar{\mathbb{Z}}n_
 Numerical Methods
 ---------------------
 ``Athelas`` implements two methods for solving equation :eq:`saha_eq`.
+
+Linear
+^^^^^^
+
+Log
+^^^
 
 
 Numerical Challenges
