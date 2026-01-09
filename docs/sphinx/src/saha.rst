@@ -64,7 +64,7 @@ following `Zaghloul`_ , reexpress the above equations in the following forms
    \frac{y_{s+1}\bar{\mathbb{Z}}n_{k}}{y_s} = 
    2\frac{g_{s+1}}{g_s}
    \left[ \frac{2 \pi m_e k_B T}{h^2} \right]^{3/2}
-   e^{-\chi_s/(k_B T)} = f_s, \,\,
+   e^{-\chi_s/(k_B T)} = f_{s+1}, \,\,
    s = 0, 1, ..., \mathbb{Z} - 1
 
 and observe the recurrence relation
@@ -72,7 +72,7 @@ and observe the recurrence relation
 .. math::
    :label: y
 
-   y_{s+1} = y_s \frac{f_s}{\bar{\mathbb{Z}}n_k}.
+   y_{s+1} = y_s \frac{f_{s+1}}{\bar{\mathbb{Z}}n_k}.
 
 Substituting this into :eq:`charge` we get
 an expression for the neutral fraction
@@ -118,27 +118,24 @@ to the electron number density can be tallied as :math:`n_e = \bar{\mathbb{Z}}n_
 Numerical Methods
 ---------------------
 ``Athelas`` implements two methods for solving equation :eq:`saha_eq`.
+Both solvers use a Newton-Raphson iteration so derivatives are necessary.
+The first, which we refer to as the ``linear`` model solves Eq. :eq:`saha_eq`
+directly. The second, referred to as ``log`` in ``Athelas``, reformaulates 
+Eq. :eq:`saha_eq` by taking natural logs and expressing :math:`\prod f` as 
+exponentials.
+
+The linear Saha solver is faster but can be numerically fragile 
+for large :math:`\mathbb{Z}` and intended for light elements. 
+For the simulations that ``Athelas`` is designed to carry out 
+this is usually fine -- it is stable through CNO. The logarithmic 
+solver is robust for all species and thermodynamic conditions, 
+at increased cost.
 
 Linear
 ^^^^^^
 
 Log
 ^^^
-
-
-Numerical Challenges
----------------------
-For species with many ionization states, at very high temperatures, 
-or at low number densities, the cumulative products
-can grow quickly. Direct evaluation of the Saha ladder may
-therefore suffer from floating-point overflow or underflow, even when the final physical
-result is well-behaved.
-
-Since the ionization solve is performed repeatedly inside the temperature inversion,
-numerical robustness is essential.
-
-Logarithmic Reformulation
--------------------------
 To improve numerical stability, Athelas evaluates the Saha ladder in logarithmic
 space. We define
 
@@ -146,42 +143,34 @@ space. We define
   \ell_i = \ln f_i, \quad
   L_i = \sum_{j=0}^{i-1} \ell_j = \ln F_i.
 
-The transcendental equation for :math:`\bar{Z}` is rewritten in terms of
-:math:`x = \ln \bar{Z}`. Defining the sums
+The transcendental equation for :math:`\bar{\mathbb{Z}}` is rewritten in terms of
+:math:`x = \ln \bar{\mathbb{Z}}`. Defining the sums
 
 .. math::
-  N(x) = \sum_{i=1}^{Z} \exp\left(L_i - i(x - \ln n_k)\right), \\
-  D(x) = \sum_{i=1}^{Z} i \exp\left(L_i - i(x - \ln n_k)\right),
+  \mathcal{N}(x) = \sum_{i=1}^{Z} \exp\left(L_i - i(x - \ln n_k)\right), \\
+  \mathcal{D}(x) = \sum_{i=1}^{Z} i \exp\left(L_i - i(x - \ln n_k)\right),
 
 the mean charge condition becomes
 
 .. math::
-  G(x) = x + \ln N(x) - \ln D(x) = 0.
+  G(x) = x + \ln \mathcal{N}(x) - \ln \mathcal{D}(x) = 0.
 
-This form avoids explicit products and powers of :math:`\bar{Z}`, and all summations
-are evaluated using stable log-sum-exp techniques.
+This form avoids explicit products and powers of :math:`\bar{\mathbb{Z}}`, 
+and all summations are evaluated using stable log-sum-exp techniques.
 
-Newton–Raphson Solve
-------------------------
 The equation :math:`G(x) = 0` is solved using a Newton–Raphson iteration in logarithmic
-space. Both the function value and its derivative are computed simultaneously:
+space.
 
 .. math::
-  G'(x) = 1 - \frac{D(x)}{N(x)} + \frac{E(x)}{D(x)},
+  G'(x) = 1 - \frac{\mathcal{D}(x)}{\mathcal{N}(x)} 
+  + \frac{\mathcal{E}(x)}{\mathcal{D}(x)},
 
 where
 
 .. math::
   E(x) = \sum_{i=1}^{Z} i^2 \exp\left(L_i - i(x - \ln n_k)\right).
 
-Evaluating the function and derivative together avoids duplicated work and ensures
-consistent numerical behavior.
-
-The iteration typically converges in one or two steps when initialized from the
-previous timestep or spatially neighboring solution.
-
-The linear Saha solver is faster but numerically fragile and intended for light elements only.
-The logarithmic solver is robust for all species and thermodynamic conditions, at increased cost.
+The iteration typically converges in one or two steps.
 
 Atomic Data
 ------------
