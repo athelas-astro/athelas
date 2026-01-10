@@ -26,41 +26,39 @@
 
 #include "basis/polynomial_basis.hpp"
 #include "utils/utilities.hpp"
+#include <state/state.hpp>
 
 namespace athelas::bel {
 
-void limit_density(AthelasArray3D<double> U, const basis::ModalBasis *basis);
-void limit_internal_energy(AthelasArray3D<double> U,
+void limit_density(StageData &stage_data, const basis::ModalBasis *basis);
+void limit_internal_energy(StageData &stage_data,
                            const basis::ModalBasis *basis);
-void limit_rad_energy(AthelasArray3D<double> U, const basis::ModalBasis *basis);
-void limit_rad_momentum(AthelasArray3D<double> U,
-                        const basis::ModalBasis *basis);
-void apply_bound_enforcing_limiter(AthelasArray3D<double> U,
+void limit_rad_energy(StageData &stage_data, const basis::ModalBasis *basis);
+void limit_rad_momentum(StageData &stage_data, const basis::ModalBasis *basis);
+void apply_bound_enforcing_limiter(StageData &stage_data,
                                    const basis::ModalBasis *basis);
-void apply_bound_enforcing_limiter_rad(AthelasArray3D<double> U,
+void apply_bound_enforcing_limiter_rad(StageData &stage_data,
                                        const basis::ModalBasis *basis);
-auto compute_theta_state(AthelasArray3D<double> U, const AthelasArray3D<double>,
+auto compute_theta_state(AthelasArray3D<double> U, AthelasArray3D<double>,
                          double theta, int q, int ix, int iN) -> double;
 auto target_func(double theta, AthelasArray3D<double> U,
-                 const AthelasArray3D<double> phi, int ix, int iN) -> double;
+                 AthelasArray3D<double> phi, int ix, int iN) -> double;
 auto target_func_deriv(double theta, AthelasArray3D<double> U,
-                       const AthelasArray3D<double> phi, int ix, int iN)
-    -> double;
+                       AthelasArray3D<double> phi, int ix, int iN) -> double;
 auto target_func_rad_flux(double theta, AthelasArray3D<double> U,
-                          const AthelasArray3D<double> phi, int ix, int iN)
-    -> double;
+                          AthelasArray3D<double> phi, int ix, int iN) -> double;
 auto target_func_rad_flux_deriv(double theta, AthelasArray3D<double> U,
-                                const AthelasArray3D<double> phi, int ix,
-                                int iN) -> double;
+                                AthelasArray3D<double> phi, int ix, int iN)
+    -> double;
 auto target_func_rad_energy(double theta, AthelasArray3D<double> U,
-                            const AthelasArray3D<double> phi, int ix, int iN)
+                            AthelasArray3D<double> phi, int ix, int iN)
     -> double;
 auto target_func_rad_energy_deriv(double theta, AthelasArray3D<double> U,
-                                  const AthelasArray3D<double> phi, int ix,
-                                  int iN) -> double;
+                                  AthelasArray3D<double> phi, int ix, int iN)
+    -> double;
 
 template <typename F>
-auto bisection(const AthelasArray3D<double> U, F target,
+auto bisection(AthelasArray3D<double> U, F target,
                const basis::ModalBasis *basis, const int ix, const int iN)
     -> double {
   constexpr static double TOL = 1e-10;
@@ -101,7 +99,7 @@ auto bisection(const AthelasArray3D<double> U, F target,
 }
 
 template <typename F>
-auto backtrace(const AthelasArray3D<double> U, F target,
+auto backtrace(AthelasArray3D<double> U, F target,
                const basis::ModalBasis *basis, const int ix, const int iN)
     -> double {
   constexpr static double EPSILON = 1.0e-10; // maybe make this smarter
