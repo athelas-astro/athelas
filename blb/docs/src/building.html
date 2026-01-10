@@ -1,0 +1,266 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Building &mdash; Athelas v25.10 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=7fc59cab" />
+
+  
+    <link rel="canonical" href="https://athelas-astro.github.io/athelas/src/building.html" />
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=c4f607f0"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Contributing" href="contributing.html" />
+    <link rel="prev" title="Athelas: Astrophysical Transients with Hydrodynamics and Emission using a Lagrangian Arbitrary order Scheme" href="../index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Athelas
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Building</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#obtaining-the-source-code">Obtaining the Source Code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#build-options">Build Options</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#running">Running</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#dependencies">Dependencies</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#external-required">External (Required)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#optional">Optional</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sphinx-doc.html">How to Use Sphinx for Writing Docs</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Athelas</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Building</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/src/building.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="building">
+<h1>Building<a class="headerlink" href="#building" title="Link to this heading"></a></h1>
+<section id="obtaining-the-source-code">
+<h2>Obtaining the Source Code<a class="headerlink" href="#obtaining-the-source-code" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">athelas</span></code> uses git submodules for managing several dependencies.
+To make sure you get them all, clone it as</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>--recursive<span class="w"> </span>git@github.com:athelas-astro/athelas.git
+</pre></div>
+</div>
+<p>or as</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>git@github.com:athelas-astro/athelas.git
+<span class="nb">cd</span><span class="w"> </span>athelas
+git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--init<span class="w"> </span>--recursive
+</pre></div>
+</div>
+</section>
+<section id="prerequisites">
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading"></a></h2>
+<p>To build <code class="docutils literal notranslate"><span class="pre">athelas</span></code>, you need to create a build directly, as in-source builds are not supported.
+After cloning the repository,</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>athelas
+mkdir<span class="w"> </span>build
+<span class="nb">cd</span><span class="w"> </span>build
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">Cmake</span></code> is used as the build system. For a standard build:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>..
+make<span class="w"> </span>-j4<span class="w"> </span><span class="c1"># or cmake --build .</span>
+</pre></div>
+</div>
+<p>In the above, you may adjust <code class="docutils literal notranslate"><span class="pre">-j4</span></code> to reflect the number of cores available on your machine.
+It is not generally a good idea to set this to all of your available cores.</p>
+</section>
+<section id="build-options">
+<span id="build-opts"></span><h2>Build Options<a class="headerlink" href="#build-options" title="Link to this heading"></a></h2>
+<p>The build options explicitly provided by <code class="docutils literal notranslate"><span class="pre">athelas</span></code> are:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Comment</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>ATHELAS_ENABLE_UNIT_TESTS</p></td>
+<td><p>OFF</p></td>
+<td><p>Build the unit testing suite</p></td>
+</tr>
+<tr class="row-odd"><td><p>ATHELAS_ENABLE_SANITIZERS</p></td>
+<td><p>OFF</p></td>
+<td><p>Build with address and undefined behavior sanitizers</p></td>
+</tr>
+<tr class="row-even"><td><p>MACHINE_CFG</p></td>
+<td><p>None</p></td>
+<td><p>Sets a custom config file.</p></td>
+</tr>
+</tbody>
+</table>
+<p>A few other relevant compile options not specific to <code class="docutils literal notranslate"><span class="pre">Athelas</span></code>:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Comment</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>CMAKE_BUILD_TYPE</p></td>
+<td><p>RelWithDebInfo</p></td>
+<td><p>Used to set the optimization level</p></td>
+</tr>
+<tr class="row-odd"><td><p>CMAKE_CXX_COMPILER</p></td>
+<td><p>None</p></td>
+<td><p>Can be used to specify cxx compiler</p></td>
+</tr>
+<tr class="row-even"><td><p>Kokkos_ARCH_XXXX</p></td>
+<td><p>OFF</p></td>
+<td><p>Can be used to set the machine architecture</p></td>
+</tr>
+</tbody>
+</table>
+<p>You can see all the kokkos build options
+<a class="reference external" href="https://github.com/kokkos/kokkos/wiki/Compiling">here</a></p>
+<p>For example, you might get a debug build of <code class="docutils literal notranslate"><span class="pre">Athelas</span></code> with unit tests
+using <code class="docutils literal notranslate"><span class="pre">clang++</span></code> as</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-DCMAKE_BUILD_TYPE<span class="o">=</span>Debug<span class="w"> </span>-DCMAKE_CXX_COMPILER<span class="o">=</span>clang++<span class="w"> </span>-DATHELAS_ENABLE_UNIT_TESTS<span class="o">=</span>On<span class="w"> </span>..
+make<span class="w"> </span>-j4<span class="w"> </span><span class="c1"># or cmake --build .</span>
+</pre></div>
+</div>
+</section>
+<section id="running">
+<h2>Running<a class="headerlink" href="#running" title="Link to this heading"></a></h2>
+<p>Run <code class="docutils literal notranslate"><span class="pre">Athelas</span></code> from the <code class="docutils literal notranslate"><span class="pre">build</span></code> directory as</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./athelas<span class="w"> </span>-i<span class="w"> </span>path/to/input/file.toml
+</pre></div>
+</div>
+<p>The input files are in <code class="docutils literal notranslate"><span class="pre">athelas/inputs/*</span></code>.</p>
+</section>
+<section id="dependencies">
+<h2>Dependencies<a class="headerlink" href="#dependencies" title="Link to this heading"></a></h2>
+<section id="submodules">
+<h3>Submodules<a class="headerlink" href="#submodules" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><a class="reference external" href="https://github.com/marzer/tomlplusplus">tomlplusplus</a> is a C++ file parser for toml file format.
+Used for input decks and data.</p></li>
+<li><p><a class="reference external" href="https://github.com/PX4/eigen">eigen</a> is a C++ linear algebra library.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Kokkos</span></code> provides performance portable shared-memory parallelism.
+It allows our loops to be CUDA, OpenMP, or something else.</p></li>
+</ul>
+</section>
+<section id="external-required">
+<h3>External (Required)<a class="headerlink" href="#external-required" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">cmake</span></code> for building</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">hdf5</span></code> for output</p></li>
+</ul>
+</section>
+<section id="optional">
+<h3>Optional<a class="headerlink" href="#optional" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">python3</span></code> for visualization</p></li>
+</ul>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../index.html" class="btn btn-neutral float-left" title="Athelas: Astrophysical Transients with Hydrodynamics and Emission using a Lagrangian Arbitrary order Scheme" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="contributing.html" class="btn btn-neutral float-right" title="Contributing" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+<div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    <span class="fa fa-book"> Other Versions</span>
+    v: blb/docs
+    <span class="fa fa-caret-down"></span>
+  </span>
+  <div class="rst-other-versions">
+    <dl>
+      <dt>Branches</dt>
+      <dd><a href="../../../main/src/building.html">main</a></dd>
+      <dd><a href="building.html">blb/docs</a></dd>
+      <dd><a href="../../more_stagedata/src/building.html">blb/more_stagedata</a></dd>
+      <dd><a href="../../robustness/src/building.html">blb/robustness</a></dd>
+    </dl>
+  </div>
+</div><script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
