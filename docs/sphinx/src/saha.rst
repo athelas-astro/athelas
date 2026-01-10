@@ -42,7 +42,7 @@ and conservation of nuclei
    \sum_{i=0}^{\mathbb{Z}} n_i = n_k = \text{constant},
 
 where :math:`n_k` is the number density of nuclei of species :math:`k`, 
-can be formed into a single set of transcendental equations that can be solved
+and formed into a single set of transcendental equations that can be solved
 for the mean charge :math:`\bar{\mathbb{Z}}`. Let us denote the fraction of atoms 
 in the :math:`s`-th ionization state as :math:`y_s = n_s/n_k` and express the 
 mean charge as :math:`\bar{\mathbb{Z}} = n_e/n_k` we can, 
@@ -326,7 +326,7 @@ Ionization is controlled in the input deck as follows:
    ionization = true
 
    [ionization]
-   fn_ionization = "../data/atomic_data_ionization.dat"
-   fn_degeneracy = "../data/atomic_data_degeneracy_factors.dat"
-   ncomps = 3 # must be <= [composition.ncomps] !!
-   solver = "linear" # or "log"
+   fn_ionization = "../data/atomic_data_ionization.dat" [Required]
+   fn_degeneracy = "../data/atomic_data_degeneracy_factors.dat" [Required]
+   ncomps = 3 # must be <= [composition.ncomps] !! [Required]
+   solver = "linear" # or "log" [Optional]
