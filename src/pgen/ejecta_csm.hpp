@@ -22,8 +22,7 @@ namespace athelas {
  * @brief Initialize ejecta csm test
  **/
 void ejecta_csm_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
-                     const eos::EOS *eos,
-                     basis::ModalBasis *fluid_basis = nullptr) {
+                     bool first_init) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Shu-Osher requires ideal gas eos!");
 
@@ -45,6 +44,7 @@ void ejecta_csm_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
 
   const double rstar3 = rstar * rstar * rstar;
 
+  const auto &eos = mesh_state.eos();
   const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
 
@@ -64,7 +64,7 @@ void ejecta_csm_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
       });
 
   // Phase 2: Initialize modal coefficients
-  if (fluid_basis != nullptr) {
+  if (!first_init) {
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: EjectaCSM (2)", DevExecSpace(),
         ib.s, ib.e, KOKKOS_LAMBDA(const int i) {

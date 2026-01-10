@@ -22,8 +22,7 @@ namespace athelas {
  * @brief Initialize advection test
  **/
 void advection_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
-                    const eos::EOS *eos,
-                    basis::ModalBasis *fluid_basis = nullptr) {
+                    bool first_init) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Advection requires ideal gas eos!");
 
@@ -44,6 +43,7 @@ void advection_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   const auto P0 = pin->param()->get<double>("problem.params.p0", 0.01);
   const auto Amp = pin->param()->get<double>("problem.params.amp", 1.0);
 
+  const auto &eos = mesh_state.eos();
   const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
 
@@ -58,7 +58,8 @@ void advection_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
       });
 
   // Phase 2: Initialize modal coefficients
-  if (fluid_basis != nullptr) {
+  if (!first_init) {
+    const auto &fluid_basis = mesh_state.fluid_basis();
     // Use L2 projection for accurate modal coefficients
     auto density_func = [&Amp](double x, int /*ix*/, int /*iN*/) -> double {
       return 2.0 + Amp * sin(2.0 * constants::PI * x);
@@ -75,12 +76,12 @@ void advection_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
     };
 
     // L2 projection onto modal basis
-    fluid_basis->project_nodal_to_modal_all_cells(uCF, uPF, grid, q_Tau,
-                                                  density_func);
-    fluid_basis->project_nodal_to_modal_all_cells(uCF, uPF, grid, q_V,
-                                                  velocity_func);
-    fluid_basis->project_nodal_to_modal_all_cells(uCF, uPF, grid, q_E,
-                                                  energy_func);
+    fluid_basis.project_nodal_to_modal_all_cells(uCF, uPF, grid, q_Tau,
+                                                 density_func);
+    fluid_basis.project_nodal_to_modal_all_cells(uCF, uPF, grid, q_V,
+                                                 velocity_func);
+    fluid_basis.project_nodal_to_modal_all_cells(uCF, uPF, grid, q_E,
+                                                 energy_func);
   } else {
     // Fallback: set cell averages only (k=0)
     athelas::par_for(

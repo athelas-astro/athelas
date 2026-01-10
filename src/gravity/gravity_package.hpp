@@ -24,16 +24,15 @@ using bc::BoundaryConditions;
 
 class GravityPackage {
  public:
-  GravityPackage(const ProblemIn * /*pin*/, GravityModel model, double gval,
-                 basis::ModalBasis *basis, double cfl, int n_stages,
-                 bool active = true);
+  GravityPackage(const ProblemIn *pin, GravityModel model, double gval,
+                 double cfl, int n_stages, bool active = true);
 
   void update_explicit(const StageData &stage_data, const GridStructure &grid,
                        const TimeStepInfo &dt_info) const;
 
   template <GravityModel Model>
   void gravity_update(AthelasArray3D<double> state, const GridStructure &grid,
-                      int stage) const;
+                      int stage, const basis::ModalBasis &basis) const;
 
   void apply_delta(AthelasArray3D<double> lhs,
                    const TimeStepInfo &dt_info) const;
@@ -59,8 +58,6 @@ class GravityPackage {
   GravityModel model_;
 
   double gval_; // constant gravity
-
-  basis::ModalBasis *basis_;
 
   double cfl_;
 

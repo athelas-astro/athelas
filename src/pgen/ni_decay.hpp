@@ -13,8 +13,7 @@ namespace athelas {
  * Initialize ni_decay test
  **/
 void ni_decay_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
-                   const eos::EOS *eos,
-                   basis::ModalBasis *fluid_basis = nullptr) {
+                   bool /*first_init*/) {
   const bool composition_active =
       pin->param()->get<bool>("physics.composition_enabled");
   const bool ni_decay_active =
@@ -53,6 +52,7 @@ void ni_decay_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   }
 
   const double mu = 1.0 + constants::m_e / constants::m_p;
+  const auto &eos = mesh_state.eos();
   const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
   const double sie = constants::k_B * temperature / (gm1 * mu * constants::m_p);

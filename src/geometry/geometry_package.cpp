@@ -10,13 +10,13 @@
 namespace athelas::geometry {
 using basis::ModalBasis;
 
-GeometryPackage::GeometryPackage(const ProblemIn *pin, ModalBasis *basis,
-                                 const int n_stages, const bool active)
-    : active_(active), order_(basis->order()), basis_(basis) {
+GeometryPackage::GeometryPackage(const ProblemIn *pin, const int n_stages,
+                                 const bool active)
+    : active_(active), order_(pin->param()->get<int>("fluid.porder")) {
   const int nx = pin->param()->get<int>("problem.nx");
   int nvars_geom = 1; // sources velocity
-  delta_ = AthelasArray4D<double>("geometry delta", n_stages, nx + 2,
-                                  basis->order(), nvars_geom);
+  delta_ = AthelasArray4D<double>("geometry delta", n_stages, nx + 2, order_,
+                                  nvars_geom);
 }
 
 void GeometryPackage::update_explicit(const StageData &stage_data,
@@ -30,12 +30,13 @@ void GeometryPackage::update_explicit(const StageData &stage_data,
   const auto stage = dt_info.stage;
   auto ucf = stage_data.get_field("u_cf");
 
+  const auto &basis = stage_data.fluid_basis();
   auto sqrt_gm = grid.sqrt_gm();
   auto dx = grid.widths();
   auto weights = grid.weights();
   auto r = grid.nodal_grid();
-  auto phi = basis_->phi();
-  auto inv_mkk = basis_->inv_mass_matrix();
+  auto phi = basis.phi();
+  auto inv_mkk = basis.inv_mass_matrix();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Hydro :: Geometry Source", DevExecSpace(), ib.s,
       ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {

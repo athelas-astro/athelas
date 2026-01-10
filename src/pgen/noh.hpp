@@ -19,8 +19,7 @@ namespace athelas {
  * @brief Initialize Noh problem
  **/
 void noh_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
-              const eos::EOS *eos,
-              basis::ModalBasis * /*fluid_basis = nullptr*/) {
+              bool /*first_init*/) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Noh requires ideal gas eos!");
 
@@ -40,6 +39,7 @@ void noh_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   const auto V0 = pin->param()->get<double>("problem.params.v0", -1.0);
   const auto D0 = pin->param()->get<double>("problem.params.rho0", 1.0);
 
+  const auto &eos = mesh_state.eos();
   const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
 

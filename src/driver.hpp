@@ -34,14 +34,12 @@ class Driver {
         bcs_(std::make_unique<BoundaryConditions>(
             bc::make_boundary_conditions(pin.get()))),
         time_(0.0), dt_(pin_->param()->get<double>("output.dt_init")),
-        t_end_(pin->param()->get<double>("problem.tf")),
-        eos_(std::make_unique<eos::EOS>(eos::initialize_eos(pin.get()))),
-        opac_(std::make_unique<Opacity>(initialize_opacity(pin.get()))),
-        grid_(pin.get()), sl_hydro_(initialize_slope_limiter(
-                              "fluid", &grid_, pin.get(), {0, 1, 2}, 3)),
+        t_end_(pin->param()->get<double>("problem.tf")), grid_(pin.get()),
+        sl_hydro_(
+            initialize_slope_limiter("fluid", &grid_, pin.get(), {0, 1, 2}, 3)),
         sl_rad_(initialize_slope_limiter("radiation", &grid_, pin.get(), {3, 4},
                                          2)), // update
-        ssprk_(pin.get(), &grid_, eos_.get()),
+        ssprk_(pin.get(), &grid_),
         history_(std::make_unique<HistoryOutput>(
             pin->param()->get<std::string>("output.hist_fn"),
             pin->param()->get<std::string>("output.dir"),
@@ -75,9 +73,6 @@ class Driver {
   double t_end_;
 
   // core bits
-  // TODO(astrobarker): keep eos_, opac_ in packages.
-  std::unique_ptr<eos::EOS> eos_;
-  std::unique_ptr<Opacity> opac_;
   GridStructure grid_;
 
   // slope limiters
@@ -91,10 +86,6 @@ class Driver {
 
   // history
   std::unique_ptr<HistoryOutput> history_;
-
-  // bases
-  std::unique_ptr<basis::ModalBasis> fluid_basis_; // init in constr body
-  std::unique_ptr<basis::ModalBasis> radiation_basis_; // init in constr body
 
   MeshState mesh_state_;
 }; // class Driver

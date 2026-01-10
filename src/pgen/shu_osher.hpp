@@ -21,8 +21,7 @@ namespace athelas {
  * @brief Initialize Shu Osher hydro test
  **/
 void shu_osher_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
-                    const eos::EOS *eos,
-                    basis::ModalBasis *fluid_basis = nullptr) {
+                    bool first_init) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Shu Osher requires ideal gas eos!");
 
@@ -44,6 +43,7 @@ void shu_osher_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
       pin->param()->get<double>("problem.params.pL", 10.333333333333);
   const auto P_R = pin->param()->get<double>("problem.params.pR", 1.0);
 
+  auto &eos = mesh_state.eos();
   const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
 
@@ -68,7 +68,8 @@ void shu_osher_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
       });
 
   // Phase 2: Initialize modal coefficients
-  if (fluid_basis != nullptr) {
+  if (!first_init) {
+    const auto &fluid_basis = mesh_state.fluid_basis();
     // Use L2 projection for accurate modal coefficients
     auto tau_func = [&D_L](double x, int /*ix*/, int /*iN*/) -> double {
       if (x <= -4.0) {
@@ -105,12 +106,12 @@ void shu_osher_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
             uCF(i, k, q_E) = (P_L / gm1) * uCF(i, k, q_Tau) + 0.5 * V0 * V0;
           } else {
             // Project each conserved variable
-            fluid_basis->project_nodal_to_modal(uCF, uPF, grid, q_Tau, i,
-                                                tau_func);
-            fluid_basis->project_nodal_to_modal(uCF, uPF, grid, q_V, i,
-                                                velocity_func);
-            fluid_basis->project_nodal_to_modal(uCF, uPF, grid, q_E, i,
-                                                energy_func);
+            fluid_basis.project_nodal_to_modal(uCF, uPF, grid, q_Tau, i,
+                                               tau_func);
+            fluid_basis.project_nodal_to_modal(uCF, uPF, grid, q_V, i,
+                                               velocity_func);
+            fluid_basis.project_nodal_to_modal(uCF, uPF, grid, q_E, i,
+                                               energy_func);
           }
         });
 

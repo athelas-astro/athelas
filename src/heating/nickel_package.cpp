@@ -17,11 +17,10 @@ using basis::ModalBasis;
 using utilities::to_lower;
 
 NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,
-                                           ModalBasis *basis,
                                            const Params *indexer,
-                                           const int n_stages,
+                                           const int n_stages, const int order,
                                            const bool active)
-    : active_(active), basis_(basis) {
+    : active_(active) {
   // set up heating deposition model
   const auto model_str =
       to_lower(pin->param()->get<std::string>("heating.nickel.model"));
@@ -34,8 +33,7 @@ NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,
   int_etau_domega_ =
       AthelasArray2D<double>("int_etau_domega", nx + 2,
                              nnodes); // integration of e^-tau dOmega
-  delta_ = AthelasArray4D<double>("nickel delta", n_stages, nx + 2,
-                                  basis->order(), 4);
+  delta_ = AthelasArray4D<double>("nickel delta", n_stages, nx + 2, order, 4);
 
   ind_ni_ = indexer->get<int>("ni56");
   ind_co_ = indexer->get<int>("co56");
@@ -45,7 +43,7 @@ NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,
 void NickelHeatingPackage::update_explicit(const StageData &stage_data,
                                            const GridStructure &grid,
                                            const TimeStepInfo &dt_info) {
-  const int &order = basis_->order();
+  const int &order = stage_data.fluid_basis().order();
   static const IndexRange kb(order);
   static const IndexRange ib(grid.domain<Domain::Interior>());
 
@@ -66,7 +64,7 @@ void NickelHeatingPackage::ni_update(const StageData &stage_data,
                                      const GridStructure &grid,
                                      const TimeStepInfo &dt_info) const {
   const int &nNodes = grid.n_nodes();
-  const int &order = basis_->order();
+  const int &order = stage_data.fluid_basis().order();
   static const IndexRange ib(grid.domain<Domain::Interior>());
   static const IndexRange kb(order);
 
@@ -79,10 +77,12 @@ void NickelHeatingPackage::ni_update(const StageData &stage_data,
   static const auto ind_ni = species_indexer->get<int>("ni56");
   static const auto ind_co = species_indexer->get<int>("co56");
 
+  const auto &basis = stage_data.fluid_basis();
+
   auto mass = grid.mass();
   auto weights = grid.weights();
-  auto phi = basis_->phi();
-  auto inv_mkk = basis_->inv_mass_matrix();
+  auto phi = basis.phi();
+  auto inv_mkk = basis.inv_mass_matrix();
 
   // NOTE: This source term uses a mass integral instead of a volumetric one.
   // It's just simpler and natural here.

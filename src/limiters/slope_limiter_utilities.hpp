@@ -45,7 +45,7 @@ auto barth_jespersen(double U_v_L, double U_v_R, double U_c_L, double U_c_T,
 
 void detect_troubled_cells(const AthelasArray3D<double> U,
                            AthelasArray1D<double> D, const GridStructure *grid,
-                           const basis::ModalBasis *basis,
+                           const basis::ModalBasis &basis,
                            const std::vector<int> &vars);
 
 /**
@@ -57,10 +57,9 @@ void detect_troubled_cells(const AthelasArray3D<double> U,
  * +1 : Extrapolate right, e.g.,  polynomial from ix-1 into ix
  **/
 KOKKOS_INLINE_FUNCTION
-auto cell_average(AthelasArray3D<double> U,
-                  const AthelasArray2D<double> sqrt_gms,
-                  const AthelasArray1D<double> weights, const double dr,
-                  const AthelasArray3D<double> phi, const int v, const int ix,
+auto cell_average(AthelasArray3D<double> U, AthelasArray2D<double> sqrt_gms,
+                  AthelasArray1D<double> weights, const double dr,
+                  AthelasArray3D<double> phi, const int v, const int ix,
                   const int extrapolate) -> double {
   using basis::basis_eval;
   static const int nNodes = static_cast<int>(weights.size());
@@ -86,7 +85,7 @@ void modify_polynomial(AthelasArray3D<double> U,
 auto smoothness_indicator(AthelasArray3D<double> U,
                           AthelasArray2D<double> modified_polynomial,
                           const GridStructure *grid,
-                          const basis::ModalBasis *basis, int ix, int i,
+                          const basis::ModalBasis &basis, int ix, int i,
                           int iCQ) -> double;
 
 auto non_linear_weight(double gamma, double beta, double tau, double eps)

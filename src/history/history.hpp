@@ -14,11 +14,8 @@ namespace athelas {
 
 class HistoryOutput {
  public:
-  // NOTE: We are always passing in two basis objects to our history functions.
-  // This hsould be fine -- the driver always has two, even in pure Hydro mode.
-  using QuantityFunction = std::function<double(
-      const MeshState &, const GridStructure &, const basis::ModalBasis *,
-      const basis::ModalBasis *)>;
+  using QuantityFunction =
+      std::function<double(const MeshState &, const GridStructure &)>;
 
   explicit HistoryOutput(const std::string &filename,
                          const std::string &output_dir, bool enabled);
@@ -26,8 +23,7 @@ class HistoryOutput {
   void add_quantity(const std::string &name, QuantityFunction func);
 
   void write(const MeshState &mesh_state, const GridStructure &grid,
-             const basis::ModalBasis *fluid_basis,
-             const basis::ModalBasis *rad_basis, double time);
+             double time);
 
  private:
   bool enabled_;

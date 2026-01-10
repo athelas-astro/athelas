@@ -33,15 +33,16 @@ auto element_number_density(const double mass_frac,
  * TODO(astrobarker): Explore hierarchical parallelism for inner loops
  */
 template <Domain MeshDomain>
-void fill_derived_comps(StageData &stage_data, AthelasArray3D<double> ucf,
-                        const GridStructure *const grid,
-                        const basis::ModalBasis *const basis) {
+void fill_derived_comps(StageData &stage_data,
+                        const GridStructure *const grid) {
   static const auto &nnodes = grid->n_nodes();
   static const IndexRange ib(grid->domain<MeshDomain>());
   static const IndexRange nb(nnodes + 2);
 
-  auto phi = basis->phi();
+  const auto &basis = stage_data.fluid_basis();
+  auto phi = basis.phi();
 
+  auto ucf = stage_data.get_field("u_cf");
   auto *const comps = stage_data.comps();
   auto mass_fractions = stage_data.mass_fractions("u_cf");
   auto mass_fractions_nodal = stage_data.get_field("x_q");
@@ -81,7 +82,7 @@ void fill_derived_comps(StageData &stage_data, AthelasArray3D<double> ucf,
 
 // per-point version called by the below
 KOKKOS_INLINE_FUNCTION
-auto fill_derived_ionization(const basis::ModalBasis *basis,
+auto fill_derived_ionization(const basis::ModalBasis &basis,
                              const AthelasArray3D<double> mass_fractions,
                              const CompositionData *comps,
                              const IonizationState *ionization_state,
@@ -105,7 +106,7 @@ auto fill_derived_ionization(const basis::ModalBasis *basis,
   double sum3 = 0.0;
   double sum_e_ion_corr = 0.0;
   // Loop over Saha species – solve ionization for the Saha subset
-  auto phi = basis->phi();
+  auto phi = basis.phi();
   for (int e = eb.s; e <= eb.e; ++e) {
     const int z = species(e);
     const double x_e = basis::basis_eval(phi, mass_fractions, i, e, q);
@@ -157,13 +158,13 @@ auto fill_derived_ionization(const basis::ModalBasis *basis,
  * If this changes then the inner looping needs to be optimized.
  */
 template <Domain MeshDomain>
-void fill_derived_ionization(StageData &stage_data, AthelasArray3D<double> ucf,
-                             const GridStructure *const grid,
-                             const basis::ModalBasis *const basis) {
+void fill_derived_ionization(StageData &stage_data,
+                             const GridStructure *const grid) {
   static const auto &nnodes = grid->n_nodes();
   static const IndexRange ib(grid->domain<MeshDomain>());
   static const IndexRange nb(nnodes + 2);
 
+  auto ucf = stage_data.get_field("u_cf");
   const auto *const comps = stage_data.comps();
   const auto mass_fractions = stage_data.mass_fractions("u_cf");
   const auto number_density = comps->number_density();
@@ -189,7 +190,8 @@ void fill_derived_ionization(StageData &stage_data, AthelasArray3D<double> ucf,
 
   // NOTE: check index ranges inside here when saha ncomps =/= num_species
   // Should we be skipping neutrons?
-  auto phi = basis->phi();
+  const auto &basis = stage_data.fluid_basis();
+  auto phi = basis.phi();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Ionization :: fill derived", DevExecSpace(), ib.s,
       ib.e, nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int q) {

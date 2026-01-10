@@ -25,20 +25,17 @@
 #include <print>
 
 #include "basis/polynomial_basis.hpp"
+#include "state/state.hpp"
 #include "utils/utilities.hpp"
-#include <state/state.hpp>
 
 namespace athelas::bel {
 
-void limit_density(StageData &stage_data, const basis::ModalBasis *basis);
-void limit_internal_energy(StageData &stage_data,
-                           const basis::ModalBasis *basis);
-void limit_rad_energy(StageData &stage_data, const basis::ModalBasis *basis);
-void limit_rad_momentum(StageData &stage_data, const basis::ModalBasis *basis);
-void apply_bound_enforcing_limiter(StageData &stage_data,
-                                   const basis::ModalBasis *basis);
-void apply_bound_enforcing_limiter_rad(StageData &stage_data,
-                                       const basis::ModalBasis *basis);
+void limit_density(StageData &stage_data);
+void limit_internal_energy(StageData &stage_data);
+void limit_rad_energy(StageData &stage_data);
+void limit_rad_momentum(StageData &stage_data);
+void apply_bound_enforcing_limiter(StageData &stage_data);
+void apply_bound_enforcing_limiter_rad(StageData &stage_data);
 auto compute_theta_state(AthelasArray3D<double> U, AthelasArray3D<double>,
                          double theta, int q, int ix, int iN) -> double;
 auto target_func(double theta, AthelasArray3D<double> U,

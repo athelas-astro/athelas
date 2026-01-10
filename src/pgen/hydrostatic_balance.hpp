@@ -22,8 +22,7 @@ namespace athelas {
  * @brief Initialize hydrostatic balance self gravity test
  **/
 void hydrostatic_balance_init(MeshState &mesh_state, GridStructure *grid,
-                              ProblemIn *pin, const eos::EOS *eos,
-                              basis::ModalBasis *fluid_basis = nullptr) {
+                              ProblemIn *pin, bool first_init) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "polytropic",
                    "Hydrostatic balance requires polytropic eos!");
 
@@ -45,6 +44,7 @@ void hydrostatic_balance_init(MeshState &mesh_state, GridStructure *grid,
   const auto polytropic_k = pin->param()->get<double>("eos.k");
   const auto polytropic_n = pin->param()->get<double>("eos.n");
 
+  const auto &eos = mesh_state.eos();
   const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
 
@@ -52,8 +52,8 @@ void hydrostatic_balance_init(MeshState &mesh_state, GridStructure *grid,
     return std::pow(p / polytropic_k, polytropic_n / (polytropic_n + 1.0));
   };
 
-  if (fluid_basis == nullptr) {
-    auto solver = HydrostaticEquilibrium(rho_c, p_thresh, eos,
+  if (first_init) {
+    auto solver = HydrostaticEquilibrium(rho_c, p_thresh,
                                          pin->param()->get<double>("eos.k"),
                                          pin->param()->get<double>("eos.n"));
     solver.solve(mesh_state, grid, pin);
@@ -70,7 +70,8 @@ void hydrostatic_balance_init(MeshState &mesh_state, GridStructure *grid,
   }
 
   // Phase 2: Initialize modal coefficients
-  if (fluid_basis != nullptr) {
+  if (!first_init) {
+    const auto &fluid_basis = mesh_state.fluid_basis();
     // Use L2 projection for accurate modal coefficients
     auto tau_func = [&](double /*x*/, int ix, int iN) -> double {
       return 1.0 / rho_from_p(uAF(ix, iN, 0));
@@ -89,12 +90,12 @@ void hydrostatic_balance_init(MeshState &mesh_state, GridStructure *grid,
         DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: HydrostaticBalance (2)",
         DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
           // Project each conserved variable
-          fluid_basis->project_nodal_to_modal(uCF, uPF, grid, q_Tau, i,
-                                              tau_func);
-          fluid_basis->project_nodal_to_modal(uCF, uPF, grid, q_V, i,
-                                              velocity_func);
-          fluid_basis->project_nodal_to_modal(uCF, uPF, grid, q_E, i,
-                                              energy_func);
+          fluid_basis.project_nodal_to_modal(uCF, uPF, grid, q_Tau, i,
+                                             tau_func);
+          fluid_basis.project_nodal_to_modal(uCF, uPF, grid, q_V, i,
+                                             velocity_func);
+          fluid_basis.project_nodal_to_modal(uCF, uPF, grid, q_E, i,
+                                             energy_func);
         });
   }
 

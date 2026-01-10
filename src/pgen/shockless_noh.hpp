@@ -19,8 +19,7 @@ namespace athelas {
  * @brief Initialize shockless Noh problem
  **/
 void shockless_noh_init(MeshState &mesh_state, GridStructure *grid,
-                        ProblemIn *pin, const eos::EOS * /*eos*/,
-                        basis::ModalBasis * /*fluid_basis = nullptr*/) {
+                        ProblemIn *pin, bool /*first_init*/) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Shockless Noh requires ideal gas eos!");
 

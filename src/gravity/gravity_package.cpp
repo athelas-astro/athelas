@@ -19,12 +19,12 @@ namespace athelas::gravity {
 using basis::ModalBasis;
 
 GravityPackage::GravityPackage(const ProblemIn *pin, GravityModel model,
-                               const double gval, ModalBasis *basis,
-                               const double cfl, const int n_stages,
-                               const bool active)
-    : active_(active), model_(model), gval_(gval), basis_(basis), cfl_(cfl),
+                               const double gval, const double cfl,
+                               const int n_stages, const bool active)
+    : active_(active), model_(model), gval_(gval), cfl_(cfl),
       delta_("gravity delta", n_stages,
-             pin->param()->get<int>("problem.nx") + 2, basis_->order(), 2) {}
+             pin->param()->get<int>("problem.nx") + 2,
+             pin->param()->get<int>("fluid.porder"), 2) {}
 
 void GravityPackage::update_explicit(const StageData &stage_data,
                                      const GridStructure &grid,
@@ -32,24 +32,23 @@ void GravityPackage::update_explicit(const StageData &stage_data,
   const auto stage = dt_info.stage;
   auto ucf = stage_data.get_field("u_cf");
 
-  const int &order = basis_->order();
-  static const IndexRange kb(order);
+  const auto &basis = stage_data.fluid_basis();
   static const IndexRange ib(grid.domain<Domain::Interior>());
 
   if (model_ == GravityModel::Spherical) {
-    gravity_update<GravityModel::Spherical>(ucf, grid, stage);
+    gravity_update<GravityModel::Spherical>(ucf, grid, stage, basis);
   } else [[unlikely]] {
-    gravity_update<GravityModel::Constant>(ucf, grid, stage);
+    gravity_update<GravityModel::Constant>(ucf, grid, stage, basis);
   }
 }
 
 template <GravityModel Model>
 void GravityPackage::gravity_update(AthelasArray3D<double> state,
-                                    const GridStructure &grid,
-                                    const int stage) const {
+                                    const GridStructure &grid, const int stage,
+                                    const basis::ModalBasis &basis) const {
   using basis::basis_eval;
   const int nNodes = grid.n_nodes();
-  const int &order = basis_->order();
+  const int &order = basis.order();
   static const IndexRange ib(grid.domain<Domain::Interior>());
   static const IndexRange kb(order);
 
@@ -59,8 +58,8 @@ void GravityPackage::gravity_update(AthelasArray3D<double> state,
   auto mass = grid.mass();
   auto weights = grid.weights();
   auto sqrt_gm = grid.sqrt_gm();
-  auto phi = basis_->phi();
-  auto inv_mkk = basis_->inv_mass_matrix();
+  auto phi = basis.phi();
+  auto inv_mkk = basis.inv_mass_matrix();
 
   const double gval = gval_;
   // This can probably be simplified.

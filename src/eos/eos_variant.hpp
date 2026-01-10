@@ -11,10 +11,7 @@
 
 #include "Kokkos_Macros.hpp"
 #include "eos/eos.hpp"
-#include "grid.hpp"
-#include "kokkos_abstraction.hpp"
 #include "pgen/problem_in.hpp"
-#include "state/state.hpp"
 #include "utils/error.hpp"
 
 namespace athelas::eos {
@@ -28,123 +25,122 @@ enum class EOSInversion { Pressure, Sie };
 using EOS = std::variant<IdealGas, Marshak, Paczynski, Polytropic>;
 
 KOKKOS_INLINE_FUNCTION auto
-temperature_from_density_sie(const EOS *const eos, const double rho,
-                             const double sie, const double *const lambda)
-    -> double {
+temperature_from_density_sie(const EOS &eos, const double rho, const double sie,
+                             const double *const lambda) -> double {
   return std::visit(
       [&rho, &sie, &lambda](auto &eos) {
         return eos.temperature_from_density_sie(rho, sie, lambda);
       },
-      *eos);
+      eos);
 }
 
 KOKKOS_INLINE_FUNCTION auto
-temperature_from_density_pressure(const EOS *const eos, const double rho,
+temperature_from_density_pressure(const EOS &eos, const double rho,
                                   const double pressure,
                                   const double *const lambda) -> double {
   return std::visit(
       [&rho, &pressure, &lambda](auto &eos) {
         return eos.temperature_from_density_pressure(rho, pressure, lambda);
       },
-      *eos);
+      eos);
 }
 
 KOKKOS_INLINE_FUNCTION auto
-pressure_from_density_temperature(const EOS *const eos, const double rho,
+pressure_from_density_temperature(const EOS &eos, const double rho,
                                   const double temp, const double *const lambda)
     -> double {
   return std::visit(
       [&rho, &temp, &lambda](auto &eos) {
         return eos.pressure_from_density_temperature(rho, temp, lambda);
       },
-      *eos);
+      eos);
 }
 
 KOKKOS_INLINE_FUNCTION auto sound_speed_from_density_temperature_pressure(
-    const EOS *const eos, const double rho, const double temp,
-    const double pressure, const double *const lambda) -> double {
+    const EOS &eos, const double rho, const double temp, const double pressure,
+    const double *const lambda) -> double {
   return std::visit(
       [&rho, &temp, &pressure, &lambda](auto &eos) {
         return eos.sound_speed_from_density_temperature_pressure(
             rho, temp, pressure, lambda);
       },
-      *eos);
+      eos);
 }
 
 KOKKOS_INLINE_FUNCTION auto
-pressure_from_conserved(const EOS *const eos, const double tau, const double V,
+pressure_from_conserved(const EOS &eos, const double tau, const double V,
                         const double E, const double *const lambda) -> double {
   return std::visit(
       [&tau, &V, &E, &lambda](auto &eos) {
         return eos.pressure_from_conserved(tau, V, E, lambda);
       },
-      *eos);
+      eos);
 }
 
 KOKKOS_INLINE_FUNCTION auto
-sound_speed_from_conserved(const EOS *const eos, const double tau,
-                           const double V, const double E,
-                           const double *const lambda) -> double {
+sound_speed_from_conserved(const EOS &eos, const double tau, const double V,
+                           const double E, const double *const lambda)
+    -> double {
   return std::visit(
       [&tau, &V, &E, &lambda](auto &eos) {
         return eos.sound_speed_from_conserved(tau, V, E, lambda);
       },
-      *eos);
+      eos);
 }
 
 KOKKOS_INLINE_FUNCTION auto
-temperature_from_conserved(const EOS *const eos, const double tau,
-                           const double V, const double E,
-                           const double *const lambda) -> double {
+temperature_from_conserved(const EOS &eos, const double tau, const double V,
+                           const double E, const double *const lambda)
+    -> double {
   return std::visit(
       [&tau, &V, &E, &lambda](auto &eos) {
         return eos.temperature_from_conserved(tau, V, E, lambda);
       },
-      *eos);
+      eos);
 }
 
 KOKKOS_INLINE_FUNCTION auto
-sie_from_density_pressure(const EOS *const eos, const double rho,
+sie_from_density_pressure(const EOS &eos, const double rho,
                           const double pressure, const double *const lambda)
     -> double {
   return std::visit(
       [&rho, &pressure, &lambda](auto &eos) {
         return eos.sie_from_density_pressure(rho, pressure, lambda);
       },
-      *eos);
+      eos);
 }
 
 KOKKOS_INLINE_FUNCTION auto
-sie_from_density_temperature(const EOS *const eos, const double rho,
+sie_from_density_temperature(const EOS &eos, const double rho,
                              const double temperature,
                              const double *const lambda) -> double {
   return std::visit(
       [&rho, &temperature, &lambda](auto &eos) {
         return eos.sie_from_density_temperature(rho, temperature, lambda);
       },
-      *eos);
+      eos);
 }
 
-KOKKOS_INLINE_FUNCTION auto gamma1(const EOS *const eos, const double tau,
+KOKKOS_INLINE_FUNCTION auto gamma1(const EOS &eos, const double tau,
                                    const double V, const double E,
                                    const double *const lambda) -> double {
   return std::visit([&tau, &V, &E, &lambda](
                         auto &eos) { return eos.gamma1(tau, V, E, lambda); },
-                    *eos);
+                    eos);
 }
 
-KOKKOS_INLINE_FUNCTION auto gamma1(const EOS *const eos) -> double {
-  return std::visit([](auto &eos) { return eos.gamma1(); }, *eos);
+KOKKOS_INLINE_FUNCTION auto gamma1(const EOS &eos) -> double {
+  return std::visit([](auto &eos) { return eos.gamma1(); }, eos);
 }
 
-KOKKOS_INLINE_FUNCTION auto min_sie(const EOS *const eos, const double rho,
+KOKKOS_INLINE_FUNCTION auto min_sie(const EOS &eos, const double rho,
                                     const double *const lambda) -> double {
   return std::visit(
       [&rho, &lambda](auto &eos) {
         using ::athelas::eos::min_sie;
         return min_sie(eos, rho, lambda);
       },
-      *eos);
+      eos);
 }
 
 KOKKOS_INLINE_FUNCTION auto initialize_eos(const ProblemIn *pin) -> EOS {

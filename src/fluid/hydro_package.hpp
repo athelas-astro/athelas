@@ -8,9 +8,7 @@
 #pragma once
 
 #include "basic_types.hpp"
-#include "basis/polynomial_basis.hpp"
 #include "bc/boundary_conditions_base.hpp"
-#include "eos/eos_variant.hpp"
 #include "geometry/grid.hpp"
 #include "pgen/problem_in.hpp"
 #include "state/state.hpp"
@@ -21,9 +19,8 @@ using bc::BoundaryConditions;
 
 class HydroPackage {
  public:
-  HydroPackage(const ProblemIn * /*pin*/, int n_stages, eos::EOS *eos,
-               basis::ModalBasis *basis, BoundaryConditions *bcs, double cfl,
-               int nx, bool active = true);
+  HydroPackage(const ProblemIn * /*pin*/, int n_stages, int order,
+               BoundaryConditions *bcs, double cfl, int nx, bool active = true);
 
   void update_explicit(const StageData &stage_data, const GridStructure &grid,
                        const TimeStepInfo &dt_info) const;
@@ -51,7 +48,6 @@ class HydroPackage {
   void set_active(bool active);
 
   [[nodiscard]] auto get_flux_u(int stage, int i) const -> double;
-  [[nodiscard]] auto basis() const -> const basis::ModalBasis *;
 
   [[nodiscard]] static constexpr auto num_vars() noexcept -> int {
     return NUM_VARS_;
@@ -63,8 +59,6 @@ class HydroPackage {
   int nx_;
   double cfl_;
 
-  eos::EOS *eos_;
-  basis::ModalBasis *basis_;
   BoundaryConditions *bcs_;
 
   // package storage

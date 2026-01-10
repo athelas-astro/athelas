@@ -38,8 +38,8 @@ inline auto parse_model(const std::string &model) -> NiHeatingModel {
 
 class NickelHeatingPackage {
  public:
-  NickelHeatingPackage(const ProblemIn *pin, basis::ModalBasis *basis,
-                       const Params *indexer, int n_stages, bool active = true);
+  NickelHeatingPackage(const ProblemIn *pin, const Params *indexer,
+                       int n_stages, int order, bool active = true);
 
   void update_explicit(const StageData &stage_data, const GridStructure &grid,
                        const TimeStepInfo &dt_info);
@@ -126,8 +126,6 @@ class NickelHeatingPackage {
   NiHeatingModel model_;
   AthelasArray3D<double> tau_gamma_; // [nx][node][angle]
   AthelasArray2D<double> int_etau_domega_; // integration of e^-tau dOmega
-
-  basis::ModalBasis *basis_;
 
   AthelasArray4D<double> delta_; // [nstages, nx, order, nvars]
 

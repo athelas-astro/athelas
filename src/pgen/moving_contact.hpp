@@ -19,8 +19,7 @@ namespace athelas {
  * @brief Initialize moving contact discontinuity test
  **/
 void moving_contact_init(MeshState &mesh_state, GridStructure *grid,
-                         ProblemIn *pin, const eos::EOS *eos,
-                         basis::ModalBasis * /*fluid_basis = nullptr*/) {
+                         ProblemIn *pin, bool /*first_init*/) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Moving contact requires ideal gas eos!");
 
@@ -42,6 +41,7 @@ void moving_contact_init(MeshState &mesh_state, GridStructure *grid,
   const auto P_L = pin->param()->get<double>("problem.params.pL", 1.0);
   const auto P_R = pin->param()->get<double>("problem.params.pR", 1.0);
 
+  const auto &eos = mesh_state.eos();
   const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
 

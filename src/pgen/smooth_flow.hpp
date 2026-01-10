@@ -22,8 +22,7 @@ namespace athelas {
  * @brief Initialize smooth flow test problem
  **/
 void smooth_flow_init(MeshState &mesh_state, GridStructure *grid,
-                      ProblemIn *pin, const eos::EOS * /*eos*/,
-                      basis::ModalBasis *fluid_basis = nullptr) {
+                      ProblemIn *pin, bool first_init) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Smooth flow requires ideal gas eos!");
 
@@ -53,7 +52,8 @@ void smooth_flow_init(MeshState &mesh_state, GridStructure *grid,
       });
 
   // Phase 2: Initialize modal coefficients
-  if (fluid_basis != nullptr) {
+  if (!first_init) {
+    const auto &fluid_basis = mesh_state.fluid_basis();
     // Use L2 projection for accurate modal coefficients
     auto density_func = [&amp](double x, int /*ix*/, int /*iN*/) -> double {
       return 1.0 + amp * sin(constants::PI * x);
@@ -69,12 +69,12 @@ void smooth_flow_init(MeshState &mesh_state, GridStructure *grid,
     };
 
     // Project each conserved variable using Kokkos parallel for
-    fluid_basis->project_nodal_to_modal_all_cells(uCF, uPF, grid, q_Tau,
-                                                  density_func);
-    fluid_basis->project_nodal_to_modal_all_cells(uCF, uPF, grid, q_V,
-                                                  velocity_func);
-    fluid_basis->project_nodal_to_modal_all_cells(uCF, uPF, grid, q_E,
-                                                  energy_func);
+    fluid_basis.project_nodal_to_modal_all_cells(uCF, uPF, grid, q_Tau,
+                                                 density_func);
+    fluid_basis.project_nodal_to_modal_all_cells(uCF, uPF, grid, q_V,
+                                                 velocity_func);
+    fluid_basis.project_nodal_to_modal_all_cells(uCF, uPF, grid, q_E,
+                                                 energy_func);
   } else {
     // Fallback: set cell averages only (k=0)
     athelas::par_for(

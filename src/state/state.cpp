@@ -51,6 +51,22 @@ auto StageData::mass_fractions(const std::string &name) const
   return parent_->mass_fractions(name, stage_);
 }
 
+[[nodiscard]] auto StageData::eos() const -> const eos::EOS & {
+  return parent_->eos();
+}
+
+[[nodiscard]] auto StageData::opac() const -> const Opacity & {
+  return parent_->opac();
+}
+
+[[nodiscard]] auto StageData::fluid_basis() const -> const basis::ModalBasis & {
+  return parent_->fluid_basis();
+}
+
+[[nodiscard]] auto StageData::rad_basis() const -> const basis::ModalBasis & {
+  return parent_->rad_basis();
+}
+
 // --- MeshState ---
 
 MeshState::MeshState(const ProblemIn *const pin, const int nstages)
@@ -73,10 +89,35 @@ MeshState::MeshState(const ProblemIn *const pin, const int nstages)
   params_->add("ionization_enabled", ionization_enabled);
   params_->add("composition_evolved", composition_evolved);
   params_->add("nickel_evolved", nickel_evolved);
+
+  // microphysics
+  eos_ = std::make_unique<eos::EOS>(eos::initialize_eos(pin));
+  opac_ = std::make_unique<Opacity>(initialize_opacity(pin));
 }
 
 [[nodiscard]] auto MeshState::comps() const -> atom::CompositionData * {
   return comps_.get();
+}
+
+[[nodiscard]] auto MeshState::eos() const -> const eos::EOS & {
+  if (!eos_) {
+    throw_athelas_error("EOS not initialized!");
+  }
+  return *eos_;
+}
+
+[[nodiscard]] auto MeshState::eos() -> eos::EOS & {
+  if (!eos_) {
+    throw_athelas_error("EOS not initialized!");
+  }
+  return *eos_;
+}
+
+[[nodiscard]] auto MeshState::opac() const -> const Opacity & {
+  if (!opac_) {
+    throw_athelas_error("Opacity not initialized!");
+  }
+  return *opac_;
 }
 
 [[nodiscard]] auto MeshState::ionization_state() const
@@ -209,5 +250,23 @@ MeshState::get_comp_start_index(const std::string &field_name) const -> int {
   }
 
   return info;
+}
+
+[[nodiscard]] auto MeshState::has_rad_basis() const noexcept -> bool {
+  return rad_basis_ != nullptr;
+}
+
+[[nodiscard]] auto MeshState::fluid_basis() const -> const basis::ModalBasis & {
+  if (!fluid_basis_) {
+    throw_athelas_error("Fluid basis not initialized!");
+  }
+  return *fluid_basis_;
+}
+
+[[nodiscard]] auto MeshState::rad_basis() const -> const basis::ModalBasis & {
+  if (!rad_basis_) {
+    throw_athelas_error("Radiation basis not initialized!");
+  }
+  return *rad_basis_;
 }
 } // namespace athelas

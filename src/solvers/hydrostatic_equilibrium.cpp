@@ -39,7 +39,8 @@ void HydrostaticEquilibrium::solve(MeshState &mesh_state, GridStructure *grid,
   if (mesh_state.ionization_enabled()) {
     atom::paczynski_terms(sd0, 1, 0, lambda);
   }
-  const double p_c = pressure_from_conserved(eos_, rho_c_, vel, energy, lambda);
+  const auto &eos = mesh_state.eos();
+  const double p_c = pressure_from_conserved(eos, rho_c_, vel, energy, lambda);
 
   const double r_c = grid->node_coordinate(ilo, 0);
   double m_enc = (constants::FOURPI / 3.0) * (r_c * r_c * r_c) * rho_c_;

@@ -21,9 +21,7 @@ namespace athelas {
  * Initialize equilibrium rad test
  **/
 void rad_equilibrium_init(MeshState &mesh_state, GridStructure *grid,
-                          ProblemIn *pin, const eos::EOS * /*eos*/,
-                          basis::ModalBasis * /*fluid_basis = nullptr*/,
-                          basis::ModalBasis * /*radiation_basis = nullptr*/) {
+                          ProblemIn *pin, bool /*first_init*/) {
   const bool rad_active = pin->param()->get<bool>("physics.rad_active");
   athelas_requires(rad_active,
                    "Radiation equilibriation requires radiation enabled!");

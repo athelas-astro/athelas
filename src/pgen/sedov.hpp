@@ -21,8 +21,7 @@ namespace athelas {
  * @brief Initialize sedov blast wave
  **/
 void sedov_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
-                const eos::EOS *eos,
-                basis::ModalBasis * /*fluid_basis = nullptr*/) {
+                bool /*first_init*/) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Sedov requires ideal gas eos!");
 
@@ -46,6 +45,7 @@ void sedov_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   const int origin = 1;
 
   // TODO(astrobarker): geometry aware volume for energy
+  auto &eos = mesh_state.eos();
   const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
 

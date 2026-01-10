@@ -50,6 +50,7 @@ void write_state(const StageData &stage_data, GridStructure &grid,
 
 void print_simulation_parameters(GridStructure &grid, ProblemIn *pin);
 
-void write_basis(basis::ModalBasis *basis, const std::string &problem_name);
+void write_basis(const basis::ModalBasis &basis,
+                 const std::string &problem_name);
 
 } // namespace athelas::io

@@ -7,7 +7,6 @@
 
 #pragma once
 
-#include "basis/polynomial_basis.hpp"
 #include "eos/eos_variant.hpp"
 #include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
@@ -20,8 +19,7 @@ namespace athelas {
  * @brief Initialize Sod shock tube
  **/
 void sod_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
-              const eos::EOS *eos,
-              basis::ModalBasis * /*fluid_basis = nullptr*/) {
+              bool /*first_init*/) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Sod requires ideal gas eos!");
 
@@ -46,6 +44,7 @@ void sod_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   const auto P_R = pin->param()->get<double>("problem.params.pR", 0.1);
   const auto x_d = pin->param()->get<double>("problem.params.x_d", 0.5);
 
+  auto &eos = mesh_state.eos();
   const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
 
