@@ -26,6 +26,7 @@
 
 #include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
+#include "eos/eos_variant.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
 #include "limiters/bound_enforcing_limiter.hpp"
@@ -49,16 +50,13 @@ using utilities::ratio;
  * @param U The solution array containing conserved variables
  * @param basis The modal basis used for the solution representation
  */
-void limit_density(AthelasArray3D<double> U, const ModalBasis *basis) {
+void limit_density(StageData &stage_data, const ModalBasis *basis) {
   constexpr static double EPSILON = 1.0e-30; // maybe make this smarter
 
   const int order = basis->order();
 
-  if (order == 1) {
-    return;
-  }
-
-  const auto phi = basis->phi();
+  auto U = stage_data.get_field("u_cf");
+  auto phi = basis->phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit density", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
@@ -105,16 +103,13 @@ void limit_density(AthelasArray3D<double> U, const ModalBasis *basis) {
  * @param U The solution array containing conserved variables
  * @param basis The modal basis used for the solution representation
  */
-void limit_internal_energy(AthelasArray3D<double> U, const ModalBasis *basis) {
+void limit_internal_energy(StageData &stage_data, const ModalBasis *basis) {
   constexpr static double EPSILON = 1.0e-10; // maybe make this smarter
 
   const int order = basis->order();
 
-  if (order == 1) {
-    return;
-  }
-
-  const auto phi = basis->phi();
+  auto U = stage_data.get_field("u_cf");
+  auto phi = basis->phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit internal energy", DevExecSpace(),
       1, U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
@@ -145,30 +140,33 @@ void limit_internal_energy(AthelasArray3D<double> U, const ModalBasis *basis) {
       });
 }
 
-void apply_bound_enforcing_limiter(AthelasArray3D<double> U,
+void apply_bound_enforcing_limiter(StageData &stage_data,
                                    const ModalBasis *basis)
 
 {
-  limit_density(U, basis);
-  limit_internal_energy(U, basis);
+  if (basis->order() > 1) {
+    limit_density(stage_data, basis);
+    limit_internal_energy(stage_data, basis);
+  }
 }
 
 // TODO(astrobarker): much more here.
-void apply_bound_enforcing_limiter_rad(AthelasArray3D<double> U,
+void apply_bound_enforcing_limiter_rad(StageData &stage_data,
                                        const ModalBasis *basis) {
   if (basis->order() == 1) {
     return;
   }
-  limit_rad_energy(U, basis);
-  // limit_rad_momentum(U, basis);
+  limit_rad_energy(stage_data, basis);
+  // limit_rad_momentum(stage_data, basis);
 }
 
-void limit_rad_energy(AthelasArray3D<double> U, const ModalBasis *basis) {
+void limit_rad_energy(StageData &stage_data, const ModalBasis *basis) {
   constexpr static double EPSILON = 1.0e-4; // maybe make this smarter
 
   const int order = basis->order();
 
-  const auto phi = basis->phi();
+  auto U = stage_data.get_field("u_cf");
+  auto phi = basis->phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit rad energy", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
@@ -205,10 +203,11 @@ void limit_rad_energy(AthelasArray3D<double> U, const ModalBasis *basis) {
       });
 }
 
-void limit_rad_momentum(AthelasArray3D<double> U, const ModalBasis *basis) {
+void limit_rad_momentum(StageData &stage_data, const ModalBasis *basis) {
   const int order = basis->order();
 
-  const auto phi = basis->phi();
+  auto U = stage_data.get_field("u_cf");
+  auto phi = basis->phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit rad momentum", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
@@ -245,16 +244,16 @@ void limit_rad_momentum(AthelasArray3D<double> U, const ModalBasis *basis) {
 /* --- Utility Functions --- */
 
 // ( 1 - theta ) U_bar + theta U_q
-auto compute_theta_state(const AthelasArray3D<double> U,
-                         const AthelasArray3D<double> phi, const double theta,
-                         const int q, const int ix, const int iN) -> double {
+auto compute_theta_state(AthelasArray3D<double> U, AthelasArray3D<double> phi,
+                         const double theta, const int q, const int ix,
+                         const int iN) -> double {
   return theta * (basis_eval(phi, U, ix, q, iN) -
                   U(ix, vars::modes::CellAverage, q)) +
          U(ix, vars::modes::CellAverage, q);
 }
 
-auto target_func(const double theta, const AthelasArray3D<double> U,
-                 const AthelasArray3D<double> phi, const int ix, const int iN)
+auto target_func(const double theta, AthelasArray3D<double> U,
+                 AthelasArray3D<double> phi, const int ix, const int iN)
     -> double {
   const double w = 1.0e-13;
   const double s1 =
@@ -266,9 +265,9 @@ auto target_func(const double theta, const AthelasArray3D<double> U,
 
   return e - w;
 }
-auto target_func_deriv(const double theta, const AthelasArray3D<double> U,
-                       const AthelasArray3D<double> phi, const int ix,
-                       const int iN) -> double {
+auto target_func_deriv(const double theta, AthelasArray3D<double> U,
+                       AthelasArray3D<double> phi, const int ix, const int iN)
+    -> double {
   const double dE = basis_eval(phi, U, ix, vars::modes::CellAverage, iN) -
                     U(ix, vars::modes::CellAverage, vars::cons::Energy);
   const double v_q = basis_eval(phi, U, ix, vars::cons::Velocity, iN);
@@ -277,8 +276,8 @@ auto target_func_deriv(const double theta, const AthelasArray3D<double> U,
 }
 
 // TODO(astrobarker) some redundancy below
-auto target_func_rad_flux(const double theta, const AthelasArray3D<double> U,
-                          const AthelasArray3D<double> phi, const int ix,
+auto target_func_rad_flux(const double theta, AthelasArray3D<double> U,
+                          AthelasArray3D<double> phi, const int ix,
                           const int iN) -> double {
   const double w = 1.0e-13;
   const double s1 =
@@ -291,9 +290,8 @@ auto target_func_rad_flux(const double theta, const AthelasArray3D<double> U,
   return e - w;
 }
 
-auto target_func_rad_flux_deriv(const double theta,
-                                const AthelasArray3D<double> U,
-                                const AthelasArray3D<double> phi, const int ix,
+auto target_func_rad_flux_deriv(const double theta, AthelasArray3D<double> U,
+                                AthelasArray3D<double> phi, const int ix,
                                 const int iN) -> double {
   const double dE = basis_eval(phi, U, ix, vars::cons::RadEnergy, iN) -
                     U(ix, vars::modes::CellAverage, vars::cons::RadEnergy);
@@ -309,16 +307,15 @@ auto target_func_rad_flux_deriv(const double theta,
   return dfdE * dE + dfdF * dF;
 }
 
-auto target_func_rad_energy_deriv(const double theta,
-                                  const AthelasArray3D<double> U,
-                                  const AthelasArray3D<double> phi,
-                                  const int ix, const int iN) -> double {
+auto target_func_rad_energy_deriv(const double theta, AthelasArray3D<double> U,
+                                  AthelasArray3D<double> phi, const int ix,
+                                  const int iN) -> double {
   return basis_eval(phi, U, ix, vars::cons::RadEnergy, iN) -
          U(ix, vars::modes::CellAverage, vars::cons::RadEnergy);
 }
 
-auto target_func_rad_energy(const double theta, const AthelasArray3D<double> U,
-                            const AthelasArray3D<double> phi, const int ix,
+auto target_func_rad_energy(const double theta, AthelasArray3D<double> U,
+                            AthelasArray3D<double> phi, const int ix,
                             const int iN) -> double {
   const double w = 1.0e-13;
   const double s1 =

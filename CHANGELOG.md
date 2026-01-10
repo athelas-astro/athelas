@@ -6,6 +6,7 @@
 
 ### Added (new features/APIs/variables/...)
 
+- [PR 122](https://github.com/athelas-astro/athelas/pull/122) Threaded StageData into BEL
 - [PR 121](https://github.com/athelas-astro/athelas/pull/121) New Saha solver; optimizations
 
 ### Changed (changing behavior/API/variables/...)
