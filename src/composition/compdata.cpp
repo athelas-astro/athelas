@@ -1,6 +1,8 @@
 #include <memory>
 
 #include "composition/compdata.hpp"
+#include "kokkos_abstraction.hpp"
+#include "loop_layout.hpp"
 #include "utils/error.hpp"
 
 namespace athelas::atom {
@@ -77,20 +79,33 @@ IonizationState::IonizationState(const int nX, const int nNodes,
                                  const int n_species, const int n_states,
                                  const int saha_ncomps,
                                  const std::string &fn_ionization,
-                                 const std::string &fn_degeneracy)
+                                 const std::string &fn_degeneracy,
+                                 const std::string &solver)
     : saha_ncomps_(saha_ncomps),
       ionization_fractions_("ionization_fractions", nX, nNodes + 2, n_species,
                             n_states),
       atomic_data_(std::make_unique<AtomicData>(fn_ionization, fn_degeneracy)),
       zbar_("zbar", nX, nNodes + 2, n_species), ybar_("ybar", nX, nNodes + 2),
       e_ion_corr_("e_ion_corr", nX, nNodes + 2), saha_f_("saha_f", n_states),
-      sigma1_("sigma1", nX, nNodes + 2), sigma2_("sigma2", nX, nNodes + 2),
-      sigma3_("sigma3", nX, nNodes + 2) {
-  if (n_species <= 0) {
-    throw_athelas_error("IonizationState :: n_species must be > 0!");
+      ln_i_("ln_i", n_states), sigma1_("sigma1", nX, nNodes + 2),
+      sigma2_("sigma2", nX, nNodes + 2), sigma3_("sigma3", nX, nNodes + 2) {
+  athelas_requires(n_species > 0, "IonizationState :: n_species must be > 0!");
+  athelas_requires(n_states > 0, "IonizationState :: n_states must be > 0!");
+
+  auto ln_i_h = Kokkos::create_mirror_view(ln_i_);
+
+  // precompute ln(i) for log Saha model
+  ln_i_h(0) = -std::numeric_limits<double>::infinity();
+  for (int i = 1; i < n_states; ++i) {
+    ln_i_h(i) = std::log(i);
   }
-  if (n_states <= 0) {
-    throw_athelas_error("IonizationState :: n_states must be > 0!");
+  Kokkos::deep_copy(ln_i_, ln_i_h);
+
+  if (solver == "linear") {
+    solver_ = SahaSolver::Linear;
+  }
+  if (solver == "log") {
+    solver_ = SahaSolver::Log;
   }
 }
 
@@ -128,6 +143,11 @@ IonizationState::IonizationState(const int nX, const int nNodes,
   return saha_f_;
 }
 
+[[nodiscard]] auto IonizationState::ln_i() const noexcept
+    -> AthelasArray1D<double> {
+  return ln_i_;
+}
+
 [[nodiscard]] auto IonizationState::sigma1() const noexcept
     -> AthelasArray2D<double> {
   return sigma1_;
@@ -141,6 +161,10 @@ IonizationState::IonizationState(const int nX, const int nNodes,
 [[nodiscard]] auto IonizationState::sigma3() const noexcept
     -> AthelasArray2D<double> {
   return sigma3_;
+}
+
+[[nodiscard]] auto IonizationState::solver() const noexcept -> SahaSolver {
+  return solver_;
 }
 
 } // namespace athelas::atom

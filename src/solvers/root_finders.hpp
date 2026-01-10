@@ -528,6 +528,37 @@ class NewtonAlgorithm {
     return x;
   }
 };
+/**
+ * @brief Newton's method root finding algorithm implementation.
+ * @note: This "bundled" form takes a function eval that returns a std::tuple
+ * of [f, fprime]
+ *
+ * This class implements the classic Newton-Raphson method.
+ * x_{n+1} = x_n - f(x_n)/f'(x_n)
+ *
+ * @tparam T Floating-point type for computations
+ */
+template <typename T>
+class NewtonAlgorithmBundled {
+ public:
+  template <typename F, typename ErrorMetric, typename... Args>
+  auto operator()(F eval, T x0, const ToleranceConfig<T, ErrorMetric> &config,
+                  Args &&...args) const -> T {
+    T x = x0;
+    for (int i = 0; i <= config.max_iterations; ++i) {
+      const auto [f, fp] = eval(x, std::forward<Args>(args)...);
+      const T h = f / fp;
+
+      const T x_new = x - h;
+
+      if (config.converged(x_new, x)) {
+        return x_new;
+      }
+      x = x_new;
+    }
+    return x;
+  }
+};
 
 /**
  * @brief Anderson accelerated Newton's method root finding algorithm.
@@ -561,6 +592,54 @@ class AANewtonAlgorithm {
     for (int i = 1; i <= config.max_iterations; ++i) {
       const T h_new = target(x, std::forward<Args>(args)...) /
                       d_target(x, std::forward<Args>(args)...);
+      const T gamma = alpha_aa(h_new, h);
+
+      x_new = std::fma(1.0 - gamma, x - h_new, gamma * (x_prev - h));
+
+      if (config.converged(x_new, x)) {
+        return x_new;
+      }
+      x_prev = x;
+      x = x_new;
+      h = h_new;
+    }
+    return x;
+  }
+};
+
+/**
+ * @brief Anderson accelerated Newton's method root finding algorithm.
+ * @note: This "bundled" form takes a function eval that returns a std::tuple
+ * of [f, fprime]
+ *
+ * This class implements an Anderson accelerated Newton-Raphson method.
+ * x_{n+1} = -gamma * (x_{n} - x_{n-1} - h_{n} + h_{n-1}) + x_{n-1} - h_{n}
+ * with h_{n} = f(x_{n}) / f'(x_{n})
+ * and gamma = h_{n} / (h_{n} - h_{n-1})
+ *
+ * @tparam T Floating-point type for computations
+ */
+template <typename T>
+class AANewtonAlgorithmBundled {
+ public:
+  template <typename F, typename ErrorMetric, typename... Args>
+  auto operator()(F eval, T x0, const ToleranceConfig<T, ErrorMetric> &config,
+                  Args &&...args) const -> T {
+    T x = x0;
+
+    // Jumpstart the AA algorithm with 1 iteration of the base algorithm
+    const auto [f, fp] = eval(x, std::forward<args>(args)...);
+    T h = f / fp;
+    T x_new = x - h;
+    // Must check convergence before moving on.
+    if (config.converged(x_new, x0)) {
+      return x_new;
+    }
+    T x_prev = x0;
+    x = x_new;
+    for (int i = 1; i <= config.max_iterations; ++i) {
+      const auto [f, fp] = eval(x, std::forward<args>(args)...);
+      const T h_new = f / fp;
       const T gamma = alpha_aa(h_new, h);
 
       x_new = std::fma(1.0 - gamma, x - h_new, gamma * (x_prev - h));

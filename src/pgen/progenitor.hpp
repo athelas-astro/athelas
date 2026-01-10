@@ -468,7 +468,8 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
     std::shared_ptr<atom::IonizationState> ionization_state =
         std::make_shared<atom::IonizationState>(
             grid->n_elements() + 2, nNodes, ncomps, max_charge + 1, saha_ncomps,
-            fn_ionization, fn_deg);
+            fn_ionization, fn_deg,
+            pin->param()->get<std::string>("ionization.solver"));
 
     // If we want to default the ionization fractions to anything other
     // than 0, we can do it below. i.e., for species that we are not doing
@@ -645,9 +646,17 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
           }
         });
 
-    atom::compute_temperature_with_saha<Domain::Interior,
-                                        eos::EOSInversion::Pressure>(
-        eos, sd0, uCF, *grid, *fluid_basis);
+    if (ionization_state->solver() == atom::SahaSolver::Linear) {
+      atom::compute_temperature_with_saha<Domain::Interior,
+                                          eos::EOSInversion::Pressure,
+                                          atom::SahaSolver::Linear>(
+          eos, sd0, uCF, *grid, *fluid_basis);
+    }
+    if (ionization_state->solver() == atom::SahaSolver::Log) {
+      atom::compute_temperature_with_saha<
+          Domain::Interior, eos::EOSInversion::Pressure, atom::SahaSolver::Log>(
+          eos, sd0, uCF, *grid, *fluid_basis);
+    }
 
     AthelasArray2D<double> energy_cell("supernova :: energy cell", nx + 2,
                                        nNodes);

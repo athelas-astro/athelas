@@ -560,6 +560,8 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   std::optional<std::string> fn_deg =
       config_["ionization"]["fn_degeneracy"].value<std::string>();
   std::optional<int> saha_ncomps = config_["ionization"]["ncomps"].value<int>();
+  std::optional<std::string> saha_solver =
+      config_["ionization"]["solver"].value<std::string>();
   if ((!fn_ion || !fn_deg) && ion.value()) {
     throw_athelas_error("With ionization enabled you must provide paths to "
                         "atomic data (fn_ionization and fn_degeneracy). "
@@ -569,10 +571,18 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
     throw_athelas_error(
         "Ionization enabled but ncomps not present in [ionization] block!");
   }
+  if (saha_solver) {
+    if ((utilities::to_lower(saha_solver.value()) != "linear" &&
+         utilities::to_lower(saha_solver.value()) != "log")) {
+      throw_athelas_error(
+          "[ionization.solver] must be either 'linear' or 'log'!");
+    }
+  }
   if (ion.value()) {
     params_->add("ionization.fn_ionization", fn_ion.value());
     params_->add("ionization.fn_degeneracy", fn_deg.value());
     params_->add("ionization.ncomps", saha_ncomps.value());
+    params_->add("ionization.solver", saha_solver.value_or("linear"));
   }
 
   // -----------------------------------
