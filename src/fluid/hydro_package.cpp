@@ -264,6 +264,9 @@ auto HydroPackage::min_timestep(const StageData &stage_data,
 
 /**
  * @brief fill Hydro derived quantities
+ * TODO(astrobarker): The if-wrapped kernels are not so nice.
+ * It would be nice to write an inner, templated on IonzationPhysics
+ * function that deals with this. Has less duplicated code.
  */
 void HydroPackage::fill_derived(StageData &stage_data,
                                 const GridStructure &grid,
@@ -324,38 +327,85 @@ void HydroPackage::fill_derived(StageData &stage_data,
         });
   }
 
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Fill derived", DevExecSpace(), ib.s,
-      ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-        for (int q = 0; q < nNodes + 2; ++q) {
-          const double rho =
-              1.0 / basis_eval(phi, uCF, i, vars::cons::SpecificVolume, q);
-          const double vel = basis_eval(phi, uCF, i, vars::cons::Velocity, q);
-          const double emt = basis_eval(phi, uCF, i, vars::cons::Energy, q);
+  if (ionization_enabled) {
+    const auto *const comps = stage_data.comps();
+    const auto number_density = comps->number_density();
+    const auto ye = comps->ye();
 
-          const double momentum = rho * vel;
-          const double sie = (emt - 0.5 * vel * vel);
+    const auto *const ionization_states = stage_data.ionization_state();
+    const auto ybar = ionization_states->ybar();
+    const auto e_ion_corr = ionization_states->e_ion_corr();
+    const auto sigma1 = ionization_states->sigma1();
+    const auto sigma2 = ionization_states->sigma2();
+    const auto sigma3 = ionization_states->sigma3();
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Fill derived", DevExecSpace(),
+        ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
+          for (int q = 0; q < nNodes + 2; ++q) {
+            const double rho =
+                1.0 / basis_eval(phi, uCF, i, vars::cons::SpecificVolume, q);
+            const double vel = basis_eval(phi, uCF, i, vars::cons::Velocity, q);
+            const double emt = basis_eval(phi, uCF, i, vars::cons::Energy, q);
 
-          // This is probably not the cleanest logic, but setups with
-          // ionization enabled and Paczynski disbled are an outlier.
-          double lambda[8];
-          if (ionization_enabled) {
-            atom::paczynski_terms(stage_data, i, q, lambda);
+            const double momentum = rho * vel;
+            const double sie = (emt - 0.5 * vel * vel);
+
+            // This is probably not the cleanest logic, but setups with
+            // ionization enabled and Paczynski disbled are an outlier.
+            eos::EOSLambda lambda;
+            lambda.data[0] = number_density(i, q);
+            lambda.data[1] = ye(i, q);
+            lambda.data[2] = ybar(i, q);
+            lambda.data[3] = sigma1(i, q);
+            lambda.data[4] = sigma2(i, q);
+            lambda.data[5] = sigma3(i, q);
+            lambda.data[6] = e_ion_corr(i, q);
+            lambda.data[7] = uAF(i, q, vars::aux::Tgas);
+            const double t_gas = uAF(i, q, vars::aux::Tgas);
+            const double pressure = pressure_from_density_temperature(
+                eos, rho, t_gas, lambda.ptr());
+            const double cs = sound_speed_from_density_temperature_pressure(
+                eos, rho, t_gas, pressure, lambda.ptr());
+
+            uPF(i, q, vars::prim::Rho) = rho;
+            uPF(i, q, vars::prim::Momentum) = momentum;
+            uPF(i, q, vars::prim::Sie) = sie;
+
+            uAF(i, q, vars::aux::Pressure) = pressure;
+            uAF(i, q, vars::aux::Cs) = cs;
           }
-          const double t_gas = uAF(i, q, vars::aux::Tgas);
-          const double pressure =
-              pressure_from_density_temperature(eos, rho, t_gas, lambda);
-          const double cs = sound_speed_from_density_temperature_pressure(
-              eos, rho, t_gas, pressure, lambda);
+        });
+  } else {
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Fill derived", DevExecSpace(),
+        ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
+          for (int q = 0; q < nNodes + 2; ++q) {
+            const double rho =
+                1.0 / basis_eval(phi, uCF, i, vars::cons::SpecificVolume, q);
+            const double vel = basis_eval(phi, uCF, i, vars::cons::Velocity, q);
+            const double emt = basis_eval(phi, uCF, i, vars::cons::Energy, q);
 
-          uPF(i, q, vars::prim::Rho) = rho;
-          uPF(i, q, vars::prim::Momentum) = momentum;
-          uPF(i, q, vars::prim::Sie) = sie;
+            const double momentum = rho * vel;
+            const double sie = (emt - 0.5 * vel * vel);
 
-          uAF(i, q, vars::aux::Pressure) = pressure;
-          uAF(i, q, vars::aux::Cs) = cs;
-        }
-      });
+            // This is probably not the cleanest logic, but setups with
+            // ionization enabled and Paczynski disbled are an outlier.
+            eos::EOSLambda lambda;
+            const double t_gas = uAF(i, q, vars::aux::Tgas);
+            const double pressure = pressure_from_density_temperature(
+                eos, rho, t_gas, lambda.ptr());
+            const double cs = sound_speed_from_density_temperature_pressure(
+                eos, rho, t_gas, pressure, lambda.ptr());
+
+            uPF(i, q, vars::prim::Rho) = rho;
+            uPF(i, q, vars::prim::Momentum) = momentum;
+            uPF(i, q, vars::prim::Sie) = sie;
+
+            uAF(i, q, vars::aux::Pressure) = pressure;
+            uAF(i, q, vars::aux::Cs) = cs;
+          }
+        });
+  }
 }
 
 [[nodiscard]] auto HydroPackage::name() const noexcept -> std::string_view {

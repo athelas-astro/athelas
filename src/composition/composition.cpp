@@ -27,7 +27,7 @@ using basis::ModalBasis;
  * Should this exist?
  */
 void paczynski_terms(const StageData &stage_data, const int ix, const int node,
-                     double *const lambda) {
+                     double *lambda) {
   const auto ucf = stage_data.get_field("u_cf");
   const auto uaf = stage_data.get_field("u_af");
 
