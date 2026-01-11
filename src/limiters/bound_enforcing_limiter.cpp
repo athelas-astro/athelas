@@ -26,6 +26,7 @@
 
 #include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
+#include "composition/composition.hpp"
 #include "eos/eos_variant.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
@@ -89,65 +90,88 @@ void limit_density(StageData &stage_data) {
  *          that (1 - theta) * U_bar + theta * U_q is positive for U being the
  *          specific internal energy.
  *
- *          The function uses three possible root finding algorithms:
- *          - bisection: A robust but slower method
- *          - Anderson accelerated newton iteration: The default method
- *          - Back tracing: A simple algorithm that steps back from theta = 1
+ *          We use a backtracing algorithm to find the theta such that the
+ *          nodal specific internal energy is bound preserving.
  *
- *          All methods yield the same results and are stable on difficult
- *          problems. The simulation time is insensitive to solver choice.
- *
- *          Note: In the bisection and fixed point solvers, a small delta =
- *          1.0e-3 is subtracted from the root to ensure positivity. The
- *          backtrace algorithm overshoots the root, so this adjustment is not
- *          necessary.
- *
- * @param U The solution array containing conserved variables
- * @param basis The modal basis used for the solution representation
+ *          The internal energy limiter enforces a conservative energy
+ *          floor, which is stricter than the physical minimum internal energy,
+ *          in order to guarantee robustness of the subsequent temperature
+ *          and ionization solves.
  */
+template <IonizationPhysics Ionization>
 void limit_internal_energy(StageData &stage_data) {
-  constexpr static double EPSILON = 1.0e-10; // maybe make this smarter
+  constexpr static double EPS_ABS = 1.0e-12; // maybe make this smarter
+  constexpr static double EPS_REL = 1.0e-3; // maybe make this smarter
 
   const auto &basis = stage_data.fluid_basis();
+  const auto &eos = stage_data.eos();
 
   const int order = basis.order();
 
+  // Dummy placeholders (never used in Inactive case)
+  AthelasArray2D<double> e_ion_corr;
+  AthelasArray2D<double> ye;
+
+  if constexpr (Ionization == IonizationPhysics::Active) {
+    const auto *const ionization_state = stage_data.ionization_state();
+    const auto *const comps = stage_data.comps();
+    e_ion_corr = ionization_state->e_ion_corr();
+    ye = comps->ye();
+  }
+
   auto U = stage_data.get_field("u_cf");
   auto phi = basis.phi();
+
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit internal energy", DevExecSpace(),
       1, U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
-        double theta2 = 10000000.0;
-        double temp = 0.0;
+        double theta = 1.0;
+        double temp = 1.0;
+        const double avg = utilities::compute_internal_energy(U, i);
 
+        bool limit = false;
         for (int q = 0; q <= order + 1; ++q) {
           const double nodal = utilities::compute_internal_energy(U, phi, i, q);
+          const double rho =
+              1.0 / basis::basis_eval(phi, U, i, vars::cons::SpecificVolume, q);
 
-          if (nodal > EPSILON) {
-            temp = 1.0;
-          } else {
-            const double theta_guess = 0.4;
-            // temp = bisection(U, target_func, basis, i, q);
-            temp = std::clamp(
-                root_finders::newton_aa(target_func, target_func_deriv,
-                                        theta_guess, U, phi, i, q),
-                0.0, 1.0);
+          eos::EOSLambda lambda;
+          if constexpr (Ionization == IonizationPhysics::Active) {
+            lambda.data[1] = ye(i, q);
+            lambda.data[6] = e_ion_corr(i, q);
           }
-          theta2 = std::min(theta2, temp);
+
+          const double min_energy = min_sie(eos, rho, lambda.ptr());
+          const double tol = EPS_ABS + EPS_REL * min_energy;
+
+          if (nodal <= min_energy + tol) {
+            limit = true;
+            const double theta_lin =
+                std::min(1.0, (min_energy - avg) / (nodal - avg));
+            temp = backtrace(theta_lin, min_energy, U, target_func, phi, i, q);
+            theta = std::min(theta, temp);
+          }
         }
 
-        for (int k = 1; k < order; ++k) {
-          for (int v = 0; v < 3; ++v) {
-            U(i, k, v) *= theta2;
+        if (limit) {
+          for (int k = 1; k < order; ++k) {
+            U(i, k, 0) *= theta;
+            U(i, k, 1) *= theta;
+            U(i, k, 2) *= theta;
           }
         }
       });
 }
 
+// TODO(astrobarker): do a runtime if switch here on ionization
 void apply_bound_enforcing_limiter(StageData &stage_data) {
   if (stage_data.fluid_basis().order() > 1) {
     limit_density(stage_data);
-    limit_internal_energy(stage_data);
+    if (stage_data.ionization_enabled()) {
+      limit_internal_energy<IonizationPhysics::Active>(stage_data);
+    } else {
+      limit_internal_energy<IonizationPhysics::Inactive>(stage_data);
+    }
   }
 }
 
@@ -254,10 +278,10 @@ auto compute_theta_state(AthelasArray3D<double> U, AthelasArray3D<double> phi,
          U(ix, vars::modes::CellAverage, q);
 }
 
-auto target_func(const double theta, AthelasArray3D<double> U,
-                 AthelasArray3D<double> phi, const int ix, const int iN)
-    -> double {
-  const double w = 1.0e-13;
+auto target_func(const double theta, const double min_e,
+                 AthelasArray3D<double> U, AthelasArray3D<double> phi,
+                 const int ix, const int iN) -> double {
+  const double w = min_e + 1.0e-15;
   const double s1 =
       compute_theta_state(U, phi, theta, vars::cons::Velocity, ix, iN);
   const double s2 =
@@ -267,9 +291,9 @@ auto target_func(const double theta, AthelasArray3D<double> U,
 
   return e - w;
 }
-auto target_func_deriv(const double theta, AthelasArray3D<double> U,
-                       AthelasArray3D<double> phi, const int ix, const int iN)
-    -> double {
+auto target_func_deriv(const double theta, const double min_e,
+                       AthelasArray3D<double> U, AthelasArray3D<double> phi,
+                       const int ix, const int iN) -> double {
   const double dE = basis_eval(phi, U, ix, vars::modes::CellAverage, iN) -
                     U(ix, vars::modes::CellAverage, vars::cons::Energy);
   const double v_q = basis_eval(phi, U, ix, vars::cons::Velocity, iN);

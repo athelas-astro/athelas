@@ -235,7 +235,6 @@ class AthelasRegressionTest(unittest.TestCase):
             variables_data[n], gold_variables[n], rtol=self.tolerance
           ) or np.isnan(variables_data[n]):
             success = False
-            print(f"failure at n = {n}")
 
     # Report upgolding, success, or failure
     if self.upgold:

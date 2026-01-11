@@ -70,6 +70,8 @@ enum class poly_basis { legendre, taylor };
 
 enum class GravityModel { Constant, Spherical };
 
+enum class IonizationPhysics { Active, Inactive };
+
 template <typename T>
 using Dictionary = std::unordered_map<std::string, T>;
 
