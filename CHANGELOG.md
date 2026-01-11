@@ -15,8 +15,9 @@
 
 ### Fixed (not changing behavior/API/variables/...)
 
-### Infrastructure (changes irrelevant to downstream codes)
+### Infrastructure (organization/...)
 
+- [PR 125](https://github.com/athelas-astro/athelas/pull/124) Remove inner `ionization_enabled` branching in fill_derived kernels
 - [PR 124](https://github.com/athelas-astro/athelas/pull/124) Introduce `EOSLambda` lambda wrapper
 
 ### Removed (removing behavior/API/variables/...)
