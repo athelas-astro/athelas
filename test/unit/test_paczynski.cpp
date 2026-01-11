@@ -67,8 +67,7 @@ TEST_CASE("Paczynski EOS", "[paczynski]") {
   }
 
   SECTION("Sie from rho pressure") {
-    const double pressure =
-        pressure_from_conservedeos, tau, vel, EmT, lambda);
+    const double pressure = pressure_from_conserved(eos, tau, vel, EmT, lambda);
     const double sie = sie_from_density_pressure(eos, rho_in, pressure, lambda);
     REQUIRE(soft_equal(sie, e_in));
   }
