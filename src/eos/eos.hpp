@@ -31,6 +31,23 @@ using root_finders::RootFinder, root_finders::NewtonAlgorithm,
     root_finders::RelativeError, root_finders::HybridError,
     root_finders::ToleranceConfig, root_finders::RegulaFalsiAlgorithm;
 
+// Sets the size of an EOS lambda
+// 8 is needed for Paczynski
+constexpr int EOS_LAMBDA_SIZE = 8;
+
+/**
+ * @struct EOSLambda
+ * @brief Wrapper around double* to pass to eos
+ */
+struct EOSLambda {
+  double data[EOS_LAMBDA_SIZE] = {};
+
+  [[nodiscard]]
+  KOKKOS_INLINE_FUNCTION const double *ptr() const {
+    return data;
+  }
+};
+
 /**
  * @class Paczynski
  * @brief Paczynski stellar equation of state
