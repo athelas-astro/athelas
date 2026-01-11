@@ -125,7 +125,7 @@ void limit_internal_energy(StageData &stage_data) {
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit internal energy", DevExecSpace(),
       1, U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
-        double theta2 = 10000000.0;
+        double theta = 1.0;
         double temp = 1.0;
         const double avg = utilities::compute_internal_energy(U, i);
 
@@ -149,15 +149,15 @@ void limit_internal_energy(StageData &stage_data) {
             const double theta_lin =
                 std::min(1.0, (min_energy - avg) / (nodal - avg));
             temp = backtrace(theta_lin, min_energy, U, target_func, phi, i, q);
-            theta2 = std::min(theta2, temp);
+            theta = std::min(theta, temp);
           }
         }
 
         if (limit) {
           for (int k = 1; k < order; ++k) {
-            U(i, k, 0) *= theta2;
-            U(i, k, 1) *= theta2;
-            U(i, k, 2) *= theta2;
+            U(i, k, 0) *= theta;
+            U(i, k, 1) *= theta;
+            U(i, k, 2) *= theta;
           }
         }
       });
