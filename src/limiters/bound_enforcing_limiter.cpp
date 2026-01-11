@@ -100,7 +100,7 @@ void limit_density(StageData &stage_data) {
  */
 template <IonizationPhysics Ionization>
 void limit_internal_energy(StageData &stage_data) {
-  constexpr static double EPS_ABS = 1.0e-8; // maybe make this smarter
+  constexpr static double EPS_ABS = 1.0e-12; // maybe make this smarter
   constexpr static double EPS_REL = 1.0e-3; // maybe make this smarter
 
   const auto &basis = stage_data.fluid_basis();
@@ -142,7 +142,7 @@ void limit_internal_energy(StageData &stage_data) {
           }
 
           const double min_energy = min_sie(eos, rho, lambda.ptr());
-          const double tol = EPS_ABS + EPS_REL * std::max(1.0, min_energy);
+          const double tol = EPS_ABS + EPS_REL * min_energy;
 
           if (nodal <= min_energy + tol) {
             limit = true;
