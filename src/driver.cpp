@@ -26,6 +26,7 @@ using io::write_basis, io::write_state, io::print_simulation_parameters;
 auto Driver::execute() -> int {
   static const auto nx = pin_->param()->get<int>("problem.nx");
   static const bool rad_active = pin_->param()->get<bool>("physics.rad_active");
+  static const int order = mesh_state_.p_order();
 
   // --- Timer ---
   Kokkos::Timer timer_zone_cycles;
@@ -49,14 +50,14 @@ auto Driver::execute() -> int {
 
   // some startup io
   auto sd0 = mesh_state_(0);
+  const auto &fluid_basis = sd0.fluid_basis();
+  // const auto &rad_basis = sd0.rad_basis();
   manager_->fill_derived(sd0, grid_, dt_info);
-  write_basis(fluid_basis_.get(),
-              pin_->param()->get<std::string>("problem.problem"));
+  write_basis(fluid_basis, pin_->param()->get<std::string>("problem.problem"));
   print_simulation_parameters(grid_, pin_.get());
   write_state(sd0, grid_, &sl_hydro_, pin_.get(), time_,
               pin_->param()->get<int>("fluid.porder"), 0, rad_active);
-  history_->write(mesh_state_, grid_, fluid_basis_.get(),
-                  radiation_basis_.get(), time_);
+  history_->write(mesh_state_, grid_, time_);
 
   // --- Evolution loop ---
   int iStep = 0;
@@ -106,14 +107,13 @@ auto Driver::execute() -> int {
     // Write state, other io
     if (time_ >= i_out_h5 * dt_hdf5) {
       manager_->fill_derived(sd0, grid_, dt_info);
-      write_state(sd0, grid_, &sl_hydro_, pin_.get(), time_,
-                  fluid_basis_->order(), i_out_h5, rad_active);
+      write_state(sd0, grid_, &sl_hydro_, pin_.get(), time_, order, i_out_h5,
+                  rad_active);
       i_out_h5 += 1;
     }
 
     if (time_ >= i_out_hist * pin_->param()->get<double>("output.hist_dt")) {
-      history_->write(mesh_state_, grid_, fluid_basis_.get(),
-                      radiation_basis_.get(), time_);
+      history_->write(mesh_state_, grid_, time_);
       i_out_hist += 1;
     }
 
@@ -194,6 +194,8 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   auto sd0 = mesh_state_(0);
   auto prims = sd0.get_field("u_pf");
 
+  bool first_init = true;
+
   if (!restart_) {
     // The pattern here is annoying and due to a chicken-and-egg
     // pattern between problem generation and basis construction.
@@ -206,29 +208,31 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
     // initialize_fields call populates the conserved variables.
     // For simple cases, like Sod, the layering is redundant, as
     // the bases are never used.
-    initialize_fields(mesh_state_, &grid_, eos_.get(), pin);
+    initialize_fields(mesh_state_, &grid_, pin, first_init);
+    first_init = false;
 
     // --- Datastructure for modal basis ---
     static const bool rad_active =
         pin_->param()->get<bool>("physics.rad_active");
-    fluid_basis_ = std::make_unique<ModalBasis>(
+    auto fluid_basis = std::make_unique<ModalBasis>(
         poly_basis::legendre, prims, &grid_,
         pin->param()->get<int>("fluid.porder"),
         pin->param()->get<int>("fluid.nnodes"),
         pin->param()->get<int>("problem.nx"), true);
+    mesh_state_.setup_fluid_basis(std::move(fluid_basis));
     if (rad_active) {
-      radiation_basis_ = std::make_unique<ModalBasis>(
+      auto radiation_basis = std::make_unique<ModalBasis>(
           poly_basis::legendre, prims, &grid_,
           pin->param()->get<int>("radiation.porder"),
           pin->param()->get<int>("radiation.nnodes"),
           pin->param()->get<int>("problem.nx"), false);
+      mesh_state_.setup_rad_basis(std::move(radiation_basis));
     }
 
     // --- Phase 2: Re-initialize with modal projection ---
     // This will use the nodal density from Phase 1 to construct proper modal
     // coefficients
-    initialize_fields(mesh_state_, &grid_, eos_.get(), pin, fluid_basis_.get(),
-                      radiation_basis_.get());
+    initialize_fields(mesh_state_, &grid_, pin, first_init);
   }
 
   // now that all is said and done, perform post init work
@@ -250,56 +254,49 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   // --- Init physics package manager ---
   // NOTE: Hydro/RadHydro should be registered first
   if (rad_active) {
-    manager_->add_package(RadHydroPackage{
-        pin, n_stages, eos_.get(), opac_.get(), fluid_basis_.get(),
-        radiation_basis_.get(), bcs_.get(), cfl, nx, true});
+    manager_->add_package(
+        RadHydroPackage{pin, n_stages, max_order, bcs_.get(), cfl, nx, true});
   } else [[unlikely]] {
     // pure Hydro
-    manager_->add_package(HydroPackage{pin, n_stages, eos_.get(),
-                                       fluid_basis_.get(), bcs_.get(), cfl, nx,
-                                       true});
+    manager_->add_package(
+        HydroPackage{pin, n_stages, max_order, bcs_.get(), cfl, nx, true});
   }
   if (gravity_active) {
     if (!pin->param()->get<bool>("physics.gravity.split")) {
-      manager_->add_package(
-          GravityPackage{pin, pin->param()->get<GravityModel>("gravity.model"),
-                         pin->param()->get<double>("gravity.gval"),
-                         fluid_basis_.get(), cfl, n_stages, true});
+      manager_->add_package(GravityPackage{
+          pin, pin->param()->get<GravityModel>("gravity.model"),
+          pin->param()->get<double>("gravity.gval"), cfl, n_stages, true});
     } else {
       split = true;
-      split_manager_->add_package(
-          GravityPackage{pin, pin->param()->get<GravityModel>("gravity.model"),
-                         pin->param()->get<double>("gravity.gval"),
-                         fluid_basis_.get(), cfl, n_stages, true});
+      split_manager_->add_package(GravityPackage{
+          pin, pin->param()->get<GravityModel>("gravity.model"),
+          pin->param()->get<double>("gravity.gval"), cfl, n_stages, true});
     }
   }
   if (ni_heating_active) {
     if (!pin->param()->get<bool>("physics.heating.nickel.split")) {
-      manager_->add_package(NickelHeatingPackage{pin, fluid_basis_.get(),
-                                                 sd0.comps()->species_indexer(),
-                                                 n_stages, true});
+      manager_->add_package(NickelHeatingPackage{
+          pin, sd0.comps()->species_indexer(), n_stages, max_order, true});
     } else {
       split = true;
-      split_manager_->add_package(
-          NickelHeatingPackage{pin, fluid_basis_.get(),
-                               sd0.comps()->species_indexer(), n_stages, true});
+      split_manager_->add_package(NickelHeatingPackage{
+          pin, sd0.comps()->species_indexer(), n_stages, true});
     }
   }
   if (thermal_engine_active) {
     if (!pin->param()->get<bool>("physics.engine.thermal.split")) {
-      manager_->add_package(ThermalEnginePackage{
-          pin, sd0, &grid_, fluid_basis_.get(), n_stages, true});
+      manager_->add_package(
+          ThermalEnginePackage{pin, sd0, &grid_, n_stages, true});
     } else {
       split = true;
-      split_manager_->add_package(ThermalEnginePackage{
-          pin, sd0, &grid_, fluid_basis_.get(), n_stages, true});
+      split_manager_->add_package(
+          ThermalEnginePackage{pin, sd0, &grid_, n_stages, true});
     }
   }
   // TODO(astrobarker): [split, geometry] Could add option to split.. not
   // important..
   if (geometry) {
-    manager_->add_package(
-        GeometryPackage{pin, fluid_basis_.get(), n_stages, true});
+    manager_->add_package(GeometryPackage{pin, n_stages, true});
   }
 
   // set up operator split stepper
@@ -321,7 +318,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
 
   // --- slope limiter to initial condition ---
   apply_slope_limiter(&sl_hydro_, sd0.get_field("u_cf"), &grid_,
-                      fluid_basis_.get(), eos_.get());
+                      sd0.fluid_basis(), sd0.eos());
 
   // --- Add history outputs ---
   // NOTE: Could be nice to have gravitational energy added

@@ -50,7 +50,7 @@ class WENO : public SlopeLimiterBase<WENO> {
         limited_cell_("LimitedCell", grid->n_elements() + 2) {}
 
   void apply_slope_limiter(AthelasArray3D<double> U, const GridStructure *grid,
-                           const basis::ModalBasis *basis, const eos::EOS *eos);
+                           const basis::ModalBasis &basis, const eos::EOS &eos);
   [[nodiscard]] auto get_limited(int ix) const -> int;
   [[nodiscard]] auto limited() const -> AthelasArray1D<int>;
 
@@ -104,7 +104,7 @@ class TVDMinmod : public SlopeLimiterBase<TVDMinmod> {
         D_("TCI", grid->n_elements() + 2),
         limited_cell_("LimitedCell", grid->n_elements() + 2) {}
   void apply_slope_limiter(AthelasArray3D<double> U, const GridStructure *grid,
-                           const basis::ModalBasis *basis, const eos::EOS *eos);
+                           const basis::ModalBasis &basis, const eos::EOS &eos);
   [[nodiscard]] auto get_limited(int ix) const -> int;
   [[nodiscard]] auto limited() const -> AthelasArray1D<int>;
 
@@ -141,7 +141,7 @@ class Unlimited : public SlopeLimiterBase<Unlimited> {
  public:
   Unlimited() = default;
   void apply_slope_limiter(AthelasArray3D<double> U, const GridStructure *grid,
-                           const basis::ModalBasis *basis, const eos::EOS *eos);
+                           const basis::ModalBasis &basis, const eos::EOS &eos);
   [[nodiscard]] auto get_limited(int ix) const -> int;
   [[nodiscard]] auto limited() const -> AthelasArray1D<int>;
 
@@ -154,8 +154,8 @@ using SlopeLimiter = std::variant<WENO, TVDMinmod, Unlimited>;
 // std::visit functions
 inline void apply_slope_limiter(SlopeLimiter *limiter, AthelasArray3D<double> U,
                                 const GridStructure *grid,
-                                const basis::ModalBasis *basis,
-                                const eos::EOS *eos) {
+                                const basis::ModalBasis &basis,
+                                const eos::EOS &eos) {
   std::visit(
       [&U, &grid, &basis, &eos](auto &limiter) {
         limiter.apply_slope_limiter(U, grid, basis, eos);

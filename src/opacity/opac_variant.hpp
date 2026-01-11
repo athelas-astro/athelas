@@ -20,7 +20,7 @@ namespace athelas {
 
 using Opacity = std::variant<Constant, PowerlawRho>;
 
-KOKKOS_INLINE_FUNCTION auto planck_mean(const Opacity *opac, const double rho,
+KOKKOS_INLINE_FUNCTION auto planck_mean(const Opacity &opac, const double rho,
                                         const double T, const double X,
                                         const double Y, const double Z,
                                         double *lambda) -> double {
@@ -28,18 +28,18 @@ KOKKOS_INLINE_FUNCTION auto planck_mean(const Opacity *opac, const double rho,
       [&rho, &T, &X, &Y, &Z, &lambda](auto &opac) {
         return opac.planck_mean(rho, T, X, Y, Z, lambda);
       },
-      *opac);
+      opac);
 }
 
 KOKKOS_INLINE_FUNCTION auto
-rosseland_mean(const Opacity *opac, const double rho, const double T,
+rosseland_mean(const Opacity &opac, const double rho, const double T,
                const double X, const double Y, const double Z, double *lambda)
     -> double {
   return std::visit(
       [&rho, &T, &X, &Y, &Z, &lambda](auto &opac) {
         return opac.rosseland_mean(rho, T, X, Y, Z, lambda);
       },
-      *opac);
+      opac);
 }
 
 // put init function here..

@@ -44,7 +44,7 @@ void fill_ghost_zones_composition(AthelasArray3D<double> U,
  **/
 template <int N> // N = 3 for fluid, N = 2 for rad...
 void fill_ghost_zones(AthelasArray3D<double> U, const GridStructure *grid,
-                      const basis::ModalBasis *basis, BoundaryConditions *bcs,
+                      const basis::ModalBasis &basis, BoundaryConditions *bcs,
                       const std::tuple<int, int> &vars) {
 
   const int nX = grid->n_elements();
@@ -71,8 +71,8 @@ template <int N>
 KOKKOS_INLINE_FUNCTION void
 apply_bc(const BoundaryConditionsData<N> &bc, AthelasArray3D<double> U,
          const int v, const int ghost_cell, const int interior_cell,
-         const basis::ModalBasis *basis) {
-  const int num_modes = basis->order();
+         const basis::ModalBasis &basis) {
+  const int num_modes = basis.order();
   switch (bc.type) {
   case BcType::Outflow:
     for (int k = 0; k < num_modes; k++) {

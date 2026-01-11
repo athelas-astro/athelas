@@ -23,9 +23,7 @@ namespace athelas {
  * @note EXPERIMENTAL
  **/
 void rad_advection_init(MeshState &mesh_state, GridStructure *grid,
-                        ProblemIn *pin, const eos::EOS *eos,
-                        basis::ModalBasis * /*fluid_basis = nullptr*/,
-                        basis::ModalBasis * /*radiation_basis = nullptr*/) {
+                        ProblemIn *pin, bool /*first_init*/) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Radiation advection requires ideal gas eos!");
 
@@ -49,6 +47,7 @@ void rad_advection_init(MeshState &mesh_state, GridStructure *grid,
   const auto amp = pin->param()->get<double>("problem.params.amp", 1.0);
   const auto width = pin->param()->get<double>("problem.params.width", 0.05);
   const double mu = 1.0 + constants::m_e / constants::m_p;
+  auto &eos = mesh_state.eos();
   const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
 

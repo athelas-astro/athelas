@@ -4,9 +4,12 @@
 #include <unordered_map>
 #include <vector>
 
+#include "basis/polynomial_basis.hpp"
 #include "composition/compdata.hpp"
+#include "eos/eos_variant.hpp"
 #include "interface/params.hpp"
 #include "kokkos_types.hpp"
+#include "opacity/opac_variant.hpp"
 #include "pgen/problem_in.hpp"
 
 namespace athelas {
@@ -114,6 +117,10 @@ class StageData {
   [[nodiscard]] auto stage() const noexcept -> int { return stage_; }
   [[nodiscard]] auto mass_fractions(const std::string &field_name) const
       -> AthelasArray3D<double>;
+  [[nodiscard]] auto eos() const -> const eos::EOS &;
+  [[nodiscard]] auto opac() const -> const Opacity &;
+  [[nodiscard]] auto fluid_basis() const -> const basis::ModalBasis &;
+  [[nodiscard]] auto rad_basis() const -> const basis::ModalBasis &;
 
  private:
   int stage_;
@@ -171,6 +178,7 @@ class MeshState {
     return has_field("mass_fractions");
   }
 
+  // --- setup funcs ---
   void setup_composition(std::shared_ptr<atom::CompositionData> comps) {
     comps_ = std::move(comps);
   }
@@ -178,6 +186,18 @@ class MeshState {
   void setup_ionization(std::shared_ptr<atom::IonizationState> ion) {
     ionization_state_ = std::move(ion);
   }
+
+  void setup_fluid_basis(std::unique_ptr<basis::ModalBasis> basis) {
+    fluid_basis_ = std::move(basis);
+  }
+
+  void setup_rad_basis(std::unique_ptr<basis::ModalBasis> basis) {
+    rad_basis_ = std::move(basis);
+  }
+
+  [[nodiscard]] auto has_rad_basis() const noexcept -> bool;
+  [[nodiscard]] auto fluid_basis() const -> const basis::ModalBasis &;
+  [[nodiscard]] auto rad_basis() const -> const basis::ModalBasis &;
 
   [[nodiscard]] auto params() noexcept -> Params * { return params_.get(); }
   // auto mesh() noexcept -> Mesh* { return mesh_.get(); }
@@ -212,6 +232,10 @@ class MeshState {
 
   [[nodiscard]] auto comps() const -> atom::CompositionData *;
   [[nodiscard]] auto ionization_state() const -> atom::IonizationState *;
+  [[nodiscard]] auto eos() -> eos::EOS &;
+  [[nodiscard]] auto eos() const -> const eos::EOS &;
+  [[nodiscard]] auto opac() -> Opacity &;
+  [[nodiscard]] auto opac() const -> const Opacity &;
 
   [[nodiscard]] auto get_metadata(const std::string &field) const
       -> const FieldMetadata & {
@@ -335,6 +359,10 @@ class MeshState {
   // misc
   std::shared_ptr<atom::CompositionData> comps_;
   std::shared_ptr<atom::IonizationState> ionization_state_;
+  std::unique_ptr<eos::EOS> eos_;
+  std::unique_ptr<Opacity> opac_;
+  std::unique_ptr<basis::ModalBasis> fluid_basis_;
+  std::unique_ptr<basis::ModalBasis> rad_basis_;
 };
 
 } // namespace athelas

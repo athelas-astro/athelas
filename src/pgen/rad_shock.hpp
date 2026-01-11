@@ -22,9 +22,7 @@ namespace athelas {
  * @brief Initialize radiating shock
  **/
 void rad_shock_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
-                    const eos::EOS *eos,
-                    basis::ModalBasis * /*fluid_basis = nullptr*/,
-                    basis::ModalBasis * /*radiation_basis = nullptr*/) {
+                    bool /*first_init*/) {
   const bool rad_active = pin->param()->get<bool>("physics.rad_active");
   athelas_requires(rad_active, "Radiative shock requires radiation enabled!");
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
@@ -54,6 +52,7 @@ void rad_shock_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
 
   // TODO(astrobarker): thread through
   const double mu = 1.0 + constants::m_e / constants::m_p;
+  auto &eos = mesh_state.eos();
   const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
   const double em_gas_L = constants::k_B * T_L / (gm1 * mu * constants::m_p);

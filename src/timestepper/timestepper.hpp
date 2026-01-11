@@ -38,7 +38,7 @@ class TimeStepper {
 
  public:
   // TODO(astrobarker): Is it possible to initialize grid_s_ from grid directly?
-  TimeStepper(const ProblemIn *pin, GridStructure *grid, eos::EOS *eos);
+  TimeStepper(const ProblemIn *pin, GridStructure *grid);
 
   void initialize_timestepper();
 
@@ -67,6 +67,9 @@ class TimeStepper {
     grid_s_[0] = grid;
 
     TimeStepInfo dt_info{.t = t, .dt = dt, .stage = 0};
+
+    const auto &fluid_basis = mesh_state.fluid_basis();
+    const auto &eos = mesh_state.eos();
 
     auto u0 = mesh_state(0).get_field("u_cf");
     for (int iS = 0; iS < nStages_; ++iS) {
@@ -119,11 +122,8 @@ class TimeStepper {
       grid_s_[iS] = grid;
       grid_s_[iS].update_grid(x_l_sumvar_s);
 
-      apply_slope_limiter(sl_hydro, u, &grid_s_[iS],
-                          pkgs->get_package<HydroPackage>("Hydro")->basis(),
-                          eos_);
-      bel::apply_bound_enforcing_limiter(
-          stage_data, pkgs->get_package<HydroPackage>("Hydro")->basis());
+      apply_slope_limiter(sl_hydro, u, &grid_s_[iS], fluid_basis, eos);
+      bel::apply_bound_enforcing_limiter(stage_data);
 
       dt_info.stage = iS;
       pkgs->fill_derived(stage_data, grid_s_[iS], dt_info);
@@ -154,11 +154,8 @@ class TimeStepper {
 
     auto sd0 = mesh_state(0);
     grid = grid_s_[nStages_ - 1];
-    apply_slope_limiter(sl_hydro, u0, &grid,
-                        pkgs->get_package<HydroPackage>("Hydro")->basis(),
-                        eos_);
-    bel::apply_bound_enforcing_limiter(
-        sd0, pkgs->get_package<HydroPackage>("Hydro")->basis());
+    apply_slope_limiter(sl_hydro, u0, &grid, sd0.fluid_basis(), sd0.eos());
+    bel::apply_bound_enforcing_limiter(sd0);
 
     pkgs->zero_delta();
   }
@@ -190,6 +187,10 @@ class TimeStepper {
     grid_s_[0] = grid;
 
     TimeStepInfo dt_info{.t = t, .dt = dt, .stage = 0};
+
+    const auto &fluid_basis = mesh_state.fluid_basis();
+    const auto &rad_basis = mesh_state.rad_basis();
+    const auto &eos = mesh_state.eos();
 
     auto u0 = mesh_state(0).get_field("u_cf");
     for (int iS = 0; iS < nStages_; ++iS) {
@@ -242,24 +243,12 @@ class TimeStepper {
       // NOTE: The limiting strategies in this function will fail if
       // the pkg does not have access to a rad_basis and fluid_basis
       // limiting madness
-      apply_slope_limiter(
-          sl_hydro, u, &grid_s_[iS],
-          pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis(), eos_);
-      apply_slope_limiter(
-          sl_rad, u, &grid_s_[iS],
-          pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis(), eos_);
-      apply_slope_limiter(
-          sl_rad, SumVar_U_, &grid_s_[iS],
-          pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis(), eos_);
-      apply_slope_limiter(
-          sl_hydro, SumVar_U_, &grid_s_[iS],
-          pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis(), eos_);
-      bel::apply_bound_enforcing_limiter(
-          stage_data,
-          pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis());
-      bel::apply_bound_enforcing_limiter_rad(
-          stage_data,
-          pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis());
+      apply_slope_limiter(sl_hydro, u, &grid_s_[iS], fluid_basis, eos);
+      apply_slope_limiter(sl_rad, u, &grid_s_[iS], rad_basis, eos);
+      apply_slope_limiter(sl_rad, SumVar_U_, &grid_s_[iS], rad_basis, eos);
+      apply_slope_limiter(sl_hydro, SumVar_U_, &grid_s_[iS], fluid_basis, eos);
+      bel::apply_bound_enforcing_limiter(stage_data);
+      bel::apply_bound_enforcing_limiter_rad(stage_data);
 
       // implicit update
       dt_info.stage = iS;
@@ -271,18 +260,10 @@ class TimeStepper {
       pkgs->update_implicit_iterative(stage_data, SumVar_U_, grid_s_[iS],
                                       dt_info);
 
-      apply_slope_limiter(
-          sl_hydro, u, &grid_s_[iS],
-          pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis(), eos_);
-      apply_slope_limiter(
-          sl_rad, u, &grid_s_[iS],
-          pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis(), eos_);
-      bel::apply_bound_enforcing_limiter(
-          stage_data,
-          pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis());
-      bel::apply_bound_enforcing_limiter_rad(
-          stage_data,
-          pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis());
+      apply_slope_limiter(sl_hydro, u, &grid_s_[iS], fluid_basis, eos);
+      apply_slope_limiter(sl_rad, u, &grid_s_[iS], rad_basis, eos);
+      bel::apply_bound_enforcing_limiter(stage_data);
+      bel::apply_bound_enforcing_limiter_rad(stage_data);
 
       dt_info.stage = iS;
       pkgs->fill_derived(stage_data, grid_s_[iS], dt_info);
@@ -314,16 +295,10 @@ class TimeStepper {
 
     auto sd0 = mesh_state(0);
     grid = grid_s_[nStages_ - 1];
-    apply_slope_limiter(
-        sl_hydro, u0, &grid,
-        pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis(), eos_);
-    apply_slope_limiter(
-        sl_rad, u0, &grid,
-        pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis(), eos_);
-    bel::apply_bound_enforcing_limiter(
-        sd0, pkgs->get_package<RadHydroPackage>("RadHydro")->fluid_basis());
-    bel::apply_bound_enforcing_limiter_rad(
-        sd0, pkgs->get_package<RadHydroPackage>("RadHydro")->rad_basis());
+    apply_slope_limiter(sl_hydro, u0, &grid, fluid_basis, eos);
+    apply_slope_limiter(sl_rad, u0, &grid, rad_basis, eos);
+    bel::apply_bound_enforcing_limiter(sd0);
+    bel::apply_bound_enforcing_limiter_rad(sd0);
 
     pkgs->zero_delta();
   }

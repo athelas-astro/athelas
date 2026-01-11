@@ -19,8 +19,8 @@ constexpr int Energy = 0;
 class ThermalEnginePackage {
  public:
   ThermalEnginePackage(const ProblemIn *pin, const StageData &stage_data,
-                       const GridStructure *grid, basis::ModalBasis *basis,
-                       int n_stages, bool active = true);
+                       const GridStructure *grid, int n_stages,
+                       bool active = true);
 
   void update_explicit(const StageData &stage_data, const GridStructure &grid,
                        const TimeStepInfo &dt_info);
@@ -46,8 +46,6 @@ class ThermalEnginePackage {
 
  private:
   bool active_;
-
-  basis::ModalBasis *basis_;
 
   AthelasArray4D<double> delta_; // [nstages, nx, order, nvars]
 

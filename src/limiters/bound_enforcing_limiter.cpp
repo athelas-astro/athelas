@@ -50,13 +50,15 @@ using utilities::ratio;
  * @param U The solution array containing conserved variables
  * @param basis The modal basis used for the solution representation
  */
-void limit_density(StageData &stage_data, const ModalBasis *basis) {
+void limit_density(StageData &stage_data) {
   constexpr static double EPSILON = 1.0e-30; // maybe make this smarter
 
-  const int order = basis->order();
+  const auto &basis = stage_data.fluid_basis();
+
+  const int order = basis.order();
 
   auto U = stage_data.get_field("u_cf");
-  auto phi = basis->phi();
+  auto phi = basis.phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit density", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
@@ -103,13 +105,15 @@ void limit_density(StageData &stage_data, const ModalBasis *basis) {
  * @param U The solution array containing conserved variables
  * @param basis The modal basis used for the solution representation
  */
-void limit_internal_energy(StageData &stage_data, const ModalBasis *basis) {
+void limit_internal_energy(StageData &stage_data) {
   constexpr static double EPSILON = 1.0e-10; // maybe make this smarter
 
-  const int order = basis->order();
+  const auto &basis = stage_data.fluid_basis();
+
+  const int order = basis.order();
 
   auto U = stage_data.get_field("u_cf");
-  auto phi = basis->phi();
+  auto phi = basis.phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit internal energy", DevExecSpace(),
       1, U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
@@ -140,33 +144,31 @@ void limit_internal_energy(StageData &stage_data, const ModalBasis *basis) {
       });
 }
 
-void apply_bound_enforcing_limiter(StageData &stage_data,
-                                   const ModalBasis *basis)
-
-{
-  if (basis->order() > 1) {
-    limit_density(stage_data, basis);
-    limit_internal_energy(stage_data, basis);
+void apply_bound_enforcing_limiter(StageData &stage_data) {
+  if (stage_data.fluid_basis().order() > 1) {
+    limit_density(stage_data);
+    limit_internal_energy(stage_data);
   }
 }
 
 // TODO(astrobarker): much more here.
-void apply_bound_enforcing_limiter_rad(StageData &stage_data,
-                                       const ModalBasis *basis) {
-  if (basis->order() == 1) {
+void apply_bound_enforcing_limiter_rad(StageData &stage_data) {
+  if (stage_data.rad_basis().order() == 1) {
     return;
   }
-  limit_rad_energy(stage_data, basis);
-  // limit_rad_momentum(stage_data, basis);
+  limit_rad_energy(stage_data);
+  // limit_rad_momentum(stage_data);
 }
 
-void limit_rad_energy(StageData &stage_data, const ModalBasis *basis) {
+void limit_rad_energy(StageData &stage_data) {
   constexpr static double EPSILON = 1.0e-4; // maybe make this smarter
 
-  const int order = basis->order();
+  const auto &basis = stage_data.rad_basis();
+
+  const int order = basis.order();
 
   auto U = stage_data.get_field("u_cf");
-  auto phi = basis->phi();
+  auto phi = basis.phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit rad energy", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
@@ -203,11 +205,12 @@ void limit_rad_energy(StageData &stage_data, const ModalBasis *basis) {
       });
 }
 
-void limit_rad_momentum(StageData &stage_data, const ModalBasis *basis) {
-  const int order = basis->order();
+void limit_rad_momentum(StageData &stage_data) {
+  const auto &basis = stage_data.rad_basis();
+  const int order = basis.order();
 
   auto U = stage_data.get_field("u_cf");
-  auto phi = basis->phi();
+  auto phi = basis.phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit rad momentum", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
@@ -230,7 +233,6 @@ void limit_rad_momentum(StageData &stage_data, const ModalBasis *basis) {
                                                    theta_guess, U, phi, i, q) -
                                1.0e-16,
                            0.0, 1.0);
-            // temp = bisection(U, target_func_rad_flux, basis, ix, iN);
           }
           theta2 = std::abs(std::min(theta2, temp));
         }

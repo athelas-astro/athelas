@@ -120,7 +120,7 @@ auto barth_jespersen(double U_v_L, double U_v_R, double U_c_L, double U_c_T,
  **/
 void detect_troubled_cells(const AthelasArray3D<double> U,
                            AthelasArray1D<double> D, const GridStructure *grid,
-                           const ModalBasis *basis,
+                           const ModalBasis &basis,
                            const std::vector<int> &vars) {
   static const IndexRange ib(grid->domain<Domain::Interior>());
   athelas::par_for(
@@ -129,10 +129,10 @@ void detect_troubled_cells(const AthelasArray3D<double> U,
 
   // Cell averages by extrapolating L and R neighbors into current cell
 
-  const auto phi = basis->phi();
-  const auto widths = grid->widths();
-  const auto weights = grid->weights();
-  const auto sqrt_gm = grid->sqrt_gm();
+  auto phi = basis.phi();
+  auto widths = grid->widths();
+  auto weights = grid->weights();
+  auto sqrt_gm = grid->sqrt_gm();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: TCI", DevExecSpace(), ib.s,
       ib.e, KOKKOS_LAMBDA(const int i) {
@@ -168,7 +168,7 @@ void detect_troubled_cells(const AthelasArray3D<double> U,
  * H. Zhu et al 2020, simple and high-order
  * compact WENO RKDG slope limiter
  **/
-void modify_polynomial(const AthelasArray3D<double> U,
+void modify_polynomial(AthelasArray3D<double> U,
                        AthelasArray2D<double> modified_polynomial,
                        const double gamma_i, const double gamma_l,
                        const double gamma_r, const int ix, const int q) {
@@ -203,16 +203,16 @@ void modify_polynomial(const AthelasArray3D<double> U,
 
 // WENO smoothness indicator beta
 // TODO(astrobarker): pass in views remove accessors
-auto smoothness_indicator(const AthelasArray3D<double> U,
-                          const AthelasArray2D<double> modified_polynomial,
-                          const GridStructure *grid, const ModalBasis *basis,
+auto smoothness_indicator(AthelasArray3D<double> U,
+                          AthelasArray2D<double> modified_polynomial,
+                          const GridStructure *grid, const ModalBasis &basis,
                           const int ix, const int i, const int /*q*/)
     -> double {
   const int k = U.extent(1);
 
-  const auto dr = grid->widths();
-  const auto weights = grid->weights();
-  const auto r = grid->nodal_grid();
+  auto dr = grid->widths();
+  auto weights = grid->weights();
+  auto r = grid->nodal_grid();
 
   double beta = 0.0; // output var
   for (int s = 1; s < k; s++) { // loop over modes

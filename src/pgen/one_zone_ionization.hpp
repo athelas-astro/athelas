@@ -23,8 +23,7 @@ namespace athelas {
  * Initialize one_zone_ionization test
  **/
 void one_zone_ionization_init(MeshState &mesh_state, GridStructure *grid,
-                              ProblemIn *pin, const eos::EOS *eos,
-                              basis::ModalBasis *fluid_basis = nullptr) {
+                              ProblemIn *pin, bool first_init) {
   const bool ionization_active =
       pin->param()->get<bool>("physics.ionization_enabled");
   const int saha_ncomps =
@@ -120,7 +119,10 @@ void one_zone_ionization_init(MeshState &mesh_state, GridStructure *grid,
   mesh_state.setup_composition(comps);
   mesh_state.setup_ionization(ionization_state);
 
-  if (fluid_basis != nullptr) {
+  const auto &eos = mesh_state.eos();
+
+  if (!first_init) {
+    const auto &fluid_basis = mesh_state.fluid_basis();
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: OneZoneIonization (1)",
         DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
@@ -143,8 +145,8 @@ void one_zone_ionization_init(MeshState &mesh_state, GridStructure *grid,
           }
         });
 
-    auto mkk = fluid_basis->mass_matrix();
-    auto phi = fluid_basis->phi();
+    auto mkk = fluid_basis.mass_matrix();
+    auto phi = fluid_basis.phi();
     auto weights = grid->weights();
     auto dr = grid->widths();
     auto sqrt_gm = grid->sqrt_gm();
@@ -173,11 +175,10 @@ void one_zone_ionization_init(MeshState &mesh_state, GridStructure *grid,
           }
         });
 
-    atom::fill_derived_comps<Domain::Interior>(sd0, uCF, grid, fluid_basis);
+    atom::fill_derived_comps<Domain::Interior>(sd0, grid);
     atom::solve_saha_ionization<Domain::Interior, atom::SahaSolver::Linear>(
-        sd0, uCF, *grid, *eos, *fluid_basis);
-    atom::fill_derived_ionization<Domain::Interior>(sd0, uCF, grid,
-                                                    fluid_basis);
+        sd0, *grid);
+    atom::fill_derived_ionization<Domain::Interior>(sd0, grid);
     // composition boundary condition
     static const IndexRange vb_comps(std::make_pair(3, 3 + ncomps - 1));
     bc::fill_ghost_zones_composition(uCF, vb_comps);

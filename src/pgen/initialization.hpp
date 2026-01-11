@@ -42,52 +42,47 @@ namespace athelas {
  * Initialize the mesh_state for various problems.
  **/
 void initialize_fields(MeshState &mesh_state, GridStructure *grid,
-                       const eos::EOS *eos, ProblemIn *pin,
-                       basis::ModalBasis *fluid_basis = nullptr,
-                       basis::ModalBasis *radiation_basis = nullptr) {
+                       ProblemIn *pin, bool first_init) {
 
   const auto problem_name = pin->param()->get<std::string>("problem.problem");
 
   // This is clunky and not elegant but it works.
   if (problem_name == "supernova") {
-    progenitor_init(mesh_state, grid, pin, eos, fluid_basis, radiation_basis);
+    progenitor_init(mesh_state, grid, pin, first_init);
   } else if (problem_name == "sod") {
-    sod_init(mesh_state, grid, pin, eos, fluid_basis);
+    sod_init(mesh_state, grid, pin, first_init);
   } else if (problem_name == "shu_osher") {
-    shu_osher_init(mesh_state, grid, pin, eos, fluid_basis);
+    shu_osher_init(mesh_state, grid, pin, first_init);
   } else if (problem_name == "moving_contact") {
-    moving_contact_init(mesh_state, grid, pin, eos, fluid_basis);
+    moving_contact_init(mesh_state, grid, pin, first_init);
   } else if (problem_name == "hydrostatic_balance") {
-    hydrostatic_balance_init(mesh_state, grid, pin, eos, fluid_basis);
+    hydrostatic_balance_init(mesh_state, grid, pin, first_init);
   } else if (problem_name == "smooth_advection") {
-    advection_init(mesh_state, grid, pin, eos, fluid_basis);
+    advection_init(mesh_state, grid, pin, first_init);
   } else if (problem_name == "sedov") {
-    sedov_init(mesh_state, grid, pin, eos, fluid_basis);
+    sedov_init(mesh_state, grid, pin, first_init);
   } else if (problem_name == "noh") {
-    noh_init(mesh_state, grid, pin, eos, fluid_basis);
+    noh_init(mesh_state, grid, pin, first_init);
   } else if (problem_name == "shockless_noh") {
-    shockless_noh_init(mesh_state, grid, pin, eos, fluid_basis);
+    shockless_noh_init(mesh_state, grid, pin, first_init);
   } else if (problem_name == "smooth_flow") {
-    smooth_flow_init(mesh_state, grid, pin, eos, fluid_basis);
+    smooth_flow_init(mesh_state, grid, pin, first_init);
   } else if (problem_name == "ejecta_csm") {
-    ejecta_csm_init(mesh_state, grid, pin, eos, fluid_basis);
+    ejecta_csm_init(mesh_state, grid, pin, first_init);
   } else if (problem_name == "rad_equilibrium") {
-    rad_equilibrium_init(mesh_state, grid, pin, eos, fluid_basis,
-                         radiation_basis);
+    rad_equilibrium_init(mesh_state, grid, pin, first_init);
   } else if (problem_name == "rad_advection") {
-    rad_advection_init(mesh_state, grid, pin, eos, fluid_basis,
-                       radiation_basis);
+    rad_advection_init(mesh_state, grid, pin, first_init);
   } else if (problem_name == "rad_shock_steady") {
-    rad_shock_steady_init(mesh_state, grid, pin, eos, fluid_basis,
-                          radiation_basis);
+    rad_shock_steady_init(mesh_state, grid, pin, first_init);
   } else if (problem_name == "rad_shock") {
-    rad_shock_init(mesh_state, grid, pin, eos, fluid_basis, radiation_basis);
+    rad_shock_init(mesh_state, grid, pin, first_init);
   } else if (problem_name == "marshak") {
-    marshak_init(mesh_state, grid, pin, eos, fluid_basis, radiation_basis);
+    marshak_init(mesh_state, grid, pin, first_init);
   } else if (problem_name == "one_zone_ionization") {
-    one_zone_ionization_init(mesh_state, grid, pin, eos, fluid_basis);
+    one_zone_ionization_init(mesh_state, grid, pin, first_init);
   } else if (problem_name == "ni_decay") {
-    ni_decay_init(mesh_state, grid, pin, eos, fluid_basis);
+    ni_decay_init(mesh_state, grid, pin, first_init);
   } else {
     throw_athelas_error("Please choose a valid problem_name!");
   }

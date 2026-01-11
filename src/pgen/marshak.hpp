@@ -22,9 +22,7 @@ namespace athelas {
  * @brief Initialize radiating shock
  **/
 void marshak_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
-                  const eos::EOS * /*eos*/,
-                  basis::ModalBasis * /*fluid_basis = nullptr*/,
-                  basis::ModalBasis * /*radiation_basis = nullptr*/) {
+                  bool /*first_init*/) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "marshak",
                    "Marshak requires marshak eos!");
 

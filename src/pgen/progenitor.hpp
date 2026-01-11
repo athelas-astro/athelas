@@ -63,9 +63,7 @@ namespace athelas {
  * @brief Initialize supernova progenitor
  **/
 void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
-                     const eos::EOS *eos,
-                     basis::ModalBasis *fluid_basis = nullptr,
-                     basis::ModalBasis *rad_basis = nullptr) {
+                     bool first_init) {
   // If we ever add columns to the hydro profile, change this.
   static constexpr int NUM_COLS_HYDRO = 6;
 
@@ -200,7 +198,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   Kokkos::deep_copy(temperature_view, temperature_host);
   Kokkos::deep_copy(luminosity_view, luminosity_host);
 
-  if (fluid_basis == nullptr) {
+  if (first_init) {
     // Phase 1: Initialize nodal values
     // Here we construct nodal density and temperature.
     // This is where we deal with the mass cut.
@@ -273,7 +271,9 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   }
 
   // Phase 2: Initialize modal coefficients
-  if (fluid_basis != nullptr) {
+  if (!first_init) {
+    const auto &fluid_basis = mesh_state.fluid_basis();
+    const auto &eos = mesh_state.eos();
     auto species = comps->charge();
     auto neutron_number = comps->neutron_number();
     auto inv_atomic_mass = comps->inverse_atomic_mass();
@@ -419,8 +419,8 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
         Kokkos::create_mirror_view(mesh_state.mass_fractions("u_cf"));
     auto r = grid->nodal_grid();
     auto r_h = Kokkos::create_mirror_view(r);
-    auto mass_matrix_h = Kokkos::create_mirror_view(fluid_basis->mass_matrix());
-    auto phi_h = Kokkos::create_mirror_view(fluid_basis->phi());
+    auto mass_matrix_h = Kokkos::create_mirror_view(fluid_basis.mass_matrix());
+    auto phi_h = Kokkos::create_mirror_view(fluid_basis.phi());
     auto sqrt_gm_h = Kokkos::create_mirror_view(grid->sqrt_gm());
     auto dr_h = Kokkos::create_mirror_view(grid->widths());
     auto weights = grid->weights();
@@ -503,7 +503,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
     // We demand that the mass fractions of ni56 remain unchanged. The
     // normalization factor is (1 - X_Ni) / (Sum_X - X_Ni) and applied
     // to all species except Ni56.
-    auto phi_fluid = fluid_basis->phi();
+    auto phi_fluid = fluid_basis.phi();
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN,
         "Pgen :: Supernova :: Renormalize mass fractions", DevExecSpace(), ib.s,
@@ -539,7 +539,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
     // i.e., if density is constant over an element so too will pressure.
     auto sqrt_gm = grid->sqrt_gm();
     auto dr = grid->widths();
-    auto mkk_fluid = fluid_basis->mass_matrix();
+    auto mkk_fluid = fluid_basis.mass_matrix();
     AthelasArray2D<double> tau_cell("supernova :: tau cell", nx + 2, nNodes);
     AthelasArray2D<double> pressure_cell("supernova :: pressure cell (modal)",
                                          nx + 2, order);
@@ -595,7 +595,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
 
     // Compute necessary terms for using the Paczynski eos
     auto sd0 = mesh_state(0);
-    atom::fill_derived_comps<Domain::Interior>(sd0, uCF, grid, fluid_basis);
+    atom::fill_derived_comps<Domain::Interior>(sd0, grid);
 
     // Finally, compute the radhydro variables. This requires, as before,
     // interpolation of the progenitor data to nodal collocation points
@@ -649,13 +649,12 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
     if (ionization_state->solver() == atom::SahaSolver::Linear) {
       atom::compute_temperature_with_saha<Domain::Interior,
                                           eos::EOSInversion::Pressure,
-                                          atom::SahaSolver::Linear>(
-          eos, sd0, uCF, *grid, *fluid_basis);
+                                          atom::SahaSolver::Linear>(sd0, *grid);
     }
     if (ionization_state->solver() == atom::SahaSolver::Log) {
       atom::compute_temperature_with_saha<
           Domain::Interior, eos::EOSInversion::Pressure, atom::SahaSolver::Log>(
-          eos, sd0, uCF, *grid, *fluid_basis);
+          sd0, *grid);
     }
 
     AthelasArray2D<double> energy_cell("supernova :: energy cell", nx + 2,
@@ -704,12 +703,13 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
     // Note: the inner product used here is different than for the fluid:
     // we don't use density.
     if (rad_enabled) {
+      const auto &rad_basis = mesh_state.rad_basis();
       AthelasArray2D<double> rad_energy_cell("supernova :: rad energy cell",
                                              nx + 2, nNodes);
       AthelasArray2D<double> rad_flux_cell("supernova :: rad flux cell", nx + 2,
                                            nNodes);
-      auto phi_rad = rad_basis->phi();
-      auto mkk_rad = rad_basis->mass_matrix();
+      auto phi_rad = rad_basis.phi();
+      auto mkk_rad = rad_basis.mass_matrix();
       athelas::par_for(
           DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Project Rad energy",
           DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {

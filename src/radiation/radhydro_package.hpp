@@ -9,7 +9,6 @@
 
 #include "Kokkos_Macros.hpp"
 #include "basic_types.hpp"
-#include "basis/polynomial_basis.hpp"
 #include "bc/boundary_conditions_base.hpp"
 #include "composition/composition.hpp"
 #include "eos/eos_variant.hpp"
@@ -26,10 +25,9 @@ using bc::BoundaryConditions;
 
 class RadHydroPackage {
  public:
-  RadHydroPackage(const ProblemIn * /*pin*/, int n_stages, eos::EOS *eos,
-                  Opacity *opac, basis::ModalBasis *fluid_basis,
-                  basis::ModalBasis *rad_basis, BoundaryConditions *bcs,
-                  double cfl, int nx, bool active = true);
+  RadHydroPackage(const ProblemIn * /*pin*/, int n_stages, int order,
+                  BoundaryConditions *bcs, double cfl, int nx,
+                  bool active = true);
 
   void update_explicit(const StageData &stage_data, const GridStructure &grid,
                        const TimeStepInfo &dt_info) const;
@@ -73,8 +71,6 @@ class RadHydroPackage {
   void set_active(bool active);
 
   [[nodiscard]] auto get_flux_u(int stage, int i) const -> double;
-  [[nodiscard]] auto fluid_basis() const -> const basis::ModalBasis *;
-  [[nodiscard]] auto rad_basis() const -> const basis::ModalBasis *;
 
   [[nodiscard]] static constexpr auto num_vars() noexcept -> int {
     return NUM_VARS_;
@@ -86,10 +82,6 @@ class RadHydroPackage {
   int nx_;
   double cfl_;
 
-  eos::EOS *eos_;
-  Opacity *opac_;
-  basis::ModalBasis *fluid_basis_;
-  basis::ModalBasis *rad_basis_;
   BoundaryConditions *bcs_;
 
   // package storage
@@ -113,14 +105,11 @@ class RadHydroPackage {
 // This is duplicate of above but used differently, in the root finder
 // The code needs some refactoring in order to get rid of this version.
 KOKKOS_INLINE_FUNCTION
-auto compute_increment_radhydro_source(
-    const AthelasArray2D<double> uCRH, const int k, const StageData &stage_data,
-    const AthelasArray1D<double> dx, const AthelasArray1D<double> weights,
-    const AthelasArray3D<double> phi_fluid,
-    const AthelasArray3D<double> phi_rad,
-    const AthelasArray2D<double> inv_mkk_fluid,
-    const AthelasArray2D<double> inv_mkk_rad, const eos::EOS *eos,
-    const Opacity *opac, const int i)
+auto compute_increment_radhydro_source(const AthelasArray2D<double> uCRH,
+                                       const int k, const StageData &stage_data,
+                                       const AthelasArray1D<double> dx,
+                                       const AthelasArray1D<double> weights,
+                                       const int i)
     -> std::tuple<double, double, double, double> {
   using basis::basis_eval;
   constexpr static double c = constants::c_cgs;
@@ -129,6 +118,16 @@ auto compute_increment_radhydro_source(
 
   static const int nNodes = static_cast<int>(weights.size());
   const double &dr_i = dx(i);
+
+  const auto &eos = stage_data.eos();
+  const auto &opac = stage_data.opac();
+
+  const auto &rad_basis = stage_data.rad_basis();
+  const auto &fluid_basis = stage_data.fluid_basis();
+  auto phi_rad = rad_basis.phi();
+  auto phi_fluid = fluid_basis.phi();
+  auto inv_mkk_rad = rad_basis.inv_mass_matrix();
+  auto inv_mkk_fluid = fluid_basis.inv_mass_matrix();
 
   double local_sum_e_r = 0.0; // radiation energy source
   double local_sum_m_r = 0.0; // radiation momentum (flux) source

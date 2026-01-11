@@ -26,14 +26,14 @@ namespace athelas::fluid {
 using basis::ModalBasis, basis::basis_eval;
 using eos::EOS;
 
-HydroPackage::HydroPackage(const ProblemIn * /*pin*/, int n_stages, EOS *eos,
-                           ModalBasis *basis, BoundaryConditions *bcs,
-                           double cfl, int nx, bool active)
-    : active_(active), nx_(nx), cfl_(cfl), eos_(eos), basis_(basis), bcs_(bcs),
+HydroPackage::HydroPackage(const ProblemIn * /*pin*/, int n_stages, int order,
+                           BoundaryConditions *bcs, double cfl, int nx,
+                           bool active)
+    : active_(active), nx_(nx), cfl_(cfl), bcs_(bcs),
       dFlux_num_("hydro::dFlux_num_", nx + 2 + 1, 3),
       u_f_l_("hydro::u_f_l_", nx + 2, 3), u_f_r_("hydro::u_f_r_", nx + 2, 3),
       flux_u_("hydro::flux_u_", n_stages, nx + 2 + 1),
-      delta_("hydro :: delta", n_stages, nx_ + 2, basis->order(), 3) {
+      delta_("hydro :: delta", n_stages, nx_ + 2, order, 3) {
 } // Need long term solution for flux_u_
 
 void HydroPackage::update_explicit(const StageData &stage_data,
@@ -44,13 +44,15 @@ void HydroPackage::update_explicit(const StageData &stage_data,
 
   auto uaf = stage_data.get_field("u_af");
 
-  const auto &order = basis_->order();
+  const auto &basis = stage_data.fluid_basis();
+
+  const auto &order = basis.order();
   static const IndexRange ib(grid.domain<Domain::Interior>());
   static const IndexRange kb(order);
   static const IndexRange vb(NUM_VARS_);
 
   // --- Apply BC ---
-  bc::fill_ghost_zones<3>(ucf, &grid, basis_, bcs_, {0, 2});
+  bc::fill_ghost_zones<3>(ucf, &grid, basis, bcs_, {0, 2});
   if (stage_data.composition_enabled()) {
     static const IndexRange vb_comps(
         std::make_pair(NUM_VARS_, stage_data.nvars("u_cf") - 1));
@@ -61,7 +63,7 @@ void HydroPackage::update_explicit(const StageData &stage_data,
   fluid_divergence(stage_data, grid, stage);
 
   // --- Dvbide update by mass mastrix ---
-  const auto inv_mkk = basis_->inv_mass_matrix();
+  const auto inv_mkk = basis.inv_mass_matrix();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Hydro :: delta / M_kk", DevExecSpace(), ib.s, ib.e,
       kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
@@ -81,8 +83,10 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
 
   auto uaf = stage_data.get_field("u_af");
 
+  const auto &basis = stage_data.fluid_basis();
+
   const auto &nNodes = grid.n_nodes();
-  const auto &order = basis_->order();
+  const auto &order = basis.order();
   static const IndexRange ib(grid.domain<Domain::Interior>());
   static const IndexRange kb(order);
   static const IndexRange vb(NUM_VARS_);
@@ -91,8 +95,8 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
   auto sqrt_gm = grid.sqrt_gm();
   auto weights = grid.weights();
 
-  auto phi = basis_->phi();
-  auto dphis = basis_->dphi();
+  auto phi = basis.phi();
+  auto dphis = basis.dphi();
 
   // --- Interpolate Conserved Variable to Interfaces ---
 
@@ -272,18 +276,21 @@ void HydroPackage::fill_derived(StageData &stage_data,
   static const IndexRange ib(grid.domain<Domain::Entire>());
   static const bool ionization_enabled = stage_data.ionization_enabled();
 
+  const auto &basis = stage_data.fluid_basis();
+
   // --- Apply BC ---
-  bc::fill_ghost_zones<3>(uCF, &grid, basis_, bcs_, {0, 2});
+  bc::fill_ghost_zones<3>(uCF, &grid, basis, bcs_, {0, 2});
 
   if (stage_data.composition_enabled()) {
     // composition boundary condition
     static const IndexRange vb_comps(
         std::make_pair(NUM_VARS_, stage_data.nvars("u_cf") - 1));
     bc::fill_ghost_zones_composition(uCF, vb_comps);
-    atom::fill_derived_comps<Domain::Entire>(stage_data, uCF, &grid, basis_);
+    atom::fill_derived_comps<Domain::Entire>(stage_data, &grid);
   }
 
-  auto phi = basis_->phi();
+  const auto &eos = stage_data.eos();
+  auto phi = basis.phi();
 
   // First we get the temperature from the density and specific internal
   // energy. The ionization case is involved and so this is all done
@@ -293,12 +300,12 @@ void HydroPackage::fill_derived(StageData &stage_data,
     if (ionization_state->solver() == atom::SahaSolver::Linear) {
       atom::compute_temperature_with_saha<
           Domain::Entire, eos::EOSInversion::Sie, atom::SahaSolver::Linear>(
-          eos_, stage_data, uCF, grid, *basis_);
+          stage_data, grid);
     }
     if (ionization_state->solver() == atom::SahaSolver::Log) {
       atom::compute_temperature_with_saha<
           Domain::Entire, eos::EOSInversion::Sie, atom::SahaSolver::Log>(
-          eos_, stage_data, uCF, grid, *basis_);
+          stage_data, grid);
     }
   } else {
     athelas::par_for(
@@ -312,7 +319,7 @@ void HydroPackage::fill_derived(StageData &stage_data,
             const double emt = basis_eval(phi, uCF, i, vars::cons::Energy, q);
             const double sie = emt - 0.5 * vel * vel;
             uAF(i, q, vars::aux::Tgas) =
-                temperature_from_density_sie(eos_, rho, sie, lambda);
+                temperature_from_density_sie(eos, rho, sie, lambda);
           }
         });
   }
@@ -337,9 +344,9 @@ void HydroPackage::fill_derived(StageData &stage_data,
           }
           const double t_gas = uAF(i, q, vars::aux::Tgas);
           const double pressure =
-              pressure_from_density_temperature(eos_, rho, t_gas, lambda);
+              pressure_from_density_temperature(eos, rho, t_gas, lambda);
           const double cs = sound_speed_from_density_temperature_pressure(
-              eos_, rho, t_gas, pressure, lambda);
+              eos, rho, t_gas, pressure, lambda);
 
           uPF(i, q, vars::prim::Rho) = rho;
           uPF(i, q, vars::prim::Momentum) = momentum;
@@ -364,10 +371,6 @@ void HydroPackage::set_active(const bool active) { active_ = active; }
 [[nodiscard]] auto HydroPackage::get_flux_u(const int stage, const int i) const
     -> double {
   return flux_u_(stage, i);
-}
-
-[[nodiscard]] auto HydroPackage::basis() const -> const ModalBasis * {
-  return basis_;
 }
 
 } // namespace athelas::fluid

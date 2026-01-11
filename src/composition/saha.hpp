@@ -249,12 +249,11 @@ void saha_solve_log(AthelasArray1D<double> ionization_states, const int Z,
  * Word of warning: the code here is a gold medalist in index gymnastics.
  */
 template <Domain MeshDomain, SahaSolver SolverType>
-void solve_saha_ionization(StageData &stage_data, AthelasArray3D<double> ucf,
-                           const GridStructure &grid, const eos::EOS &eos,
-                           const basis::ModalBasis &fluid_basis) {
+void solve_saha_ionization(StageData &stage_data, const GridStructure &grid) {
   using basis::basis_eval;
 
-  const auto uaf = stage_data.get_field("u_af");
+  auto ucf = stage_data.get_field("u_cf");
+  auto uaf = stage_data.get_field("u_af");
   const auto *const comps = stage_data.comps();
   auto *const ionization_states = stage_data.ionization_state();
   const auto *const atomic_data = ionization_states->atomic_data();
@@ -268,6 +267,7 @@ void solve_saha_ionization(StageData &stage_data, AthelasArray3D<double> ucf,
   auto ionization_fractions = ionization_states->ionization_fractions();
   auto zbars = ionization_states->zbar();
 
+  const auto &fluid_basis = stage_data.fluid_basis();
   const auto phi = fluid_basis.phi();
 
   // pull out atomic data containers
@@ -423,7 +423,7 @@ struct CoupledSolverContent {
 KOKKOS_FUNCTION
 template <eos::EOSInversion Inversion, SahaSolver SolverType>
 auto temperature_residual(const double temperature, const double rho,
-                          const eos::EOS *eos,
+                          const eos::EOS &eos,
                           const CoupledSolverContent &content) -> double {
 
   auto ucf = content.ucf;
@@ -471,7 +471,6 @@ auto temperature_residual(const double temperature, const double rho,
   // Loop over Saha species – solve ionization for the Saha subset
   for (int e = eb_saha.s; e <= eb_saha.e; ++e) {
     const int z = species(e);
-    // const double x_e = basis::basis_eval(phi, mass_fractions, i, e, q);
     const double x_e = mass_fractions_nodal(i, q, e);
 
     const double inv_A = inv_atomic_mass(e);
@@ -536,7 +535,6 @@ auto temperature_residual(const double temperature, const double rho,
   for (int e = eb_saha.e + 1; e <= eb.e; ++e) {
     const int z = species(e);
     const double x_e = mass_fractions_nodal(i, q, e);
-    // const double x_e = basis::basis_eval(phi, mass_fractions, i, e, q);
     const double inv_A = inv_atomic_mass(e);
     const double nk = atom::element_number_density(x_e, inv_A, rho);
 
@@ -589,17 +587,18 @@ auto temperature_residual(const double temperature, const double rho,
 }
 
 template <Domain MeshDomain, eos::EOSInversion Inversion, SahaSolver SolverType>
-void compute_temperature_with_saha(const eos::EOS *eos, StageData &stage_data,
-                                   AthelasArray3D<double> ucf,
-                                   const GridStructure &grid,
-                                   const basis::ModalBasis &basis) {
+void compute_temperature_with_saha(StageData &stage_data,
+                                   const GridStructure &grid) {
   using root_finders::RegulaFalsiAlgorithm, root_finders::FixedPointAlgorithm,
       root_finders::AAFixedPointAlgorithm;
   static const auto &nnodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<MeshDomain>());
   static const IndexRange nb(nnodes + 2);
 
+  auto ucf = stage_data.get_field("u_cf");
   auto uaf = stage_data.get_field("u_af");
+  const auto &eos = stage_data.eos();
+  const auto &basis = stage_data.fluid_basis();
 
   const auto *const comps = stage_data.comps();
   auto mass_fractions = stage_data.mass_fractions("u_cf");

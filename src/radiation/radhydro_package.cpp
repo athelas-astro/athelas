@@ -19,28 +19,27 @@ using basis::ModalBasis, basis::basis_eval;
 using eos::EOS;
 using fluid::numerical_flux_gudonov_positivity;
 
-RadHydroPackage::RadHydroPackage(const ProblemIn *pin, int n_stages, EOS *eos,
-                                 Opacity *opac, ModalBasis *fluid_basis,
-                                 ModalBasis *rad_basis, BoundaryConditions *bcs,
-                                 double cfl, int nx, bool active)
-    : active_(active), nx_(nx), cfl_(cfl), eos_(eos), opac_(opac),
-      fluid_basis_(fluid_basis), rad_basis_(rad_basis), bcs_(bcs),
+RadHydroPackage::RadHydroPackage(const ProblemIn *pin, int n_stages, int order,
+                                 BoundaryConditions *bcs, double cfl, int nx,
+                                 bool active)
+    : active_(active), nx_(nx), cfl_(cfl), bcs_(bcs),
       dFlux_num_("hydro::dFlux_num_", nx + 2 + 1, 5),
       u_f_l_("hydro::u_f_l_", nx + 2, 5), u_f_r_("hydro::u_f_r_", nx + 2, 5),
       flux_u_("hydro::flux_u_", n_stages, nx + 2 + 1),
-      delta_("radhydro delta", n_stages, nx + 2, fluid_basis_->order(), 5),
-      delta_im_("radhydro delta implicit", n_stages, nx + 2,
-                fluid_basis_->order(), 5),
-      scratch_k_("scratch_k_", nx + 2, fluid_basis_->order(), 5),
-      scratch_km1_("scratch_km1_", nx + 2, fluid_basis_->order(), 5),
-      scratch_sol_("scratch_k_", nx + 2, fluid_basis_->order(), 5) {
+      delta_("radhydro delta", n_stages, nx + 2, order, 5),
+      delta_im_("radhydro delta implicit", n_stages, nx + 2, order, 5),
+      scratch_k_("scratch_k_", nx + 2, order, 5),
+      scratch_km1_("scratch_km1_", nx + 2, order, 5),
+      scratch_sol_("scratch_k_", nx + 2, order, 5) {
 } // Need long term solution for flux_u_
 
 void RadHydroPackage::update_explicit(const StageData &stage_data,
                                       const GridStructure &grid,
                                       const TimeStepInfo &dt_info) const {
   // TODO(astrobarker) handle separate fluid and rad orders
-  const auto &order = fluid_basis_->order();
+  const auto &rad_basis = stage_data.rad_basis();
+  const auto &fluid_basis = stage_data.fluid_basis();
+  const auto &order = fluid_basis.order();
   static const IndexRange ib(grid.domain<Domain::Interior>());
   static const IndexRange kb(order);
   static const IndexRange vb(NUM_VARS_);
@@ -49,15 +48,15 @@ void RadHydroPackage::update_explicit(const StageData &stage_data,
   const auto ucf = stage_data.get_field("u_cf");
 
   // --- Apply BC ---
-  bc::fill_ghost_zones<2>(ucf, &grid, rad_basis_, bcs_, {3, 4});
-  bc::fill_ghost_zones<3>(ucf, &grid, fluid_basis_, bcs_, {0, 2});
+  bc::fill_ghost_zones<2>(ucf, &grid, rad_basis, bcs_, {3, 4});
+  bc::fill_ghost_zones<3>(ucf, &grid, fluid_basis, bcs_, {0, 2});
 
   // --- radiation Increment : Divergence ---
   radhydro_divergence(stage_data, grid, stage);
 
   // --- Divide update by mass matrix ---
-  const auto inv_mkk_fluid = fluid_basis_->inv_mass_matrix();
-  const auto inv_mkk_rad = rad_basis_->inv_mass_matrix();
+  const auto inv_mkk_fluid = fluid_basis.inv_mass_matrix();
+  const auto inv_mkk_rad = rad_basis.inv_mass_matrix();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "RadHydro :: delta / M_kk", DevExecSpace(), ib.s,
       ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
@@ -82,7 +81,9 @@ void RadHydroPackage::update_implicit(const StageData &stage_data,
                                       const GridStructure &grid,
                                       const TimeStepInfo &dt_info) const {
   // TODO(astrobarker) handle separate fluid and rad orders
-  const auto &order = fluid_basis_->order();
+  const auto &rad_basis = stage_data.rad_basis();
+  const auto &fluid_basis = stage_data.fluid_basis();
+  const auto &order = fluid_basis.order();
   static const IndexRange ib(grid.domain<Domain::Interior>());
   static const IndexRange kb(order);
   static const IndexRange vb(NUM_VARS_);
@@ -90,10 +91,10 @@ void RadHydroPackage::update_implicit(const StageData &stage_data,
   const auto stage = dt_info.stage;
   auto ucf = stage_data.get_field("u_cf");
 
-  auto phi_rad = rad_basis_->phi();
-  auto phi_fluid = fluid_basis_->phi();
-  auto inv_mkk_fluid = fluid_basis_->inv_mass_matrix();
-  auto inv_mkk_rad = rad_basis_->inv_mass_matrix();
+  auto phi_rad = rad_basis.phi();
+  auto phi_fluid = fluid_basis.phi();
+  auto inv_mkk_fluid = fluid_basis.inv_mass_matrix();
+  auto inv_mkk_rad = rad_basis.inv_mass_matrix();
   auto dr = grid.widths();
   auto weights = grid.weights();
   athelas::par_for(
@@ -115,15 +116,17 @@ void RadHydroPackage::update_implicit_iterative(const StageData &stage_data,
                                                 const GridStructure &grid,
                                                 const TimeStepInfo &dt_info) {
   // TODO(astrobarker) handle separate fluid and rad orders
-  const auto &order = fluid_basis_->order();
+  const auto &rad_basis = stage_data.rad_basis();
+  const auto &fluid_basis = stage_data.fluid_basis();
+  const auto &order = fluid_basis.order();
   static const IndexRange ib(grid.domain<Domain::Interior>());
 
   auto ucf = stage_data.get_field("u_cf");
 
-  auto phi_rad = rad_basis_->phi();
-  auto phi_fluid = fluid_basis_->phi();
-  auto inv_mkk_fluid = fluid_basis_->inv_mass_matrix();
-  auto inv_mkk_rad = rad_basis_->inv_mass_matrix();
+  auto phi_rad = rad_basis.phi();
+  auto phi_fluid = fluid_basis.phi();
+  auto inv_mkk_fluid = fluid_basis.inv_mass_matrix();
+  auto inv_mkk_rad = rad_basis.inv_mass_matrix();
   auto dr = grid.widths();
   auto weights = grid.weights();
 
@@ -151,8 +154,7 @@ void RadHydroPackage::update_implicit_iterative(const StageData &stage_data,
 
         fixed_point_radhydro(R_i, dt_info.dt_coef, scratch_sol_i_k,
                              scratch_sol_i_km1, scratch_sol_i, stage_data, dr,
-                             weights, phi_fluid, phi_rad, inv_mkk_fluid,
-                             inv_mkk_rad, eos_, opac_, i);
+                             weights, i);
 
         for (int k = 0; k < order; ++k) {
           for (int v = 1; v < NUM_VARS_; ++v) {
@@ -213,8 +215,11 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
   auto ucf = stage_data.get_field("u_cf");
   auto uaf = stage_data.get_field("u_af");
 
+  const auto &rad_basis = stage_data.rad_basis();
+  const auto &fluid_basis = stage_data.fluid_basis();
+
   const auto &nNodes = grid.n_nodes();
-  const auto &order = rad_basis_->order();
+  const auto &order = rad_basis.order();
   static constexpr int ilo = 1;
   static const auto &ihi = grid.get_ihi();
   static const IndexRange ib(grid.domain<Domain::Interior>());
@@ -224,10 +229,10 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
   auto sqrt_gm = grid.sqrt_gm();
   auto weights = grid.weights();
 
-  auto phi_rad = rad_basis_->phi();
-  auto phi_fluid = fluid_basis_->phi();
-  auto dphi_rad = rad_basis_->dphi();
-  auto dphi_fluid = fluid_basis_->dphi();
+  auto phi_rad = rad_basis.phi();
+  auto phi_fluid = fluid_basis.phi();
+  auto dphi_rad = rad_basis.dphi();
+  auto dphi_fluid = fluid_basis.dphi();
 
   // --- Interpolate Conserved Variable to Interfaces ---
 
@@ -378,9 +383,7 @@ auto RadHydroPackage::radhydro_source(
     const AthelasArray2D<double> inv_mkk_fluid,
     const AthelasArray2D<double> inv_mkk_rad, const int i, const int k) const
     -> std::tuple<double, double, double, double> {
-  return compute_increment_radhydro_source(uCRH, k, stage_data, dx, weights,
-                                           phi_fluid, phi_rad, inv_mkk_fluid,
-                                           inv_mkk_rad, eos_, opac_, i);
+  return compute_increment_radhydro_source(uCRH, k, stage_data, dx, weights, i);
 }
 
 /**
@@ -427,15 +430,20 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
   auto uPF = stage_data.get_field("u_pf");
   auto uAF = stage_data.get_field("u_af");
 
+  const auto &rad_basis = stage_data.rad_basis();
+  const auto &fluid_basis = stage_data.fluid_basis();
+
+  const auto &eos = stage_data.eos();
+
   const int nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Entire>());
   static const bool ionization_enabled = stage_data.ionization_enabled();
 
-  auto phi_fluid = fluid_basis_->phi();
+  auto phi_fluid = fluid_basis.phi();
 
   // --- Apply BC ---
-  bc::fill_ghost_zones<2>(uCF, &grid, rad_basis_, bcs_, {3, 4});
-  bc::fill_ghost_zones<3>(uCF, &grid, fluid_basis_, bcs_, {0, 2});
+  bc::fill_ghost_zones<2>(uCF, &grid, rad_basis, bcs_, {3, 4});
+  bc::fill_ghost_zones<3>(uCF, &grid, fluid_basis, bcs_, {0, 2});
 
   if (stage_data.composition_enabled()) {
     static constexpr int nvars = 5; // non-comps
@@ -443,8 +451,7 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
     static const IndexRange vb_comps(
         std::make_pair(nvars, stage_data.nvars("u_cf") - 1));
     bc::fill_ghost_zones_composition(uCF, vb_comps);
-    atom::fill_derived_comps<Domain::Entire>(stage_data, uCF, &grid,
-                                             fluid_basis_);
+    atom::fill_derived_comps<Domain::Entire>(stage_data, &grid);
   }
 
   // First we get the temperature from the density and specific internal
@@ -455,13 +462,13 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
     if (ionization_state->solver() == atom::SahaSolver::Linear) {
       atom::compute_temperature_with_saha<Domain::Interior,
                                           eos::EOSInversion::Pressure,
-                                          atom::SahaSolver::Linear>(
-          eos_, stage_data, uCF, grid, *fluid_basis_);
+                                          atom::SahaSolver::Linear>(stage_data,
+                                                                    grid);
     }
     if (ionization_state->solver() == atom::SahaSolver::Log) {
       atom::compute_temperature_with_saha<
           Domain::Interior, eos::EOSInversion::Pressure, atom::SahaSolver::Log>(
-          eos_, stage_data, uCF, grid, *fluid_basis_);
+          stage_data, grid);
     }
   } else {
     athelas::par_for(
@@ -477,7 +484,7 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
                 basis_eval(phi_fluid, uCF, i, vars::cons::Energy, q);
             const double sie = emt - 0.5 * vel * vel;
             uAF(i, q, vars::aux::Tgas) =
-                temperature_from_density_sie(eos_, rho, sie, lambda);
+                temperature_from_density_sie(eos, rho, sie, lambda);
           }
         });
   }
@@ -511,9 +518,9 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
 
           const double t_gas = uAF(i, q, vars::aux::Tgas);
           const double pressure =
-              pressure_from_density_temperature(eos_, rho, t_gas, lambda);
+              pressure_from_density_temperature(eos, rho, t_gas, lambda);
           const double cs = sound_speed_from_density_temperature_pressure(
-              eos_, rho, t_gas, pressure, lambda);
+              eos, rho, t_gas, pressure, lambda);
 
           uPF(i, q, vars::prim::Rho) = rho;
           uPF(i, q, vars::prim::Momentum) = momentum;
@@ -538,14 +545,6 @@ void RadHydroPackage::set_active(const bool active) { active_ = active; }
 [[nodiscard]] auto RadHydroPackage::get_flux_u(const int stage,
                                                const int i) const -> double {
   return flux_u_(stage, i);
-}
-
-[[nodiscard]] auto RadHydroPackage::fluid_basis() const -> const ModalBasis * {
-  return fluid_basis_;
-}
-
-[[nodiscard]] auto RadHydroPackage::rad_basis() const -> const ModalBasis * {
-  return rad_basis_;
 }
 
 } // namespace athelas::radiation

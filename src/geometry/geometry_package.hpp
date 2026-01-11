@@ -14,8 +14,7 @@ constexpr int Velocity = 0;
 
 class GeometryPackage {
  public:
-  GeometryPackage(const ProblemIn *pin, basis::ModalBasis *basis, int n_stages,
-                  bool active = true);
+  GeometryPackage(const ProblemIn *pin, int n_stages, bool active = true);
 
   void update_explicit(const StageData &stage_data, const GridStructure &grid,
                        const TimeStepInfo &dt_info);
@@ -42,7 +41,6 @@ class GeometryPackage {
  private:
   bool active_;
   int order_;
-  basis::ModalBasis *basis_;
   AthelasArray4D<double> delta_; // [nstages, nx, order, nvars]
 };
 

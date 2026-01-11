@@ -342,7 +342,7 @@ void write_state(const StageData &stage_data, GridStructure &grid,
 /**
  * Write Modal basis coefficients and mass matrix
  **/
-void write_basis(ModalBasis *basis, const std::string &problem_name) {
+void write_basis(const ModalBasis &basis, const std::string &problem_name) {
   std::string fn = problem_name;
   fn.append("_basis");
   fn.append(".h5");
@@ -355,8 +355,8 @@ void write_basis(ModalBasis *basis, const std::string &problem_name) {
   // Create group structure
   writer.create_group("/basis");
 
-  writer.write_view(basis->phi(), "/basis/phi");
-  writer.write_view(basis->dphi(), "/basis/dphi");
+  writer.write_view(basis.phi(), "/basis/phi");
+  writer.write_view(basis.dphi(), "/basis/dphi");
 }
 
 } // namespace io

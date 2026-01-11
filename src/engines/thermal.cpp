@@ -27,14 +27,14 @@ using utilities::to_lower;
 ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
                                            const StageData &stage_data,
                                            const GridStructure *grid,
-                                           ModalBasis *basis,
                                            const int n_stages,
                                            const bool active)
-    : active_(active), basis_(basis), mend_idx_(1) {
+    : active_(active), mend_idx_(1) {
 
   const int nx = pin->param()->get<int>("problem.nx");
+  const int order = stage_data.fluid_basis().order();
   delta_ = AthelasArray4D<double>("thermal engine delta", n_stages, nx + 2,
-                                  basis->order(), 1);
+                                  order, 1);
 
   energy_target_ = pin->param()->get<double>("physics.engine.thermal.energy");
   mode_ =
@@ -78,7 +78,8 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
     const bool gravity_active =
         pin->param()->get<bool>("physics.gravity_active");
     const int grav_active = gravity_active ? 1 : 0;
-    auto phi = basis_->phi();
+    const auto &basis = stage_data.fluid_basis();
+    auto phi = basis.phi();
     auto ucf = stage_data.get_field("u_cf");
     auto r = grid->nodal_grid();
     auto weights = grid->weights();
@@ -129,7 +130,8 @@ void ThermalEnginePackage::update_explicit(const StageData &stage_data,
                                            const GridStructure &grid,
                                            const TimeStepInfo &dt_info) {
   const auto time = dt_info.t;
-  const int &order = basis_->order();
+  const auto &basis = stage_data.fluid_basis();
+  const int &order = basis.order();
   static const auto &nnodes = grid.n_nodes();
   static const IndexRange qb(nnodes);
   static const IndexRange kb(order);
@@ -143,7 +145,7 @@ void ThermalEnginePackage::update_explicit(const StageData &stage_data,
   auto dr = grid.widths();
   auto mass = grid.mass();
   auto menc = grid.enclosed_mass();
-  auto phi = basis_->phi();
+  auto phi = basis.phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "ThermalEngine :: Update", DevExecSpace(),
       ib_dep.s, ib_dep.e, kb.s, kb.e,
@@ -158,7 +160,7 @@ void ThermalEnginePackage::update_explicit(const StageData &stage_data,
       });
 
   // --- Divide update by mass matrix ---
-  auto inv_mkk = basis_->inv_mass_matrix();
+  auto inv_mkk = basis.inv_mass_matrix();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "ThermalEngine :: delta / M_kk", DevExecSpace(),
       ib_dep.s, ib_dep.e, kb.s, kb.e,

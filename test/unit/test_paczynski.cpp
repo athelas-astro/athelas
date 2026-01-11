@@ -52,76 +52,70 @@ TEST_CASE("Paczynski EOS", "[paczynski]") {
 
   SECTION("Temperature inversion") {
     const double temperature =
-        temperature_from_conserved(&eos, tau, vel, EmT, lambda);
+        temperature_from_conserved(eos, tau, vel, EmT, lambda);
     REQUIRE(soft_equal(temperature, temp_in, tol));
   }
 
   SECTION("Computing pressure") {
-    const double pressure =
-        pressure_from_conserved(&eos, tau, vel, EmT, lambda);
+    const double pressure = pressure_from_conserved(eos, tau, vel, EmT, lambda);
     REQUIRE(soft_equal(pressure_ans, pressure, tol));
   }
 
   SECTION("Sound speed") {
-    const double cs = sound_speed_from_conserved(&eos, tau, vel, EmT, lambda);
+    const double cs = sound_speed_from_conserved(eos, tau, vel, EmT, lambda);
     REQUIRE(soft_equal(cs, cs_ans, tol));
   }
 
   SECTION("Sie from rho pressure") {
-    const double pressure =
-        pressure_from_conserved(&eos, tau, vel, EmT, lambda);
-    const double sie =
-        sie_from_density_pressure(&eos, rho_in, pressure, lambda);
+    const double pressure = pressure_from_conserved(eos, tau, vel, EmT, lambda);
+    const double sie = sie_from_density_pressure(eos, rho_in, pressure, lambda);
     REQUIRE(soft_equal(sie, e_in));
   }
 
   SECTION("Sie from rho pressure -> pressure") {
-    const double pressure =
-        pressure_from_conserved(&eos, tau, vel, EmT, lambda);
-    const double sie =
-        sie_from_density_pressure(&eos, rho_in, pressure, lambda);
+    const double pressure = pressure_from_conserved(eos, tau, vel, EmT, lambda);
+    const double sie = sie_from_density_pressure(eos, rho_in, pressure, lambda);
     const double pressure_2 =
-        pressure_from_conserved(&eos, tau, vel, sie, lambda);
+        pressure_from_conserved(eos, tau, vel, sie, lambda);
     REQUIRE(soft_equal(pressure, pressure_2));
   }
 
   SECTION("temperature -> pressure -> sie -> temperature") {
     const double temperature =
-        temperature_from_density_sie(&eos, rho_in, e_in, lambda);
+        temperature_from_density_sie(eos, rho_in, e_in, lambda);
     const double pressure =
-        pressure_from_density_temperature(&eos, rho_in, temperature, lambda);
-    const double sie =
-        sie_from_density_pressure(&eos, rho_in, pressure, lambda);
+        pressure_from_density_temperature(eos, rho_in, temperature, lambda);
+    const double sie = sie_from_density_pressure(eos, rho_in, pressure, lambda);
     const double new_temperature =
-        temperature_from_density_sie(&eos, rho_in, sie, lambda);
+        temperature_from_density_sie(eos, rho_in, sie, lambda);
     REQUIRE(soft_equal(temperature, new_temperature));
   }
 
   SECTION("pressure -> temperature -> pressure") {
     const double pressure =
-        pressure_from_density_temperature(&eos, rho_in, temp_in, lambda);
+        pressure_from_density_temperature(eos, rho_in, temp_in, lambda);
     const double temperature =
-        temperature_from_density_pressure(&eos, rho_in, pressure, lambda);
+        temperature_from_density_pressure(eos, rho_in, pressure, lambda);
     const double new_pressure =
-        pressure_from_density_temperature(&eos, rho_in, temperature, lambda);
+        pressure_from_density_temperature(eos, rho_in, temperature, lambda);
     REQUIRE(soft_equal(pressure, new_pressure));
   }
 
   SECTION("pressure -> temperature -> sie -> temperature") {
     const double temperature =
-        temperature_from_density_pressure(&eos, rho_in, pressure_ans, lambda);
+        temperature_from_density_pressure(eos, rho_in, pressure_ans, lambda);
     const double sie =
-        sie_from_density_temperature(&eos, rho_in, temperature, lambda);
+        sie_from_density_temperature(eos, rho_in, temperature, lambda);
     const double new_temperature =
-        temperature_from_density_sie(&eos, rho_in, sie, lambda);
+        temperature_from_density_sie(eos, rho_in, sie, lambda);
     REQUIRE(soft_equal(temperature, new_temperature));
   }
 
   SECTION("temperature two ways") {
     const double temperature =
-        temperature_from_density_pressure(&eos, rho_in, pressure_ans, lambda);
+        temperature_from_density_pressure(eos, rho_in, pressure_ans, lambda);
     const double new_temperature =
-        temperature_from_density_sie(&eos, rho_in, e_in, lambda);
+        temperature_from_density_sie(eos, rho_in, e_in, lambda);
     REQUIRE(soft_equal(temperature, temp_in, tol));
     REQUIRE(soft_equal(temp_in, new_temperature, tol));
     REQUIRE(soft_equal(temperature, new_temperature, tol));
