@@ -31,6 +31,7 @@
 namespace athelas::bel {
 
 void limit_density(StageData &stage_data);
+template <IonizationPhysics Ionization>
 void limit_internal_energy(StageData &stage_data);
 void limit_rad_energy(StageData &stage_data);
 void limit_rad_momentum(StageData &stage_data);
@@ -38,9 +39,9 @@ void apply_bound_enforcing_limiter(StageData &stage_data);
 void apply_bound_enforcing_limiter_rad(StageData &stage_data);
 auto compute_theta_state(AthelasArray3D<double> U, AthelasArray3D<double>,
                          double theta, int q, int ix, int iN) -> double;
-auto target_func(double theta, AthelasArray3D<double> U,
+auto target_func(double theta, double min_e, AthelasArray3D<double> U,
                  AthelasArray3D<double> phi, int ix, int iN) -> double;
-auto target_func_deriv(double theta, AthelasArray3D<double> U,
+auto target_func_deriv(double theta, double min_e, AthelasArray3D<double> U,
                        AthelasArray3D<double> phi, int ix, int iN) -> double;
 auto target_func_rad_flux(double theta, AthelasArray3D<double> U,
                           AthelasArray3D<double> phi, int ix, int iN) -> double;
@@ -96,17 +97,18 @@ auto bisection(AthelasArray3D<double> U, F target,
 }
 
 template <typename F>
-auto backtrace(AthelasArray3D<double> U, F target,
-               const basis::ModalBasis *basis, const int ix, const int iN)
-    -> double {
-  constexpr static double EPSILON = 1.0e-10; // maybe make this smarter
-  double theta = 1.0;
+auto backtrace(const double theta_guess, const double min_e,
+               AthelasArray3D<double> U, F target, AthelasArray3D<double> phi,
+               const int ix, const int iN) -> double {
+  constexpr static double ABS_TOL = 1.0e-10; // maybe make this smarter
+  constexpr static double REL_TOL = 1.0e-6; // maybe make this smarter
+  double theta = theta_guess;
   double nodal = -1.0;
 
-  while (theta >= 0.01 && nodal < EPSILON) {
-    nodal = target(theta, U, basis, ix, iN);
+  while (nodal < ABS_TOL + REL_TOL * min_e) {
+    nodal = target(theta, min_e, U, phi, ix, iN);
 
-    theta -= 0.05;
+    theta *= 0.9;
   }
 
   return theta;
