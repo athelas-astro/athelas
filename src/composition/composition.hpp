@@ -13,7 +13,7 @@
 namespace athelas::atom {
 
 void paczynski_terms(const StageData &stage_data, int ix, int node,
-                     double *const lambda);
+                     double *lambda);
 
 /**
  * @brief Number density of atomic species in particles/cm^3

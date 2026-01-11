@@ -43,7 +43,7 @@ struct EOSLambda {
   double data[EOS_LAMBDA_SIZE] = {};
 
   [[nodiscard]]
-  KOKKOS_INLINE_FUNCTION const double *ptr() const {
+  KOKKOS_INLINE_FUNCTION auto ptr() -> double * {
     return data;
   }
 };
