@@ -18,6 +18,7 @@
 
 ### Fixed (not changing behavior/API/variables/...)
 
+- [PR 130](https://github.com/athelas-astro/athelas/pull/130) Incorrect temperature inversion template params in radhydro pkg
 - [PR 129](https://github.com/athelas-astro/athelas/pull/129) Optimizations in `composition_fill_derived`
 
 ### Infrastructure (organization/...)

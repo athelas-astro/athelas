@@ -548,20 +548,19 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
   if (ionization_enabled) {
     auto *const ionization_state = stage_data.ionization_state();
     if (ionization_state->solver() == atom::SahaSolver::Linear) {
-      atom::compute_temperature_with_saha<Domain::Interior,
-                                          eos::EOSInversion::Pressure,
-                                          atom::SahaSolver::Linear>(stage_data,
-                                                                    grid);
+      atom::compute_temperature_with_saha<
+          Domain::Entire, eos::EOSInversion::Sie, atom::SahaSolver::Linear>(
+          stage_data, grid);
     }
     if (ionization_state->solver() == atom::SahaSolver::Log) {
       atom::compute_temperature_with_saha<
-          Domain::Interior, eos::EOSInversion::Pressure, atom::SahaSolver::Log>(
+          Domain::Entire, eos::EOSInversion::Sie, atom::SahaSolver::Log>(
           stage_data, grid);
     }
   } else {
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Fill derived :: temperature",
-        DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
+        DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
           double lambda[8];
           for (int q = 0; q < nNodes + 2; ++q) {
             const double rho = 1.0 / basis_eval(phi_fluid, uCF, i,
@@ -580,17 +579,17 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
   if (ionization_enabled) {
     const auto *const comps = stage_data.comps();
     const auto number_density = comps->number_density();
-    const auto ye = comps->ye();
+    auto ye = comps->ye();
 
-    const auto *const ionization_states = stage_data.ionization_state();
-    const auto ybar = ionization_states->ybar();
-    const auto e_ion_corr = ionization_states->e_ion_corr();
-    const auto sigma1 = ionization_states->sigma1();
-    const auto sigma2 = ionization_states->sigma2();
-    const auto sigma3 = ionization_states->sigma3();
+    const auto *const ionization_state = stage_data.ionization_state();
+    auto ybar = ionization_state->ybar();
+    auto e_ion_corr = ionization_state->e_ion_corr();
+    auto sigma1 = ionization_state->sigma1();
+    auto sigma2 = ionization_state->sigma2();
+    auto sigma3 = ionization_state->sigma3();
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: fill derived", DevExecSpace(),
-        ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
+        ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
           for (int q = 0; q < nNodes + 2; ++q) {
             const double tau =
                 basis_eval(phi_fluid, uCF, i, vars::cons::SpecificVolume, q);
@@ -635,7 +634,7 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
   } else {
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: fill derived", DevExecSpace(),
-        ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
+        ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
           for (int q = 0; q < nNodes + 2; ++q) {
             const double tau =
                 basis_eval(phi_fluid, uCF, i, vars::cons::SpecificVolume, q);
