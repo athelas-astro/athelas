@@ -21,6 +21,16 @@
 
 namespace athelas::radiation {
 
+struct RadHydroSolverIonizationContent {
+  AthelasArray2D<double> number_density;
+  AthelasArray2D<double> ye;
+  AthelasArray2D<double> ybar;
+  AthelasArray2D<double> sigma1;
+  AthelasArray2D<double> sigma2;
+  AthelasArray2D<double> sigma3;
+  AthelasArray2D<double> e_ion_corr;
+};
+
 using bc::BoundaryConditions;
 
 class RadHydroPackage {
@@ -42,16 +52,6 @@ class RadHydroPackage {
                    const TimeStepInfo &dt_info) const;
 
   void zero_delta() const noexcept;
-
-  [[nodiscard]] auto
-  radhydro_source(const StageData &StageData, const AthelasArray2D<double> uCRH,
-                  const AthelasArray1D<double> dx,
-                  const AthelasArray1D<double> weights,
-                  const AthelasArray3D<double> phi_fluid,
-                  const AthelasArray3D<double> phi_rad,
-                  const AthelasArray2D<double> inv_mkk_fluid,
-                  const AthelasArray2D<double> inv_mkk_rad, int i, int k) const
-      -> std::tuple<double, double, double, double>;
 
   void radhydro_divergence(const StageData &stage_data,
                            const GridStructure &grid, int stage) const;
@@ -104,36 +104,38 @@ class RadHydroPackage {
 
 // This is duplicate of above but used differently, in the root finder
 // The code needs some refactoring in order to get rid of this version.
-KOKKOS_INLINE_FUNCTION
-auto compute_increment_radhydro_source(const AthelasArray2D<double> uCRH,
-                                       const int k, const StageData &stage_data,
-                                       const AthelasArray1D<double> dx,
-                                       const AthelasArray1D<double> weights,
-                                       const int i)
+KOKKOS_FUNCTION
+template <IonizationPhysics Ionization>
+auto compute_increment_radhydro_source(
+    AthelasArray2D<double> uCRH, const int k, AthelasArray3D<double> uaf,
+    AthelasArray3D<double> phi_fluid, AthelasArray3D<double> phi_rad,
+    AthelasArray2D<double> inv_mkk_fluid, AthelasArray2D<double> inv_mkk_rad,
+    const eos::EOS &eos, const Opacity &opac, AthelasArray1D<double> dx,
+    AthelasArray1D<double> weights,
+    const RadHydroSolverIonizationContent &content, const int i)
     -> std::tuple<double, double, double, double> {
   using basis::basis_eval;
   constexpr static double c = constants::c_cgs;
   constexpr static double c2 = c * c;
-  static const bool ionization_enabled = stage_data.ionization_enabled();
 
   static const int nNodes = static_cast<int>(weights.size());
-  const double &dr_i = dx(i);
+  const double dr_i = dx(i);
 
-  const auto &eos = stage_data.eos();
-  const auto &opac = stage_data.opac();
-
-  const auto &rad_basis = stage_data.rad_basis();
-  const auto &fluid_basis = stage_data.fluid_basis();
-  auto phi_rad = rad_basis.phi();
-  auto phi_fluid = fluid_basis.phi();
-  auto inv_mkk_rad = rad_basis.inv_mass_matrix();
-  auto inv_mkk_fluid = fluid_basis.inv_mass_matrix();
+  // Set up views
+  // These are only allocated when Ionization == Active
+  auto number_density = content.number_density;
+  auto ye = content.ye;
+  auto ybar = content.ybar;
+  auto sigma1 = content.sigma1;
+  auto sigma2 = content.sigma2;
+  auto sigma3 = content.sigma3;
+  auto e_ion_corr = content.e_ion_corr;
 
   double local_sum_e_r = 0.0; // radiation energy source
   double local_sum_m_r = 0.0; // radiation momentum (flux) source
   double local_sum_e_g = 0.0; // gas energy source
   double local_sum_m_g = 0.0; // gas momentum (velocity) source
-  double lambda[8];
+  eos::EOSLambda lambda;
   for (int q = 0; q < nNodes; ++q) {
     const int qp1 = q + 1;
     const double &wq = weights(q);
@@ -149,11 +151,18 @@ auto compute_increment_radhydro_source(const AthelasArray2D<double> uCRH,
         basis_eval(phi_fluid, uCRH, i, vars::cons::Velocity, qp1);
     const double em_t = basis_eval(phi_fluid, uCRH, i, vars::cons::Energy, qp1);
 
-    if (ionization_enabled) {
-      atom::paczynski_terms(stage_data, i, qp1, lambda);
+    if constexpr (Ionization == IonizationPhysics::Active) {
+      lambda.data[0] = number_density(i, q);
+      lambda.data[1] = ye(i, q);
+      lambda.data[2] = ybar(i, q);
+      lambda.data[3] = sigma1(i, q);
+      lambda.data[4] = sigma2(i, q);
+      lambda.data[5] = sigma3(i, q);
+      lambda.data[6] = e_ion_corr(i, q);
+      lambda.data[7] = uaf(i, q, vars::aux::Tgas);
     }
     const double t_g = eos::temperature_from_density_sie(
-        eos, rho, em_t - 0.5 * vel * vel, lambda);
+        eos, rho, em_t - 0.5 * vel * vel, lambda.ptr());
 
     // TODO(astrobarker): composition
     // Should I move these into a lambda?
@@ -161,8 +170,9 @@ auto compute_increment_radhydro_source(const AthelasArray2D<double> uCRH,
     const double Y = 1.0;
     const double Z = 1.0;
 
-    const double kappa_r = rosseland_mean(opac, rho, t_g, X, Y, Z, lambda);
-    const double kappa_p = planck_mean(opac, rho, t_g, X, Y, Z, lambda);
+    const double kappa_r =
+        rosseland_mean(opac, rho, t_g, X, Y, Z, lambda.ptr());
+    const double kappa_p = planck_mean(opac, rho, t_g, X, Y, Z, lambda.ptr());
 
     const double E_r = basis_eval(phi_rad, uCRH, i, vars::cons::RadEnergy, qp1);
     const double F_r = basis_eval(phi_rad, uCRH, i, vars::cons::RadFlux, qp1);
@@ -195,7 +205,7 @@ auto compute_increment_radhydro_source(const AthelasArray2D<double> uCRH,
  * This should not live here forever.
  * TODO(astrobarker): port to the new root finders infra
  */
-template <typename T, typename... Args>
+template <IonizationPhysics Ionization, typename T, typename... Args>
 KOKKOS_INLINE_FUNCTION void fixed_point_radhydro(T R, double dt_a_ii,
                                                  T scratch_n, T scratch_nm1,
                                                  T scratch, Args... args) {
@@ -206,7 +216,7 @@ KOKKOS_INLINE_FUNCTION void fixed_point_radhydro(T R, double dt_a_ii,
 
   auto target = [&](T u, const int k) {
     const auto [s_1_k, s_2_k, s_3_k, s_4_k] =
-        compute_increment_radhydro_source(u, k, args...);
+        compute_increment_radhydro_source<Ionization>(u, k, args...);
     return std::make_tuple(R(k, 1) + dt_a_ii * s_1_k, R(k, 2) + dt_a_ii * s_2_k,
                            R(k, 3) + dt_a_ii * s_3_k,
                            R(k, 4) + dt_a_ii * s_4_k);

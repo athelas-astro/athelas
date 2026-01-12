@@ -13,11 +13,13 @@
 
 ### Changed (changing behavior/API/variables/...)
 
+- [PR 126](https://github.com/athelas-astro/athelas/pull/126) Remove inner `ionization_enabled` branching in radhydro implicit sources
+- [PR 125](https://github.com/athelas-astro/athelas/pull/125) Remove inner `ionization_enabled` branching in fill_derived kernels
+
 ### Fixed (not changing behavior/API/variables/...)
 
 ### Infrastructure (organization/...)
 
-- [PR 125](https://github.com/athelas-astro/athelas/pull/124) Remove inner `ionization_enabled` branching in fill_derived kernels
 - [PR 124](https://github.com/athelas-astro/athelas/pull/124) Introduce `EOSLambda` lambda wrapper
 
 ### Removed (removing behavior/API/variables/...)
