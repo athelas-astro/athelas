@@ -138,9 +138,9 @@ auto compute_increment_radhydro_source(
   eos::EOSLambda lambda;
   for (int q = 0; q < nNodes; ++q) {
     const int qp1 = q + 1;
-    const double &wq = weights(q);
-    const double &phi_rad_kq = phi_rad(i, qp1, k);
-    const double &phi_fluid_kq = phi_fluid(i, qp1, k);
+    const double wq = weights(q);
+    const double phi_rad_kq = phi_rad(i, qp1, k);
+    const double phi_fluid_kq = phi_fluid(i, qp1, k);
 
     // Note: basis evaluations are awkward here.
     // must be sure to use the correct basis functions.
