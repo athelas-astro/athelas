@@ -47,36 +47,30 @@ void fill_derived_comps(StageData &stage_data,
   auto mass_fractions = stage_data.mass_fractions("u_cf");
   auto mass_fractions_nodal = stage_data.get_field("x_q");
   auto species = comps->charge();
-  auto neutron_number = comps->neutron_number();
   auto inv_atomic_mass = comps->inverse_atomic_mass();
   auto ye = comps->ye();
   auto abar = comps->abar();
   auto number_density = comps->number_density();
-  static const size_t num_species = comps->n_species();
+  static const int num_species = static_cast<int>(comps->n_species());
 
   static constexpr double inv_m_p = 1.0 / constants::m_p;
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Composition :: fill derived", DevExecSpace(), ib.s,
       ib.e, nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int q) {
-        double n = 0.0;
         double ye_q = 0.0;
         double sum_y = 0.0;
-        for (size_t e = 0; e < num_species; ++e) {
-          const double &Z = species(e);
-          const double &inv_A = inv_atomic_mass(e);
-          const double tau =
-              basis::basis_eval(phi, ucf, i, vars::cons::SpecificVolume, q);
-          const double rho = 1.0 / tau;
+        for (int e = 0; e < num_species; ++e) {
+          const double Z = species(e);
+          const double inv_A = inv_atomic_mass(e);
           const double xk = basis::basis_eval(phi, mass_fractions, i, e, q);
           const double xk_invA = xk * inv_A;
-          n += xk_invA;
           ye_q += Z * xk_invA;
-          sum_y += element_number_density(xk, inv_A, rho) * tau;
+          sum_y += xk_invA;
           mass_fractions_nodal(i, q, e) = xk;
         }
-        number_density(i, q) = n * inv_m_p;
+        number_density(i, q) = sum_y * inv_m_p;
         ye(i, q) = ye_q;
-        abar(i, q) = 1.0 / (sum_y * constants::amu_to_g);
+        abar(i, q) = 1.0 / (sum_y);
       });
 }
 
