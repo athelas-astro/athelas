@@ -88,8 +88,14 @@ void RadHydroPackage::update_implicit(const StageData &stage_data,
   static const IndexRange kb(order);
   static const IndexRange vb(NUM_VARS_);
 
+  static const bool ionization_enabled = stage_data.ionization_enabled();
+
   const auto stage = dt_info.stage;
   auto ucf = stage_data.get_field("u_cf");
+  auto uaf = stage_data.get_field("u_af");
+
+  const auto &eos = stage_data.eos();
+  const auto &opac = stage_data.opac();
 
   auto phi_rad = rad_basis.phi();
   auto phi_fluid = fluid_basis.phi();
@@ -97,18 +103,57 @@ void RadHydroPackage::update_implicit(const StageData &stage_data,
   auto inv_mkk_rad = rad_basis.inv_mass_matrix();
   auto dr = grid.widths();
   auto weights = grid.weights();
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "RadHydro :: Implicit", DevExecSpace(), ib.s, ib.e,
-      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-        const auto ucf_i = Kokkos::subview(ucf, i, Kokkos::ALL, Kokkos::ALL);
-        const auto [du1, du2, du3, du4] =
-            radhydro_source(stage_data, ucf_i, dr, weights, phi_fluid, phi_rad,
-                            inv_mkk_fluid, inv_mkk_rad, i, k);
-        delta_im_(stage, i, k, vars::cons::Velocity) = du1;
-        delta_im_(stage, i, k, vars::cons::Energy) = du2;
-        delta_im_(stage, i, k, vars::cons::RadEnergy) = du3;
-        delta_im_(stage, i, k, vars::cons::RadFlux) = du4;
-      });
+
+  if (ionization_enabled) {
+    const auto *const ionization_state = stage_data.ionization_state();
+    const auto *const comps = stage_data.comps();
+    auto number_density = comps->number_density();
+    auto ye = comps->ye();
+    auto ybar = ionization_state->ybar();
+    auto sigma1 = ionization_state->sigma1();
+    auto sigma2 = ionization_state->sigma2();
+    auto sigma3 = ionization_state->sigma3();
+    auto e_ion_corr = ionization_state->e_ion_corr();
+    RadHydroSolverIonizationContent content{
+        number_density, ye, ybar, sigma1, sigma2, sigma3, e_ion_corr};
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN, "RadHydro :: Implicit", DevExecSpace(), ib.s,
+        ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+          const auto ucf_i = Kokkos::subview(ucf, i, Kokkos::ALL, Kokkos::ALL);
+          const auto [du1, du2, du3, du4] =
+              compute_increment_radhydro_source<IonizationPhysics::Active>(
+                  ucf_i, k, uaf, phi_fluid, phi_rad, inv_mkk_fluid, inv_mkk_rad,
+                  eos, opac, dr, weights, content, i);
+          delta_im_(stage, i, k, vars::cons::Velocity) = du1;
+          delta_im_(stage, i, k, vars::cons::Energy) = du2;
+          delta_im_(stage, i, k, vars::cons::RadEnergy) = du3;
+          delta_im_(stage, i, k, vars::cons::RadFlux) = du4;
+        });
+  } else {
+    AthelasArray2D<double> number_density;
+    AthelasArray2D<double> ye;
+    AthelasArray2D<double> ybar;
+    AthelasArray2D<double> sigma1;
+    AthelasArray2D<double> sigma2;
+    AthelasArray2D<double> sigma3;
+    AthelasArray2D<double> e_ion_corr;
+    RadHydroSolverIonizationContent content{
+        number_density, ye, ybar, sigma1, sigma2, sigma3, e_ion_corr};
+    const RadHydroSolverIonizationContent test;
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN, "RadHydro :: Implicit", DevExecSpace(), ib.s,
+        ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+          const auto ucf_i = Kokkos::subview(ucf, i, Kokkos::ALL, Kokkos::ALL);
+          const auto [du1, du2, du3, du4] =
+              compute_increment_radhydro_source<IonizationPhysics::Inactive>(
+                  ucf_i, k, uaf, phi_fluid, phi_rad, inv_mkk_fluid, inv_mkk_rad,
+                  eos, opac, dr, weights, content, i);
+          delta_im_(stage, i, k, vars::cons::Velocity) = du1;
+          delta_im_(stage, i, k, vars::cons::Energy) = du2;
+          delta_im_(stage, i, k, vars::cons::RadEnergy) = du3;
+          delta_im_(stage, i, k, vars::cons::RadFlux) = du4;
+        });
+  }
 } // update_implicit
 
 void RadHydroPackage::update_implicit_iterative(const StageData &stage_data,
@@ -121,7 +166,13 @@ void RadHydroPackage::update_implicit_iterative(const StageData &stage_data,
   const auto &order = fluid_basis.order();
   static const IndexRange ib(grid.domain<Domain::Interior>());
 
+  static const bool ionization_enabled = stage_data.ionization_enabled();
+
   auto ucf = stage_data.get_field("u_cf");
+  auto uaf = stage_data.get_field("u_af");
+
+  const auto &eos = stage_data.eos();
+  const auto &opac = stage_data.opac();
 
   auto phi_rad = rad_basis.phi();
   auto phi_fluid = fluid_basis.phi();
@@ -130,38 +181,87 @@ void RadHydroPackage::update_implicit_iterative(const StageData &stage_data,
   auto dr = grid.widths();
   auto weights = grid.weights();
 
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Implicit iterative",
-      DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-        const auto ucf_i = Kokkos::subview(ucf, i, Kokkos::ALL, Kokkos::ALL);
-        auto scratch_sol_i =
-            Kokkos::subview(scratch_sol_, i, Kokkos::ALL, Kokkos::ALL);
-        auto scratch_sol_i_k =
-            Kokkos::subview(scratch_k_, i, Kokkos::ALL, Kokkos::ALL);
-        auto scratch_sol_i_km1 =
-            Kokkos::subview(scratch_km1_, i, Kokkos::ALL, Kokkos::ALL);
-        const auto R_i = Kokkos::subview(R, i, Kokkos::ALL, Kokkos::ALL);
+  if (ionization_enabled) {
+    const auto *const ionization_state = stage_data.ionization_state();
+    const auto *const comps = stage_data.comps();
+    auto number_density = comps->number_density();
+    auto ye = comps->ye();
+    auto ybar = ionization_state->ybar();
+    auto sigma1 = ionization_state->sigma1();
+    auto sigma2 = ionization_state->sigma2();
+    auto sigma3 = ionization_state->sigma3();
+    auto e_ion_corr = ionization_state->e_ion_corr();
+    RadHydroSolverIonizationContent content{
+        number_density, ye, ybar, sigma1, sigma2, sigma3, e_ion_corr};
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Implicit iterative",
+        DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
+          const auto ucf_i = Kokkos::subview(ucf, i, Kokkos::ALL, Kokkos::ALL);
+          auto scratch_sol_i =
+              Kokkos::subview(scratch_sol_, i, Kokkos::ALL, Kokkos::ALL);
+          auto scratch_sol_i_k =
+              Kokkos::subview(scratch_k_, i, Kokkos::ALL, Kokkos::ALL);
+          auto scratch_sol_i_km1 =
+              Kokkos::subview(scratch_km1_, i, Kokkos::ALL, Kokkos::ALL);
+          const auto R_i = Kokkos::subview(R, i, Kokkos::ALL, Kokkos::ALL);
 
-        for (int k = 0; k < order; ++k) {
-          // set radhydro vars
-          for (int v = 0; v < NUM_VARS_; ++v) {
-            const double &u = ucf_i(k, v);
-            scratch_sol_i_k(k, v) = u;
-            scratch_sol_i_km1(k, v) = u;
-            scratch_sol_i(k, v) = u;
+          for (int k = 0; k < order; ++k) {
+            // set radhydro vars
+            for (int v = 0; v < NUM_VARS_; ++v) {
+              const double &u = ucf_i(k, v);
+              scratch_sol_i_k(k, v) = u;
+              scratch_sol_i_km1(k, v) = u;
+              scratch_sol_i(k, v) = u;
+            }
           }
-        }
 
-        fixed_point_radhydro(R_i, dt_info.dt_coef, scratch_sol_i_k,
-                             scratch_sol_i_km1, scratch_sol_i, stage_data, dr,
-                             weights, i);
+          fixed_point_radhydro<IonizationPhysics::Active>(
+              R_i, dt_info.dt_coef, scratch_sol_i_k, scratch_sol_i_km1,
+              scratch_sol_i, uaf, phi_fluid, phi_rad, inv_mkk_fluid,
+              inv_mkk_rad, eos, opac, dr, weights, content, i);
 
-        for (int k = 0; k < order; ++k) {
-          for (int v = 1; v < NUM_VARS_; ++v) {
-            ucf(i, k, v) = scratch_sol_i(k, v);
+          for (int k = 0; k < order; ++k) {
+            for (int v = 1; v < NUM_VARS_; ++v) {
+              ucf(i, k, v) = scratch_sol_i(k, v);
+            }
           }
-        }
-      });
+        });
+  } else {
+    const RadHydroSolverIonizationContent content;
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Implicit iterative",
+        DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
+          const auto ucf_i = Kokkos::subview(ucf, i, Kokkos::ALL, Kokkos::ALL);
+          auto scratch_sol_i =
+              Kokkos::subview(scratch_sol_, i, Kokkos::ALL, Kokkos::ALL);
+          auto scratch_sol_i_k =
+              Kokkos::subview(scratch_k_, i, Kokkos::ALL, Kokkos::ALL);
+          auto scratch_sol_i_km1 =
+              Kokkos::subview(scratch_km1_, i, Kokkos::ALL, Kokkos::ALL);
+          const auto R_i = Kokkos::subview(R, i, Kokkos::ALL, Kokkos::ALL);
+
+          for (int k = 0; k < order; ++k) {
+            // set radhydro vars
+            for (int v = 0; v < NUM_VARS_; ++v) {
+              const double &u = ucf_i(k, v);
+              scratch_sol_i_k(k, v) = u;
+              scratch_sol_i_km1(k, v) = u;
+              scratch_sol_i(k, v) = u;
+            }
+          }
+
+          fixed_point_radhydro<IonizationPhysics::Inactive>(
+              R_i, dt_info.dt_coef, scratch_sol_i_k, scratch_sol_i_km1,
+              scratch_sol_i, uaf, phi_fluid, phi_rad, inv_mkk_fluid,
+              inv_mkk_rad, eos, opac, dr, weights, content, i);
+
+          for (int k = 0; k < order; ++k) {
+            for (int v = 1; v < NUM_VARS_; ++v) {
+              ucf(i, k, v) = scratch_sol_i(k, v);
+            }
+          }
+        });
+  }
 
 } // update_implicit_iterative
 
@@ -370,21 +470,6 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
         });
   }
 } // radhydro_divergence
-
-/**
- * @brief Compute source terms for radiation hydrodynamics system
- * @note Returns tuple<S_egas, S_vgas, S_erad, S_frad>
- **/
-auto RadHydroPackage::radhydro_source(
-    const StageData &stage_data, const AthelasArray2D<double> uCRH,
-    const AthelasArray1D<double> dx, const AthelasArray1D<double> weights,
-    const AthelasArray3D<double> phi_fluid,
-    const AthelasArray3D<double> phi_rad,
-    const AthelasArray2D<double> inv_mkk_fluid,
-    const AthelasArray2D<double> inv_mkk_rad, const int i, const int k) const
-    -> std::tuple<double, double, double, double> {
-  return compute_increment_radhydro_source(uCRH, k, stage_data, dx, weights, i);
-}
 
 /**
  * @brief explicit radiation hydrodynamic timestep restriction
