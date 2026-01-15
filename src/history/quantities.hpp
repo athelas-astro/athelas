@@ -67,7 +67,6 @@ inline auto total_fluid_energy(const MeshState &mesh_state,
   auto phi = mesh_state.fluid_basis().phi();
 
   auto u = mesh_state(0).get_field("u_cf");
-  auto uaf = mesh_state(0).get_field("u_af");
 
   double output = 0.0;
   athelas::par_reduce(
@@ -80,10 +79,6 @@ inline auto total_fluid_energy(const MeshState &mesh_state,
           //     basis_eval(phi, u, i, vars::cons::Energy, q + 1) /
           //     basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
           //     sqrt_gm(i, q + 1) * weights(q);
-          const double t = uaf(i, q + 1, vars::aux::Tgas);
-          const double erad =
-              basis::basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
-              constants::a * std::pow(t, 4.0);
           local_sum +=
               (basis_eval(phi, u, i, vars::cons::Energy, q + 1)) * weights(q);
         }
