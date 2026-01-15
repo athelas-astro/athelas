@@ -13,6 +13,7 @@
 
 ### Changed (changing behavior/API/variables/...)
 
+- [PR 131](https://github.com/athelas-astro/athelas/pull/131) Added interfaces into nodal grid.
 - [PR 126](https://github.com/athelas-astro/athelas/pull/126) Remove inner `ionization_enabled` branching in radhydro implicit sources
 - [PR 125](https://github.com/athelas-astro/athelas/pull/125) Remove inner `ionization_enabled` branching in fill_derived kernels
 
@@ -28,3 +29,4 @@
 ### Removed (removing behavior/API/variables/...)
 
 ### Incompatibilities (i.e. breaking changes)
+- [PR 131](https://github.com/athelas-astro/athelas/pull/131) Added interfaces into nodal grid: changed hdf5 io.
