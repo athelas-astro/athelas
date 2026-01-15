@@ -13,11 +13,13 @@
 
 ### Changed (changing behavior/API/variables/...)
 
+- [PR 131](https://github.com/athelas-astro/athelas/pull/131) Added interfaces into nodal grid.
 - [PR 126](https://github.com/athelas-astro/athelas/pull/126) Remove inner `ionization_enabled` branching in radhydro implicit sources
 - [PR 125](https://github.com/athelas-astro/athelas/pull/125) Remove inner `ionization_enabled` branching in fill_derived kernels
 
 ### Fixed (not changing behavior/API/variables/...)
 
+- [PR 131](https://github.com/athelas-astro/athelas/pull/131) Fixed inocorrect setting of sqrt_gm(nNodes + 1)
 - [PR 130](https://github.com/athelas-astro/athelas/pull/130) Incorrect temperature inversion template params in radhydro pkg
 - [PR 129](https://github.com/athelas-astro/athelas/pull/129) Optimizations in `composition_fill_derived`
 
@@ -28,3 +30,4 @@
 ### Removed (removing behavior/API/variables/...)
 
 ### Incompatibilities (i.e. breaking changes)
+- [PR 131](https://github.com/athelas-astro/athelas/pull/131) Added interfaces into nodal grid: changed hdf5 io.

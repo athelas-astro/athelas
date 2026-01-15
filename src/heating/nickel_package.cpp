@@ -232,7 +232,7 @@ void NickelHeatingPackage::fill_derived(StageData &stage_data,
       scratch_size, scratch_level, ib.s, ib.e, nb.s, nb.e,
       KOKKOS_CLASS_LAMBDA(athelas::team_mbr_t member, const int i,
                           const int q) {
-        const double ri = coords(i, q);
+        const double ri = coords(i, q + 1);
         const double ri2 = ri * ri;
 
         // TODO(astrobarker) Use team shared memory for tau values

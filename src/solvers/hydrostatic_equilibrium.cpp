@@ -58,9 +58,7 @@ void HydrostaticEquilibrium::solve(MeshState &mesh_state, GridStructure *grid,
       DEFAULT_FLAT_LOOP_PATTERN, "Solvers :: Hydrostatic :: copy grid",
       DevExecSpace(), 1, ihi, KOKKOS_LAMBDA(const int i) {
         for (int q = 0; q < nNodes + 2; ++q) {
-          const double rq =
-              (q == 0) ? x_l(i)
-                       : ((q == nNodes + 1) ? x_l(i + 1) : r(i, q - 1));
+          const double rq = r(i, q);
           d_r(i * (nNodes + 2) + q) = rq;
         }
       });
@@ -119,9 +117,7 @@ void HydrostaticEquilibrium::solve(MeshState &mesh_state, GridStructure *grid,
   auto x_l_h = Kokkos::create_mirror_view(x_l_new);
   for (int i = 1; i <= ihi; ++i) {
     for (int q = 0; q < nNodes + 2; ++q) {
-      const double rq =
-          (q == 0) ? x_l_h(i)
-                   : ((q == nNodes + 1) ? x_l_h(i + 1) : node_r_h(i, q - 1));
+      const double rq = r(i, q);
       h_r(i * (nNodes + 2) + q) = rq;
     }
   }

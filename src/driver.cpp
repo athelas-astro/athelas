@@ -146,6 +146,9 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   const int max_order =
       std::max(pin_->param()->get<int>("fluid.porder"),
                pin_->param()->get<int>("radiation.porder", 1));
+  const int max_nodes =
+      std::max(pin_->param()->get<int>("fluid.nnodes"),
+               pin_->param()->get<int>("radiation.nnodes", 1));
   const auto cfl =
       compute_cfl(pin_->param()->get<double>("problem.cfl"), max_order);
   const bool rad_active = pin->param()->get<bool>("physics.rad_active");
@@ -177,16 +180,16 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   int nvars_aux = 3;
   mesh_state_.register_field("u_af", DataPolicy::OneCopy, "Auxiliary variables",
                              {"pressure", "gas temperature", "sound speed"},
-                             nx + 2, max_order + 2, nvars_aux);
+                             nx + 2, max_nodes + 2, nvars_aux);
   int nvars_prim = 3;
   mesh_state_.register_field("u_pf", DataPolicy::OneCopy, "Primitive variables",
                              {"density", "momentum", "sie"}, nx + 2,
-                             max_order + 2, nvars_prim);
+                             max_nodes + 2, nvars_prim);
 
   if (comps_active) {
     const auto ncomps = pin->param()->get<int>("composition.ncomps");
     mesh_state_.register_field("x_q", DataPolicy::OneCopy,
-                               "Nodal mass fractions", nx + 2, max_order + 2,
+                               "Nodal mass fractions", nx + 2, max_nodes + 2,
                                ncomps);
   }
 

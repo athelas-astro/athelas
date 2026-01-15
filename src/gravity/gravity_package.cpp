@@ -69,7 +69,7 @@ void GravityPackage::gravity_update(AthelasArray3D<double> state,
         double local_sum_v = 0.0;
         double local_sum_e = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double &X = r(i, q);
+          const double &X = r(i, q + 1);
           const double &weight = weights(q);
           const double &phi_kq = phi(i, q + 1, k);
           const double X2 = X * X;
@@ -89,10 +89,10 @@ void GravityPackage::gravity_update(AthelasArray3D<double> state,
         }
 
         const double dm_o_mkk = mass(i) * inv_mkk(i, k);
-        delta_(stage, i, k, pkg_vars::Velocity) -=
-            constants::G_GRAV * local_sum_v * dm_o_mkk;
-        delta_(stage, i, k, pkg_vars::Energy) -=
-            constants::G_GRAV * local_sum_e * dm_o_mkk;
+        delta_(stage, i, k, pkg_vars::Velocity) =
+            -constants::G_GRAV * local_sum_v * dm_o_mkk;
+        delta_(stage, i, k, pkg_vars::Energy) =
+            -constants::G_GRAV * local_sum_e * dm_o_mkk;
       });
 }
 
