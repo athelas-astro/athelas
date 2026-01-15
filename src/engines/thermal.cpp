@@ -91,7 +91,7 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
           const double e_fluid =
               basis::basis_eval(phi, ucf, i, vars::cons::Energy, q + 1);
           const double e_grav =
-              grav_active * constants::G_GRAV * menc(i, q) / r(i, q);
+              grav_active * constants::G_GRAV * menc(i, q) / r(i, q + 1);
           lenergy += (e_fluid - e_grav) * weights(q) * mcell(i) * FOURPI;
         },
         Kokkos::Sum<double>(total_energy));
@@ -113,14 +113,21 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
 
   // integral for b_coeff_
   double b_int = 0.0;
+  auto weights = grid->weights();
   athelas::par_reduce(
       DEFAULT_FLAT_LOOP_PATTERN, "ThermalEngine :: b integral", DevExecSpace(),
       1, mend_idx_,
       KOKKOS_CLASS_LAMBDA(const int i, double &lb) {
-        for (int q = 0; q < nnodes; ++q) {
-          lb +=
-              std::exp(-a_coeff_ * menc(i, q)) * (menc(i + 1, 0) - menc(i, 0));
-        }
+        /*
+          for (int q = 0; q < nnodes; ++q) {
+          double dm = FOURPI * mcell(i);
+            lb +=
+                std::exp(-a_coeff_ * menc(i, q)) * dm;
+                //std::exp(-a_coeff_ * menc(i, q)) * (menc(i + 1, q) - menc(i,
+          q));
+          }
+          */
+        lb += std::exp(-a_coeff_ * menc(i, 0)) * (menc(i + 1, 0) - menc(i, 0));
       },
       Kokkos::Sum<double>(b_int));
   b_int_ = b_int;
@@ -153,8 +160,8 @@ void ThermalEnginePackage::update_explicit(const StageData &stage_data,
         const double b_coeff = d_coeff_ * std::exp(-c_coeff_ * time) / b_int_;
         for (int q = qb.s; q <= qb.e; ++q) {
           delta_(stage, i, k, pkg_vars::Energy) +=
-              weights(q) * phi(i, q + 1, k) * b_coeff *
-              std::exp(-a_coeff_ * menc(i, q));
+              weights(q) * phi(i, q, k) * b_coeff *
+              std::exp(-a_coeff_ * menc(i, q + 1));
         }
         delta_(stage, i, k, pkg_vars::Energy) *= mass(i);
       });

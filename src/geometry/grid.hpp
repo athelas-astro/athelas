@@ -60,6 +60,15 @@ class GridStructure {
     }
   }
 
+  template <Domain D>
+  [[nodiscard]] auto nodal_domain() const noexcept -> std::pair<int, int> {
+    if constexpr (D == Domain::Interior) {
+      return {1, nNodes_};
+    } else if constexpr (D == Domain::Entire) {
+      return {0, nNodes_ + 1};
+    }
+  }
+
   // Give physical grid coordinate from a node.
   [[nodiscard]] KOKKOS_INLINE_FUNCTION auto node_coordinate(const int iC,
                                                             const int q) const

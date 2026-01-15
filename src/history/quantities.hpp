@@ -18,6 +18,40 @@
 
 namespace athelas::analysis {
 
+inline auto total_gravitational_energy(const MeshState &mesh_state,
+                                       const GridStructure &grid) -> double {
+  using basis::basis_eval;
+  const auto &nNodes = grid.n_nodes();
+  static const IndexRange ib(grid.domain<Domain::Interior>());
+  auto weights = grid.weights();
+  auto enclosed_mass = grid.enclosed_mass();
+  auto mass_cell = grid.mass();
+  auto r = grid.nodal_grid();
+  auto u = mesh_state(0).get_field("u_cf");
+
+  const bool do_geometry = grid.do_geometry();
+
+  double output = 0.0;
+  athelas::par_reduce(
+      DEFAULT_FLAT_LOOP_PATTERN, "History :: TotalGravitationalEnergy",
+      DevExecSpace(), ib.s, ib.e,
+      KOKKOS_LAMBDA(const int i, double &lsum) {
+        double local_sum = 0.0;
+        for (int q = 0; q < nNodes; ++q) {
+          const double &X = r(i, q + 1);
+          local_sum += (enclosed_mass(i, q) / X) * weights(q);
+        }
+        double mcell = mass_cell(i);
+        if (do_geometry) {
+          mcell *= constants::FOURPI;
+        }
+        lsum += local_sum * mcell;
+      },
+      Kokkos::Sum<double>(output));
+
+  return -constants::G_GRAV * output;
+}
+
 // Perhaps the below will be more optimal by calculating
 // with cell mass
 inline auto total_fluid_energy(const MeshState &mesh_state,
@@ -33,6 +67,7 @@ inline auto total_fluid_energy(const MeshState &mesh_state,
   auto phi = mesh_state.fluid_basis().phi();
 
   auto u = mesh_state(0).get_field("u_cf");
+  auto uaf = mesh_state(0).get_field("u_af");
 
   double output = 0.0;
   athelas::par_reduce(
@@ -45,8 +80,12 @@ inline auto total_fluid_energy(const MeshState &mesh_state,
           //     basis_eval(phi, u, i, vars::cons::Energy, q + 1) /
           //     basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
           //     sqrt_gm(i, q + 1) * weights(q);
+          const double t = uaf(i, q + 1, vars::aux::Tgas);
+          const double erad =
+              basis::basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
+              constants::a * std::pow(t, 4.0);
           local_sum +=
-              basis_eval(phi, u, i, vars::cons::Energy, q + 1) * weights(q);
+              (basis_eval(phi, u, i, vars::cons::Energy, q + 1)) * weights(q);
         }
         lsum += local_sum * mcell(i);
       },
@@ -55,7 +94,7 @@ inline auto total_fluid_energy(const MeshState &mesh_state,
   if (grid.do_geometry()) {
     output *= constants::FOURPI;
   }
-  return output;
+  return output; //+ total_gravitational_energy(mesh_state, grid);
 }
 
 inline auto total_fluid_momentum(const MeshState &mesh_state,
@@ -129,46 +168,13 @@ inline auto total_internal_energy(const MeshState &mesh_state,
   return output;
 }
 
-inline auto total_gravitational_energy(const MeshState &mesh_state,
-                                       const GridStructure &grid) -> double {
-  using basis::basis_eval;
-  const auto &nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  auto weights = grid.weights();
-  auto enclosed_mass = grid.enclosed_mass();
-  auto mass_cell = grid.mass();
-  auto r = grid.nodal_grid();
-  auto u = mesh_state(0).get_field("u_cf");
-
-  const bool do_geometry = grid.do_geometry();
-
-  double output = 0.0;
-  athelas::par_reduce(
-      DEFAULT_FLAT_LOOP_PATTERN, "History :: TotalGravitationalEnergy",
-      DevExecSpace(), ib.s, ib.e,
-      KOKKOS_LAMBDA(const int i, double &lsum) {
-        double local_sum = 0.0;
-        for (int q = 0; q < nNodes; ++q) {
-          const double &X = r(i, q);
-          local_sum += (enclosed_mass(i, q) / X) * weights(q);
-        }
-        double mcell = mass_cell(i);
-        if (do_geometry) {
-          mcell *= constants::FOURPI;
-        }
-        lsum += local_sum * mcell;
-      },
-      Kokkos::Sum<double>(output));
-
-  return -constants::G_GRAV * output;
-}
-
 inline auto total_kinetic_energy(const MeshState &mesh_state,
                                  const GridStructure &grid) -> double {
   using basis::basis_eval;
   const auto &nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
   auto dr = grid.widths();
+  auto mass = grid.mass();
   auto sqrt_gm = grid.sqrt_gm();
   auto weights = grid.weights();
 
@@ -183,12 +189,11 @@ inline auto total_kinetic_energy(const MeshState &mesh_state,
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
           const double vel = basis_eval(phi, u, i, vars::cons::Velocity, q + 1);
-          local_sum +=
-              (0.5 * vel * vel) /
-              basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
-              sqrt_gm(i, q + 1) * weights(q);
+          local_sum += weights(q) * (0.5 * vel * vel); // /
+          // basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
+          // sqrt_gm(i, q + 1) * weights(q);
         }
-        lsum += local_sum * dr(i);
+        lsum += local_sum * mass(i);
       },
       Kokkos::Sum<double>(output));
 

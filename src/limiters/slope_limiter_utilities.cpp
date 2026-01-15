@@ -219,7 +219,7 @@ auto smoothness_indicator(AthelasArray3D<double> U,
     // integrate mode on cell
     double local_sum = 0.0;
     for (int q = 0; q < k; q++) {
-      const auto X = r(ix, q);
+      const auto X = r(ix, q + 1);
       local_sum += weights(q) *
                    std::pow(modified_polynomial(s, i) *
                                 ModalBasis::d_legendre_n(k, s, X),

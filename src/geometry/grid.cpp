@@ -38,7 +38,7 @@ GridStructure::GridStructure(const ProblemIn *pin)
       mass_r_("Enclosed mass", mSize_, nNodes_),
       center_of_mass_("Center of mass_", mSize_),
       sqrt_gm_("Sqrt Gamma", mSize_, nNodes_ + 2),
-      grid_("Grid", mSize_, nNodes_) {
+      grid_("Grid", mSize_, nNodes_ + 2) {
   std::vector<double> tmp_nodes(nNodes_);
   std::vector<double> tmp_weights(nNodes_);
 
@@ -176,12 +176,14 @@ void GridStructure::create_uniform_grid() {
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Create uniform grid", DevExecSpace(),
       ilo, ihi, KOKKOS_CLASS_LAMBDA(const int i) {
+        grid_(i, 0) = x_l_(i);
         sqrt_gm_(i, 0) = get_sqrt_gm(x_l_(i));
         for (int q = 1; q < nNodes_ + 1; q++) {
-          grid_(i, q - 1) = node_coordinate(i, q - 1);
-          sqrt_gm_(i, q) = get_sqrt_gm(grid_(i, q - 1));
+          grid_(i, q) = node_coordinate(i, q - 1);
+          sqrt_gm_(i, q) = get_sqrt_gm(grid_(i, q));
         }
-        sqrt_gm_(i, nNodes_ + 1) = get_sqrt_gm(x_l_(i));
+        grid_(i, nNodes_ + 1) = x_l_(i + 1);
+        sqrt_gm_(i, nNodes_ + 1) = get_sqrt_gm(x_l_(i + 1));
       });
 }
 
@@ -237,12 +239,14 @@ void GridStructure::create_log_grid() {
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Create log grid", DevExecSpace(), ilo,
       ihi, KOKKOS_CLASS_LAMBDA(const int i) {
+        grid_(i, 0) = x_l_(i);
         sqrt_gm_(i, 0) = get_sqrt_gm(x_l_(i));
         for (int q = 1; q < nNodes_ + 1; q++) {
-          grid_(i, q - 1) = node_coordinate(i, q - 1);
-          sqrt_gm_(i, q) = get_sqrt_gm(grid_(i, q - 1));
+          grid_(i, q) = node_coordinate(i, q - 1);
+          sqrt_gm_(i, q) = get_sqrt_gm(grid_(i, q));
         }
-        sqrt_gm_(i, nNodes_ + 1) = get_sqrt_gm(x_l_(i));
+        grid_(i, nNodes_ + 1) = x_l_(i + 1);
+        sqrt_gm_(i, nNodes_ + 1) = get_sqrt_gm(x_l_(i + 1));
       });
 }
 
@@ -394,9 +398,11 @@ void GridStructure::update_grid(const AthelasArray1D<double> SData) {
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Update (2)", DevExecSpace(), ilo,
       ihi + 1, KOKKOS_CLASS_LAMBDA(const int i) {
-        for (int q = 0; q < nNodes_; q++) {
+        grid_(i, 0) = x_l_(i);
+        for (int q = 1; q <= nNodes_; q++) {
           grid_(i, q) = node_coordinate(i, q);
         }
+        grid_(i, nNodes_ + 1) = x_l_(i + 1);
       });
 
   if (do_geometry()) {
@@ -405,7 +411,7 @@ void GridStructure::update_grid(const AthelasArray1D<double> SData) {
         ilo, ihi + 1, KOKKOS_CLASS_LAMBDA(const int i) {
           sqrt_gm_(i, 0) = get_sqrt_gm(x_l_(i));
           for (int q = 1; q < nNodes_ + 1; q++) {
-            sqrt_gm_(i, q) = grid_(i, q - 1) * grid_(i, q - 1);
+            sqrt_gm_(i, q) = grid_(i, q) * grid_(i, q);
           }
           sqrt_gm_(i, nNodes_ + 1) = get_sqrt_gm(x_l_(i + 1));
         });

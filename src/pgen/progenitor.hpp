@@ -244,12 +244,8 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
         DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova (1)", DevExecSpace(),
         ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
           for (int q = 0; q < nNodes + 2; q++) {
-            // TODO(astrobarker): I really need to just expand the nodal grid to
-            // include the interfaces Could be annoying in the output though.
 
-            const double r_athelas =
-                (q == 0) ? x_l(i)
-                         : ((q == nNodes + 1) ? x_l(i + 1) : r(i, q - 1));
+            const double r_athelas = r(i, q);
             const int index_left =
                 std::min(utilities::find_closest_cell(radius_view, r_athelas,
                                                       n_zones_prog),
@@ -430,7 +426,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
       for (int e = 0; e < ncomps; ++e) {
         // loop over nodes on an element, interpolate to nodal positions
         for (int q = 0; q < nNodes; ++q) {
-          const double rq = r_h(i, q);
+          const double rq = r_h(i, q + 1);
           const int idx =
               utilities::find_closest_cell(radius_host, rq, n_zones_prog);
           x_cell[q] = utilities::LINTERP(radius_host(idx), radius_host(idx + 1),
@@ -613,7 +609,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
           // Project each conserved variable
           // loop over nodes on an element, interpolate to nodal positions
           for (int q = 0; q < nNodes; ++q) {
-            const double rq = r(i, q);
+            const double rq = r(i, q + 1);
             const int idx =
                 utilities::find_closest_cell(radius_view, rq, n_zones_prog);
             tau_cell(i, q) = basis::basis_eval(phi_fluid, uCF, i,
@@ -716,7 +712,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
             // Project each conserved variable
             // loop over nodes on an element, interpolate to nodal positions
             for (int q = 0; q < nNodes; ++q) {
-              const double rq = r(i, q);
+              const double rq = r(i, q + 1);
               const int idx =
                   utilities::find_closest_cell(radius_view, rq, n_zones_prog);
               rad_energy_cell(i, q) =
@@ -747,7 +743,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
               // Exponential filter
               if (k > 0) {
                 uCF(i, k, vars::cons::RadEnergy) *= std::exp(-k);
-                uCF(i, k, vars::cons::RadFlux) *= std::exp(-k);
+                uCF(i, k, vars::cons::RadFlux) *= 0.0; // std::exp(-k);
               }
             }
           });
