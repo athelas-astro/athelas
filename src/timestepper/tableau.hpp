@@ -105,7 +105,7 @@ class ButcherTableau {
 
  private:
   TableauType type_;
-  int c_effective_{};
+  // int c_effective_{};
 
   void initialize_tableau();
 };
@@ -125,7 +125,7 @@ class ShuOsherTableau {
 
  private:
   TableauType type_;
-  int c_effective_{};
+  // int c_effective_{};
 
   void initialize_tableau();
 };

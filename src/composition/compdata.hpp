@@ -88,8 +88,6 @@ class CompositionData {
   }
 
  private:
-  int nX_, nnodes_, n_species_;
-
   // This params object holds indices of species of interest.
   // For example, for nickel heating, I store indices "ni56" -> int etc.
   // Note: As I am currently using this it corresponds to the index in

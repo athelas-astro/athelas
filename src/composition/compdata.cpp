@@ -1,8 +1,6 @@
 #include <memory>
 
 #include "composition/compdata.hpp"
-#include "kokkos_abstraction.hpp"
-#include "loop_layout.hpp"
 #include "utils/error.hpp"
 
 namespace athelas::atom {
@@ -10,8 +8,7 @@ namespace athelas::atom {
 // NOTE: if nodes exceeds nnodes we have a problem here.
 CompositionData::CompositionData(const int nX, const int nnodes,
                                  const int n_species)
-    : nX_(nX), nnodes_(nnodes), n_species_(n_species),
-      species_indexer_(std::make_unique<Params>()) {
+    : species_indexer_(std::make_unique<Params>()) {
 
   ye_ = AthelasArray2D<double>("ye", nX, nnodes + 2);
   abar_ = AthelasArray2D<double>("abar", nX, nnodes + 2);
