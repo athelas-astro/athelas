@@ -400,7 +400,7 @@ void GridStructure::update_grid(const AthelasArray1D<double> SData) {
       ihi + 1, KOKKOS_CLASS_LAMBDA(const int i) {
         grid_(i, 0) = x_l_(i);
         for (int q = 1; q <= nNodes_; q++) {
-          grid_(i, q) = node_coordinate(i, q);
+          grid_(i, q) = node_coordinate(i, q - 1);
         }
         grid_(i, nNodes_ + 1) = x_l_(i + 1);
       });
