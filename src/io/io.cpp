@@ -364,6 +364,38 @@ void write_output(const MeshState &mesh_state, GridStructure &mesh,
     writer.write_view(dphi, "/basis/radiation/dphi");
   }
 
+  if (mesh_state.composition_enabled()) {
+    const auto *const comps = mesh_state(0).comps();
+    auto number_density = comps->number_density();
+    auto ye = comps->ye();
+    auto species = comps->charge();
+    auto neutron_number = comps->neutron_number();
+    auto inv_atomic_mass = comps->inverse_atomic_mass();
+    auto abar = comps->abar();
+    auto ne = comps->electron_number_density();
+
+    writer.create_group("/composition");
+    writer.write_view(species, "composition/charge");
+    writer.write_view(neutron_number, "composition/neutron_number");
+    writer.write_view(inv_atomic_mass, "composition/inv_atomic_mass");
+    writer.write_view(abar, "composition/abar");
+    writer.write_view(number_density, "composition/number_density");
+    writer.write_view(ye, "composition/ye");
+    writer.write_view(ne, "composition/ne");
+  }
+
+  if (mesh_state.ionization_enabled()) {
+    auto *const ionization_state = mesh_state(0).ionization_state();
+    auto ybar = ionization_state->ybar();
+    auto ionization_fractions = ionization_state->ionization_fractions();
+    auto zbars = ionization_state->zbar();
+
+    writer.create_group("/ionization");
+    writer.write_view(ybar, "ionization/ybar");
+    writer.write_view(zbars, "ionization/zbar");
+    writer.write_view(ionization_fractions, "ionization/ionization_fractions");
+  }
+
   // Write all fields
   constexpr int stage = 0;
   writer.write_all_fields(mesh_state, "/fields", stage);
