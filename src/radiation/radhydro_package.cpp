@@ -10,7 +10,6 @@
 #include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
 #include "loop_layout.hpp"
-#include "opacity/opac_variant.hpp"
 #include "pgen/problem_in.hpp"
 #include "radiation/radhydro_package.hpp"
 
@@ -22,7 +21,7 @@ using fluid::numerical_flux_gudonov_positivity;
 RadHydroPackage::RadHydroPackage(const ProblemIn *pin, int n_stages, int order,
                                  BoundaryConditions *bcs, double cfl, int nx,
                                  bool active)
-    : active_(active), nx_(nx), cfl_(cfl), bcs_(bcs),
+    : active_(active), cfl_(cfl), bcs_(bcs),
       dFlux_num_("hydro::dFlux_num_", nx + 2 + 1, 5),
       u_f_l_("hydro::u_f_l_", nx + 2, 5), u_f_r_("hydro::u_f_r_", nx + 2, 5),
       flux_u_("hydro::flux_u_", n_stages, nx + 2 + 1),
@@ -386,25 +385,22 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
 
         const double vstar = flux_u;
         // auto [flux_e, flux_f] =
-        //    numerical_flux_hll_rad( E_L, E_R, F_L, F_R, P_L, P_R, vstar );
-        const double eddington_factor = Prad_L / E_L;
-        const double alpha =
-            (constants::c_cgs - vstar) * std::sqrt(eddington_factor);
-        const double flux_e = llf_flux(F_R, F_L, E_R, E_L, alpha);
-        const double flux_f =
-            llf_flux(c2 * Prad_R, c2 * Prad_L, F_R, F_L, alpha);
+        //    numerical_flux_hll_rad( E_L, E_R, F_L, F_R, Prad_L, Prad_R, vstar
+        //    );
 
-        const double advective_flux_e =
-            (vstar >= 0) ? vstar * E_L : vstar * E_R;
-        const double advective_flux_f =
-            (vstar >= 0) ? vstar * F_L : vstar * F_R;
+        const double alpha = rad_wavespeed(E_L, E_R, F_L, F_R, vstar);
+        const double flux_e =
+            llf_flux(F_R - vstar * E_R, F_L - vstar * E_L, E_R, E_L, alpha);
+        const double flux_f =
+            llf_flux(c2 * Prad_R - vstar * F_R, c2 * Prad_L - vstar * F_L, F_R,
+                     F_L, alpha);
 
         dFlux_num_(i, vars::cons::SpecificVolume) = -flux_u;
         dFlux_num_(i, vars::cons::Velocity) = flux_p;
         dFlux_num_(i, vars::cons::Energy) = +flux_u * flux_p;
 
-        dFlux_num_(i, vars::cons::RadEnergy) = flux_e - advective_flux_e;
-        dFlux_num_(i, vars::cons::RadFlux) = flux_f - advective_flux_f;
+        dFlux_num_(i, vars::cons::RadEnergy) = flux_e;
+        dFlux_num_(i, vars::cons::RadFlux) = flux_f;
       });
 
   flux_u_(stage, ilo - 1) = flux_u_(stage, ilo);
