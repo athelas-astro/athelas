@@ -63,7 +63,7 @@ auto h5_predtype() -> H5::PredType {
   }
 }
 
-void write_output(const MeshState &mesh_state, GridStructure &mesh,
+void write_output(const MeshState &mesh_state, GridStructure &mesh, ProblemIn *pin,
                   const std::string &filename, int cycle, double time);
 
 void write_output(const MeshState &mesh_state, GridStructure &grid,

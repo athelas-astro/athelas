@@ -178,6 +178,25 @@ class HDF5Writer {
     dataset.write(value, stringtype);
   }
 
+// Write 1D vector metadata
+template <typename T>
+void write_vector(const std::string &path, const std::vector<T> &values,
+                  const H5::DataType &h5type) {
+    if (values.empty()) {
+        // Avoid creating zero-length dataset (optional)
+        std::cerr << "Warning: skipping empty vector for path " << path << "\n";
+        return;
+    }
+
+    // Dataspace: 1D array of size values.size()
+    std::array<hsize_t, 1> dims = { values.size() };
+    H5::DataSpace space(1, dims.data());
+
+    // Create dataset and write
+    H5::DataSet dataset = file_.createDataSet(path, h5type, space);
+    dataset.write(values.data(), h5type);
+}
+
   // Write attribute to a dataset or group
   template <typename T>
   void write_attribute(const std::string &obj_path,
@@ -324,11 +343,12 @@ class HDF5Writer {
   }
 };
 
-void write_output(const MeshState &mesh_state, GridStructure &mesh,
+void write_output(const MeshState &mesh_state, GridStructure &mesh, ProblemIn *pin,
                   const std::string &filename, int cycle, double time) {
   HDF5Writer writer(filename);
 
   // Create structure
+  writer.create_group("/params");
   writer.create_group("/mesh");
   writer.create_group("/fields");
   writer.create_group("/metadata");
@@ -396,6 +416,40 @@ void write_output(const MeshState &mesh_state, GridStructure &mesh,
     writer.write_view(ionization_fractions, "ionization/ionization_fractions");
   }
 
+  // --- deal with params ---
+  auto *params = pin->param();
+  for (auto const& key : params->keys()) {
+      const std::type_index t = params->get_type(key);
+
+      // ---------------------------
+      // Dispatch based on type_index
+      // ---------------------------
+      if (t == typeid(bool)) {
+          auto v = params->get<bool>(key);
+          writer.write_scalar("params/" + key, v, H5::PredType::NATIVE_HBOOL);
+      }
+      else if (t == typeid(int)) {
+          auto v = params->get<int>(key);
+          writer.write_scalar("params/" + key, v, H5::PredType::NATIVE_INT);
+      }
+      else if (t == typeid(double)) {
+          auto v = params->get<double>(key);
+          writer.write_scalar("params/" + key, v, H5::PredType::NATIVE_DOUBLE);
+      }
+      else if (t == typeid(std::string)) {
+          auto v = params->get<std::string>(key);
+          writer.write_string("params/" + key, v);
+      }
+      else if (t == typeid(std::vector<int>)) {
+          auto v = params->get<std::vector<int>>(key);
+          writer.write_vector("params/" + key, v, H5::PredType::NATIVE_INT);
+      }
+      else if (t == typeid(std::vector<double>)) {
+          auto v = params->get<std::vector<double>>(key);
+          writer.write_vector("params/" + key, v, H5::PredType::NATIVE_DOUBLE);
+      }
+  }
+
   // Write all fields
   constexpr int stage = 0;
   writer.write_all_fields(mesh_state, "/fields", stage);
@@ -440,7 +494,7 @@ void write_output(const MeshState &mesh_state, GridStructure &grid,
   std::string filename =
       generate_filename(problem_name, output_dir, i_write, max_digits);
 
-  write_output(mesh_state, grid, filename, i_write, time);
+  write_output(mesh_state, grid, pin, filename, i_write, time);
 
   Kokkos::Profiling::popRegion();
   Kokkos::Profiling::popRegion();
