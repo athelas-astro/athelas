@@ -799,18 +799,38 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
       params_->add("opac.kR", kr.value());
       params_->add("opac.kP", kp.value());
     }
-    if (opac_type.value() == "powerlaw_rho") {
+    if (opac_type.value() == "powerlaw") {
       std::optional<double> kr = config_["opacity"]["kR"].value<double>();
       std::optional<double> kp = config_["opacity"]["kP"].value<double>();
-      std::optional<double> exp =
-          config_["opacity"]["exp"].value<double>(); // exponent
-      if (!kr.has_value() || !kp.has_value() || !exp.has_value()) {
+      std::optional<double> rho_exp =
+          config_["opacity"]["rho_exp"].value<double>(); // exponent
+      std::optional<double> t_exp =
+          config_["opacity"]["t_exp"].value<double>(); // exponent
+      std::optional<double> kp_offset =
+          config_["opacity"]["kP_offset"].value<double>();
+      std::optional<double> kr_offset =
+          config_["opacity"]["kR_offset"].value<double>();
+      std::optional<double> kp_floor =
+          config_["opacity"]["kP_floor"].value<double>();
+      std::optional<double> kr_floor =
+          config_["opacity"]["kR_floor"].value<double>();
+      if (!kr.has_value() || !kp.has_value() || !rho_exp.has_value() ||
+          !t_exp.has_value()) {
         throw_athelas_error("Powerlaw rho opacity must specify mean opacities "
-                            "kR and kP and an exponent exp!");
+                            "kR and kP and rho_exp and t_exp!");
+      }
+      if (!kp_floor.has_value() || !kr_floor.has_value()) {
+        throw_athelas_error("Please specify kR_floor and kP_floor for the "
+                            "powerlaw opacity model!");
       }
       params_->add("opac.kR", kr.value());
       params_->add("opac.kP", kp.value());
-      params_->add("opac.exp", exp.value());
+      params_->add("opac.rho_exp", rho_exp.value());
+      params_->add("opac.t_exp", t_exp.value());
+      params_->add("opac.kR_offset", kr_offset.value_or(0.0));
+      params_->add("opac.kP_offset", kp_offset.value_or(0.0));
+      params_->add("opac.kR_floor", kr_floor.value());
+      params_->add("opac.kP_floor", kp_floor.value());
     }
   }
 

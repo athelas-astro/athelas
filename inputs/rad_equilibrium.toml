@@ -70,7 +70,10 @@ type = "ideal"
 gamma = 1.66666666666667 # default: 1.4
 
 [opacity]
-type = "powerlaw_rho"
+type = "powerlaw"
 kP = 4.0e-8 # 1 / cm
 kR = 4.0e-8 # 1 / cm
-exp = -1.0
+rho_exp = -1.0
+t_exp = 0.0
+kR_floor = 0.0
+kP_floor = 0.0

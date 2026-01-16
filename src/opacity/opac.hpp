@@ -11,7 +11,7 @@
  *
  *          We provide the following opacity models:
  *          - Constant: A simple model with constant opacity value
- *          - PowerlawRho: \kappa = k rho^exp
+ *          - Powerlaw: \kappa = k rho^exp
  *
  */
 
@@ -37,10 +37,13 @@ class Constant : public OpacBase<Constant> {
   double kR_{};
 };
 
-class PowerlawRho : public OpacBase<PowerlawRho> {
+class Powerlaw : public OpacBase<Powerlaw> {
  public:
-  PowerlawRho() = default;
-  PowerlawRho(double kP, double kR, double exp) : kP_(kP), kR_(kR), exp_(exp) {}
+  Powerlaw() = default;
+  Powerlaw(double kP, double kR, double rho_exp, double t_exp, double kP_floor,
+           double kR_floor, double kP_offset, double kR_offset)
+      : kP_(kP), kR_(kR), rho_exp_(rho_exp), t_exp_(t_exp), kP_floor_(kP_floor),
+        kR_floor_(kR_floor), kP_offset_(kP_offset), kR_offset_(kR_offset) {}
 
   auto planck_mean(double rho, double T, double X, double Y, double Z,
                    double *lambda) const -> double;
@@ -51,7 +54,12 @@ class PowerlawRho : public OpacBase<PowerlawRho> {
  private:
   double kP_{};
   double kR_{};
-  double exp_{};
+  double rho_exp_{};
+  double t_exp_{};
+  double kP_floor_{};
+  double kR_floor_{};
+  double kP_offset_{};
+  double kR_offset_{};
 };
 
 } // namespace athelas

@@ -6,6 +6,7 @@
 
 ### Added (new features/APIs/variables/...)
 
+- [PR 133](https://github.com/athelas-astro/athelas/pull/133) rho, T powerlaw opacity with floors.
 - [PR 124](https://github.com/athelas-astro/athelas/pull/124) Use minimum internal energy in BEL
 - [PR 123](https://github.com/athelas-astro/athelas/pull/123) Move basis, eos, opac objects into MeshState
 - [PR 122](https://github.com/athelas-astro/athelas/pull/122) Threaded StageData into BEL
@@ -19,7 +20,7 @@
 
 ### Fixed (not changing behavior/API/variables/...)
 
-- [PR 131](https://github.com/athelas-astro/athelas/pull/131) Fixed inocorrect setting of sqrt_gm(nNodes + 1)
+- [PR 132](https://github.com/athelas-astro/athelas/pull/132) Fixed inocorrect setting of sqrt_gm(nNodes + 1)
 - [PR 130](https://github.com/athelas-astro/athelas/pull/130) Incorrect temperature inversion template params in radhydro pkg
 - [PR 129](https://github.com/athelas-astro/athelas/pull/129) Optimizations in `composition_fill_derived`
 
@@ -30,4 +31,4 @@
 ### Removed (removing behavior/API/variables/...)
 
 ### Incompatibilities (i.e. breaking changes)
-- [PR 131](https://github.com/athelas-astro/athelas/pull/131) Added interfaces into nodal grid: changed hdf5 io.
+- [PR 132](https://github.com/athelas-astro/athelas/pull/132) Added interfaces into nodal grid: changed hdf5 io.

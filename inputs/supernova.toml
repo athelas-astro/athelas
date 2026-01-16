@@ -1,12 +1,12 @@
 [problem]
 problem = "supernova"
-t_end = 800.0
+t_end = 500.0
 nlim = -1
 geometry = "spherical"
 restart = false
 xl = 100.0
 xr = 7.0e5
-cfl = 0.25
+cfl = 0.75
 nx = 512
 grid_type = "logarithmic"
 
@@ -28,9 +28,9 @@ heating = false
 engine = true
 
 [engine.thermal]
-enabled = true 
+enabled = true
 mode = "asymptotic"
-energy = 1.5e51 # erg
+energy = 1.0e51 # erg
 tend = 0.1
 mend = 0.1 # Msun
 
@@ -41,6 +41,7 @@ ncomps = 21
 fn_ionization = "../data/atomic_data_ionization.dat"
 fn_degeneracy = "../data/atomic_data_degeneracy_factors.dat"
 ncomps = 1
+solver = "linear"
 
 [bc]
 [bc.fluid]
@@ -91,7 +92,7 @@ operator_split = true
 
 [gravity]
 model = "spherical"
-operator_split = true
+operator_split = false
 
 [time]
 integrator = "EX_SSPRK11"
@@ -103,6 +104,12 @@ integrator = "EX_SSPRK11"
 type = "paczynski"
 
 [opacity]
-type = "constant"
-kP = 0.4 # cm^2 / g
-kR = 0.4 # cm^2 / g
+type = "powerlaw"
+kP = 2.0e26 # cm^2 / g
+kR = 2.0e26 # cm^2 / g
+rho_exp = 1.0
+t_exp = -3.5
+kR_floor = 0.0
+kP_floor = 1.0e-4
+kR_offset = 0.34
+kP_offset = 0.0
