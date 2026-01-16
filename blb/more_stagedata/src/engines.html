@@ -1,0 +1,226 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Engines &mdash; Athelas v25.10 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/copybutton.css" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/custom.css" />
+
+  
+    <link rel="canonical" href="https://athelas-astro.github.io/athelas/src/engines.html" />
+      <script src="../_static/jquery.js"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+      <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+      <script src="../_static/doctools.js"></script>
+      <script src="../_static/sphinx_highlight.js"></script>
+      <script src="../_static/clipboard.min.js"></script>
+      <script src="../_static/copybutton.js"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="How to Use Sphinx for Writing Docs" href="sphinx-doc.html" />
+    <link rel="prev" title="Contributing" href="contributing.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Athelas
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="building.html">Building</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Engines</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#thermal-engine">Thermal Engine</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#configuration">Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#input-deck">Input Deck</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="sphinx-doc.html">How to Use Sphinx for Writing Docs</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Athelas</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Engines</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/src/engines.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="engines">
+<h1>Engines<a class="headerlink" href="#engines" title="Permalink to this heading"></a></h1>
+<p><code class="docutils literal notranslate"><span class="pre">Athelas</span></code> supports methods for artificially driving a supernova called <code class="docutils literal notranslate"><span class="pre">engines</span></code>.
+These <code class="docutils literal notranslate"><span class="pre">engines</span></code> are <code class="docutils literal notranslate"><span class="pre">packages</span></code> which may implement one or more source terms
+and other options. Currently, we implmenent a <code class="docutils literal notranslate"><span class="pre">ThermalEngine</span></code> to drive a supernova.
+This is often referred to as a “thermal bomb.”</p>
+<section id="thermal-engine">
+<h2>Thermal Engine<a class="headerlink" href="#thermal-engine" title="Permalink to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">ThermalEngine</span></code> model for driving an explosion injects a fixed amount of energy
+through a time dependent heating source term over a fixed interval in mass coordinate
+and in time. The energy injection profile is an exponential decay in mass and in time,
+described delow.</p>
+<p>We chose the energy per unit time injected into the star to be given by:</p>
+<div class="math notranslate nohighlight" id="equation-src-engines-0">
+<span class="eqno">(1)<a class="headerlink" href="#equation-src-engines-0" title="Permalink to this equation"></a></span>\[Q_{\text{engine}}(t) = d' e^{-c' t}\]</div>
+<p>We set the ratio</p>
+<div class="math notranslate nohighlight" id="equation-src-engines-1">
+<span class="eqno">(2)<a class="headerlink" href="#equation-src-engines-1" title="Permalink to this equation"></a></span>\[\frac{Q_{\text{engine}}(t_{\text{start}})}{Q_{\text{engine}}(t_{\text{end}})} = R_t,\]</div>
+<p>where R_t controls the steepness of the exponential decay in time
+and is set to 100.0 in <code class="docutils literal notranslate"><span class="pre">engines/thermal.hpp</span></code>. Note that the start time
+of energy injection is taken to be time 0.0. Then, using this ratio and
+integrating over the injection timescale,</p>
+<div class="math notranslate nohighlight" id="equation-src-engines-2">
+<span class="eqno">(3)<a class="headerlink" href="#equation-src-engines-2" title="Permalink to this equation"></a></span>\[c' = \frac{\ln R_t}{t_{\text{end}} - t_{\text{start}}}
+\quad d' = \frac{c' E_{\text{tot}}}{e^{-c' t_{\text{start}}} - e^{-c' t_{\text{end}}}}\]</div>
+<p>where E_tot is the total energy to be deposited.
+The energy injected per unit time per unit mass is then of the form</p>
+<div class="math notranslate nohighlight" id="equation-src-engines-3">
+<span class="eqno">(4)<a class="headerlink" href="#equation-src-engines-3" title="Permalink to this equation"></a></span>\[Q_{\text{engine}, i}(m_i) = b' e^{-a' m_i}.\]</div>
+<p>The above is the source term implemented in the <code class="docutils literal notranslate"><span class="pre">ThermalEngine</span></code> package.
+Similarly to above, we control the steepness of the decay in mass coordinate</p>
+<div class="math notranslate nohighlight" id="equation-src-engines-4">
+<span class="eqno">(5)<a class="headerlink" href="#equation-src-engines-4" title="Permalink to this equation"></a></span>\[\frac{Q_{\text{engine}, m_i}(m_{\text{start}})}{Q_{\text{engine}, m_i}(m_{\text{end}})}
+= R_m,\]</div>
+<p>where R_m is again set to 100.0 in <code class="docutils literal notranslate"><span class="pre">engines/thermal.hpp</span></code>.
+we obtain the final coefficients</p>
+<div class="math notranslate nohighlight" id="equation-src-engines-5">
+<span class="eqno">(6)<a class="headerlink" href="#equation-src-engines-5" title="Permalink to this equation"></a></span>\[a' = \frac{\ln R_m}{m_{\text{end}} - m_{\text{start}}}
+\quad b' = \frac{d' e^{-c' t}}{\sum_i e^{-a' m_i} \Delta m}\]</div>
+<p>where the summation in the expression for b’ is performed over the mass extent of the injection.</p>
+<p>Note that to determine d’ we perform an integration assuming a
+continuous time coordinate. This approach is valid because the timestep
+at the beginning of the calculation is much smaller than the duration of
+energy injection by the engine. However, individual cell masses are generally
+not small enough to justify a continuum approximation, so we instead use a sum over
+discrete mass cells.</p>
+<p>Once the injection timescale has passed the <code class="docutils literal notranslate"><span class="pre">ThermalEngine</span></code> package is disabled
+and the source term no longer computed or applied.</p>
+<div class="admonition-timestep-restriction admonition">
+<p class="admonition-title">Timestep Restriction</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">ThermalEngine</span></code> requires that the energy injection is spread out over
+at least 2500 timesteps.</p>
+</div>
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Permalink to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">ThermalEngine</span></code> has a few relevant controls.
+The extent of injection in time and mass space can be controlled.
+Most importantly, the <em>mode</em> of calculating the injected energy can be set.
+The <code class="docutils literal notranslate"><span class="pre">direct</span></code> mode specifies the amount of energy to be injected and uses
+that for E_tot. This may not be sufficient energy to unbind the star,
+resulting in a failed supernova. More useful is <code class="docutils literal notranslate"><span class="pre">asymptotic</span></code> where the
+desired <em>final</em> energy is specified. In this mode the total energy of
+the stellar model is calculated and the injection energy is adjust such that
+the energy of the ejecta reaches the desired energy after unbinding the
+star. If for some reason the calculated energy is determined to be less than
+the binding energy of the progenitor the code will crash.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We do not at present allow runtime configuration of the steepness
+parameters R_t and R_m. This is simple to add.</p>
+</div>
+</section>
+<section id="input-deck">
+<h2>Input Deck<a class="headerlink" href="#input-deck" title="Permalink to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">ThermalEngine</span></code> is controlled in the input deck as follows:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">physics</span><span class="p">]</span>
+<span class="n">engine</span> <span class="o">=</span> <span class="n">true</span>
+
+<span class="p">[</span><span class="n">engine</span><span class="o">.</span><span class="n">thermal</span><span class="p">]</span>
+<span class="n">enabled</span> <span class="o">=</span> <span class="n">true</span>
+<span class="n">mode</span> <span class="o">=</span> <span class="s2">&quot;asymptotic&quot;</span> <span class="c1"># or &quot;direct&quot;</span>
+<span class="n">energy</span> <span class="o">=</span> <span class="mf">1.5e51</span> <span class="c1"># erg</span>
+<span class="n">tend</span> <span class="o">=</span> <span class="mf">0.1</span> <span class="c1"># seconds</span>
+<span class="n">mend</span> <span class="o">=</span> <span class="mf">0.1</span> <span class="c1"># Msun</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="contributing.html" class="btn btn-neutral float-left" title="Contributing" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="sphinx-doc.html" class="btn btn-neutral float-right" title="How to Use Sphinx for Writing Docs" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+<div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    <span class="fa fa-book"> Other Versions</span>
+    v: blb/more_stagedata
+    <span class="fa fa-caret-down"></span>
+  </span>
+  <div class="rst-other-versions">
+    <dl>
+      <dt>Branches</dt>
+      <dd><a href="../../../main/src/engines.html">main</a></dd>
+      <dd><a href="../../docs/index.html">blb/docs</a></dd>
+      <dd><a href="../../fd_opt/src/engines.html">blb/fd_opt</a></dd>
+      <dd><a href="engines.html">blb/more_stagedata</a></dd>
+      <dd><a href="../../robustness/src/engines.html">blb/robustness</a></dd>
+    </dl>
+  </div>
+</div><script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
