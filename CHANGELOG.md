@@ -14,6 +14,7 @@
 
 ### Changed (changing behavior/API/variables/...)
 
+- [PR 138](https://github.com/athelas-astro/athelas/pull/138) Add `params` into hdf5 output
 - [PR 137](https://github.com/athelas-astro/athelas/pull/137) Update `athelas.py`, add `snap.py`
 - [PR 136](https://github.com/athelas-astro/athelas/pull/136) New HDF5 structure
 - [PR 131](https://github.com/athelas-astro/athelas/pull/131) Added interfaces into nodal grid.

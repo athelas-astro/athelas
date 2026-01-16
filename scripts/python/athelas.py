@@ -6,7 +6,7 @@ Athelas HDF5 loader with dynamic field/variable discovery.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Union, Any
 
 from astropy import constants as consts
 import h5py
@@ -25,6 +25,15 @@ class AthelasError(RuntimeError):
 # ============================================================================
 # Data containers
 # ============================================================================
+
+ParamValue = Union[
+  int,
+  float,
+  bool,
+  str,
+  np.typing.NDArray[Any],
+  Dict[str, Any],
+]
 
 
 class Field:
@@ -65,6 +74,7 @@ class Athelas:
     self.fields: Dict[str, Field] = {}
     self.variables: Dict[str, Variable] = {}
     self._derived = {}
+    self.params: Dict[str, ParamValue] = {}
 
     self._load()
 
@@ -96,6 +106,8 @@ class Athelas:
     self.time = float(f["simulation_info/time"][()])
     self.n_stages = int(f["simulation_info/n_stages"][()])
     self.cycle = int(f["simulation_info/cycle"][()])
+
+    self.params = read_hdf5_group(f["params"])
 
     # ----------------------
     # Grid
@@ -347,3 +359,34 @@ class Athelas:
     return ax
 
   # ------------------------------------------------------------------
+
+
+def read_hdf5_group(group: h5py.Group) -> Dict[str, ParamValue]:
+  """
+  Recursively read an HDF5 group into a nested Python dict.
+  """
+  result: Dict[str, ParamValue] = {}
+
+  for key, item in group.items():
+    if isinstance(item, h5py.Group):
+      result[key] = read_hdf5_group(item)
+
+    elif isinstance(item, h5py.Dataset):
+      data = item[()]
+
+      # Variable-length string
+      if isinstance(data, bytes):
+        data = str(data.decode())
+
+      # NumPy array
+      elif isinstance(data, np.ndarray):
+        # Scalar array (shape == ())
+        if data.shape == ():
+          data = data.item()
+        # Length-1 vector → scalar
+        elif data.size == 1:
+          data = data.reshape(()).item()
+
+      result[key] = data
+
+  return result

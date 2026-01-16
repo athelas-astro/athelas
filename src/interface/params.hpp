@@ -13,6 +13,7 @@
 #include <string>
 #include <typeindex>
 #include <unordered_map>
+#include <variant>
 
 #include "utils/error.hpp"
 
@@ -136,5 +137,10 @@ class Params {
  private:
   std::unordered_map<std::string, std::unique_ptr<std::any>> params_;
 };
+
+using ParamValue = std::variant<bool, int, double, std::string,
+                                std::vector<int>, std::vector<double>>;
+
+auto get_safe_param(const std::any &a) -> std::optional<ParamValue>;
 
 } // namespace athelas

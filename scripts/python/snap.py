@@ -8,7 +8,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
-from athelas3 import Athelas, AthelasError
+from athelas import Athelas, AthelasError
 
 
 def parse_args():
