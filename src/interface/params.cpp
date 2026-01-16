@@ -30,35 +30,35 @@ auto Params::get_type(const std::string &key) const -> std::type_index {
 }
 
 auto get_safe_param(const std::any &a) -> std::optional<ParamValue> {
-    if (a.type() == typeid(bool)) {
-        return std::any_cast<bool>(a);
-    }
+  if (a.type() == typeid(bool)) {
+    return std::any_cast<bool>(a);
+  }
 
-    if (a.type() == typeid(int)) {
-        return std::any_cast<int>(a);
-    }
+  if (a.type() == typeid(int)) {
+    return std::any_cast<int>(a);
+  }
 
-    if (a.type() == typeid(double)) {
-        return std::any_cast<double>(a);
-    }
+  if (a.type() == typeid(double)) {
+    return std::any_cast<double>(a);
+  }
 
-    if (a.type() == typeid(std::string)) {
-        return std::any_cast<std::string>(a);
-    }
+  if (a.type() == typeid(std::string)) {
+    return std::any_cast<std::string>(a);
+  }
 
-    if (a.type() == typeid(const char *)) {
-        return std::string(std::any_cast<const char *>(a));
-    }
+  if (a.type() == typeid(const char *)) {
+    return std::string(std::any_cast<const char *>(a));
+  }
 
-    if (a.type() == typeid(std::vector<int>)) {
-        return std::any_cast<std::vector<int>>(a);
-    }
+  if (a.type() == typeid(std::vector<int>)) {
+    return std::any_cast<std::vector<int>>(a);
+  }
 
-    if (a.type() == typeid(std::vector<double>)) {
-        return std::any_cast<std::vector<double>>(a);
-    }
+  if (a.type() == typeid(std::vector<double>)) {
+    return std::any_cast<std::vector<double>>(a);
+  }
 
-    return std::nullopt;
+  return std::nullopt;
 }
 
 } // namespace athelas
