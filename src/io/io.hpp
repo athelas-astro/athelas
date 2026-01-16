@@ -19,6 +19,24 @@
 
 namespace athelas::io {
 
+/**
+ * @brief Helper struct for organizing HDF5 output
+ */
+struct HDF5FieldInfo {
+  std::string field_name;
+  DataPolicy policy;
+  std::vector<std::string> var_names;
+  int nvars;
+
+  // For building metadata
+  struct VariableInfo {
+    std::string name;
+    std::string location;
+    int index;
+  };
+  std::vector<VariableInfo> variables;
+};
+
 struct GridType {
   double r{};
 };
@@ -44,13 +62,12 @@ auto h5_predtype() -> H5::PredType {
     static_assert(std::is_arithmetic_v<T>, "Unsupported scalar type for HDF5");
   }
 }
-void write_state(const StageData &stage_data, GridStructure &grid,
-                 SlopeLimiter *SL, ProblemIn *pin, double time, int order,
-                 int i_write, bool do_rad);
+
+void write_output(const MeshState &mesh_state, GridStructure &mesh,
+                  const std::string &filename, int cycle, double time);
+
+void write_output(const MeshState &mesh_state, GridStructure &grid,
+                  SlopeLimiter *SL, ProblemIn *pin, double time, int i_write);
 
 void print_simulation_parameters(GridStructure &grid, ProblemIn *pin);
-
-void write_basis(const basis::ModalBasis &basis,
-                 const std::string &problem_name);
-
 } // namespace athelas::io

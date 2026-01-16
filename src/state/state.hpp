@@ -114,6 +114,7 @@ class StageData {
 
   [[nodiscard]] auto ionization_enabled() const noexcept -> bool;
   [[nodiscard]] auto composition_enabled() const noexcept -> bool;
+  [[nodiscard]] auto radiation_enabled() const noexcept -> bool;
   [[nodiscard]] auto stage() const noexcept -> int { return stage_; }
   [[nodiscard]] auto mass_fractions(const std::string &field_name) const
       -> AthelasArray3D<double>;
@@ -152,6 +153,12 @@ class MeshState {
   auto operator=(MeshState &&) noexcept -> MeshState & = default;
   ~MeshState() = default;
 
+  [[nodiscard]] auto list_fields() const -> std::vector<std::string>;
+  [[nodiscard]] auto get_field_category(const std::string &field) const
+      -> std::string;
+  [[nodiscard]] auto get_variable_names(const std::string &field) const
+      -> std::vector<std::string>;
+
   [[nodiscard]] auto operator()(int stage) const -> StageData {
     return {stage, this};
   }
@@ -172,6 +179,10 @@ class MeshState {
 
   [[nodiscard]] auto ionization_enabled() const noexcept -> bool {
     return ionization_state_ != nullptr;
+  }
+
+  [[nodiscard]] auto radiation_enabled() const noexcept -> bool {
+    return params_->get<bool>("radiation_enabled");
   }
 
   [[nodiscard]] auto composition_evolved() const noexcept -> bool {

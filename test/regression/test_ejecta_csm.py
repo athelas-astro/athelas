@@ -36,9 +36,9 @@ class EjectaCSMTest(AthelasRegressionTest):
 
     # vars to test
     varlist = [
-      "grid/x",
-      "grid/dx",
-      "variables/conserved",
+      "mesh/r",
+      "mesh/dr",
+      "fields/u_cf",
     ]
 
     # Initialize the parent class with test-specific parameters
