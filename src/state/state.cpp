@@ -15,6 +15,9 @@ using atom::IonizationState;
 [[nodiscard]] auto StageData::composition_enabled() const noexcept -> bool {
   return parent_->composition_enabled();
 }
+[[nodiscard]] auto StageData::radiation_enabled() const noexcept -> bool {
+  return parent_->radiation_enabled();
+}
 
 auto StageData::get_field(const std::string &name) const
     -> AthelasArray3D<double> {
@@ -81,6 +84,7 @@ MeshState::MeshState(const ProblemIn *const pin, const int nstages)
       pin->param()->get<bool>("physics.heating.nickel.enabled");
   const bool nickel_evolved =
       pin->param()->get<bool>("physics.heating.nickel.enabled");
+  const bool rad_enabled = pin->param()->get<bool>("physics.rad_active");
   const int porder = pin->param()->get<int>("fluid.porder");
 
   params_->add("p_order", porder);
@@ -89,10 +93,35 @@ MeshState::MeshState(const ProblemIn *const pin, const int nstages)
   params_->add("ionization_enabled", ionization_enabled);
   params_->add("composition_evolved", composition_evolved);
   params_->add("nickel_evolved", nickel_evolved);
+  params_->add("radiation_enabled", rad_enabled);
 
   // microphysics
   eos_ = std::make_unique<eos::EOS>(eos::initialize_eos(pin));
   opac_ = std::make_unique<Opacity>(initialize_opacity(pin));
+}
+
+/**
+ * @brief List all allocated fields
+ */
+[[nodiscard]] auto MeshState::list_fields() const -> std::vector<std::string> {
+  std::vector<std::string> fields;
+  fields.reserve(arrays_.size());
+  for (const auto &[name, _] : arrays_) {
+    fields.push_back(name);
+  }
+  return fields;
+}
+
+/**
+ * @brief Get list of variable names for a field, or empty if none
+ */
+[[nodiscard]] auto MeshState::get_variable_names(const std::string &field) const
+    -> std::vector<std::string> {
+  const auto &meta = get_metadata(field);
+  if (meta.var_map) {
+    return meta.var_map->list();
+  }
+  return {};
 }
 
 [[nodiscard]] auto MeshState::comps() const -> atom::CompositionData * {

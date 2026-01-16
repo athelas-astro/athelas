@@ -21,12 +21,11 @@
 namespace athelas {
 
 using basis::ModalBasis;
-using io::write_basis, io::write_state, io::print_simulation_parameters;
+using io::write_output, io::print_simulation_parameters;
 
 auto Driver::execute() -> int {
   static const auto nx = pin_->param()->get<int>("problem.nx");
   static const bool rad_active = pin_->param()->get<bool>("physics.rad_active");
-  static const int order = mesh_state_.p_order();
 
   // --- Timer ---
   Kokkos::Timer timer_zone_cycles;
@@ -50,13 +49,9 @@ auto Driver::execute() -> int {
 
   // some startup io
   auto sd0 = mesh_state_(0);
-  const auto &fluid_basis = sd0.fluid_basis();
-  // const auto &rad_basis = sd0.rad_basis();
   manager_->fill_derived(sd0, grid_, dt_info);
-  write_basis(fluid_basis, pin_->param()->get<std::string>("problem.problem"));
   print_simulation_parameters(grid_, pin_.get());
-  write_state(sd0, grid_, &sl_hydro_, pin_.get(), time_,
-              pin_->param()->get<int>("fluid.porder"), 0, rad_active);
+  write_output(mesh_state_, grid_, &sl_hydro_, pin_.get(), time_, 0);
   history_->write(mesh_state_, grid_, time_);
 
   // --- Evolution loop ---
@@ -107,8 +102,7 @@ auto Driver::execute() -> int {
     // Write state, other io
     if (time_ >= i_out_h5 * dt_hdf5) {
       manager_->fill_derived(sd0, grid_, dt_info);
-      write_state(sd0, grid_, &sl_hydro_, pin_.get(), time_, order, i_out_h5,
-                  rad_active);
+      write_output(mesh_state_, grid_, &sl_hydro_, pin_.get(), time_, i_out_h5);
       i_out_h5 += 1;
     }
 
@@ -129,8 +123,7 @@ auto Driver::execute() -> int {
   }
 
   manager_->fill_derived(sd0, grid_, dt_info);
-  write_state(sd0, grid_, &sl_hydro_, pin_.get(), time_,
-              pin_->param()->get<int>("fluid.porder"), -1, rad_active);
+  write_output(mesh_state_, grid_, &sl_hydro_, pin_.get(), time_, -1);
 
   return AthelasExitCodes::SUCCESS;
 }
@@ -439,6 +432,45 @@ void Driver::post_step_work() {
       thermal_engine_active = false;
     }
   }
+  const bool ionization_enabled = mesh_state_.ionization_enabled();
+  if (ionization_enabled) {
+    const auto &eos = mesh_state_.eos();
+    auto ucf = mesh_state_(0).get_field("u_cf");
+    static const IndexRange ib(grid_.domain<Domain::Interior>());
+    const auto *const comps = mesh_state_.comps();
+    const auto number_density = comps->number_density();
+    const auto ye = comps->ye();
+
+    const auto *const ionization_states = mesh_state_.ionization_state();
+    const auto ybar = ionization_states->ybar();
+    const auto e_ion_corr = ionization_states->e_ion_corr();
+    const auto sigma1 = ionization_states->sigma1();
+    const auto sigma2 = ionization_states->sigma2();
+    const auto sigma3 = ionization_states->sigma3();
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "Fixup", DevExecSpace(), ib.s, ib.e,
+        KOKKOS_LAMBDA(const int i) {
+          const double rho = 1.0 / ucf(i, vars::modes::CellAverage,
+                                       vars::cons::SpecificVolume);
+          const double vel =
+              ucf(i, vars::modes::CellAverage, vars::cons::Velocity);
+          const double emt =
+              ucf(i, vars::modes::CellAverage, vars::cons::Energy);
+          const double sie = emt - 0.5 * vel * vel;
+          eos::EOSLambda lambda;
+          int q = 0;
+          lambda.data[1] = ye(i, q);
+          lambda.data[6] = e_ion_corr(i, q);
+          const double emin = eos::min_sie(eos, rho, lambda.ptr());
+          if (sie <= emin) {
+            double sie_fix = 1.1 * emin;
+            ucf(i, vars::modes::CellAverage, vars::cons::Energy) =
+                sie_fix + 0.5 * vel * vel;
+            std::println("FIXUP i sie sie_min siefix {} {:.5e} {:.5e} {:.5e}",
+                         i, sie, emin, sie_fix);
+          }
+        });
+  }
 
 #ifdef ATHELAS_DEBUG
   auto sd0 = mesh_state_(0);
@@ -448,7 +480,7 @@ void Driver::post_step_work() {
   } catch (const AthelasError &e) {
     std::cerr << e.what() << "\n";
     std::println("!!! Bad State found, writing _final_ output file ...");
-    write_state(sd0, grid_, &sl_hydro_, pin_.get(), time_,
+    write_state(mesh_state_, grid_, &sl_hydro_, pin_.get(), time_,
                 pin_->param()->get<int>("fluid.porder"), -1, rad_active);
   }
 #endif
