@@ -53,6 +53,17 @@ auto flux_rad(const double E, const double F, const double P, const double V)
   return {F - E * V, constants::c_cgs * constants::c_cgs * P - F * V};
 }
 
+KOKKOS_INLINE_FUNCTION
+auto eddington_factor(const double f) -> double {
+  const double f2 = f * f;
+  return (3.0 + 4.0 * f2) / (5.0 + 2.0 * std::sqrt(4.0 - 3.0 * f2));
+}
+
+KOKKOS_INLINE_FUNCTION
+auto eddington_factor_prime(const double f) -> double {
+  return 2.0 * f / (std::sqrt(4.0 - 3 * f * f));
+}
+
 /**
  * @brief Radiation 4 force for rad-matter interactions
  * Assumes kappa_e ~ kappa_p, kappa_F ~ kappa_r
@@ -132,9 +143,7 @@ radiation_four_force(const double D, const double V, const double T,
                     "radiation energy density.");
   constexpr static double one_third = 1.0 / 3.0;
   const double f = std::clamp(flux_factor(E, F), 0.0, 1.0);
-  const double f2 = f * f;
-  const double chi =
-      (3.0 + 4.0 * f2) / (5.0 + 2.0 * std::sqrt(4.0 - (3.0 * f2)));
+  const double chi = eddington_factor(f);
   const double T = std::clamp(
       ((1.0 - chi) / 2.0) + ((3.0 * chi - 1.0) * 1.0 / 2.0), one_third, 1.0);
   return E * T;
@@ -169,6 +178,45 @@ auto lambda_hll(const double f, const int sign) -> double {
 }
 
 /**
+ * @brief \lambda^{+/-} wavespeed
+ * @note See Audit et al 2002
+ */
+KOKKOS_INLINE_FUNCTION
+auto rad_lambda(const double f, const double chi, const double chi_prime,
+                const int sign) -> double {
+  return constants::c_cgs * 0.5 *
+         (chi_prime + sign * std::sqrt(chi_prime * chi_prime -
+                                       4.0 * chi_prime * f + 4.0 * chi));
+}
+
+/**
+ * @brief Radiation wavespeed
+ * @note See Audit et al 2002
+ */
+KOKKOS_INLINE_FUNCTION
+auto rad_wavespeed(const double E_L, const double E_R, const double F_L,
+                   const double F_R, const double vstar) -> double {
+  const double f_l = flux_factor(E_L, F_L);
+  const double f_r = flux_factor(E_R, F_R);
+  const double chi_l = eddington_factor(f_l);
+  const double chi_r = eddington_factor(f_r);
+  const double chi_prime_l = eddington_factor_prime(f_l);
+  const double chi_prime_r = eddington_factor_prime(f_r);
+  // const double lam_l = rad_lambda(f_l, chi_l, chi_prime_l, +1);
+  // const double lam_r = rad_lambda(f_r, chi_r, chi_prime_r, +1);
+  // const double res = std::max(lam_l - vstar, lam_r - vstar);
+  const double lam_lp = rad_lambda(f_l, chi_l, chi_prime_l, +1);
+  const double lam_lm = rad_lambda(f_l, chi_l, chi_prime_l, -1);
+  const double lam_rp = rad_lambda(f_r, chi_r, chi_prime_r, +1);
+  const double lam_rm = rad_lambda(f_r, chi_r, chi_prime_r, -1);
+
+  const double alpha =
+      std::max({std::abs(lam_lp - vstar), std::abs(lam_lm - vstar),
+                std::abs(lam_rp - vstar), std::abs(lam_rm - vstar)});
+  return alpha;
+}
+
+/**
  * @brief HLL Riemann solver for radiation
  * see 2013ApJS..206...21S (Skinner & Ostriker 2013) Eq 39
  * and references & discussion therein
@@ -180,29 +228,30 @@ auto numerical_flux_hll_rad(const double E_L, const double E_R,
                             const double vstar) -> std::tuple<double, double> {
   using namespace riemann;
 
-  // flux factors
-  const double f_L = flux_factor(E_L, F_L);
-  const double f_R = flux_factor(E_R, F_R);
-
-  // TODO(astrobarker) - vstar?
   constexpr static double c2 = constants::c_cgs * constants::c_cgs;
-  const double lambda1_L = lambda_hll(f_L, -1.0);
-  const double lambda1_R = lambda_hll(f_R, -1.0);
-  const double lambda3_L = lambda_hll(f_L, 1.0);
-  const double lambda3_R = lambda_hll(f_R, 1.0);
-  const double lambda_min_L = lambda1_L;
-  const double lambda_min_R = lambda1_R;
-  const double lambda_max_L = lambda3_L;
-  const double lambda_max_R = lambda3_R;
+  const double f_l = flux_factor(E_L, F_L);
+  const double chi_l = eddington_factor(f_l);
+  const double chi_prime_l = eddington_factor_prime(f_l);
 
-  const double s_r = std::max(lambda_max_L, lambda_max_R) - vstar;
-  const double s_l = std::min(lambda_min_L, lambda_min_R) - vstar;
+  const double lam_lp = rad_lambda(f_l, chi_l, chi_prime_l, +1);
+  const double lam_lm = rad_lambda(f_l, chi_l, chi_prime_l, -1);
 
-  const double s_r_p = std::max(s_r, 0.0);
-  const double s_l_m = std::min(s_l, 0.0);
+  const double f_r = flux_factor(E_R, F_R);
+  const double chi_r = eddington_factor(f_r);
+  const double chi_prime_r = eddington_factor_prime(f_r);
 
-  const double flux_e = hll(E_L, E_R, F_L, F_R, s_l_m, s_r_p);
-  const double flux_f = hll(F_L, F_R, c2 * P_L, c2 * P_R, s_l_m, s_r_p);
+  const double lam_rp = rad_lambda(f_r, chi_r, chi_prime_r, +1);
+  const double lam_rm = rad_lambda(f_r, chi_r, chi_prime_r, -1);
+
+  // --- Moving-mesh signal speeds ---
+  const double s_l = std::min({lam_lm - vstar, lam_rm - vstar, 0.0});
+
+  const double s_r = std::max({lam_lp - vstar, lam_rp - vstar, 0.0});
+
+  const double flux_e =
+      hll(E_L, E_R, F_L - 0 * vstar * E_L, F_R - 0 * vstar * E_R, s_l, s_r);
+  const double flux_f = hll(F_L, F_R, c2 * P_L - 0 * vstar * F_L,
+                            c2 * P_R - 0 * vstar * F_R, s_l, s_r);
   return {flux_e, flux_f};
 }
 

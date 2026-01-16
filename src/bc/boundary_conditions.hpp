@@ -93,7 +93,7 @@ apply_bc(const BoundaryConditionsData<N> &bc, AthelasArray3D<double> U,
 
   case BcType::Reflecting:
     for (int k = 0; k < num_modes; k++) {
-      if (v == 1) { // Momentum (v == 1)
+      if (v == 1 || v == 4) { // Momentum (v == 1)
         // Reflect momentum in the cell average (k == 0) and leave higher modes
         // unchanged (k > 0)
         U(ghost_cell, k, v) =
