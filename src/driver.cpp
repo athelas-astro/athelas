@@ -480,7 +480,7 @@ void Driver::post_step_work() {
   } catch (const AthelasError &e) {
     std::cerr << e.what() << "\n";
     std::println("!!! Bad State found, writing _final_ output file ...");
-    write_output(mesh_state_, grid_, &sl_hydro_, pin_.get(), time_, , -1);
+    write_output(mesh_state_, grid_, &sl_hydro_, pin_.get(), time_, -1);
   }
 #endif
 } // post_step_work
