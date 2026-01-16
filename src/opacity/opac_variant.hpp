@@ -18,7 +18,7 @@
 
 namespace athelas {
 
-using Opacity = std::variant<Constant, PowerlawRho>;
+using Opacity = std::variant<Constant, Powerlaw>;
 
 KOKKOS_INLINE_FUNCTION auto planck_mean(const Opacity &opac, const double rho,
                                         const double T, const double X,
@@ -52,9 +52,14 @@ KOKKOS_INLINE_FUNCTION auto initialize_opacity(const ProblemIn *pin)
     opac = Constant(pin->param()->get<double>("opac.kP", 1.0),
                     pin->param()->get<double>("opac.kR", 1.0));
   } else { // powerlaw rho
-    opac = PowerlawRho(pin->param()->get<double>("opac.kP", 1.0),
-                       pin->param()->get<double>("opac.kR", 1.0),
-                       pin->param()->get<double>("opac.exp", 1.0));
+    opac = Powerlaw(pin->param()->get<double>("opac.kP", 1.0),
+                    pin->param()->get<double>("opac.kR", 1.0),
+                    pin->param()->get<double>("opac.rho_exp", 1.0),
+                    pin->param()->get<double>("opac.t_exp", 1.0),
+                    pin->param()->get<double>("opac.kP_floor"),
+                    pin->param()->get<double>("opac.kR_floor"),
+                    pin->param()->get<double>("opac.kP_offset"),
+                    pin->param()->get<double>("opac.kR_offset"));
   }
   return opac;
 }

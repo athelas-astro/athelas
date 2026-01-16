@@ -148,7 +148,7 @@ set( ATHELAS_SOURCES
   "src/limiters/slope_limiter_tvdminmod.cpp"
   "src/limiters/slope_limiter_weno.cpp"
   "src/opacity/opac_constant.cpp"
-  "src/opacity/opac_powerlaw_rho.cpp"
+  "src/opacity/opac_powerlaw.cpp"
   "src/solvers/hydrostatic_equilibrium.cpp"
   "src/state/state.cpp"
   "src/timestepper/tableau.cpp"

@@ -1,5 +1,5 @@
 /**
- * @file opac_powerlaw_rho.cpp
+ * @file opac_powerlaw.cpp
  * --------------
  *
  * @author Brandon L. Barker
@@ -13,18 +13,18 @@
 
 namespace athelas {
 
-auto PowerlawRho::planck_mean(const double rho, const double /*T*/,
+auto Powerlaw::planck_mean(const double rho, const double T,
                               const double /*X*/, const double /*Y*/,
                               const double /*Z*/, double * /*lambda*/) const
     -> double {
-  return kP_ * std::pow(rho, exp_);
+  return std::max(kP_floor_, kP_ * std::pow(rho, rho_exp_) * std::pow(T, t_exp_) + kP_offset_);
 }
 
-auto PowerlawRho::rosseland_mean(const double rho, const double /*T*/,
+auto Powerlaw::rosseland_mean(const double rho, const double T,
                                  const double /*X*/, const double /*Y*/,
                                  const double /*Z*/, double * /*lambda*/) const
     -> double {
-  return kR_ * std::pow(rho, exp_);
+  return std::max(kR_floor_, kR_ * std::pow(rho, rho_exp_) * std::pow(T, t_exp_) + kR_offset_);
 }
 
 } // namespace athelas
