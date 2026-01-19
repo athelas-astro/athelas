@@ -53,7 +53,7 @@ class VariableMap {
     std::vector<std::string> names;
     names.reserve(name_to_index_.size());
     for (const auto &[name, _] : name_to_index_) {
-      names.push_back(name);
+      names.insert(names.begin(), name);
     }
     return names;
   }
@@ -140,7 +140,7 @@ class StageData {
  * - Stage-specific: `auto stage_data = mesh_state(stage)`
  *   - Then: `auto u = stage_data.get_field("u_cf")`
  * - Direct access: `mesh_state.get_field("u_pf")`
- * - Metadata: `constexpr int rho_idx = mesh_state.var_index("u_pf", "density")`
+ * - Metadata: `static int rho_idx = mesh_state.var_index("u_pf", "density")`
  */
 class MeshState {
  public:
