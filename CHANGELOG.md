@@ -23,6 +23,7 @@
 
 ### Fixed (not changing behavior/API/variables/...)
 
+- [PR 140](https://github.com/athelas-astro/athelas/pull/130) Fix variable ordering in `VarialeMap::list` and so in output.
 - [PR 134](https://github.com/athelas-astro/athelas/pull/134) Improve radiation wavespeeds
 - [PR 132](https://github.com/athelas-astro/athelas/pull/132) Fixed inocorrect setting of sqrt_gm(nNodes + 1)
 - [PR 130](https://github.com/athelas-astro/athelas/pull/130) Incorrect temperature inversion template params in radhydro pkg
