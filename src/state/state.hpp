@@ -53,7 +53,7 @@ class VariableMap {
     std::vector<std::string> names;
     names.resize(index_to_name_.size());
     for (const auto &[idx, name] : index_to_name_) {
-      names[idx] = name; // Place at correct index
+      names[idx] = name;
     }
     return names;
   }
