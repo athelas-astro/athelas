@@ -23,8 +23,8 @@ enum class DataPolicy {
 class VariableMap {
  public:
   void add(std::string name, int index) {
-    name_to_index_[std::move(name)] = index;
     index_to_name_[index] = name;
+    name_to_index_[std::move(name)] = index;
   }
 
   [[nodiscard]] auto index(const std::string &name) const -> int {
@@ -51,9 +51,9 @@ class VariableMap {
 
   [[nodiscard]] auto list() const -> std::vector<std::string> {
     std::vector<std::string> names;
-    names.reserve(name_to_index_.size());
-    for (const auto &[name, _] : name_to_index_) {
-      names.insert(names.begin(), name);
+    names.resize(index_to_name_.size());
+    for (const auto &[idx, name] : index_to_name_) {
+      names[idx] = name; // Place at correct index
     }
     return names;
   }
