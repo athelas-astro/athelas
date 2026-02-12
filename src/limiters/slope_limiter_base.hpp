@@ -23,7 +23,7 @@ template <class SlopeLimiter>
 class SlopeLimiterBase {
  public:
   void apply_slope_limiter(AthelasArray3D<double> U, const GridStructure *grid,
-                           const basis::ModalBasis *basis, const eos::EOS *eos,
+                           const basis::NodalBasis *basis, const eos::EOS *eos,
                            const std::vector<int> &vars) const {
     return static_cast<SlopeLimiter const *>(this)->apply_slope_limiter(
         U, grid, basis, eos, vars);

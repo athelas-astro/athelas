@@ -69,34 +69,30 @@ void hydrostatic_balance_init(MeshState &mesh_state, GridStructure *grid,
         });
   }
 
-  // Phase 2: Initialize modal coefficients
+  // Phase 2: Initialize conserved (modal projection or nodal values)
   if (!first_init) {
     const auto &fluid_basis = mesh_state.fluid_basis();
-    // Use L2 projection for accurate modal coefficients
     auto tau_func = [&](double /*x*/, int ix, int iN) -> double {
       return 1.0 / rho_from_p(uAF(ix, iN, 0));
     };
-
     auto velocity_func = [](double /*x*/, int /*ix*/, int /*iN*/) -> double {
       return 0.0;
     };
-
     auto energy_func = [&](double /*x*/, int ix, int iN) -> double {
       const double rho = rho_from_p(uAF(ix, iN, 0));
       return (uAF(ix, iN, 0) / gm1) / rho;
     };
 
-    athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: HydrostaticBalance (2)",
-        DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-          // Project each conserved variable
-          fluid_basis.project_nodal_to_modal(uCF, uPF, grid, q_Tau, i,
-                                             tau_func);
-          fluid_basis.project_nodal_to_modal(uCF, uPF, grid, q_V, i,
-                                             velocity_func);
-          fluid_basis.project_nodal_to_modal(uCF, uPF, grid, q_E, i,
-                                             energy_func);
-        });
+      static const IndexRange nb(nNodes);
+      athelas::par_for(
+          DEFAULT_LOOP_PATTERN, "Pgen :: HydrostaticBalance (nodal)",
+          DevExecSpace(), ib.s, ib.e, nb.s, nb.e,
+          KOKKOS_LAMBDA(const int i, const int node) {
+            const int iN = node + 1; // uAF interior index
+            uCF(i, node, q_Tau) = tau_func(0.0, i, iN);
+            uCF(i, node, q_V) = velocity_func(0.0, i, iN);
+            uCF(i, node, q_E) = energy_func(0.0, i, iN);
+          });
   }
 
   // Fill density in guard cells

@@ -18,13 +18,14 @@
 
 #include "Kokkos_Macros.hpp"
 
+#include "basis/nodal_basis.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "concepts/arithmetic.hpp"
 #include "concepts/types.hpp"
 #include "kokkos_types.hpp"
 
 namespace athelas::utilities {
-using basis::ModalBasis;
+using basis::NodalBasis;
 
 /**
  * @brief constexpr integer power function

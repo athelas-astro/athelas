@@ -1,5 +1,6 @@
 #include "driver.hpp"
 #include "basic_types.hpp"
+#include "basis/nodal_basis.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "fluid/hydro_package.hpp"
 #include "geometry/geometry_package.hpp"
@@ -21,6 +22,7 @@
 namespace athelas {
 
 using basis::ModalBasis;
+using basis::NodalBasis;
 using io::write_output, io::print_simulation_parameters;
 
 auto Driver::execute() -> int {
@@ -142,6 +144,10 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   const int max_nodes =
       std::max(pin_->param()->get<int>("fluid.nnodes"),
                pin_->param()->get<int>("radiation.nnodes", 1));
+  const bool use_nodal_basis =
+      pin->param()->get<bool>("fluid.use_nodal_basis", false);
+  // For nodal DG, u_cf is (ix, node, var); for modal, (ix, mode, var)
+  const int u_cf_middle = use_nodal_basis ? max_nodes : max_order;
   const auto cfl =
       compute_cfl(pin_->param()->get<double>("problem.cfl"), max_order);
   const bool rad_active = pin->param()->get<bool>("physics.rad_active");
@@ -168,7 +174,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
     }
   }
   mesh_state_.register_field("u_cf", DataPolicy::Staged, "Conserved variables",
-                             varnames_cons, nx + 2, max_order, nvars_cons);
+                             varnames_cons, nx + 2, u_cf_middle, nvars_cons);
 
   int nvars_aux = 3;
   mesh_state_.register_field("u_af", DataPolicy::OneCopy, "Auxiliary variables",
@@ -207,27 +213,38 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
     initialize_fields(mesh_state_, &grid_, pin, first_init);
     first_init = false;
 
-    // --- Datastructure for modal basis ---
-    static const bool rad_active =
+    // --- Basis: modal or nodal ---
+    const bool rad_active =
         pin_->param()->get<bool>("physics.rad_active");
-    auto fluid_basis = std::make_unique<ModalBasis>(
-        poly_basis::legendre, prims, &grid_,
-        pin->param()->get<int>("fluid.porder"),
-        pin->param()->get<int>("fluid.nnodes"),
-        pin->param()->get<int>("problem.nx"), true);
-    mesh_state_.setup_fluid_basis(std::move(fluid_basis));
-    if (rad_active) {
-      auto radiation_basis = std::make_unique<ModalBasis>(
-          poly_basis::legendre, prims, &grid_,
-          pin->param()->get<int>("radiation.porder"),
-          pin->param()->get<int>("radiation.nnodes"),
-          pin->param()->get<int>("problem.nx"), false);
-      mesh_state_.setup_rad_basis(std::move(radiation_basis));
+    if (use_nodal_basis) {
+      auto fluid_basis = std::make_unique<NodalBasis>(
+          prims, &grid_,
+          pin->param()->get<int>("fluid.nnodes"),
+          pin->param()->get<int>("problem.nx"), true);
+      mesh_state_.setup_fluid_basis(std::move(fluid_basis));
+      if (rad_active) {
+        auto radiation_basis = std::make_unique<NodalBasis>(
+            prims, &grid_,
+            pin->param()->get<int>("radiation.nnodes"),
+            pin->param()->get<int>("problem.nx"), false);
+        mesh_state_.setup_rad_basis(std::move(radiation_basis));
+      }
+    } else {
+      auto fluid_basis = std::make_unique<NodalBasis>(
+          prims, &grid_,
+          pin->param()->get<int>("fluid.nnodes"),
+          pin->param()->get<int>("problem.nx"), true);
+      mesh_state_.setup_fluid_basis(std::move(fluid_basis));
+      if (rad_active) {
+        auto radiation_basis = std::make_unique<NodalBasis>(
+            prims, &grid_,
+            pin->param()->get<int>("radiation.nnodes"),
+            pin->param()->get<int>("problem.nx"), false);
+        mesh_state_.setup_rad_basis(std::move(radiation_basis));
+      }
     }
 
-    // --- Phase 2: Re-initialize with modal projection ---
-    // This will use the nodal density from Phase 1 to construct proper modal
-    // coefficients
+    // --- Phase 2: Re-initialize (modal projection or nodal copy) ---
     initialize_fields(mesh_state_, &grid_, pin, first_init);
   }
 
@@ -246,16 +263,17 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   bool split = false;
 
   const int n_stages = ssprk_.n_stages();
+  const int basis_order = use_nodal_basis ? max_nodes : max_order;
 
   // --- Init physics package manager ---
   // NOTE: Hydro/RadHydro should be registered first
   if (rad_active) {
     manager_->add_package(
-        RadHydroPackage{pin, n_stages, max_order, bcs_.get(), cfl, nx, true});
+        RadHydroPackage{pin, n_stages, basis_order, bcs_.get(), cfl, nx, true});
   } else [[unlikely]] {
     // pure Hydro
     manager_->add_package(
-        HydroPackage{pin, n_stages, max_order, bcs_.get(), cfl, nx, true});
+        HydroPackage{pin, n_stages, basis_order, bcs_.get(), cfl, nx, true});
   }
   if (gravity_active) {
     if (!pin->param()->get<bool>("physics.gravity.split")) {
@@ -272,7 +290,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   if (ni_heating_active) {
     if (!pin->param()->get<bool>("physics.heating.nickel.split")) {
       manager_->add_package(NickelHeatingPackage{
-          pin, sd0.comps()->species_indexer(), n_stages, max_order, true});
+          pin, sd0.comps()->species_indexer(), n_stages, basis_order, true});
     } else {
       split = true;
       split_manager_->add_package(NickelHeatingPackage{

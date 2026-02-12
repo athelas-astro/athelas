@@ -17,7 +17,7 @@
 
 namespace athelas {
 
-using basis::ModalBasis;
+using basis::NodalBasis;
 
 namespace io {
 

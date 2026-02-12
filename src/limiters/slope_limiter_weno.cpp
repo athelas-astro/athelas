@@ -23,7 +23,7 @@
 
 namespace athelas {
 
-using basis::ModalBasis;
+using basis::NodalBasis;
 using eos::EOS;
 using utilities::ratio;
 using namespace vars::modes;
@@ -34,7 +34,7 @@ using namespace vars::modes;
  **/
 void WENO::apply_slope_limiter(AthelasArray3D<double> U,
                                const GridStructure *grid,
-                               const ModalBasis &basis, const EOS &eos) {
+                               const NodalBasis &basis, const EOS &eos) {
 
   // Do not apply for first order method or if we don't want to.
   if (order_ == 1 || !do_limiter_) {

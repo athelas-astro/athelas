@@ -32,7 +32,7 @@ class GravityPackage {
 
   template <GravityModel Model>
   void gravity_update(AthelasArray3D<double> state, const GridStructure &grid,
-                      int stage, const basis::ModalBasis &basis) const;
+                      int stage, const basis::NodalBasis &basis) const;
 
   void apply_delta(AthelasArray3D<double> lhs,
                    const TimeStepInfo &dt_info) const;

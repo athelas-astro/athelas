@@ -62,11 +62,11 @@ auto StageData::mass_fractions(const std::string &name) const
   return parent_->opac();
 }
 
-[[nodiscard]] auto StageData::fluid_basis() const -> const basis::ModalBasis & {
+[[nodiscard]] auto StageData::fluid_basis() const -> const basis::NodalBasis & {
   return parent_->fluid_basis();
 }
 
-[[nodiscard]] auto StageData::rad_basis() const -> const basis::ModalBasis & {
+[[nodiscard]] auto StageData::rad_basis() const -> const basis::NodalBasis & {
   return parent_->rad_basis();
 }
 
@@ -85,7 +85,10 @@ MeshState::MeshState(const ProblemIn *const pin, const int nstages)
   const bool nickel_evolved =
       pin->param()->get<bool>("physics.heating.nickel.enabled");
   const bool rad_enabled = pin->param()->get<bool>("physics.rad_active");
-  const int porder = pin->param()->get<int>("fluid.porder");
+  const bool use_nodal =
+      pin->param()->get<bool>("fluid.use_nodal_basis", false);
+  const int porder = use_nodal ? pin->param()->get<int>("fluid.nnodes")
+                               : pin->param()->get<int>("fluid.porder");
 
   params_->add("p_order", porder);
   params_->add("n_stages", nstages);
@@ -285,14 +288,14 @@ MeshState::get_comp_start_index(const std::string &field_name) const -> int {
   return rad_basis_ != nullptr;
 }
 
-[[nodiscard]] auto MeshState::fluid_basis() const -> const basis::ModalBasis & {
+[[nodiscard]] auto MeshState::fluid_basis() const -> const basis::NodalBasis & {
   if (!fluid_basis_) {
     throw_athelas_error("Fluid basis not initialized!");
   }
   return *fluid_basis_;
 }
 
-[[nodiscard]] auto MeshState::rad_basis() const -> const basis::ModalBasis & {
+[[nodiscard]] auto MeshState::rad_basis() const -> const basis::NodalBasis & {
   if (!rad_basis_) {
     throw_athelas_error("Radiation basis not initialized!");
   }

@@ -37,7 +37,7 @@
 
 namespace athelas::bel {
 
-using basis::ModalBasis, basis::basis_eval;
+using basis::NodalBasis, basis::basis_eval;
 using utilities::ratio;
 
 /**

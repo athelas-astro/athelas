@@ -225,6 +225,10 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   }
   params_->add("fluid.nnodes", nnodes.value());
 
+  const bool use_nodal_basis =
+      config_["fluid"]["use_nodal_basis"].value_or(false);
+  params_->add("fluid.use_nodal_basis", use_nodal_basis);
+
   if (!config_["fluid"]["limiter"].is_table()) {
     athelas_warning("No [limiter] block in [fluid] - defaulting to minmod with "
                     "standard values!");

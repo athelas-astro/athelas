@@ -57,7 +57,7 @@ auto target_func_rad_energy_deriv(double theta, AthelasArray3D<double> U,
 
 template <typename F>
 auto bisection(AthelasArray3D<double> U, F target,
-               const basis::ModalBasis *basis, const int ix, const int iN)
+               const basis::NodalBasis *basis, const int ix, const int iN)
     -> double {
   constexpr static double TOL = 1e-10;
   constexpr static int MAX_ITERS = 100;

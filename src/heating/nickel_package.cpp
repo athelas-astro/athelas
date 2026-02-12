@@ -13,7 +13,7 @@
 
 namespace athelas::nickel {
 using atom::CompositionData;
-using basis::ModalBasis;
+using basis::NodalBasis;
 using utilities::to_lower;
 
 NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,

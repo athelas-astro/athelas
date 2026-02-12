@@ -14,7 +14,7 @@
 #include "radiation/radhydro_package.hpp"
 
 namespace athelas::radiation {
-using basis::ModalBasis, basis::basis_eval;
+using basis::NodalBasis, basis::basis_eval;
 using eos::EOS;
 using fluid::numerical_flux_gudonov_positivity;
 

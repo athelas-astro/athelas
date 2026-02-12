@@ -8,7 +8,7 @@
 #include "pgen/problem_in.hpp"
 
 namespace athelas::geometry {
-using basis::ModalBasis;
+using basis::NodalBasis;
 
 GeometryPackage::GeometryPackage(const ProblemIn *pin, const int n_stages,
                                  const bool active)

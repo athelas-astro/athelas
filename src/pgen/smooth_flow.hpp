@@ -9,6 +9,7 @@
 
 #include <cmath>
 
+#include "basis/nodal_basis.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "eos/eos_variant.hpp"
 #include "geometry/grid.hpp"
@@ -51,30 +52,30 @@ void smooth_flow_init(MeshState &mesh_state, GridStructure *grid,
         }
       });
 
-  // Phase 2: Initialize modal coefficients
+  // Phase 2: Initialize conserved (modal projection or nodal values)
   if (!first_init) {
     const auto &fluid_basis = mesh_state.fluid_basis();
-    // Use L2 projection for accurate modal coefficients
     auto density_func = [&amp](double x, int /*ix*/, int /*iN*/) -> double {
       return 1.0 + amp * sin(constants::PI * x);
     };
-
     auto velocity_func = [](double /*x*/, int /*ix*/, int /*iN*/) -> double {
       return 0.0;
     };
-
     auto energy_func = [&amp](double x, int /*ix*/, int /*iN*/) -> double {
       const double D = 1.0 + amp * sin(constants::PI * x);
       return (D * D * D / 2.0) / D;
     };
 
-    // Project each conserved variable using Kokkos parallel for
-    fluid_basis.project_nodal_to_modal_all_cells(uCF, uPF, grid, q_Tau,
-                                                 density_func);
-    fluid_basis.project_nodal_to_modal_all_cells(uCF, uPF, grid, q_V,
-                                                 velocity_func);
-    fluid_basis.project_nodal_to_modal_all_cells(uCF, uPF, grid, q_E,
-                                                 energy_func);
+      static const IndexRange nb(nNodes);
+      athelas::par_for(
+          DEFAULT_LOOP_PATTERN, "Pgen :: SmoothFlow (nodal)", DevExecSpace(),
+          ib.s, ib.e, nb.s, nb.e,
+          KOKKOS_LAMBDA(const int i, const int node) {
+            const double x = grid->node_coordinate(i, node);
+            uCF(i, node, q_Tau) = 1.0 / density_func(x, i, node);
+            uCF(i, node, q_V) = velocity_func(x, i, node);
+            uCF(i, node, q_E) = energy_func(x, i, node);
+          });
   } else {
     // Fallback: set cell averages only (k=0)
     athelas::par_for(

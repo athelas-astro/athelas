@@ -23,7 +23,7 @@
 
 namespace athelas::fluid {
 
-using basis::ModalBasis, basis::basis_eval;
+using basis::NodalBasis;
 using eos::EOS;
 
 HydroPackage::HydroPackage(const ProblemIn * /*pin*/, int n_stages, int order,
@@ -105,8 +105,8 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
       DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Interface States", DevExecSpace(),
       ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
         for (int v = vb.s; v <= vb.e; ++v) {
-          u_f_l_(i, v) = basis_eval(phi, ucf, i - 1, v, nNodes + 1);
-          u_f_r_(i, v) = basis_eval(phi, ucf, i, v, 0);
+          u_f_l_(i, v) = basis.basis_eval(ucf, i - 1, v, nNodes + 1);
+          u_f_r_(i, v) = basis.basis_eval(ucf, i, v, 0);
         }
       });
 
@@ -163,7 +163,7 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
           double local_sum3 = 0.0;
           for (int q = 0; q < nNodes; ++q) {
             const double vel =
-                basis_eval(phi, ucf, i, vars::cons::Velocity, q + 1);
+                basis.basis_eval(ucf, i, vars::cons::Velocity, q + 1);
             const double P = uaf(i, q + 1, vars::aux::Pressure);
             const auto [flux1, flux2, flux3] = flux_fluid(vel, P);
             const double w = weights(q);
@@ -317,9 +317,9 @@ void HydroPackage::fill_derived(StageData &stage_data,
           double lambda[8];
           for (int q = 0; q < nNodes + 2; ++q) {
             const double rho =
-                1.0 / basis_eval(phi, uCF, i, vars::cons::SpecificVolume, q);
-            const double vel = basis_eval(phi, uCF, i, vars::cons::Velocity, q);
-            const double emt = basis_eval(phi, uCF, i, vars::cons::Energy, q);
+                1.0 / basis.basis_eval(uCF, i, vars::cons::SpecificVolume, q);
+            const double vel = basis.basis_eval(uCF, i, vars::cons::Velocity, q);
+            const double emt = basis.basis_eval(uCF, i, vars::cons::Energy, q);
             const double sie = emt - 0.5 * vel * vel;
             uAF(i, q, vars::aux::Tgas) =
                 temperature_from_density_sie(eos, rho, sie, lambda);
@@ -343,9 +343,9 @@ void HydroPackage::fill_derived(StageData &stage_data,
         ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
           for (int q = 0; q < nNodes + 2; ++q) {
             const double rho =
-                1.0 / basis_eval(phi, uCF, i, vars::cons::SpecificVolume, q);
-            const double vel = basis_eval(phi, uCF, i, vars::cons::Velocity, q);
-            const double emt = basis_eval(phi, uCF, i, vars::cons::Energy, q);
+                1.0 / basis.basis_eval(uCF, i, vars::cons::SpecificVolume, q);
+            const double vel = basis.basis_eval(uCF, i, vars::cons::Velocity, q);
+            const double emt = basis.basis_eval(uCF, i, vars::cons::Energy, q);
 
             const double momentum = rho * vel;
             const double sie = (emt - 0.5 * vel * vel);
@@ -381,9 +381,9 @@ void HydroPackage::fill_derived(StageData &stage_data,
         ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
           for (int q = 0; q < nNodes + 2; ++q) {
             const double rho =
-                1.0 / basis_eval(phi, uCF, i, vars::cons::SpecificVolume, q);
-            const double vel = basis_eval(phi, uCF, i, vars::cons::Velocity, q);
-            const double emt = basis_eval(phi, uCF, i, vars::cons::Energy, q);
+                1.0 / basis.basis_eval(uCF, i, vars::cons::SpecificVolume, q);
+            const double vel = basis.basis_eval(uCF, i, vars::cons::Velocity, q);
+            const double emt = basis.basis_eval(uCF, i, vars::cons::Energy, q);
 
             const double momentum = rho * vel;
             const double sie = (emt - 0.5 * vel * vel);

@@ -23,7 +23,7 @@
 
 namespace athelas {
 
-using basis::ModalBasis;
+using basis::NodalBasis;
 using eos::EOS;
 
 auto initialize_slope_limiter(const std::string field,
@@ -120,7 +120,7 @@ auto barth_jespersen(double U_v_L, double U_v_R, double U_c_L, double U_c_T,
  **/
 void detect_troubled_cells(const AthelasArray3D<double> U,
                            AthelasArray1D<double> D, const GridStructure *grid,
-                           const ModalBasis &basis,
+                           const NodalBasis &basis,
                            const std::vector<int> &vars) {
   static const IndexRange ib(grid->domain<Domain::Interior>());
   athelas::par_for(
@@ -205,7 +205,7 @@ void modify_polynomial(AthelasArray3D<double> U,
 // TODO(astrobarker): pass in views remove accessors
 auto smoothness_indicator(AthelasArray3D<double> U,
                           AthelasArray2D<double> modified_polynomial,
-                          const GridStructure *grid, const ModalBasis &basis,
+                          const GridStructure *grid, const NodalBasis &basis,
                           const int ix, const int i, const int /*q*/)
     -> double {
   const int k = U.extent(1);
@@ -220,11 +220,13 @@ auto smoothness_indicator(AthelasArray3D<double> U,
     double local_sum = 0.0;
     for (int q = 0; q < k; q++) {
       const auto X = r(ix, q + 1);
+      /*
       local_sum += weights(q) *
                    std::pow(modified_polynomial(s, i) *
                                 ModalBasis::d_legendre_n(k, s, X),
                             2.0) *
                    std::pow(dr(ix), 2.0 * s);
+      */
     }
     beta += local_sum;
   }

@@ -65,23 +65,24 @@ void sod_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
         }
       });
 
-  // Phase 2: Initialize modal coefficients
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Sod (2)", DevExecSpace(), ib.s, ib.e,
-      KOKKOS_LAMBDA(const int i) {
-        const int k = 0;
-        const double X1 = grid->centers(i);
-
-        if (X1 <= x_d) {
-          uCF(i, k, q_Tau) = 1.0 / D_L;
-          uCF(i, k, q_V) = V_L;
-          uCF(i, k, q_E) = (P_L / gm1) * uCF(i, k, q_Tau) + 0.5 * V_L * V_L;
-        } else {
-          uCF(i, k, q_Tau) = 1.0 / D_R;
-          uCF(i, k, q_V) = V_R;
-          uCF(i, k, q_E) = (P_R / gm1) * uCF(i, k, q_Tau) + 0.5 * V_R * V_R;
-        }
-      });
+    static const IndexRange nb(nNodes);
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN, "Pgen :: Sod", DevExecSpace(), ib.s, ib.e,
+        nb.s, nb.e,
+        KOKKOS_LAMBDA(const int i, const int q) {
+          const double x = grid->node_coordinate(i, q);
+          if (x <= x_d) {
+            uCF(i, q, q_Tau) = 1.0 / D_L;
+            uCF(i, q, q_V) = V_L;
+            uCF(i, q, q_E) =
+                (P_L / gm1) * uCF(i, q, q_Tau) + 0.5 * V_L * V_L;
+          } else {
+            uCF(i, q, q_Tau) = 1.0 / D_R;
+            uCF(i, q, q_V) = V_R;
+            uCF(i, q, q_E) =
+                (P_R / gm1) * uCF(i, q, q_Tau) + 0.5 * V_R * V_R;
+          }
+        });
 
   // Fill density in guard cells
   athelas::par_for(

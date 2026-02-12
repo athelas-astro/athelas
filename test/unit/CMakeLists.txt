@@ -16,12 +16,18 @@ add_executable( unit_tests
 
   test_catch_integration.cpp
   test_quadrature.cpp
+  test_nodal_basis.cpp
   ../../src/eos/eos_paczynski.cpp
   ../../src/eos/eos_ideal.cpp
   ../../src/eos/eos_polytropic.cpp
   ../../src/eos/eos_marshak.cpp
   ../../src/linalg/linear_algebra.cpp
   ../../src/quadrature/quadrature.cpp
+  ../../src/basis/nodal_basis.cpp
+  ../../src/geometry/grid.cpp
+  ../../src/timestepper/tableau.cpp
+  ../../src/pgen/problem_in.cpp
+  ../../src/interface/params.cpp
   test_parser.cpp
   test_paczynski.cpp
   test_root_finders.cpp

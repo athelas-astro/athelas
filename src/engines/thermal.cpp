@@ -13,7 +13,7 @@
 
 namespace athelas::thermal_engine {
 using atom::CompositionData;
-using basis::ModalBasis;
+using basis::NodalBasis;
 using constants::FOURPI;
 using utilities::to_lower;
 

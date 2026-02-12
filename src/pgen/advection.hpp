@@ -57,44 +57,30 @@ void advection_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
         }
       });
 
-  // Phase 2: Initialize modal coefficients
-  if (!first_init) {
+  // Phase 2: Initialize conserved (modal projection or nodal values)
     const auto &fluid_basis = mesh_state.fluid_basis();
-    // Use L2 projection for accurate modal coefficients
     auto density_func = [&Amp](double x, int /*ix*/, int /*iN*/) -> double {
       return 2.0 + Amp * sin(2.0 * constants::PI * x);
     };
-
     auto velocity_func = [&V0](double /*x*/, int /*ix*/, int /*iN*/) -> double {
       return V0;
     };
-
     auto energy_func = [&P0, &V0, &Amp, &gm1](double x, int /*ix*/,
                                               int /*iN*/) -> double {
       const double rho = 2.0 + Amp * sin(2.0 * constants::PI * x);
       return (P0 / gm1) / rho + 0.5 * V0 * V0;
     };
 
-    // L2 projection onto modal basis
-    fluid_basis.project_nodal_to_modal_all_cells(uCF, uPF, grid, q_Tau,
-                                                 density_func);
-    fluid_basis.project_nodal_to_modal_all_cells(uCF, uPF, grid, q_V,
-                                                 velocity_func);
-    fluid_basis.project_nodal_to_modal_all_cells(uCF, uPF, grid, q_E,
-                                                 energy_func);
-  } else {
-    // Fallback: set cell averages only (k=0)
-    athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Advection (2)", DevExecSpace(),
-        ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-          const int k = 0;
-          const double X1 = grid->centers(i);
-
-          uCF(i, k, q_Tau) = 1.0 / (2.0 + Amp * sin(2.0 * constants::PI * X1));
-          uCF(i, k, q_V) = V0;
-          uCF(i, k, q_E) = (P0 / gm1) * uCF(i, k, q_Tau) + 0.5 * V0 * V0;
-        });
-  }
+      static const IndexRange nb(nNodes);
+      athelas::par_for(
+          DEFAULT_LOOP_PATTERN, "Pgen :: Advection (nodal)", DevExecSpace(),
+          ib.s, ib.e, nb.s, nb.e,
+          KOKKOS_LAMBDA(const int i, const int node) {
+            const double x = grid->node_coordinate(i, node);
+            uCF(i, node, q_Tau) = 1.0 / density_func(x, i, node);
+            uCF(i, node, q_V) = velocity_func(x, i, node);
+            uCF(i, node, q_E) = energy_func(x, i, node);
+          });
 
   // Fill density in guard cells
   athelas::par_for(

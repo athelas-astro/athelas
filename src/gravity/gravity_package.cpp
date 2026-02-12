@@ -16,7 +16,7 @@
 
 namespace athelas::gravity {
 
-using basis::ModalBasis;
+using basis::NodalBasis;
 
 GravityPackage::GravityPackage(const ProblemIn *pin, GravityModel model,
                                const double gval, const double cfl,
@@ -45,7 +45,7 @@ void GravityPackage::update_explicit(const StageData &stage_data,
 template <GravityModel Model>
 void GravityPackage::gravity_update(AthelasArray3D<double> state,
                                     const GridStructure &grid, const int stage,
-                                    const basis::ModalBasis &basis) const {
+                                    const basis::NodalBasis &basis) const {
   using basis::basis_eval;
   const int nNodes = grid.n_nodes();
   const int &order = basis.order();

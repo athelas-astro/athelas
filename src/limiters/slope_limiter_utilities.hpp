@@ -45,7 +45,7 @@ auto barth_jespersen(double U_v_L, double U_v_R, double U_c_L, double U_c_T,
 
 void detect_troubled_cells(const AthelasArray3D<double> U,
                            AthelasArray1D<double> D, const GridStructure *grid,
-                           const basis::ModalBasis &basis,
+                           const basis::NodalBasis &basis,
                            const std::vector<int> &vars);
 
 /**
@@ -85,7 +85,7 @@ void modify_polynomial(AthelasArray3D<double> U,
 auto smoothness_indicator(AthelasArray3D<double> U,
                           AthelasArray2D<double> modified_polynomial,
                           const GridStructure *grid,
-                          const basis::ModalBasis &basis, int ix, int i,
+                          const basis::NodalBasis &basis, int ix, int i,
                           int iCQ) -> double;
 
 auto non_linear_weight(double gamma, double beta, double tau, double eps)

@@ -12,7 +12,7 @@
 
 namespace athelas {
 
-using basis::ModalBasis;
+using basis::NodalBasis;
 
 using QuantityFunction =
     std::function<double(const MeshState &, const GridStructure &)>;
