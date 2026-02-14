@@ -194,22 +194,8 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
 
   // auto info = mesh_state_.field_info();
 
-  bool first_init = true;
-
   if (!restart_) {
-    // The pattern here is annoying and due to a chicken-and-egg
-    // pattern between problem generation and basis construction.
-    // Some problems, like Shu-Osher, need the basis at setup
-    // to perform the L2 projection from nodal to modal
-    // representation. Basis construction, however, requires the
-    // nodal density field as density weighted inner products are used.
-    // So here, the firist initialize_fields call may only populate nodal
-    // density in uPF. Then bases are constructed. Then, the second
-    // initialize_fields call populates the conserved variables.
-    // For simple cases, like Sod, the layering is redundant, as
-    // the bases are never used.
-    first_init = false;
-    initialize_fields(mesh_state_, &grid_, pin, first_init);
+    initialize_fields(mesh_state_, &grid_, pin);
     auto sd0 = mesh_state_(0);
     auto prims = sd0.get_field("u_pf");
 

@@ -1,10 +1,3 @@
-/**
- * @file rad_wave.hpp
- * --------------
- *
- * @brief Radiation wave test
- */
-
 #pragma once
 
 #include "basis/polynomial_basis.hpp"
@@ -30,16 +23,9 @@ void rad_wave_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   auto uCF = mesh_state(0).get_field("u_cf");
   auto uPF = mesh_state(0).get_field("u_pf");
 
-  static const IndexRange ib(grid->domain<Domain::Interior>());
   static const int nNodes = grid->n_nodes();
-
-  constexpr static int q_Tau = 0;
-  constexpr static int q_V = 1;
-  constexpr static int q_E = 2;
-
-  constexpr static int iPF_D = 0;
-
-  constexpr static int iCR_E = 3;
+  static const IndexRange ib(grid->domain<Domain::Interior>());
+  const IndexRange qb(nNodes);
 
   const auto lambda = pin->param()->get<double>("problem.params.lambda", 0.1);
   const auto kappa = pin->param()->get<double>("problem.params.kappa", 1.0);
@@ -58,13 +44,13 @@ void rad_wave_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
         const int k = 0;
         const double X1 = grid->centers(i);
 
-        uCF(i, k, q_Tau) = 1.0 / rho0;
-        uCF(i, k, q_V) = 0.0;
-        uCF(i, k, q_E) = (P0 / gm1) / rho0;
+        uCF(i, k, vars::cons::SpecificVolume) = 1.0 / rho0;
+        uCF(i, k, vars::cons::Velocity) = 0.0;
+        uCF(i, k, vars::cons::Energy) = (P0 / gm1) / rho0;
         uCF(i, k, iCR_E) = epsilon;
 
         for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
-          uPF(i, iNodeX, iPF_D) = rho0;
+          uPF(i, iNodeX, vars::prim::Rho) = rho0;
         }
       });
 

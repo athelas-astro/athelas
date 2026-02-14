@@ -1,10 +1,3 @@
-/**
- * @file sod.hpp
- * --------------
- *
- * @brief Sod shock tube
- */
-
 #pragma once
 
 #include "eos/eos_variant.hpp"
@@ -18,23 +11,15 @@ namespace athelas {
 /**
  * @brief Initialize Sod shock tube
  **/
-void sod_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
-              bool /*first_init*/) {
+void sod_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Sod requires ideal gas eos!");
 
   auto uCF = mesh_state(0).get_field("u_cf");
   auto uPF = mesh_state(0).get_field("u_pf");
 
-  static const int ilo = 1;
   static const IndexRange ib(grid->domain<Domain::Interior>());
   static const int nNodes = grid->n_nodes();
-
-  constexpr static int q_Tau = 0;
-  constexpr static int q_V = 1;
-  constexpr static int q_E = 2;
-
-  constexpr static int iPF_D = 0;
 
   const auto V_L = pin->param()->get<double>("problem.params.vL", 0.0);
   const auto V_R = pin->param()->get<double>("problem.params.vR", 0.0);
@@ -48,7 +33,6 @@ void sod_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
 
-  // Phase 1: Initialize nodal values (always done)
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Sod (1)", DevExecSpace(), ib.s, ib.e,
       KOKKOS_LAMBDA(const int i) {
@@ -56,43 +40,34 @@ void sod_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
 
         if (X1 <= x_d) {
           for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
-            uPF(i, iNodeX, iPF_D) = D_L;
+            uPF(i, iNodeX, vars::prim::Rho) = D_L;
           }
         } else {
           for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
-            uPF(i, iNodeX, iPF_D) = D_R;
+            uPF(i, iNodeX, vars::prim::Rho) = D_R;
           }
         }
       });
 
     static const IndexRange nb(nNodes);
+    auto r = grid->nodal_grid();
     athelas::par_for(
         DEFAULT_LOOP_PATTERN, "Pgen :: Sod", DevExecSpace(), ib.s, ib.e,
         nb.s, nb.e,
         KOKKOS_LAMBDA(const int i, const int q) {
-          const double x = grid->node_coordinate(i, q);
+          const double x = r(i, q+1);
           if (x <= x_d) {
-            uCF(i, q, q_Tau) = 1.0 / D_L;
-            uCF(i, q, q_V) = V_L;
-            uCF(i, q, q_E) =
-                (P_L / gm1) * uCF(i, q, q_Tau) + 0.5 * V_L * V_L;
+            uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D_L;
+            uCF(i, q, vars::cons::Velocity) = V_L;
+            uCF(i, q, vars::cons::Energy) =
+                (P_L / gm1) * uCF(i, q, vars::cons::SpecificVolume) + 0.5 * V_L * V_L;
           } else {
-            uCF(i, q, q_Tau) = 1.0 / D_R;
-            uCF(i, q, q_V) = V_R;
-            uCF(i, q, q_E) =
-                (P_R / gm1) * uCF(i, q, q_Tau) + 0.5 * V_R * V_R;
+            uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D_R;
+            uCF(i, q, vars::cons::Velocity) = V_R;
+            uCF(i, q, vars::cons::Energy) =
+                (P_R / gm1) * uCF(i, q, vars::cons::SpecificVolume) + 0.5 * V_R * V_R;
           }
         });
-
-  // Fill density in guard cells
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Sod (ghost)", DevExecSpace(), 0,
-      ilo - 1, KOKKOS_LAMBDA(const int i) {
-        for (int iN = 0; iN < nNodes + 2; iN++) {
-          uPF(ib.s - 1 - i, iN, 0) = uPF(ib.s + i, (nNodes + 2) - iN - 1, 0);
-          uPF(ib.e + 1 + i, iN, 0) = uPF(ib.e - i, (nNodes + 2) - iN - 1, 0);
-        }
-      });
 }
 
 } // namespace athelas

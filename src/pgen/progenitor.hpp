@@ -62,10 +62,9 @@ namespace athelas {
 /**
  * @brief Initialize supernova progenitor
  **/
-void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
-                     bool first_init) {
+void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   // If we ever add columns to the hydro profile, change this.
-  static constexpr int NUM_COLS_HYDRO = 6;
+  constexpr int NUM_COLS_HYDRO = 6;
 
   // Perform a number of sanity checks
   athelas_requires(pin->param()->get<std::string>("eos.type") == "paczynski",
@@ -198,7 +197,6 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   Kokkos::deep_copy(temperature_view, temperature_host);
   Kokkos::deep_copy(luminosity_view, luminosity_host);
 
-  if (first_init) {
     // Phase 1: Initialize nodal values
     // Here we construct nodal density and temperature.
     // This is where we deal with the mass cut.
@@ -264,10 +262,8 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
                 r_athelas);
           }
         });
-  }
 
-  // Phase 2: Initialize modal coefficients
-  if (!first_init) {
+  // Phase 2: Everything else
     const auto &fluid_basis = mesh_state.fluid_basis();
     const auto &eos = mesh_state.eos();
     auto species = comps->charge();
@@ -413,7 +409,6 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
     // TODO(astrobarker): this can be device side.
     auto mass_fractions_h =
         Kokkos::create_mirror_view(mesh_state.mass_fractions("u_cf"));
-    auto r = grid->nodal_grid();
     auto r_h = Kokkos::create_mirror_view(r);
     auto mass_matrix_h = Kokkos::create_mirror_view(fluid_basis.mass_matrix());
     auto phi_h = Kokkos::create_mirror_view(fluid_basis.phi());
@@ -471,9 +466,6 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
     // than 0, we can do it below. i.e., for species that we are not doing
     // Saha solves, what is their default ionization state?
     // This can probably be removed. (Zbar must be initialized)
-    auto mass_fractions = mesh_state.mass_fractions("u_cf");
-    auto charges = comps->charge();
-    auto neutrons = comps->neutron_number();
     auto ionization_states = ionization_state->ionization_fractions();
     auto zbar = ionization_state->zbar();
     athelas::par_for(
@@ -766,8 +758,6 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
             }
           });
     }
-
-  } // second pgen call
 
   // Fill density and temperature in guard cells.
   // Temperature must be filled in when ionization is active.

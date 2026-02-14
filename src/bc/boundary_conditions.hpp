@@ -107,7 +107,7 @@ apply_bc(const BoundaryConditionsData<N> &bc,
   case BcType::Reflecting:
     for (int i = 0; i < n_nodes; ++i) {
 
-      const int i_ref = n_nodes - 1 - i; // <-- key difference from modal
+      const int i_ref = n_nodes - 1 - i;
 
       if (v == 1 || v == 4) {
         // normal momentum / radiation flux
