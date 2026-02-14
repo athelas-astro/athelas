@@ -353,18 +353,18 @@ void write_output(const MeshState &mesh_state, GridStructure &mesh,
   writer.create_group("/mesh");
   writer.create_group("/fields");
   writer.create_group("/metadata");
-  writer.create_group("/simulation_info");
-  writer.create_group("/basis/fluid");
+  writer.create_group("/info");
+  writer.create_group("/basis");
   if (mesh_state.radiation_enabled()) {
     writer.create_group("/basis/radiation");
   }
 
   // Write simulation info
-  writer.write_scalar("/simulation_info/cycle", cycle,
+  writer.write_scalar("/info/cycle", cycle,
                       H5::PredType::NATIVE_INT);
-  writer.write_scalar("/simulation_info/time", time,
+  writer.write_scalar("/info/time", time,
                       H5::PredType::NATIVE_DOUBLE);
-  writer.write_scalar("/simulation_info/n_stages", mesh_state.n_stages(),
+  writer.write_scalar("/info/n_stages", mesh_state.n_stages(),
                       H5::PredType::NATIVE_INT);
 
   writer.write_view(mesh.widths(), "/mesh/dr");
@@ -375,8 +375,10 @@ void write_output(const MeshState &mesh_state, GridStructure &mesh,
   const auto &fluid_basis = mesh_state.fluid_basis();
   auto phi_fluid = fluid_basis.phi();
   auto dphi_fluid = fluid_basis.dphi();
-  writer.write_view(phi_fluid, "/basis/fluid/phi");
-  writer.write_view(dphi_fluid, "/basis/fluid/dphi");
+  writer.write_view(phi_fluid, "/basis/hi");
+  writer.write_view(dphi_fluid, "/basis/dphi");
+  writer.write_view(mesh.nodes(), "/basis/nodes");
+  writer.write_view(mesh.weights(), "/basis/weights");
   if (mesh_state.radiation_enabled()) {
     const auto &basis = mesh_state.rad_basis();
     auto phi = basis.phi();
