@@ -57,9 +57,6 @@ void hydrostatic_balance_init(MeshState &mesh_state, GridStructure *grid,
     auto tau_func = [&](double /*x*/, int ix, int iN) -> double {
       return 1.0 / rho_from_p(uAF(ix, iN, 0));
     };
-    auto velocity_func = [](double /*x*/, int /*ix*/, int /*iN*/) -> double {
-      return 0.0;
-    };
     auto energy_func = [&](double /*x*/, int ix, int iN) -> double {
       const double rho = rho_from_p(uAF(ix, iN, 0));
       return (uAF(ix, iN, 0) / gm1) / rho;
@@ -72,7 +69,7 @@ void hydrostatic_balance_init(MeshState &mesh_state, GridStructure *grid,
           KOKKOS_LAMBDA(const int i, const int q) {
             const int iN = q + 1; // uAF interior index
             uCF(i, q, vars::cons::SpecificVolume) = tau_func(0.0, i, iN);
-            uCF(i, q, vars::cons::Velocity) = velocity_func(0.0, i, iN);
+            uCF(i, q, vars::cons::Velocity) = 0.0;
             uCF(i, q, vars::cons::Energy) = energy_func(0.0, i, iN);
           });
 }

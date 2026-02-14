@@ -8,6 +8,7 @@
 
 #include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
+#include "utils/constants.hpp"
 #include "geometry/grid.hpp"
 #include "gravity/gravity_package.hpp"
 #include "kokkos_abstraction.hpp"
@@ -32,67 +33,43 @@ void GravityPackage::update_explicit(const StageData &stage_data,
   const auto stage = dt_info.stage;
   auto ucf = stage_data.get_field("u_cf");
 
-  const auto &basis = stage_data.fluid_basis();
   static const IndexRange ib(grid.domain<Domain::Interior>());
 
   if (model_ == GravityModel::Spherical) {
-    gravity_update<GravityModel::Spherical>(ucf, grid, stage, basis);
+    gravity_update<GravityModel::Spherical>(ucf, grid, stage);
   } else [[unlikely]] {
-    gravity_update<GravityModel::Constant>(ucf, grid, stage, basis);
+    gravity_update<GravityModel::Constant>(ucf, grid, stage);
   }
 }
 
 template <GravityModel Model>
-void GravityPackage::gravity_update(AthelasArray3D<double> state,
-                                    const GridStructure &grid, const int stage,
-                                    const basis::NodalBasis &basis) const {
+void GravityPackage::gravity_update(AthelasArray3D<double> ucf,
+                                    const GridStructure &grid, const int stage) const {
   using basis::basis_eval;
   const int nNodes = grid.n_nodes();
-  const int &order = basis.order();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  static const IndexRange kb(order);
 
   auto r = grid.nodal_grid();
-  auto dr = grid.widths();
   auto enclosed_mass = grid.enclosed_mass();
-  auto mass = grid.mass();
-  auto weights = grid.weights();
-  auto sqrt_gm = grid.sqrt_gm();
-  auto phi = basis.phi();
-  auto inv_mkk = basis.inv_mass_matrix();
 
   const double gval = gval_;
   // This can probably be simplified.
+  // NOTE: the update is divided by 4pi as this factor is weirdly included
+  // in enclosed mass but not in, e.g., the mass matrix.
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Gravity :: Update", DevExecSpace(), ib.s, ib.e,
-      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-        double local_sum_v = 0.0;
-        double local_sum_e = 0.0;
+      DEFAULT_FLAT_LOOP_PATTERN, "Gravity :: Update", DevExecSpace(), ib.s, ib.e,
+      KOKKOS_CLASS_LAMBDA(const int i) {
         for (int q = 0; q < nNodes; ++q) {
-          const double &X = r(i, q + 1);
-          const double &weight = weights(q);
-          const double &phi_kq = phi(i, q + 1, k);
-          const double X2 = X * X;
+          const double X = r(i, q + 1);
+          const double denom = X * X * constants::FOURPI;
           if constexpr (Model == GravityModel::Spherical) {
-            local_sum_v += weight * phi_kq * enclosed_mass(i, q) * 1.0 / ((X2));
-            local_sum_e +=
-                (weight * phi_kq / (X2)) *
-                basis_eval(phi, state, i, vars::cons::Velocity, q + 1);
+            delta_(stage, i, q, pkg_vars::Velocity) = - constants::G_GRAV * enclosed_mass(i, q) / denom;
+            delta_(stage, i, q, pkg_vars::Energy) = delta_(stage, i, q, pkg_vars::Velocity) * ucf(i, q, vars::cons::Velocity);
           } else {
-            local_sum_v +=
-                sqrt_gm(i, q + 1) * weight * phi(i, q + 1, k) * gval /
-                basis_eval(phi, state, i, vars::cons::SpecificVolume, q + 1);
-            local_sum_e +=
-                local_sum_v *
-                basis_eval(phi, state, i, vars::cons::Velocity, q + 1);
+            delta_(stage, i, q, pkg_vars::Velocity) = - constants::G_GRAV * gval;
+            delta_(stage, i, q, pkg_vars::Energy) = - constants::G_GRAV * gval * ucf(i, q, vars::cons::Velocity);
           }
         }
-
-        const double dm_o_mkk = mass(i) * inv_mkk(i, k);
-        delta_(stage, i, k, pkg_vars::Velocity) =
-            -constants::G_GRAV * local_sum_v * dm_o_mkk;
-        delta_(stage, i, k, pkg_vars::Energy) =
-            -constants::G_GRAV * local_sum_e * dm_o_mkk;
       });
 }
 
