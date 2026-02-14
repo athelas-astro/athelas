@@ -57,11 +57,9 @@ class TimeStepper {
   void update_fluid_explicit(PackageManager *pkgs, MeshState &mesh_state,
                              GridStructure &grid, const double t,
                              const double dt, SlopeLimiter *sl_hydro) {
-    const auto &order = mesh_state.p_order();
-
     static const int nvars = mesh_state.nvars("u_cf");
     static const IndexRange ib(grid.domain<Domain::Entire>());
-    static const IndexRange kb(order);
+    static const IndexRange qb(grid.n_nodes());
     static const IndexRange vb(nvars);
 
     grid_s_[0] = grid;
@@ -81,10 +79,10 @@ class TimeStepper {
       auto u = stage_data.get_field("u_cf");
       athelas::par_for(
           DEFAULT_LOOP_PATTERN, "Timestepper :: EX :: Reset sumvar",
-          DevExecSpace(), ib.s, ib.e, kb.s, kb.e,
-          KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+          DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
+          KOKKOS_CLASS_LAMBDA(const int i, const int q) {
             for (int v = vb.s; v <= vb.e; ++v) {
-              SumVar_U_(i, k, v) = u0(i, k, v);
+              SumVar_U_(i, q, v) = u0(i, q, v);
             }
             x_l_sumvar_(iS, i) = left_interface(i);
           });
@@ -111,10 +109,10 @@ class TimeStepper {
       // set U_s
       athelas::par_for(
           DEFAULT_LOOP_PATTERN, "Timestepper :: EX :: Set Us", DevExecSpace(),
-          ib.s, ib.e, kb.s, kb.e,
-          KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+          ib.s, ib.e, qb.s, qb.e,
+          KOKKOS_CLASS_LAMBDA(const int i, const int q) {
             for (int v = vb.s; v <= vb.e; ++v) {
-              u(i, k, v) = SumVar_U_(i, k, v);
+              u(i, q, v) = SumVar_U_(i, q, v);
             }
           });
 
@@ -123,7 +121,7 @@ class TimeStepper {
       grid_s_[iS].update_grid(x_l_sumvar_s);
 
       apply_slope_limiter(sl_hydro, u, &grid_s_[iS], fluid_basis, eos);
-      bel::apply_bound_enforcing_limiter(stage_data);
+      bel::apply_bound_enforcing_limiter(stage_data, grid_s_[iS]);
 
       dt_info.stage = iS;
       pkgs->fill_derived(stage_data, grid_s_[iS], dt_info);
@@ -155,7 +153,7 @@ class TimeStepper {
     auto sd0 = mesh_state(0);
     grid = grid_s_[nStages_ - 1];
     apply_slope_limiter(sl_hydro, u0, &grid, sd0.fluid_basis(), sd0.eos());
-    bel::apply_bound_enforcing_limiter(sd0);
+    bel::apply_bound_enforcing_limiter(sd0, grid);
 
     pkgs->zero_delta();
   }
@@ -247,8 +245,8 @@ class TimeStepper {
       apply_slope_limiter(sl_rad, u, &grid_s_[iS], rad_basis, eos);
       apply_slope_limiter(sl_rad, SumVar_U_, &grid_s_[iS], rad_basis, eos);
       apply_slope_limiter(sl_hydro, SumVar_U_, &grid_s_[iS], fluid_basis, eos);
-      bel::apply_bound_enforcing_limiter(stage_data);
-      bel::apply_bound_enforcing_limiter_rad(stage_data);
+      bel::apply_bound_enforcing_limiter(stage_data, grid_s_[iS]);
+      bel::apply_bound_enforcing_limiter_rad(stage_data, grid_s_[iS]);
 
       // implicit update
       dt_info.stage = iS;
@@ -262,8 +260,8 @@ class TimeStepper {
 
       apply_slope_limiter(sl_hydro, u, &grid_s_[iS], fluid_basis, eos);
       apply_slope_limiter(sl_rad, u, &grid_s_[iS], rad_basis, eos);
-      bel::apply_bound_enforcing_limiter(stage_data);
-      bel::apply_bound_enforcing_limiter_rad(stage_data);
+      bel::apply_bound_enforcing_limiter(stage_data, grid_s_[iS]);
+      bel::apply_bound_enforcing_limiter_rad(stage_data, grid_s_[iS]);
 
       dt_info.stage = iS;
       pkgs->fill_derived(stage_data, grid_s_[iS], dt_info);
@@ -297,8 +295,8 @@ class TimeStepper {
     grid = grid_s_[nStages_ - 1];
     apply_slope_limiter(sl_hydro, u0, &grid, fluid_basis, eos);
     apply_slope_limiter(sl_rad, u0, &grid, rad_basis, eos);
-    bel::apply_bound_enforcing_limiter(sd0);
-    bel::apply_bound_enforcing_limiter_rad(sd0);
+    bel::apply_bound_enforcing_limiter(sd0, grid);
+    bel::apply_bound_enforcing_limiter_rad(sd0, grid);
 
     pkgs->zero_delta();
   }

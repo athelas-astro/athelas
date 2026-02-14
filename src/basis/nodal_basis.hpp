@@ -30,8 +30,6 @@ public:
              const int nElements, 
              const bool density_weight);
 
-  // === Accessors (API compatibility) ===
-  
   /**
    * @brief Lagrange basis values L_j(eta_i)
    * @return phi_(ix, i_eta, j) where i_eta: 0=left face, 1..nNodes=GL nodes, nNodes+1=right face
@@ -58,6 +56,20 @@ public:
   
   /** @brief Polynomial order (nNodes - 1) */
   auto order() const noexcept -> int;
+
+  /**
+   * @brief Project a nodal basis onto a modal representation
+   */
+   void nodal_to_modal(
+    AthelasArray3D<double> u_k,
+    AthelasArray3D<double> ucf) const; 
+
+  /**
+   * @brief Project a modal basis onto a nodal representation
+   */
+   void modal_to_nodal(
+    AthelasArray3D<double> ucf,
+    AthelasArray3D<double> u_k) const; 
   
   // === Evaluation methods (API compatibility) ===
   
@@ -96,7 +108,7 @@ public:
       -> AthelasArray2D<double>;
 
   template <typename ViewType>
-  static auto lagrange_polynomial(int j, double xi, const ViewType &nodes)
+  static auto lagrange_polynomial(int j, double xi, const ViewType nodes)
       -> double {
     const int n = static_cast<int>(nodes.size());
     double result = 1.0;
@@ -113,34 +125,40 @@ public:
 private:
   int nX_;
   int nNodes_;
-  int mSize_;
   bool density_weight_;
   
+  AthelasArray1D<double> nodes_;
+  AthelasArray1D<double> weights_;
   AthelasArray3D<double> phi_;
   AthelasArray3D<double> dphi_;  // Basis derivatives: dphi_(ix, i_eta, j) = dL_j/deta(eta_i)
   AthelasArray2D<double> mass_matrix_;
   AthelasArray2D<double> inv_mass_matrix_;
   AthelasArray2D<double> differentiation_matrix_;
-  AthelasArray2D<double> legendre_phi_;
+  AthelasArray2D<double> vandermonde_;
+  AthelasArray2D<double> inv_vandermonde_;
   
   /** @brief Initialize all basis quantities */
   void initialize_basis(const AthelasArray3D<double> uPF,
                        const GridStructure *grid);
   
-  /** @brief Build differentiation matrix using barycentric formula */
-  void build_differentiation_matrix(const AthelasArray1D<double> &nodes);
-  
+  /** @brief Build differentiation matrix */
+  void build_differentiation_matrix();
+
+  /** @brief Build Vandermonde and inverse Vandermonde matrices */
+  void build_vandermonde_matrices();
+
+
   /** @brief Compute diagonal mass matrix with density weighting */
   void compute_mass_matrix(const AthelasArray3D<double> uPF,
                           const GridStructure *grid);
   
   /** @brief Evaluate Lagrange polynomial L_j at point xi */
   static auto lagrange_polynomial(const int j, const double xi,
-                                 const AthelasArray1D<double> &nodes) -> double;
+                                 const AthelasArray1D<double> nodes) -> double;
   
   /** @brief Evaluate derivative of Lagrange polynomial dL_j/dxi at point xi */
   static auto d_lagrange_polynomial(const int j, const double xi,
-                                   const AthelasArray1D<double> &nodes) -> double;
+                                   const AthelasArray1D<double> nodes) -> double;
   
   /** @brief Fill guard cells (mirror interior) */
   void fill_guard_cells(const GridStructure *grid);

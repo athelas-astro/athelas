@@ -29,13 +29,6 @@ def parse_args():
   )
 
   parser.add_argument(
-    "--mode",
-    type=int,
-    default=0,
-    help="DG mode to plot (default: 0)",
-  )
-
-  parser.add_argument(
     "--xlim",
     nargs=2,
     type=float,
@@ -87,7 +80,6 @@ def main():
       ds.plot(
         args.quantity,
         ax=ax,
-        mode=args.mode,
         logx=args.logx,
         logy=args.logy,
       )

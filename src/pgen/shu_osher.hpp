@@ -69,7 +69,6 @@ void shu_osher_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
 
   // Phase 2: Initialize conserved (modal projection or nodal values)
   if (!first_init) {
-    const auto &fluid_basis = mesh_state.fluid_basis();
     auto tau_func = [&D_L](double x, int /*ix*/, int /*iN*/) -> double {
       if (x <= -4.0) {
         return 1.0 / D_L;
@@ -91,35 +90,18 @@ void shu_osher_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
       return (P_R / gm1) / rho;
     };
 
-      static const IndexRange nb(nNodes);
+      static const IndexRange qb(nNodes);
+      auto r = grid->nodal_grid();
       athelas::par_for(
-          DEFAULT_LOOP_PATTERN, "Pgen :: ShuOsher (nodal)", DevExecSpace(),
-          ib.s, ib.e, nb.s, nb.e,
-          KOKKOS_LAMBDA(const int i, const int node) {
-            const double x = grid->node_coordinate(i, node);
-            uCF(i, node, q_Tau) = tau_func(x, i, node);
-            uCF(i, node, q_V) = velocity_func(x, i, node);
-            uCF(i, node, q_E) = energy_func(x, i, node);
+          DEFAULT_LOOP_PATTERN, "Pgen :: ShuOsher", DevExecSpace(),
+          ib.s, ib.e, qb.s, qb.e,
+          KOKKOS_LAMBDA(const int i, const int q) {
+            const double x = r(i, q+1);
+            uCF(i, q, q_Tau) = tau_func(x, i, q);
+            uCF(i, q, q_V) = velocity_func(x, i, q);
+            uCF(i, q, q_E) = energy_func(x, i, q);
           });
-  } else {
-    // Fallback: set cell averages only (k=0)
-    athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: ShuOsher (2)", DevExecSpace(), ib.s,
-        ib.e, KOKKOS_LAMBDA(const int i) {
-          const int k = 0;
-          const double X1 = grid->centers(i);
-
-          if (X1 <= -4.0) {
-            uCF(i, k, q_Tau) = 1.0 / D_L;
-            uCF(i, k, q_V) = V0;
-            uCF(i, k, q_E) = (P_L / gm1) * uCF(i, k, q_Tau) + 0.5 * V0 * V0;
-          } else {
-            uCF(i, k, q_Tau) = 1.0 / (1.0 + 0.2 * sin(5.0 * X1));
-            uCF(i, k, q_V) = 0.0;
-            uCF(i, k, q_E) = (P_R / gm1) * uCF(i, k, q_Tau);
-          }
-        });
-  }
+  } 
 
   // Fill density in guard cells
   athelas::par_for(

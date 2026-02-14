@@ -30,6 +30,7 @@ void sedov_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
 
   static const IndexRange ib(grid->domain<Domain::Interior>());
   static const int nNodes = grid->n_nodes();
+  static const IndexRange qb(nNodes);
   auto left_interface = grid->x_l();
 
   constexpr static int q_Tau = 0;
@@ -50,24 +51,21 @@ void sedov_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   const double gm1 = gamma - 1.0;
 
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Sedov (1)", DevExecSpace(), ib.s,
-      ib.e, KOKKOS_LAMBDA(const int i) {
+      DEFAULT_LOOP_PATTERN, "Pgen :: Sedov", DevExecSpace(), ib.s,
+      ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
         const double volume =
             (4.0 * M_PI / 3.0) * std::pow(left_interface(origin + 1), 3.0);
         const double P0 = gm1 * E0 / volume;
-        const int k = 0;
 
-        uCF(i, k, q_Tau) = 1.0 / D0;
-        uCF(i, k, q_V) = V0;
+        uCF(i, q, q_Tau) = 1.0 / D0;
+        uCF(i, q, q_V) = V0;
         if (i == origin - 1 || i == origin) {
-          uCF(i, k, q_E) = (P0 / gm1) * uCF(i, k, q_Tau) + 0.5 * V0 * V0;
+          uCF(i, q, q_E) = (P0 / gm1) * uCF(i, q, q_Tau) + 0.5 * V0 * V0;
         } else {
-          uCF(i, k, q_E) = (1.0e-6 / gm1) * uCF(i, k, q_Tau) + 0.5 * V0 * V0;
+          uCF(i, q, q_E) = (1.0e-6 / gm1) * uCF(i, q, q_Tau) + 0.5 * V0 * V0;
         }
 
-        for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
-          uPF(i, iNodeX, iPF_D) = D0;
-        }
+          uPF(i, q, iPF_D) = D0;
       });
 
   // Fill density in guard cells
@@ -76,7 +74,7 @@ void sedov_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
       ib.s - 1, KOKKOS_LAMBDA(const int i) {
         for (int iN = 0; iN < nNodes + 2; iN++) {
           uPF(ib.s - 1 - i, iN, 0) = uPF(ib.s + i, (nNodes + 2) - iN - 1, 0);
-          uPF(ib.s + 1 + i, iN, 0) = uPF(ib.s - i, (nNodes + 2) - iN - 1, 0);
+          uPF(ib.e + 1 + i, iN, 0) = uPF(ib.e - i, (nNodes + 2) - iN - 1, 0);
         }
       });
 }

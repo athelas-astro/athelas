@@ -139,6 +139,13 @@ compute_internal_energy(T U, const AthelasArray3D<double> phi, const int ix,
 
 // cell average specific internal energy
 template <class T>
+KOKKOS_INLINE_FUNCTION auto compute_internal_energy(T U, const int i, const int q)
+    -> double {
+  return U(i, q, 2) - (0.5 * U(i, q, 1) * U(i, q, 1));
+}
+
+// cell average specific internal energy
+template <class T>
 KOKKOS_INLINE_FUNCTION auto compute_internal_energy(T U, const int ix)
     -> double {
   return U(ix, 0, 2) - (0.5 * U(ix, 0, 1) * U(ix, 0, 1));

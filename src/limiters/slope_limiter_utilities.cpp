@@ -118,7 +118,7 @@ auto barth_jespersen(double U_v_L, double U_v_R, double U_c_L, double U_c_T,
  * Detects smoothness by comparing local cell averages to extrapolated
  * neighbor projections.
  **/
-void detect_troubled_cells(const AthelasArray3D<double> U,
+void detect_troubled_cells(AthelasArray3D<double> U,
                            AthelasArray1D<double> D, const GridStructure *grid,
                            const NodalBasis &basis,
                            const std::vector<int> &vars) {
@@ -133,24 +133,25 @@ void detect_troubled_cells(const AthelasArray3D<double> U,
   auto widths = grid->widths();
   auto weights = grid->weights();
   auto sqrt_gm = grid->sqrt_gm();
+  auto mass = grid->mass();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: TCI", DevExecSpace(), ib.s,
       ib.e, KOKKOS_LAMBDA(const int i) {
-        const double dr = widths(i);
+        const double dm = mass(i);
         for (int v : vars) {
           if (v == 1 || v == 4) {
             continue; /* skip momenta */
           }
-          const double cell_avg = U(i, 0, v);
+          const double cell_avg = cell_average(U, weights, dm, v, i, 0);
 
           // Extrapolate neighboring poly representations into current cell
           // and compute the new cell averages
-          const double cell_avg_L_T = cell_average(U, sqrt_gm, weights, dr, phi,
-                                                   v, i + 1, -1); // from right
-          const double cell_avg_R_T = cell_average(U, sqrt_gm, weights, dr, phi,
-                                                   v, i - 1, +1); // from left
-          const double cell_avg_L = U(i - 1, 0, v); // native left
-          const double cell_avg_R = U(i + 1, 0, v); // native right
+          const double cell_avg_L_T = cell_average(U, weights, dm,
+                                                   v, i + 1, 0); // from right
+          const double cell_avg_R_T = cell_average(U, weights, dm,
+                                                   v, i - 1, 0); // from left
+          const double cell_avg_L = cell_average(U, weights, mass(i-1), v, i - 1, 0);
+          const double cell_avg_R = cell_average(U, weights, mass(i+1), v, i + 1, 0);
 
           const double result = (std::abs(cell_avg - cell_avg_L_T) +
                                  std::abs(cell_avg - cell_avg_R_T));
@@ -219,8 +220,8 @@ auto smoothness_indicator(AthelasArray3D<double> U,
     // integrate mode on cell
     double local_sum = 0.0;
     for (int q = 0; q < k; q++) {
-      const auto X = r(ix, q + 1);
       /*
+      const auto X = r(ix, q + 1);
       local_sum += weights(q) *
                    std::pow(modified_polynomial(s, i) *
                                 ModalBasis::d_legendre_n(k, s, X),

@@ -3,21 +3,28 @@
  * @brief Implementation of nodal DG basis using Lagrange polynomials
  */
 
+#include "kokkos_abstraction.hpp"
 #include "basis/nodal_basis.hpp"
 
 namespace athelas::basis {
 
-NodalBasis::NodalBasis(const AthelasArray3D<double> uPF, GridStructure *grid,
+NodalBasis::NodalBasis( AthelasArray3D<double> uPF, GridStructure *grid,
                        const int nN, const int nElements,
                        const bool density_weight)
-    : nX_(nElements), nNodes_(nN), mSize_((nN) * (nN + 2) * (nElements + 2)),
+    : nX_(nElements), nNodes_(nN),
       density_weight_(density_weight),
-      mass_matrix_("MassMatrix", nElements + 2, nN),
-      inv_mass_matrix_("InvMassMatrix", nElements + 2, nN),
+      nodes_("quadrature nodes", nN),
+      weights_("quadrature weights", nN),
       phi_("phi_", nElements + 2, nN + 2, nN),
       dphi_("dphi_", nElements + 2, nN + 2, nN),
+      mass_matrix_("MassMatrix", nElements + 2, nN),
+      inv_mass_matrix_("InvMassMatrix", nElements + 2, nN),
       differentiation_matrix_("DiffMatrix", nN, nN), 
-      legendre_phi_("noda::legendre_phi", nN, 5) {
+      vandermonde_("vandermonde", nN, nN), 
+      inv_vandermonde_("inverse vandermonde", nN, nN) {
+
+  Kokkos::deep_copy(nodes_, grid->nodes());
+  Kokkos::deep_copy(weights_, grid->weights());
 
   grid->compute_mass(uPF);
   grid->compute_mass_r(uPF);
@@ -134,14 +141,15 @@ auto NodalBasis::basis_eval(AthelasArray1D<double> U, const int ix,
 }
 
 auto NodalBasis::lagrange_polynomial(const int j, const double xi,
-                                     const AthelasArray1D<double> &nodes)
+                                     const AthelasArray1D<double> nodes)
     -> double {
-
   auto nodes_h = Kokkos::create_mirror_view(nodes);
   Kokkos::deep_copy(nodes_h, nodes);
 
+  const int nnodes = static_cast<int>(nodes_h.extent(0));
+
   double result = 1.0;
-  for (int k = 0; k < nodes_h.extent(0); k++) {
+  for (int k = 0; k < nnodes; k++) {
     if (k != j) {
       result *= (xi - nodes_h(k)) / (nodes_h(j) - nodes_h(k));
     }
@@ -150,13 +158,13 @@ auto NodalBasis::lagrange_polynomial(const int j, const double xi,
 }
 
 auto NodalBasis::d_lagrange_polynomial(const int j, const double xi,
-                                       const AthelasArray1D<double> &nodes)
+                                       const AthelasArray1D<double> nodes)
     -> double {
 
   auto nodes_h = Kokkos::create_mirror_view(nodes);
   Kokkos::deep_copy(nodes_h, nodes);
 
-  const int n = nodes_h.extent(0);
+  const int n = static_cast<int>(nodes_h.extent(0));
   double result = 0.0;
 
   // Product rule: d/dx[prod f_k] = sum_m [ f_m' * prod_{k!=m} f_k ]
@@ -175,12 +183,10 @@ auto NodalBasis::d_lagrange_polynomial(const int j, const double xi,
   return result;
 }
 
-void NodalBasis::build_differentiation_matrix(
-    const AthelasArray1D<double> &nodes) {
-
+void NodalBasis::build_differentiation_matrix() {
   auto D_h = Kokkos::create_mirror_view(differentiation_matrix_);
-  auto nodes_h = Kokkos::create_mirror_view(nodes);
-  Kokkos::deep_copy(nodes_h, nodes);
+  auto nodes_h = Kokkos::create_mirror_view(nodes_);
+  Kokkos::deep_copy(nodes_h, nodes_);
 
   // Compute barycentric weights, store temporarily in diagonal
   for (int j = 0; j < nNodes_; j++) {
@@ -216,6 +222,91 @@ void NodalBasis::build_differentiation_matrix(
   Kokkos::deep_copy(differentiation_matrix_, D_h);
 }
 
+/**
+ * @brief Build the Vandermonde and inverse Vandermonde matrices
+ * We make use of the relation 
+ *   M = V^T W V
+ * Where M is the mass matrix, V the Vandermonde, and W = diag{w_i}
+ * contains quadrature weights. 
+ */
+void NodalBasis::build_vandermonde_matrices() {
+  auto V_h = Kokkos::create_mirror_view(vandermonde_);
+  auto invV_h = Kokkos::create_mirror_view(inv_vandermonde_);
+  auto nodes_h = Kokkos::create_mirror_view(nodes_);
+  Kokkos::deep_copy(nodes_h, nodes_);
+  auto weights_h = Kokkos::create_mirror_view(weights_);
+  Kokkos::deep_copy(weights_h, weights_);
+
+  // Build V_{qk} = P_k(x_q)
+  for (int q = 0; q < nNodes_; ++q) {
+    const double xq = 2.0*nodes_h(q);
+    for (int k = 0; k < nNodes_; ++k) {
+      V_h(q, k) = legendre(k, xq);
+    }
+  }
+
+  // Build inverse Vandermonde (projection matrix)
+  // invV_{kq} = (2k+1) * w_q * P_k(x_q)
+  for (int k = 0; k < nNodes_; ++k) {
+    const double scale = (2.0 * static_cast<double>(k) + 1.0);
+    for (int q = 0; q < nNodes_; ++q) {
+      invV_h(k, q) = scale * weights_h(q) * V_h(q, k);
+    }
+  }
+
+  Kokkos::deep_copy(vandermonde_, V_h);
+  Kokkos::deep_copy(inv_vandermonde_, invV_h);
+}
+
+/**
+ * @brief Use the inverse Vandermonde to map a nodal basis to a modal one.
+ */
+void NodalBasis::nodal_to_modal(
+    AthelasArray3D<double> u_k,
+    AthelasArray3D<double> ucf ) const {
+  static const std::size_t nvars = ucf.extent(2);
+
+  athelas::par_for(
+      DEFAULT_FLAT_LOOP_PATTERN, "nodal_to_modal", DevExecSpace(),
+      0, u_k.extent(0) - 1, KOKKOS_CLASS_LAMBDA(const int i) {
+        for (std::size_t v = 0; v < nvars; ++v) {
+          for (int k = 0; k < nNodes_; ++k) {
+            double sum = 0.0;
+            for (int q = 0; q < nNodes_; ++q) {
+              sum += inv_vandermonde_(k, q) * ucf(i, q, v);
+            }
+            u_k(i, k, v) = sum;
+          }
+        }
+      });
+}
+
+/**
+ * @brief Use the Vandermonde to map a modal basis to a nodal one.
+ */
+void NodalBasis::modal_to_nodal(
+    AthelasArray3D<double> ucf,
+    AthelasArray3D<double> u_k) const {
+  static const std::size_t nvars = u_k.extent(2);
+
+  athelas::par_for(
+      DEFAULT_FLAT_LOOP_PATTERN, "modal_to_nodal", DevExecSpace(),
+      0, u_k.extent(0) - 1, KOKKOS_CLASS_LAMBDA(const int i) {
+        for (std::size_t v = 0; v < nvars; ++v) {
+          for (int q = 0; q < nNodes_; ++q) {
+            double sum = 0.0;
+            for (int k = 0; k < nNodes_; ++k) {
+              sum += vandermonde_(q, k) * u_k(i, k, v);
+            }
+            ucf(i, q, v) = sum;
+          }
+        }
+      });
+}
+
+/**
+ * @brief Initialize datastructures for the basis.
+ */
 void NodalBasis::initialize_basis(const AthelasArray3D<double> uPF,
                                   const GridStructure *grid) {
 
@@ -223,7 +314,8 @@ void NodalBasis::initialize_basis(const AthelasArray3D<double> uPF,
   const int ihi = grid->get_ihi();
   const auto nodes = grid->nodes();
 
-  build_differentiation_matrix(nodes);
+  build_differentiation_matrix();
+  build_vandermonde_matrices();
 
   auto phi_h = Kokkos::create_mirror_view(phi_);
   auto dphi_h = Kokkos::create_mirror_view(dphi_);
@@ -263,28 +355,30 @@ void NodalBasis::initialize_basis(const AthelasArray3D<double> uPF,
   fill_guard_cells(grid);
 }
 
+/**
+ * @brief Compute elements of the mass matrix and its inverse.
+ * M_jj = w_j dm
+ * As dm is fixed per cell, this is constant in time on an element.
+ */
 void NodalBasis::compute_mass_matrix(const AthelasArray3D<double> uPF,
                                      const GridStructure *grid) {
 
   const int ilo = 1;
   const int ihi = grid->get_ihi();
 
-  const auto dr = grid->widths();
-  const auto sqrt_gm = grid->sqrt_gm();
-  const auto weights = grid->weights();
+  auto dr = grid->widths();
+  auto sqrt_gm = grid->sqrt_gm();
+  auto weights = grid->weights();
+  auto mass = grid->mass();
 
   auto mass_h = Kokkos::create_mirror_view(mass_matrix_);
   auto inv_mass_h = Kokkos::create_mirror_view(inv_mass_matrix_);
 
-  // Diagonal mass matrix: M_jj = w_j * rho_j * sqrt_gm_j * dr
   for (int ix = ilo; ix <= ihi; ix++) {
     for (int j = 0; j < nNodes_; j++) {
-      const int iN = j;
+          density_weight_ ? uPF(ix, j + 1, vars::prim::Rho) : 1.0;
 
-      const double rho =
-          density_weight_ ? uPF(ix, iN + 1, vars::prim::Rho) : 1.0;
-
-      const double M_jj = weights(iN) * rho * sqrt_gm(ix, iN + 1) * dr(ix);
+      const double M_jj = weights(j) * mass(ix);
 
       mass_h(ix, j) = M_jj;
       inv_mass_h(ix, j) = 1.0 / M_jj;

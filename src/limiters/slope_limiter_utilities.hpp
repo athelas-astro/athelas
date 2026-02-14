@@ -57,22 +57,20 @@ void detect_troubled_cells(const AthelasArray3D<double> U,
  * +1 : Extrapolate right, e.g.,  polynomial from ix-1 into ix
  **/
 KOKKOS_INLINE_FUNCTION
-auto cell_average(AthelasArray3D<double> U, AthelasArray2D<double> sqrt_gms,
-                  AthelasArray1D<double> weights, const double dr,
-                  AthelasArray3D<double> phi, const int v, const int ix,
-                  const int extrapolate) -> double {
-  using basis::basis_eval;
+auto cell_average(AthelasArray3D<double> U,
+                  AthelasArray1D<double> weights, const double dm,
+                  const int v, const int ix,
+                  const int extrapolate = 0) -> double {
+  assert((extrapolate == -1 || extrapolate == 0 || extrapolate == 1) && "cell_average:: extrapolate must be -1, 0, 1");
   static const int nNodes = static_cast<int>(weights.size());
 
   double avg = 0.0;
   double vol = 0.0;
 
-  // NOTE: do mass or volume avg?
   for (int q = 0; q < nNodes; ++q) {
     const double w = weights(q);
-    const double sqrt_gm = sqrt_gms(ix + extrapolate, q + 1);
-    vol += w * sqrt_gm * dr; // TODO(astrobarker) rho
-    avg += w * basis_eval(phi, U, ix, v, q + 1) * sqrt_gm * dr;
+    vol += w * dm;
+    avg += w * U(ix + extrapolate, q, v) * dm;
   }
   return avg / vol;
 }

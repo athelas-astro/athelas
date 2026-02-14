@@ -12,10 +12,10 @@ using basis::NodalBasis;
 
 GeometryPackage::GeometryPackage(const ProblemIn *pin, const int n_stages,
                                  const bool active)
-    : active_(active), order_(pin->param()->get<int>("fluid.porder")) {
+    : active_(active) {
   const int nx = pin->param()->get<int>("problem.nx");
   int nvars_geom = 1; // sources velocity
-  delta_ = AthelasArray4D<double>("geometry delta", n_stages, nx + 2, order_,
+  delta_ = AthelasArray4D<double>("geometry delta", n_stages, nx + 2, pin->param()->get<int>("fluid.nnodes"),
                                   nvars_geom);
 }
 
@@ -23,32 +23,23 @@ void GeometryPackage::update_explicit(const StageData &stage_data,
                                       const GridStructure &grid,
                                       const TimeStepInfo &dt_info) {
   static const int nNodes = grid.n_nodes();
-  static const IndexRange kb(order_);
+  static const IndexRange qb(nNodes);
   static const IndexRange ib(grid.domain<Domain::Interior>());
 
   auto uaf = stage_data.get_field("u_af");
-  const auto stage = dt_info.stage;
+  auto upf = stage_data.get_field("u_pf");
   auto ucf = stage_data.get_field("u_cf");
+  const auto stage = dt_info.stage;
 
-  const auto &basis = stage_data.fluid_basis();
-  auto sqrt_gm = grid.sqrt_gm();
-  auto dx = grid.widths();
-  auto weights = grid.weights();
   auto r = grid.nodal_grid();
-  auto phi = basis.phi();
-  auto inv_mkk = basis.inv_mass_matrix();
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Hydro :: Geometry Source", DevExecSpace(), ib.s,
-      ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-        double local_sum = 0.0;
-        for (int q = 0; q < nNodes; ++q) {
-          const double P = uaf(i, q + 1, vars::aux::Pressure);
+      DEFAULT_LOOP_PATTERN, "Geometry::Explicit", DevExecSpace(), ib.s,
+      ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+        const double P = uaf(i, q + 1, vars::aux::Pressure);
+        const double tau = ucf(i, q, vars::cons::SpecificVolume);
 
-          local_sum += weights(q) * P * phi(i, q + 1, k) * r(i, q);
-        }
-
-        delta_(stage, i, k, pkg_vars::Velocity) +=
-            (2.0 * local_sum * dx(i)) * inv_mkk(i, k);
+        delta_(stage, i, q, pkg_vars::Velocity) =
+            tau * (2.0 * P / r(i, q + 1));
       });
 }
 
@@ -58,17 +49,17 @@ void GeometryPackage::update_explicit(const StageData &stage_data,
 void GeometryPackage::apply_delta(AthelasArray3D<double> lhs,
                                   const TimeStepInfo &dt_info) const {
   static const int nx = static_cast<int>(lhs.extent(0));
-  static const int nk = static_cast<int>(lhs.extent(1));
+  static const int nq = static_cast<int>(lhs.extent(1));
   static const IndexRange ib(std::make_pair(1, nx - 2));
-  static const IndexRange kb(nk);
+  static const IndexRange qb(nq);
 
   const int stage = dt_info.stage;
 
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Geometry :: Apply delta", DevExecSpace(), ib.s,
-      ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-        lhs(i, k, vars::cons::Velocity) +=
-            dt_info.dt_coef * delta_(stage, i, k, pkg_vars::Velocity);
+      ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+        lhs(i, q, vars::cons::Velocity) +=
+            dt_info.dt_coef * delta_(stage, i, q, pkg_vars::Velocity);
       });
 }
 
@@ -78,15 +69,15 @@ void GeometryPackage::apply_delta(AthelasArray3D<double> lhs,
 void GeometryPackage::zero_delta() const noexcept {
   static const IndexRange sb(static_cast<int>(delta_.extent(0)));
   static const IndexRange ib(static_cast<int>(delta_.extent(1)));
-  static const IndexRange kb(static_cast<int>(delta_.extent(2)));
+  static const IndexRange qb(static_cast<int>(delta_.extent(2)));
   static const IndexRange vb(static_cast<int>(delta_.extent(3)));
 
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Geometry :: Zero delta", DevExecSpace(), sb.s,
-      sb.e, ib.s, ib.e, kb.s, kb.e,
-      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int k) {
+      sb.e, ib.s, ib.e, qb.s, qb.e,
+      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int q) {
         for (int v = vb.s; v <= vb.e; ++v) {
-          delta_(s, i, k, v) = 0.0;
+          delta_(s, i, q, v) = 0.0;
         }
       });
 }

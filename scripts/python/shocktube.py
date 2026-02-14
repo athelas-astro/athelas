@@ -17,15 +17,16 @@ def plot_shocktube(chk):
   fn = f"{problem}_{chk}.h5"
   basis_fn = f"{problem}_basis.h5"
 
-  a = Athelas(fn, basis_fn)
+  a = Athelas(fn)
   r = a.r
-  tau = a.uCF[:, 0, 0]
-  vel = a.uCF[:, 0, 1]
-  emT = a.uCF[:, 0, 2]
+  tau = a.get("tau")
+  vel = a.get("vel")
+  emT = a.get("fluid_energy")
   em = emT - 0.5 * vel * vel
   rho = 1.0 / tau
   gamma = 1.4
   p = (gamma - 1.0) * em / tau
+  print(a.quadrature.weights)
 
   fig, ax = plt.subplots(figsize=(3.5, 3.5))
   plt.minorticks_on()

@@ -46,9 +46,8 @@ void HydroPackage::update_explicit(const StageData &stage_data,
 
   const auto &basis = stage_data.fluid_basis();
 
-  const auto &order = basis.order();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  static const IndexRange kb(order);
+  static const IndexRange qb(grid.n_nodes());
   static const IndexRange vb(NUM_VARS_);
 
   // --- Apply BC ---
@@ -66,10 +65,10 @@ void HydroPackage::update_explicit(const StageData &stage_data,
   const auto inv_mkk = basis.inv_mass_matrix();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Hydro :: delta / M_kk", DevExecSpace(), ib.s, ib.e,
-      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-        const double &invmkk = inv_mkk(i, k);
+      qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+        const double &invmkk = inv_mkk(i, q);
         for (int v = vb.s; v <= vb.e; ++v) {
-          delta_(stage, i, k, v) *= invmkk;
+          delta_(stage, i, q, v) *= invmkk;
         }
       });
 }
@@ -88,7 +87,7 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
   const auto &nNodes = grid.n_nodes();
   const auto &order = basis.order();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  static const IndexRange kb(order);
+  static const IndexRange qb(grid.n_nodes());
   static const IndexRange vb(NUM_VARS_);
 
   auto x_l = grid.x_l();
@@ -144,12 +143,12 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
   // --- Surface Term ---
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Hydro :: Surface Term", DevExecSpace(), ib.s, ib.e,
-      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+      qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
         for (int v = vb.s; v <= vb.e; ++v) {
-          delta_(stage, i, k, v) -=
-              (+dFlux_num_(i + 1, v) * phi(i, nNodes + 1, k) *
+          delta_(stage, i, q, v) -=
+              (+dFlux_num_(i + 1, v) * phi(i, nNodes + 1, q) *
                    sqrt_gm(i, nNodes + 1) -
-               dFlux_num_(i + 0, v) * phi(i, 0, k) * sqrt_gm(i, 0));
+               dFlux_num_(i + 0, v) * phi(i, 0, q) * sqrt_gm(i, 0));
         }
       });
 
@@ -157,17 +156,16 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
     // --- Volume Term ---
     athelas::par_for(
         DEFAULT_LOOP_PATTERN, "Hydro :: Volume Term", DevExecSpace(), ib.s,
-        ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+        ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int p) {
           double local_sum1 = 0.0;
           double local_sum2 = 0.0;
           double local_sum3 = 0.0;
           for (int q = 0; q < nNodes; ++q) {
-            const double vel =
-                basis.basis_eval(ucf, i, vars::cons::Velocity, q + 1);
+            const double vel = ucf(i, q, vars::cons::Velocity);
             const double P = uaf(i, q + 1, vars::aux::Pressure);
             const auto [flux1, flux2, flux3] = flux_fluid(vel, P);
             const double w = weights(q);
-            const double dphi = dphis(i, q + 1, k);
+            const double dphi = dphis(i, q + 1, p);
             const double sqrtgm = sqrt_gm(i, q + 1);
 
             local_sum1 += w * flux1 * dphi * sqrtgm;
@@ -175,9 +173,9 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
             local_sum3 += w * flux3 * dphi * sqrtgm;
           }
 
-          delta_(stage, i, k, vars::cons::SpecificVolume) += local_sum1;
-          delta_(stage, i, k, vars::cons::Velocity) += local_sum2;
-          delta_(stage, i, k, vars::cons::Energy) += local_sum3;
+          delta_(stage, i, p, vars::cons::SpecificVolume) += local_sum1;
+          delta_(stage, i, p, vars::cons::Velocity) += local_sum2;
+          delta_(stage, i, p, vars::cons::Energy) += local_sum3;
         });
   }
 }
@@ -188,18 +186,18 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
 void HydroPackage::apply_delta(AthelasArray3D<double> lhs,
                                const TimeStepInfo &dt_info) const {
   static const int nx = static_cast<int>(lhs.extent(0));
-  static const int nk = static_cast<int>(lhs.extent(1));
+  static const int nq = static_cast<int>(lhs.extent(1));
   static const IndexRange ib(std::make_pair(1, nx - 2));
-  static const IndexRange kb(nk);
+  static const IndexRange qb(nq);
   static const IndexRange vb(NUM_VARS_);
 
   const int stage = dt_info.stage;
 
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Hydro :: Apply delta", DevExecSpace(), ib.s, ib.e,
-      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+      qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
         for (int v = vb.s; v <= vb.e; ++v) {
-          lhs(i, k, v) += dt_info.dt_coef * delta_(stage, i, k, v);
+          lhs(i, q, v) += dt_info.dt_coef * delta_(stage, i, q, v);
         }
       });
 }
@@ -210,15 +208,15 @@ void HydroPackage::apply_delta(AthelasArray3D<double> lhs,
 void HydroPackage::zero_delta() const noexcept {
   static const IndexRange sb(static_cast<int>(delta_.extent(0)));
   static const IndexRange ib(static_cast<int>(delta_.extent(1)));
-  static const IndexRange kb(static_cast<int>(delta_.extent(2)));
+  static const IndexRange qb(static_cast<int>(delta_.extent(2)));
   static const IndexRange vb(static_cast<int>(delta_.extent(3)));
 
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Hydro :: Zero delta", DevExecSpace(), sb.s, sb.e,
-      ib.s, ib.e, kb.s, kb.e,
-      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int k) {
+      ib.s, ib.e, qb.s, qb.e,
+      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int q) {
         for (int v = vb.s; v <= vb.e; ++v) {
-          delta_(s, i, k, v) = 0.0;
+          delta_(s, i, q, v) = 0.0;
         }
       });
 }

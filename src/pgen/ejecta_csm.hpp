@@ -31,6 +31,7 @@ void ejecta_csm_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
 
   static const IndexRange ib(grid->domain<Domain::Interior>());
   static const int nNodes = grid->n_nodes();
+  static const IndexRange qb(nNodes);
 
   constexpr static int q_Tau = 0;
   constexpr static int q_V = 1;
@@ -66,24 +67,23 @@ void ejecta_csm_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   // Phase 2: Initialize modal coefficients
   if (!first_init) {
     athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: EjectaCSM (2)", DevExecSpace(),
-        ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-          const int k = 0;
+        DEFAULT_LOOP_PATTERN, "Pgen :: EjectaCSM (2)", DevExecSpace(),
+        ib.s, ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
           const double X1 = grid->centers(i);
 
           if (X1 <= rstar) {
             const double rho = 1.0 / (constants::FOURPI * rstar3 / 3.0);
             const double pressure = (1.0e-5) * rho * vmax * vmax;
             const double vel = vmax * (X1 / rstar);
-            uCF(i, k, q_Tau) = 1.0 / rho;
-            uCF(i, k, q_V) = vel;
-            uCF(i, k, q_E) = (pressure / gm1 / rho) + 0.5 * vel * vel;
+            uCF(i, q, q_Tau) = 1.0 / rho;
+            uCF(i, q, q_V) = vel;
+            uCF(i, q, q_E) = (pressure / gm1 / rho) + 0.5 * vel * vel;
           } else {
             const double rho = 1.0;
             const double pressure = (1.0e-5) * rho * vmax * vmax;
-            uCF(i, k, q_Tau) = 1.0 / rho;
-            uCF(i, k, q_V) = 0.0;
-            uCF(i, k, q_E) = (pressure / gm1 / rho);
+            uCF(i, q, q_Tau) = 1.0 / rho;
+            uCF(i, q, q_V) = 0.0;
+            uCF(i, q, q_E) = (pressure / gm1 / rho);
           }
         });
   }

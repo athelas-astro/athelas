@@ -40,7 +40,6 @@ class GeometryPackage {
 
  private:
   bool active_;
-  int order_;
   AthelasArray4D<double> delta_; // [nstages, nx, order, nvars]
 };
 

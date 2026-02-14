@@ -23,7 +23,6 @@
 
 #include <variant>
 
-#include "basic_types.hpp"
 #include "eos/eos_variant.hpp"
 #include "limiters/slope_limiter_base.hpp"
 
@@ -40,15 +39,21 @@ class WENO : public SlopeLimiterBase<WENO> {
       : do_limiter_(enabled), order_(order), nvars_(nvars), gamma_i_(gamma_i),
         gamma_l_(gamma_l), gamma_r_(gamma_r), weno_r_(weno_r),
         characteristic_(characteristic), tci_opt_(tci_opt), tci_val_(tci_val),
-        vars_(vars), modified_polynomial_("modified_polynomial",
+        vars_(vars), 
+        modified_polynomial_("modified_polynomial",
                                           grid->n_elements() + 2, nvars, order),
-        R_("R Matrix", grid->n_elements() + 2, nvars, nvars),
-        R_inv_("invR Matrix", grid->n_elements() + 2, nvars, nvars),
-        U_c_T_("U_c_T", grid->n_elements() + 2, nvars),
-        w_c_T_("w_c_T", grid->n_elements() + 2, nvars),
-        mult_("Mult", grid->n_elements() + 2, nvars),
-        D_("TCI", grid->n_elements() + 2),
-        limited_cell_("LimitedCell", grid->n_elements() + 2) {}
+        u_k_("modal coefficients", grid->n_elements() + 2, order, vars.size()),
+          D_("TCI", grid->n_elements() + 2),
+        limited_cell_("LimitedCell", grid->n_elements() + 2) {
+        throw_athelas_error("The WENO slope limiter is not currently working!");
+        if (characteristic) {
+        R_ = AthelasArray3D<double>("R Matrix", grid->n_elements() + 2, nvars, nvars);
+        R_inv_ = AthelasArray3D<double>("invR Matrix", grid->n_elements() + 2, nvars, nvars);
+        U_c_T_ = AthelasArray2D<double>("U_c_T", grid->n_elements() + 2, nvars);
+        w_c_T_ = AthelasArray2D<double>("w_c_T", grid->n_elements() + 2, nvars);
+        mult_ = AthelasArray2D<double>("Mult", grid->n_elements() + 2, nvars);
+        }
+        }
 
   void apply_slope_limiter(AthelasArray3D<double> U, const GridStructure *grid,
                            const basis::NodalBasis &basis, const eos::EOS &eos);
@@ -68,23 +73,24 @@ class WENO : public SlopeLimiterBase<WENO> {
   double tci_val_{};
   std::vector<int> vars_;
 
-  AthelasArray3D<double> modified_polynomial_{};
+  AthelasArray3D<double> modified_polynomial_;
 
-  AthelasArray3D<double> R_{};
-  AthelasArray3D<double> R_inv_{};
+  AthelasArray3D<double> R_;
+  AthelasArray3D<double> R_inv_;
 
   // --- Slope limiter quantities ---
 
-  AthelasArray2D<double> U_c_T_{};
+  AthelasArray3D<double> u_k_;
+  AthelasArray2D<double> U_c_T_;
 
   // characteristic forms
-  AthelasArray2D<double> w_c_T_{};
+  AthelasArray2D<double> w_c_T_;
 
   // matrix mult scratch scape
-  AthelasArray2D<double> mult_{};
+  AthelasArray2D<double> mult_;
 
-  AthelasArray1D<double> D_{};
-  AthelasArray1D<int> limited_cell_{};
+  AthelasArray1D<double> D_;
+  AthelasArray1D<int> limited_cell_;
 };
 
 class TVDMinmod : public SlopeLimiterBase<TVDMinmod> {
@@ -97,13 +103,18 @@ class TVDMinmod : public SlopeLimiterBase<TVDMinmod> {
       : do_limiter_(enabled), order_(order), nvars_(nvars), b_tvd_(b_tvd),
         m_tvb_(m_tvb), characteristic_(characteristic), tci_opt_(tci_opt),
         tci_val_(tci_val), vars_(vars),
-        R_("R Matrix", grid->n_elements() + 2, nvars, nvars),
-        R_inv_("invR Matrix", grid->n_elements() + 2, nvars, nvars),
-        U_c_T_("U_c_T", grid->n_elements() + 2, nvars),
-        w_c_T_("w_c_T", grid->n_elements() + 2, nvars),
-        mult_("Mult", grid->n_elements() + 2, nvars),
-        D_("TCI", grid->n_elements() + 2),
-        limited_cell_("LimitedCell", grid->n_elements() + 2) {}
+        u_k_("modal coefficients", grid->n_elements() + 2, order, vars.size()),
+          D_("TCI", grid->n_elements() + 2),
+        limited_cell_("LimitedCell", grid->n_elements() + 2) {
+
+        if (characteristic) {
+        R_ = AthelasArray3D<double>("R Matrix", grid->n_elements() + 2, nvars, nvars);
+        R_inv_ = AthelasArray3D<double>("invR Matrix", grid->n_elements() + 2, nvars, nvars);
+        U_c_T_ = AthelasArray2D<double>("U_c_T", grid->n_elements() + 2, nvars);
+        w_c_T_ = AthelasArray2D<double>("w_c_T", grid->n_elements() + 2, nvars);
+        mult_ = AthelasArray2D<double>("Mult", grid->n_elements() + 2, nvars);
+        }
+        }
   void apply_slope_limiter(AthelasArray3D<double> U, const GridStructure *grid,
                            const basis::NodalBasis &basis, const eos::EOS &eos);
   [[nodiscard]] auto get_limited(int ix) const -> int;
@@ -120,21 +131,22 @@ class TVDMinmod : public SlopeLimiterBase<TVDMinmod> {
   double tci_val_{};
   std::vector<int> vars_;
 
-  AthelasArray3D<double> R_{};
-  AthelasArray3D<double> R_inv_{};
+  AthelasArray3D<double> R_;
+  AthelasArray3D<double> R_inv_;
 
   // --- Slope limiter quantities ---
 
-  AthelasArray2D<double> U_c_T_{};
+  AthelasArray3D<double> u_k_;
+  AthelasArray2D<double> U_c_T_;
 
   // characteristic forms
-  AthelasArray2D<double> w_c_T_{};
+  AthelasArray2D<double> w_c_T_;
 
   // matrix mult scratch scape
-  AthelasArray2D<double> mult_{};
+  AthelasArray2D<double> mult_;
 
-  AthelasArray1D<double> D_{};
-  AthelasArray1D<int> limited_cell_{};
+  AthelasArray1D<double> D_;
+  AthelasArray1D<int> limited_cell_;
 };
 
 // A default no-op limiter used when limiting is disabled.

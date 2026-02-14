@@ -193,8 +193,6 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   }
 
   // auto info = mesh_state_.field_info();
-  auto sd0 = mesh_state_(0);
-  auto prims = sd0.get_field("u_pf");
 
   bool first_init = true;
 
@@ -210,17 +208,18 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
     // initialize_fields call populates the conserved variables.
     // For simple cases, like Sod, the layering is redundant, as
     // the bases are never used.
-    initialize_fields(mesh_state_, &grid_, pin, first_init);
     first_init = false;
+    initialize_fields(mesh_state_, &grid_, pin, first_init);
+    auto sd0 = mesh_state_(0);
+    auto prims = sd0.get_field("u_pf");
 
     // --- Basis: modal or nodal ---
     const bool rad_active =
         pin_->param()->get<bool>("physics.rad_active");
-    if (use_nodal_basis) {
       auto fluid_basis = std::make_unique<NodalBasis>(
           prims, &grid_,
           pin->param()->get<int>("fluid.nnodes"),
-          pin->param()->get<int>("problem.nx"), true);
+          pin->param()->get<int>("problem.nx"), false);
       mesh_state_.setup_fluid_basis(std::move(fluid_basis));
       if (rad_active) {
         auto radiation_basis = std::make_unique<NodalBasis>(
@@ -229,23 +228,9 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
             pin->param()->get<int>("problem.nx"), false);
         mesh_state_.setup_rad_basis(std::move(radiation_basis));
       }
-    } else {
-      auto fluid_basis = std::make_unique<NodalBasis>(
-          prims, &grid_,
-          pin->param()->get<int>("fluid.nnodes"),
-          pin->param()->get<int>("problem.nx"), true);
-      mesh_state_.setup_fluid_basis(std::move(fluid_basis));
-      if (rad_active) {
-        auto radiation_basis = std::make_unique<NodalBasis>(
-            prims, &grid_,
-            pin->param()->get<int>("radiation.nnodes"),
-            pin->param()->get<int>("problem.nx"), false);
-        mesh_state_.setup_rad_basis(std::move(radiation_basis));
-      }
-    }
 
     // --- Phase 2: Re-initialize (modal projection or nodal copy) ---
-    initialize_fields(mesh_state_, &grid_, pin, first_init);
+    //initialize_fields(mesh_state_, &grid_, pin, first_init);
   }
 
   // now that all is said and done, perform post init work
@@ -264,6 +249,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
 
   const int n_stages = ssprk_.n_stages();
   const int basis_order = use_nodal_basis ? max_nodes : max_order;
+  auto sd0 = mesh_state_(0);
 
   // --- Init physics package manager ---
   // NOTE: Hydro/RadHydro should be registered first
@@ -330,7 +316,13 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   }
   std::print("\n\n");
 
-  // --- slope limiter to initial condition ---
+  // --- Fill ghosts and apply slope limiter to initial condition ---
+  auto ucf = sd0.get_field("u_cf");
+  const auto &basis = sd0.fluid_basis();
+  bc::fill_ghost_zones<3>(ucf, &grid_, basis, bcs_.get(), {0, 2});
+  if (rad_active) {
+    bc::fill_ghost_zones<2>(ucf, &grid_, sd0.rad_basis(), bcs_.get(), {3, 4});
+  }
   apply_slope_limiter(&sl_hydro_, sd0.get_field("u_cf"), &grid_,
                       sd0.fluid_basis(), sd0.eos());
 
