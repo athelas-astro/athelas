@@ -79,18 +79,18 @@ void GravityPackage::gravity_update(AthelasArray3D<double> ucf,
 void GravityPackage::apply_delta(AthelasArray3D<double> lhs,
                                  const TimeStepInfo &dt_info) const {
   static const int nx = static_cast<int>(lhs.extent(0));
-  static const int nk = static_cast<int>(lhs.extent(1));
+  static const int nq = static_cast<int>(lhs.extent(1));
   static const IndexRange ib(std::make_pair(1, nx - 2));
-  static const IndexRange kb(nk);
+  static const IndexRange qb(nq);
   static const IndexRange vb(NUM_VARS_);
 
   const int stage = dt_info.stage;
 
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Gravity :: Apply delta", DevExecSpace(), ib.s,
-      ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+      ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
         for (int v = vb.s; v <= vb.e; ++v) {
-          lhs(i, k, v + 1) += dt_info.dt_coef * delta_(stage, i, k, v);
+          lhs(i, q, v + 1) += dt_info.dt_coef * delta_(stage, i, q, v);
         }
       });
 }
@@ -101,15 +101,15 @@ void GravityPackage::apply_delta(AthelasArray3D<double> lhs,
 void GravityPackage::zero_delta() const noexcept {
   static const IndexRange sb(static_cast<int>(delta_.extent(0)));
   static const IndexRange ib(static_cast<int>(delta_.extent(1)));
-  static const IndexRange kb(static_cast<int>(delta_.extent(2)));
+  static const IndexRange qb(static_cast<int>(delta_.extent(2)));
   static const IndexRange vb(static_cast<int>(delta_.extent(3)));
 
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Gravity :: Zero delta", DevExecSpace(), sb.s, sb.e,
-      ib.s, ib.e, kb.s, kb.e,
-      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int k) {
+      ib.s, ib.e, qb.s, qb.e,
+      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int q) {
         for (int v = vb.s; v <= vb.e; ++v) {
-          delta_(s, i, k, v) = 0.0;
+          delta_(s, i, q, v) = 0.0;
         }
       });
 }

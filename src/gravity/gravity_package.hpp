@@ -55,12 +55,10 @@ class GravityPackage {
  private:
   bool active_;
   GravityModel model_;
-
   double gval_; // constant gravity
-
   double cfl_;
 
-  AthelasArray4D<double> delta_; // rhs delta [nstages, nx, order, nvars]
+  AthelasArray4D<double> delta_; // rhs delta [nstages, nx, nq, nvars]
 
   static constexpr int NUM_VARS_ = 2;
 };
