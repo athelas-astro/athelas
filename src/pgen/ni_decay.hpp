@@ -63,7 +63,7 @@ void ni_decay_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   species_indexer->add("co56", 4);
   species_indexer->add("fe56", 5);
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Pgen :: NiDecay (1)", DevExecSpace(), ib.s,
+      DEFAULT_LOOP_PATTERN, "Pgen :: NiDecay", DevExecSpace(), ib.s,
       ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
 
         uCF(i, q, vars::cons::SpecificVolume) = tau;

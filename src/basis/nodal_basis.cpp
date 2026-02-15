@@ -264,7 +264,7 @@ void NodalBasis::build_vandermonde_matrices() {
 void NodalBasis::nodal_to_modal(
     AthelasArray3D<double> u_k,
     AthelasArray3D<double> ucf ) const {
-  static const std::size_t nvars = ucf.extent(2);
+  static const std::size_t nvars = u_k.extent(2);
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "nodal_to_modal", DevExecSpace(),

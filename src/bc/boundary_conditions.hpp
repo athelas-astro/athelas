@@ -102,7 +102,6 @@ apply_bc(const BoundaryConditionsData<N> &bc,
   //
   // 1) reverse node ordering
   // 2) flip sign of normal momentum component
-  //
   // --------------------------------------------------
   case BcType::Reflecting:
     for (int i = 0; i < n_nodes; ++i) {
@@ -182,84 +181,4 @@ apply_bc(const BoundaryConditionsData<N> &bc,
     break;
   }
 }
-
-/*
-// Applies boundary condition for one variable `v`
-template <int N>
-KOKKOS_INLINE_FUNCTION void
-apply_bc(const BoundaryConditionsData<N> &bc, AthelasArray3D<double> U,
-         const int v, const int ghost_cell, const int interior_cell,
-         const int num_modes) {
-  switch (bc.type) {
-  case BcType::Outflow:
-    for (int k = 0; k < num_modes; k++) {
-      U(ghost_cell, k, v) = U(interior_cell, k, v);
-    }
-    break;
-
-  // NOTE: Literally the same as the above, but the required
-  // use is different. interior_cell should be of the opposite
-  // side as ghost_cell. Not ideal, but works.
-  case BcType::Periodic:
-    // assert( interior_cell != ghost_cell + 1 && "Bad use of periodic BC!\n" );
-    // assert( interior_cell != ghost_cell - 1 && "Bad use of periodic BC!\n" );
-    for (int k = 0; k < num_modes; k++) {
-      U(ghost_cell, k, v) = U(interior_cell, k, v);
-    }
-    break;
-
-  case BcType::Reflecting:
-    for (int k = 0; k < num_modes; k++) {
-      if (v == 1 || v == 4) { // Momentum (v == 1)
-        // Reflect momentum in the cell average (k == 0) and leave higher modes
-        // unchanged (k > 0)
-        U(ghost_cell, k, v) =
-            (k == 0) ? -U(interior_cell, k, v) : U(interior_cell, k, v);
-      } else { // Non-momentum variables
-        // Reflect cell averages (k == 0) and invert higher modes (k > 0)
-        U(ghost_cell, k, v) =
-            (k == 0) ? U(interior_cell, k, v) : -U(interior_cell, k, v);
-      }
-    }
-    break;
-
-  // TODO(astrobarker): could need extending. FIX
-  case BcType::Dirichlet:
-    U(ghost_cell, vars::modes::CellAverage, v) =
-        2.0 * bc.dirichlet_values[v] -
-        U(interior_cell, vars::modes::CellAverage, v);
-    // U(v, ghost_cell, 0) = bc.dirichlet_values[v];
-    for (int k = 1; k < num_modes; k++) {
-      U(ghost_cell, k, v) = 0.0; // slopes++ set to 0
-    }
-    break;
-
-  // FIX: check if slope++ are correct.
-  case BcType::Marshak: {
-    // Marshak uses dirichlet_values
-    const double Einc = bc.dirichlet_values[0]; // aT^4
-    for (int k = 0; k < 1; k++) {
-      if (v == 3) {
-        if (k == 0) {
-          U(ghost_cell, k, v) = (k == 0) ? Einc : 0;
-        }
-      } else if (v == 4) {
-        constexpr static double c = constants::c_cgs;
-        const double E0 = U(interior_cell, k, vars::cons::RadEnergy);
-        const double F0 = U(interior_cell, k, vars::cons::RadFlux);
-        U(ghost_cell, k, v) =
-            (k == 0) ? 0.5 * c * Einc - 0.5 * (c * E0 + 2.0 * F0) : 0.0;
-      }
-    }
-  } // case Marshak
-  break;
-
-  // formality
-  case BcType::Null:
-    // TODO(astrobarker) not okay for device
-    throw_athelas_error("Null BC is not for use!");
-    break;
-  }
-}
-*/
 } // namespace athelas::bc

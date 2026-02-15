@@ -262,11 +262,11 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   if (ni_heating_active) {
     if (!pin->param()->get<bool>("physics.heating.nickel.split")) {
       manager_->add_package(NickelHeatingPackage{
-          pin, sd0.comps()->species_indexer(), n_stages, basis_order, true});
+          pin, sd0.comps()->species_indexer(), n_stages, max_nodes, true});
     } else {
       split = true;
       split_manager_->add_package(NickelHeatingPackage{
-          pin, sd0.comps()->species_indexer(), n_stages, true});
+          pin, sd0.comps()->species_indexer(), n_stages, max_nodes, true});
     }
   }
   if (thermal_engine_active) {

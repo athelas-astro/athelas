@@ -39,7 +39,7 @@ inline auto parse_model(const std::string &model) -> NiHeatingModel {
 class NickelHeatingPackage {
  public:
   NickelHeatingPackage(const ProblemIn *pin, const Params *indexer,
-                       int n_stages, int order, bool active = true);
+                       int n_stages, int nq, bool active = true);
 
   void update_explicit(const StageData &stage_data, const GridStructure &grid,
                        const TimeStepInfo &dt_info);
