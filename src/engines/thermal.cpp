@@ -158,7 +158,7 @@ void ThermalEnginePackage::update_explicit(const StageData &stage_data,
         const double b_coeff = d_coeff_ * std::exp(-c_coeff_ * time) / b_int_;
           delta_(stage, i, q, pkg_vars::Energy) =
               weights(q) * b_coeff *
-              std::exp(-a_coeff_ * menc(i, q + 1));
+              std::exp(-a_coeff_ * menc(i, q));
         delta_(stage, i, q, pkg_vars::Energy) *= mass(i);
       });
 
