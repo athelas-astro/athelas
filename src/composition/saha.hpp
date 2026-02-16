@@ -593,7 +593,7 @@ void compute_temperature_with_saha(StageData &stage_data,
       root_finders::AAFixedPointAlgorithm;
   static const auto &nnodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<MeshDomain>());
-  static const IndexRange nb(nnodes + 2);
+  static const IndexRange qb(nnodes + 2);
 
   auto ucf = stage_data.get_field("u_cf");
   auto uaf = stage_data.get_field("u_af");
@@ -650,7 +650,7 @@ void compute_temperature_with_saha(StageData &stage_data,
 
   athelas::par_for_outer(
       DEFAULT_OUTER_LOOP_PATTERN, "EOS :: T/Saha solve", DevExecSpace(),
-      scratch_size, scratch_level, ib.s, ib.e, nb.s, nb.e,
+      scratch_size, scratch_level, ib.s, ib.e, qb.s, qb.e,
       KOKKOS_LAMBDA(athelas::team_mbr_t member, const int i, const int q) {
         n_e(i, q) = 0.0;
 
