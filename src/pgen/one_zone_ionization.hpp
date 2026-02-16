@@ -131,10 +131,10 @@ void one_zone_ionization_init(MeshState &mesh_state, GridStructure *grid,
       });
 
 
-    atom::fill_derived_comps<Domain::Interior>(sd0, grid);
-    atom::solve_saha_ionization<Domain::Interior, atom::SahaSolver::Linear>(
-        sd0, *grid);
-    atom::fill_derived_ionization<Domain::Interior>(sd0, grid);
+    //atom::fill_derived_comps<Domain::Interior>(sd0, grid);
+    //atom::solve_saha_ionization<Domain::Interior, atom::SahaSolver::Linear>(
+    //    sd0, *grid);
+    //atom::fill_derived_ionization<Domain::Interior>(sd0, grid);
     // composition boundary condition
     static const IndexRange vb_comps(std::make_pair(3, 3 + ncomps - 1));
     bc::fill_ghost_zones_composition(uCF, vb_comps);
