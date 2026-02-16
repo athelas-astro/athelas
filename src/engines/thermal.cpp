@@ -32,9 +32,9 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
     : active_(active), mend_idx_(1) {
 
   const int nx = pin->param()->get<int>("problem.nx");
-  const int order = stage_data.fluid_basis().order();
+  const int nq = grid->n_nodes();
   delta_ = AthelasArray4D<double>("thermal engine delta", n_stages, nx + 2,
-                                  order, 1);
+                                  nq, 1);
 
   energy_target_ = pin->param()->get<double>("physics.engine.thermal.energy");
   mode_ =
@@ -138,10 +138,8 @@ void ThermalEnginePackage::update_explicit(const StageData &stage_data,
                                            const TimeStepInfo &dt_info) {
   const auto time = dt_info.t;
   const auto &basis = stage_data.fluid_basis();
-  const int &order = basis.order();
   static const auto &nnodes = grid.n_nodes();
   static const IndexRange qb(nnodes);
-  static const IndexRange kb(order);
   static const IndexRange ib(grid.domain<Domain::Interior>());
 
   const auto stage = dt_info.stage;
@@ -155,44 +153,42 @@ void ThermalEnginePackage::update_explicit(const StageData &stage_data,
   auto phi = basis.phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "ThermalEngine :: Update", DevExecSpace(),
-      ib_dep.s, ib_dep.e, kb.s, kb.e,
-      KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+      ib_dep.s, ib_dep.e, qb.s, qb.e,
+      KOKKOS_CLASS_LAMBDA(const int i, const int q) {
         const double b_coeff = d_coeff_ * std::exp(-c_coeff_ * time) / b_int_;
-        for (int q = qb.s; q <= qb.e; ++q) {
-          delta_(stage, i, k, pkg_vars::Energy) +=
-              weights(q) * phi(i, q, k) * b_coeff *
+          delta_(stage, i, q, pkg_vars::Energy) =
+              weights(q) * b_coeff *
               std::exp(-a_coeff_ * menc(i, q + 1));
-        }
-        delta_(stage, i, k, pkg_vars::Energy) *= mass(i);
+        delta_(stage, i, q, pkg_vars::Energy) *= mass(i);
       });
 
   // --- Divide update by mass matrix ---
-  auto inv_mkk = basis.inv_mass_matrix();
+  auto inv_mqq = basis.inv_mass_matrix();
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "ThermalEngine :: delta / M_kk", DevExecSpace(),
-      ib_dep.s, ib_dep.e, kb.s, kb.e,
-      KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-        const double &imm = inv_mkk(i, k);
-        delta_(stage, i, k, pkg_vars::Energy) *= imm;
+      DEFAULT_LOOP_PATTERN, "ThermalEngine :: delta / M_qq", DevExecSpace(),
+      ib_dep.s, ib_dep.e, qb.s, qb.e,
+      KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+        const double &imm = inv_mqq(i, q);
+        delta_(stage, i, q, pkg_vars::Energy) *= imm;
       });
 }
 
 /**
- * @brief apply thermal engine package delta
+ * @brief Apply thermal engine package delta.
  */
 void ThermalEnginePackage::apply_delta(AthelasArray3D<double> lhs,
                                        const TimeStepInfo &dt_info) const {
-  static const int nk = static_cast<int>(lhs.extent(1));
+  static const int nq = static_cast<int>(lhs.extent(1));
   static const IndexRange ib(std::make_pair(1, mend_idx_));
-  static const IndexRange kb(nk);
+  static const IndexRange qb(nq);
 
   const int stage = dt_info.stage;
 
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Thermal engine :: Apply delta", DevExecSpace(),
-      ib.s, ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-        lhs(i, k, vars::cons::Energy) +=
-            dt_info.dt_coef * delta_(stage, i, k, pkg_vars::Energy);
+      ib.s, ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+        lhs(i, q, vars::cons::Energy) +=
+            dt_info.dt_coef * delta_(stage, i, q, pkg_vars::Energy);
       });
 }
 
@@ -202,15 +198,15 @@ void ThermalEnginePackage::apply_delta(AthelasArray3D<double> lhs,
 void ThermalEnginePackage::zero_delta() const noexcept {
   static const IndexRange sb(static_cast<int>(delta_.extent(0)));
   static const IndexRange ib(static_cast<int>(delta_.extent(1)));
-  static const IndexRange kb(static_cast<int>(delta_.extent(2)));
+  static const IndexRange qb(static_cast<int>(delta_.extent(2)));
   static const IndexRange vb(static_cast<int>(delta_.extent(3)));
 
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Thermal engine :: Zero delta", DevExecSpace(),
-      sb.s, sb.e, ib.s, ib.e, kb.s, kb.e,
-      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int k) {
+      sb.s, sb.e, ib.s, ib.e, qb.s, qb.e,
+      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int q) {
         for (int v = vb.s; v <= vb.e; ++v) {
-          delta_(s, i, k, v) = 0.0;
+          delta_(s, i, q, v) = 0.0;
         }
       });
 }
@@ -229,6 +225,7 @@ auto ThermalEnginePackage::min_timestep(const StageData & /*stage_data*/,
 
 /**
  * @brief ThermalEngine fill derived
+ * No-op.
  */
 void ThermalEnginePackage::fill_derived(StageData &stage_data,
                                         const GridStructure &grid,

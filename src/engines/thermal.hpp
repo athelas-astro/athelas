@@ -3,12 +3,9 @@
 #include "Kokkos_Macros.hpp"
 
 #include "basic_types.hpp"
-#include "basis/polynomial_basis.hpp"
-#include "compdata.hpp"
 #include "geometry/grid.hpp"
 #include "pgen/problem_in.hpp"
 #include "state/state.hpp"
-#include "utils/constants.hpp"
 
 namespace athelas::thermal_engine {
 
