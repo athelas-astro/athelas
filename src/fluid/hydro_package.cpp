@@ -8,7 +8,6 @@
 
 #include "Kokkos_Macros.hpp"
 #include "basic_types.hpp"
-#include "basis/polynomial_basis.hpp"
 #include "bc/boundary_conditions.hpp"
 #include "composition/composition.hpp"
 #include "composition/saha.hpp"

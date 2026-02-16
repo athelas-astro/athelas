@@ -46,8 +46,9 @@ template <GravityModel Model>
 void GravityPackage::gravity_update(AthelasArray3D<double> ucf,
                                     const GridStructure &grid, const int stage) const {
   using basis::basis_eval;
-  const int nNodes = grid.n_nodes();
+  static const int nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
+  static const IndexRange qb(nNodes);
 
   auto r = grid.nodal_grid();
   auto enclosed_mass = grid.enclosed_mass();
@@ -59,7 +60,7 @@ void GravityPackage::gravity_update(AthelasArray3D<double> ucf,
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Gravity :: Update", DevExecSpace(), ib.s, ib.e,
       KOKKOS_CLASS_LAMBDA(const int i) {
-        for (int q = 0; q < nNodes; ++q) {
+        for (int q = qb.s; q <= qb.e; ++q) {
           const double X = r(i, q + 1);
           const double denom = X * X * constants::FOURPI;
           if constexpr (Model == GravityModel::Spherical) {

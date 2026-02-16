@@ -1,8 +1,3 @@
-/**
- * @file NodalBasis.hpp
- * @brief Nodal DG basis using Lagrange polynomials on GL nodes
- */
-
 #pragma once
 
 #include <functional>
@@ -35,25 +30,25 @@ public:
    * @return phi_(ix, i_eta, j) where i_eta: 0=left face, 1..nNodes=GL nodes, nNodes+1=right face
    */
   [[nodiscard]] auto phi() const noexcept -> AthelasArray3D<double>;
-  
+
   /**
    * @brief Derivative of Lagrange basis dL_j/deta(eta_i)
    * @return dphi_(ix, i_eta, j) - contains differentiation matrix at interior nodes
    */
   [[nodiscard]] auto dphi() const noexcept -> AthelasArray3D<double>;
-  
+
   /** @brief Direct accessor for dphi */
   auto get_d_phi(const int ix, const int i_eta, const int k) const -> double;
-  
+
   /**
    * @brief Diagonal mass matrix M_jj = w_j * rho_j * J_j * dr
    * @return mass_matrix_(ix, j)
    */
   [[nodiscard]] auto mass_matrix() const noexcept -> AthelasArray2D<double>;
-  
+
   /** @brief Inverse mass matrix (diagonal) */
   [[nodiscard]] auto inv_mass_matrix() const noexcept -> AthelasArray2D<double>;
-  
+
   /** @brief Polynomial order (nNodes - 1) */
   auto order() const noexcept -> int;
 
@@ -70,9 +65,9 @@ public:
    void modal_to_nodal(
     AthelasArray3D<double> ucf,
     AthelasArray3D<double> u_k) const; 
-  
+
   // === Evaluation methods (API compatibility) ===
-  
+
   /**
    * @brief Evaluate nodal representation at location i_eta
    * @details For interior nodes (i_eta in [1,nNodes]): returns U directly
@@ -80,13 +75,13 @@ public:
    */
   auto basis_eval(AthelasArray3D<double> U, const int ix, const int q,
                   const int i_eta) const -> double;
-                  
+
   auto basis_eval(AthelasArray2D<double> U, const int ix, const int q,
                   const int i_eta) const -> double;
-                  
+
   auto basis_eval(AthelasArray1D<double> U, const int ix,
                   const int i_eta) const -> double;
-  
+
   /**
    * @brief Project nodal function to representation (trivial for nodal DG)
    * @details Just evaluates nodal_func at nodes
@@ -97,9 +92,9 @@ public:
       GridStructure *grid,
       int q, 
       const std::function<double(double, int, int)> &nodal_func) const;
-      
+
   // === Nodal-specific methods ===
-  
+
   /**
    * @brief Get differentiation matrix D_ij = dL_j/deta(eta_i)
    * @details Used for computing du/deta|_i = sum_j D_ij u_j
@@ -126,7 +121,7 @@ private:
   int nX_;
   int nNodes_;
   bool density_weight_;
-  
+
   AthelasArray1D<double> nodes_;
   AthelasArray1D<double> weights_;
   AthelasArray3D<double> phi_;
@@ -136,11 +131,11 @@ private:
   AthelasArray2D<double> differentiation_matrix_;
   AthelasArray2D<double> vandermonde_;
   AthelasArray2D<double> inv_vandermonde_;
-  
+
   /** @brief Initialize all basis quantities */
-  void initialize_basis(const AthelasArray3D<double> uPF,
+  void initialize_basis(AthelasArray3D<double> uPF,
                        const GridStructure *grid);
-  
+
   /** @brief Build differentiation matrix */
   void build_differentiation_matrix();
 
@@ -148,18 +143,17 @@ private:
   void build_vandermonde_matrices();
 
 
-  /** @brief Compute diagonal mass matrix with density weighting */
-  void compute_mass_matrix(const AthelasArray3D<double> uPF,
-                          const GridStructure *grid);
-  
+  /** @brief Compute diagonal mass matrix. */
+  void compute_mass_matrix(const GridStructure *grid);
+
   /** @brief Evaluate Lagrange polynomial L_j at point xi */
-  static auto lagrange_polynomial(const int j, const double xi,
-                                 const AthelasArray1D<double> nodes) -> double;
-  
+  static auto lagrange_polynomial(int j, double xi,
+                                 AthelasArray1D<double> nodes) -> double;
+
   /** @brief Evaluate derivative of Lagrange polynomial dL_j/dxi at point xi */
-  static auto d_lagrange_polynomial(const int j, const double xi,
-                                   const AthelasArray1D<double> nodes) -> double;
-  
+  static auto d_lagrange_polynomial(int j, double xi,
+                                   AthelasArray1D<double> nodes) -> double;
+
   /** @brief Fill guard cells (mirror interior) */
   void fill_guard_cells(const GridStructure *grid);
 };

@@ -56,12 +56,16 @@ void NickelHeatingPackage::update_explicit(const StageData &stage_data,
   }
 }
 
+/**
+ * @brief Nickel heating update. 
+ * Computes updates for heating and evolves the decay network.
+ */
 template <NiHeatingModel Model>
 void NickelHeatingPackage::ni_update(const StageData &stage_data,
                                      CompositionData *comps,
                                      const GridStructure &grid,
                                      const TimeStepInfo &dt_info) const {
-  static const int &nNodes = grid.n_nodes();
+  static const int nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
   static const IndexRange qb(nNodes);
 
@@ -74,6 +78,10 @@ void NickelHeatingPackage::ni_update(const StageData &stage_data,
   static const auto ind_ni = species_indexer->get<int>("ni56");
   static const auto ind_co = species_indexer->get<int>("co56");
 
+  auto dm = grid.mass();
+  auto weights = grid.weights();
+  const auto &basis = stage_data.fluid_basis();
+  auto inv_mqq = basis.inv_mass_matrix();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "NickelHeating :: Update", DevExecSpace(), ib.s,
       ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
@@ -81,8 +89,9 @@ void NickelHeatingPackage::ni_update(const StageData &stage_data,
           const double x_co = ucf(i, q, ind_co);
           const double f_dep = this->template deposition_function<Model>(i, q);
           const double source = ni_source(x_ni, x_co, f_dep);
+          const double norm = weights(q) * dm(i) * inv_mqq(i, q);
 
-        delta_(stage, i, q, pkg_vars::Energy) = f_dep * source;
+        delta_(stage, i, q, pkg_vars::Energy) = f_dep * source * norm;
       });
 
   // Realistically I don't need to integrate X_Fe, but oh well.
@@ -102,7 +111,7 @@ void NickelHeatingPackage::ni_update(const StageData &stage_data,
 }
 
 /**
- * @brief apply nickel package delta
+ * @brief Apply nickel package delta.
  */
 void NickelHeatingPackage::apply_delta(AthelasArray3D<double> lhs,
                                        const TimeStepInfo &dt_info) const {

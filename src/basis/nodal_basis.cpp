@@ -264,7 +264,7 @@ void NodalBasis::build_vandermonde_matrices() {
 void NodalBasis::nodal_to_modal(
     AthelasArray3D<double> u_k,
     AthelasArray3D<double> ucf ) const {
-  static const std::size_t nvars = u_k.extent(2);
+  static const std::size_t nvars = ucf.extent(2);
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "nodal_to_modal", DevExecSpace(),
@@ -351,37 +351,33 @@ void NodalBasis::initialize_basis(const AthelasArray3D<double> uPF,
   Kokkos::deep_copy(phi_, phi_h);
   Kokkos::deep_copy(dphi_, dphi_h);
 
-  compute_mass_matrix(uPF, grid);
+  compute_mass_matrix(grid);
   fill_guard_cells(grid);
 }
 
 /**
- * @brief Compute elements of the mass matrix and its inverse.
- * M_jj = w_j dm
- * As dm is fixed per cell, this is constant in time on an element.
+ * @brief Compute diagonal mass matrix
+ * M_qq = w_q dm
+ * NOTE: This is constant in time on an element.
  */
-void NodalBasis::compute_mass_matrix(const AthelasArray3D<double> uPF,
-                                     const GridStructure *grid) {
+void NodalBasis::compute_mass_matrix(const GridStructure *grid) {
 
   const int ilo = 1;
   const int ihi = grid->get_ihi();
 
-  auto dr = grid->widths();
-  auto sqrt_gm = grid->sqrt_gm();
   auto weights = grid->weights();
   auto mass = grid->mass();
 
   auto mass_h = Kokkos::create_mirror_view(mass_matrix_);
   auto inv_mass_h = Kokkos::create_mirror_view(inv_mass_matrix_);
 
-  for (int ix = ilo; ix <= ihi; ix++) {
+  for (int i = ilo; i <= ihi; ++i) {
     for (int j = 0; j < nNodes_; j++) {
-          density_weight_ ? uPF(ix, j + 1, vars::prim::Rho) : 1.0;
 
-      const double M_jj = weights(j) * mass(ix);
+      const double M_jj = weights(j) * mass(i);
 
-      mass_h(ix, j) = M_jj;
-      inv_mass_h(ix, j) = 1.0 / M_jj;
+      mass_h(i, j) = M_jj;
+      inv_mass_h(i, j) = 1.0 / M_jj;
     }
   }
 

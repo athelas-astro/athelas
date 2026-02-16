@@ -37,7 +37,7 @@ void fill_derived_comps(StageData &stage_data,
                         const GridStructure *const grid) {
   static const auto &nnodes = grid->n_nodes();
   static const IndexRange ib(grid->domain<MeshDomain>());
-  static const IndexRange nb(nnodes + 2);
+  static const IndexRange qb(nnodes + 2);
 
   const auto &basis = stage_data.fluid_basis();
   auto phi = basis.phi();
@@ -56,7 +56,7 @@ void fill_derived_comps(StageData &stage_data,
   static constexpr double inv_m_p = 1.0 / constants::m_p;
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Composition :: fill derived", DevExecSpace(), ib.s,
-      ib.e, nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int q) {
+      ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
         double ye_q = 0.0;
         double sum_y = 0.0;
         for (int e = 0; e < num_species; ++e) {
@@ -155,7 +155,7 @@ void fill_derived_ionization(StageData &stage_data,
                              const GridStructure *const grid) {
   static const auto &nnodes = grid->n_nodes();
   static const IndexRange ib(grid->domain<MeshDomain>());
-  static const IndexRange nb(nnodes + 2);
+  static const IndexRange qb(nnodes + 2);
 
   auto ucf = stage_data.get_field("u_cf");
   const auto *const comps = stage_data.comps();
@@ -186,7 +186,7 @@ void fill_derived_ionization(StageData &stage_data,
   auto phi = stage_data.fluid_basis().phi();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Ionization :: fill derived", DevExecSpace(), ib.s,
-      ib.e, nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int q) {
+      ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
         const double rho =
             1.0 / basis::basis_eval(phi, ucf, i, vars::cons::SpecificVolume, q);
         // This kernel is horrible.

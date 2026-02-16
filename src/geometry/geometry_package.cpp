@@ -1,6 +1,5 @@
 #include "geometry/geometry_package.hpp"
 #include "basic_types.hpp"
-#include "basis/polynomial_basis.hpp"
 #include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
@@ -32,14 +31,17 @@ void GeometryPackage::update_explicit(const StageData &stage_data,
   const auto stage = dt_info.stage;
 
   auto r = grid.nodal_grid();
+  auto dr = grid.widths();
+  auto w = grid.weights();
+  const auto &basis = stage_data.fluid_basis();
+  auto inv_mkk = basis.inv_mass_matrix();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Geometry::Explicit", DevExecSpace(), ib.s,
       ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
         const double P = uaf(i, q + 1, vars::aux::Pressure);
-        const double tau = ucf(i, q, vars::cons::SpecificVolume);
 
         delta_(stage, i, q, pkg_vars::Velocity) =
-            tau * (2.0 * P / r(i, q + 1));
+            (2.0 * w(q) * P * r(i, q + 1) * dr(i)) * inv_mkk(i, q);
       });
 }
 
