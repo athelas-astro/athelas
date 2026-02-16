@@ -41,12 +41,6 @@ NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,
 void NickelHeatingPackage::update_explicit(const StageData &stage_data,
                                            const GridStructure &grid,
                                            const TimeStepInfo &dt_info) {
-  const int &order = stage_data.fluid_basis().order();
-  static const IndexRange kb(order);
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-
-  auto ucf = stage_data.get_field("u_cf");
-
   auto *comps = stage_data.comps();
 
   if (model_ == NiHeatingModel::Jeffery) {
