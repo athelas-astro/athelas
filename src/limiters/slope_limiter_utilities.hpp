@@ -65,6 +65,11 @@ auto cell_average(AthelasArray3D<double> U,
   assert((extrapolate == -1 || extrapolate == 0 || extrapolate == 1) && "cell_average:: extrapolate must be -1, 0, 1");
   static const int nNodes = static_cast<int>(weights.size());
 
+  // Some data structures include interface storage -- do some index gymnastics
+  static const int nq_p_i = static_cast<int>(sqrt_gm.extent(1)); // size of nodes + interfaces
+  const int nq_u = static_cast<int>(U.extent(1));
+  const int offset = (nq_u == nq_p_i) ? 0 : 1;
+
   double avg = 0.0;
   double vol = 0.0;
 
@@ -72,7 +77,7 @@ auto cell_average(AthelasArray3D<double> U,
     const double w = weights(q);
     const auto dv = w * sqrt_gm(i, q + 1) * dr;
     vol += dv;
-    avg += U(i + extrapolate, q, v) * dv;
+    avg += U(i + extrapolate, q + offset, v) * dv;
   }
   return avg / vol;
 }
