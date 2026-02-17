@@ -60,11 +60,8 @@ inline auto total_fluid_energy(const MeshState &mesh_state,
   const auto &nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
   const auto dr = grid.widths();
-  auto sqrt_gm = grid.sqrt_gm();
   auto weights = grid.weights();
   auto mcell = grid.mass();
-
-  auto phi = mesh_state.fluid_basis().phi();
 
   auto u = mesh_state(0).get_field("u_cf");
 
@@ -75,12 +72,7 @@ inline auto total_fluid_energy(const MeshState &mesh_state,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          // local_sum +=
-          //     basis_eval(phi, u, i, vars::cons::Energy, q + 1) /
-          //     basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
-          //     sqrt_gm(i, q + 1) * weights(q);
-          local_sum +=
-              (basis_eval(phi, u, i, vars::cons::Energy, q + 1)) * weights(q);
+          local_sum += weights(q) * u(i, q, vars::cons::Energy);
         }
         lsum += local_sum * mcell(i);
       },
@@ -101,7 +93,6 @@ inline auto total_fluid_momentum(const MeshState &mesh_state,
   auto sqrt_gm = grid.sqrt_gm();
   auto weights = grid.weights();
 
-  auto phi = mesh_state.fluid_basis().phi();
   auto u = mesh_state(0).get_field("u_cf");
 
   double output = 0.0;
@@ -111,10 +102,7 @@ inline auto total_fluid_momentum(const MeshState &mesh_state,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum +=
-              basis_eval(phi, u, i, vars::cons::Velocity, q + 1) /
-              basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
-              basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
+          local_sum += weights(q) * u(i, q, vars::cons::Velocity) / u(i, q, vars::cons::SpecificVolume) * 
               sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
@@ -136,7 +124,6 @@ inline auto total_internal_energy(const MeshState &mesh_state,
   auto sqrt_gm = grid.sqrt_gm();
   auto weights = grid.weights();
 
-  auto phi = mesh_state.fluid_basis().phi();
   auto u = mesh_state(0).get_field("u_cf");
 
   double output = 0.0;
@@ -146,11 +133,11 @@ inline auto total_internal_energy(const MeshState &mesh_state,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double vel = basis_eval(phi, u, i, vars::cons::Velocity, q + 1);
+          const double vel = u(i, q, vars::cons::Velocity);
           local_sum +=
-              (basis_eval(phi, u, i, vars::cons::Energy, q + 1) -
+              (u(i, q, vars::cons::Energy) -
                0.5 * vel * vel) /
-              basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
+              u(i, q, vars::cons::SpecificVolume) *
               sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
@@ -183,10 +170,8 @@ inline auto total_kinetic_energy(const MeshState &mesh_state,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double vel = basis_eval(phi, u, i, vars::cons::Velocity, q + 1);
-          local_sum += weights(q) * (0.5 * vel * vel); // /
-          // basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1) *
-          // sqrt_gm(i, q + 1) * weights(q);
+          const double vel = u(i, q, vars::cons::Velocity);
+          local_sum += weights(q) * (0.5 * vel * vel);
         }
         lsum += local_sum * mass(i);
       },
@@ -208,7 +193,6 @@ inline auto total_rad_energy(const MeshState &mesh_state,
   auto sqrt_gm = grid.sqrt_gm();
   auto weights = grid.weights();
 
-  auto phi_rad = mesh_state.rad_basis().phi();
   auto u = mesh_state(0).get_field("u_cf");
 
   double output = 0.0;
@@ -218,7 +202,7 @@ inline auto total_rad_energy(const MeshState &mesh_state,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum += basis_eval(phi_rad, u, i, vars::cons::RadEnergy, q + 1) *
+          local_sum += u(i, q, vars::cons::RadEnergy) *
                        sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
@@ -251,7 +235,7 @@ inline auto total_rad_momentum(const MeshState &mesh_state,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum += basis_eval(phi_rad, u, i, vars::cons::RadFlux, q + 1) *
+          local_sum += u(i, q, vars::cons::RadFlux) *
                        sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
@@ -286,10 +270,9 @@ inline auto total_energy(const MeshState &mesh_state, const GridStructure &grid)
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
           local_sum +=
-              ((basis_eval(phi_fluid, u, i, vars::cons::Energy, q + 1) /
-                basis_eval(phi_fluid, u, i, vars::cons::SpecificVolume,
-                           q + 1)) +
-               basis_eval(phi_rad, u, i, vars::cons::RadEnergy, q + 1)) *
+              ((u(i, q, vars::cons::Energy) /
+                u(i, q, vars::cons::SpecificVolume)) +
+               u(i, q, vars::cons::RadEnergy)) *
               sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
@@ -324,10 +307,9 @@ inline auto total_momentum(const MeshState &mesh_state,
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
           local_sum +=
-              ((basis_eval(phi_fluid, u, i, vars::cons::Velocity, q + 1) /
-                basis_eval(phi_fluid, u, i, vars::cons::SpecificVolume,
-                           q + 1)) +
-               basis_eval(phi_rad, u, i, vars::cons::RadFlux, q + 1)) *
+              ((u(i, q, vars::cons::Velocity) /
+                u(i, q, vars::cons::SpecificVolume)) +
+               u(i, q, vars::cons::RadFlux)) *
               sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
@@ -350,7 +332,7 @@ inline auto total_mass(const MeshState &mesh_state, const GridStructure &grid)
   auto weights = grid.weights();
 
   auto phi = mesh_state.fluid_basis().phi();
-  auto u = mesh_state(0).get_field("u_cf");
+  auto prims = mesh_state(0).get_field("u_pf");
 
   double output = 0.0;
   athelas::par_reduce(
@@ -360,7 +342,7 @@ inline auto total_mass(const MeshState &mesh_state, const GridStructure &grid)
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
           local_sum +=
-              (1.0 / basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1)) *
+              prims(i, q + 1, vars::prim::Rho) *
               sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
@@ -386,6 +368,7 @@ inline auto total_mass_ni56(const MeshState &mesh_state,
 
   auto phi = mesh_state.fluid_basis().phi();
   auto u = mesh_state(0).get_field("u_cf");
+  auto prims = mesh_state(0).get_field("u_pf");
 
   const auto *const species_indexer = mesh_state.comps()->species_indexer();
   const auto ind_x = species_indexer->get<int>("ni56");
@@ -397,10 +380,10 @@ inline auto total_mass_ni56(const MeshState &mesh_state,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double x_ni = basis_eval(phi, u, i, ind_x, q + 1);
+          const double x_ni = u(i, q, ind_x);
           local_sum +=
               x_ni *
-              (1.0 / basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1)) *
+              prims(i, q+1, vars::prim::Rho)*
               sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
@@ -424,6 +407,8 @@ inline auto total_mass_co56(const MeshState &mesh_state,
 
   auto phi = mesh_state.fluid_basis().phi();
   auto u = mesh_state(0).get_field("u_cf");
+  auto prims = mesh_state(0).get_field("u_pf");
+
   const auto *const species_indexer = mesh_state.comps()->species_indexer();
   const auto ind_x = species_indexer->get<int>("co56");
 
@@ -434,10 +419,9 @@ inline auto total_mass_co56(const MeshState &mesh_state,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double x_co = basis_eval(phi, u, i, ind_x, q + 1);
+          const double x_co = u(i, q, ind_x);
           local_sum +=
-              x_co *
-              (1.0 / basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1)) *
+              x_co * prims(i, q + 1, vars::prim::Rho) *
               sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
@@ -461,6 +445,8 @@ inline auto total_mass_fe56(const MeshState &mesh_state,
 
   auto phi = mesh_state.fluid_basis().phi();
   auto u = mesh_state(0).get_field("u_cf");
+  auto prims = mesh_state(0).get_field("u_pf");
+
   const auto *const species_indexer = mesh_state.comps()->species_indexer();
   const auto ind_x = species_indexer->get<int>("fe56");
 
@@ -471,10 +457,9 @@ inline auto total_mass_fe56(const MeshState &mesh_state,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double x_fe = basis_eval(phi, u, i, ind_x, q + 1);
+          const double x_fe = u(i, q, ind_x);
           local_sum +=
-              x_fe *
-              (1.0 / basis_eval(phi, u, i, vars::cons::SpecificVolume, q + 1)) *
+              x_fe * prims(i, q + 1, vars::prim::Rho) *
               sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
