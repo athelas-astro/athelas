@@ -462,9 +462,9 @@ void Driver::post_step_work() {
           const double emin = eos::min_sie(eos, rho, lambda.ptr());
           if (sie <= emin) {
             double sie_fix = 1.1 * emin;
-            ucf(i, vars::modes::CellAverage, vars::cons::Energy) =
+            ucf(i, q, vars::cons::Energy) =
                 sie_fix + 0.5 * vel * vel;
-            std::println("FIXUP i sie sie_min siefix {} {:.5e} {:.5e} {:.5e}",
+            std::println("FIXUP i sie sie_min siefix {} {:.8e} {:.8e} {:.5e}",
                          i, sie, emin, sie_fix);
           }
           }
