@@ -582,7 +582,21 @@ auto temperature_residual(const double temperature, const double rho,
     const double f =
         sie_from_density_temperature(eos, rho, temperature, lambda) -
         content.target_var;
-    return temperature - inv_dfdt * f;
+
+    // We're going to do a line search to keep the temperature above 500 K
+    // Saha gets upset if it gets too cold.
+    // I don't expect we will actually evolve this cold, but if we do, 
+    // we'll need to consider it here.
+    double lam = 1.0;
+    double trial = temperature - inv_dfdt * f;
+    if (trial > 500.0) {
+      return trial;
+    }
+    while (trial <= 500.0) {
+      lam *= 0.9;
+      trial = temperature - lam * inv_dfdt * f;
+    }
+    return trial;
   }
 }
 
