@@ -266,7 +266,7 @@ void NodalBasis::nodal_to_modal(
     AthelasArray3D<double> u_k,
     AthelasArray3D<double> ucf, 
     AthelasArray2D<double> sqrt_gm) const {
-  static const std::size_t nvars = ucf.extent(2);
+  const std::size_t nvars = u_k.extent(2);
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "nodal_to_modal", DevExecSpace(),
@@ -290,7 +290,7 @@ void NodalBasis::modal_to_nodal(
     AthelasArray3D<double> ucf,
     AthelasArray3D<double> u_k, 
     AthelasArray2D<double> sqrt_gm) const {
-  static const std::size_t nvars = u_k.extent(2);
+  const std::size_t nvars = u_k.extent(2);
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "modal_to_nodal", DevExecSpace(),
