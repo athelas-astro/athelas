@@ -68,7 +68,7 @@ auto cell_average(AthelasArray3D<double> U,
   // Some data structures include interface storage -- do some index gymnastics
   static const int nq_p_i = static_cast<int>(sqrt_gm.extent(1)); // size of nodes + interfaces
   const int nq_u = static_cast<int>(U.extent(1));
-  const int offset = (nq_u == nq_p_i) ? 0 : 1;
+  const int offset = (nq_u == nq_p_i) ? 1 : 0;
 
   double avg = 0.0;
   double vol = 0.0;
@@ -78,6 +78,36 @@ auto cell_average(AthelasArray3D<double> U,
     const auto dv = w * sqrt_gm(i, q + 1) * dr;
     vol += dv;
     avg += U(i + extrapolate, q + offset, v) * dv;
+  }
+  return avg / vol;
+}
+
+/**
+ * Return the cell average of a field q on cell ix.
+ * Takes a specific quantity (nx, nq) instead of a field (nx, nq, nv).
+ **/
+KOKKOS_INLINE_FUNCTION
+auto cell_average(AthelasArray2D<double> U,
+                  AthelasArray2D<double> sqrt_gm,
+                  AthelasArray1D<double> weights, const double dr,
+                  const int i,
+                  const int extrapolate = 0) -> double {
+  assert((extrapolate == -1 || extrapolate == 0 || extrapolate == 1) && "cell_average:: extrapolate must be -1, 0, 1");
+  static const int nNodes = static_cast<int>(weights.size());
+
+  // Some data structures include interface storage -- do some index gymnastics
+  static const int nq_p_i = static_cast<int>(sqrt_gm.extent(1)); // size of nodes + interfaces
+  const int nq_u = static_cast<int>(U.extent(1));
+  const int offset = (nq_u == nq_p_i) ? 0 : 1;
+
+  double avg = 0.0;
+  double vol = 0.0;
+
+  for (int q = 0; q < nNodes; ++q) {
+    const double w = weights(q);
+    const auto dv = w * sqrt_gm(i, q + 1) * dr;
+    vol += dv;
+    avg += U(i + extrapolate, q + offset) * dv;
   }
   return avg / vol;
 }
