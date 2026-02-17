@@ -58,8 +58,9 @@ void detect_troubled_cells(const AthelasArray3D<double> U,
  **/
 KOKKOS_INLINE_FUNCTION
 auto cell_average(AthelasArray3D<double> U,
-                  AthelasArray1D<double> weights, const double dm,
-                  const int v, const int ix,
+                  AthelasArray2D<double> sqrt_gm,
+                  AthelasArray1D<double> weights, const double dr,
+                  const int v, const int i,
                   const int extrapolate = 0) -> double {
   assert((extrapolate == -1 || extrapolate == 0 || extrapolate == 1) && "cell_average:: extrapolate must be -1, 0, 1");
   static const int nNodes = static_cast<int>(weights.size());
@@ -69,8 +70,9 @@ auto cell_average(AthelasArray3D<double> U,
 
   for (int q = 0; q < nNodes; ++q) {
     const double w = weights(q);
-    vol += w * dm;
-    avg += w * U(ix + extrapolate, q, v) * dm;
+    const auto dv = w * sqrt_gm(i, q + 1) * dr;
+    vol += dv;
+    avg += U(i + extrapolate, q, v) * dv;
   }
   return avg / vol;
 }

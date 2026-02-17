@@ -62,7 +62,8 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
   }
 
   // --- Map to modal basis ---
-  basis.nodal_to_modal(u_k_, U);
+  auto sqrt_gm = grid->sqrt_gm();
+  basis.nodal_to_modal(u_k_, U, sqrt_gm);
 
   // TODO(astrobarker): this is repeated code: clean up somehow
   // --- map to characteristic vars ---
@@ -161,7 +162,7 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
   } // end map from characteristics
 
   // --- Project back onto nodal basis ---
-  basis.modal_to_nodal(U, u_k_);
+  basis.modal_to_nodal(U, u_k_, sqrt_gm);
 } // end apply slope limiter
 
 // limited_cell_ accessor

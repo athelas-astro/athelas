@@ -3,6 +3,7 @@
  * @brief Implementation of nodal DG basis using Lagrange polynomials
  */
 
+#include "basis/polynomial_basis.hpp"
 #include "kokkos_abstraction.hpp"
 #include "basis/nodal_basis.hpp"
 
@@ -263,7 +264,8 @@ void NodalBasis::build_vandermonde_matrices() {
  */
 void NodalBasis::nodal_to_modal(
     AthelasArray3D<double> u_k,
-    AthelasArray3D<double> ucf ) const {
+    AthelasArray3D<double> ucf, 
+    AthelasArray2D<double> sqrt_gm) const {
   static const std::size_t nvars = ucf.extent(2);
 
   athelas::par_for(
@@ -273,7 +275,7 @@ void NodalBasis::nodal_to_modal(
           for (int k = 0; k < nNodes_; ++k) {
             double sum = 0.0;
             for (int q = 0; q < nNodes_; ++q) {
-              sum += inv_vandermonde_(k, q) * ucf(i, q, v);
+              sum += inv_vandermonde_(k, q) * ucf(i, q, v);// * sqrt_gm(i, q + 1);
             }
             u_k(i, k, v) = sum;
           }
@@ -286,7 +288,8 @@ void NodalBasis::nodal_to_modal(
  */
 void NodalBasis::modal_to_nodal(
     AthelasArray3D<double> ucf,
-    AthelasArray3D<double> u_k) const {
+    AthelasArray3D<double> u_k, 
+    AthelasArray2D<double> sqrt_gm) const {
   static const std::size_t nvars = u_k.extent(2);
 
   athelas::par_for(
@@ -296,7 +299,7 @@ void NodalBasis::modal_to_nodal(
           for (int q = 0; q < nNodes_; ++q) {
             double sum = 0.0;
             for (int k = 0; k < nNodes_; ++k) {
-              sum += vandermonde_(q, k) * u_k(i, k, v);
+              sum += vandermonde_(q, k) * u_k(i, k, v);// / sqrt_gm(i, q + 1);
             }
             ucf(i, q, v) = sum;
           }

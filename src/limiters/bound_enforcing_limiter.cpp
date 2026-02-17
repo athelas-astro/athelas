@@ -66,14 +66,14 @@ void limit_density(StageData &stage_data, const GridStructure &grid) {
   auto U = stage_data.get_field("u_cf");
   auto sqrt_gm = grid.sqrt_gm();
   auto weights = grid.weights();
-  auto mass = grid.mass();
+  auto widths = grid.widths();
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit density", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
         // Compute cell average
         const double avg =
-            cell_average(U, weights, mass(i), vars::cons::SpecificVolume, i);
+            cell_average(U, sqrt_gm, weights, widths(i), vars::cons::SpecificVolume, i);
         // Compute minimum in cell
         double u_min = avg;
         for (int q = 0; q < order; ++q) {
@@ -138,19 +138,19 @@ void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
 
   auto U = stage_data.get_field("u_cf");
   auto sqrt_gm = grid.sqrt_gm();
-  auto mass = grid.mass();
   auto weights = grid.weights();
+  auto widths = grid.widths();
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit internal energy", DevExecSpace(),
       1, U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
         // Compute cell-averaged conserved quantities for reconstruction
         const double tau_avg =
-            cell_average(U, weights, mass(i), vars::cons::SpecificVolume, i);
+            cell_average(U, sqrt_gm, weights, widths(i), vars::cons::SpecificVolume, i);
         const double v_avg =
-            cell_average(U, weights, mass(i), vars::cons::Velocity, i);
+            cell_average(U, sqrt_gm, weights, widths(i), vars::cons::Velocity, i);
         const double etot_avg =
-            cell_average(U, weights, mass(i), vars::cons::Energy, i);
+            cell_average(U, sqrt_gm, weights, widths(i), vars::cons::Energy, i);
 
         const double e_avg = etot_avg - 0.5 * v_avg * v_avg;
 
@@ -183,7 +183,6 @@ void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
           const double e_q = E_q - 0.5 * v_q * v_q;
 
           if (e_q <= e_floor + tol) {
-            std::println("eq {}", e_q);
             // Define nonlinear target function
             auto target = [&](double t) {
               const double tau_t = tau_avg + t * (tau_q - tau_avg);
@@ -278,12 +277,12 @@ void limit_rad_energy(StageData &stage_data, const GridStructure &grid) {
   auto U = stage_data.get_field("u_cf");
   auto sqrt_gm = grid.sqrt_gm();
   auto weights = grid.weights();
-  auto mass = grid.mass();
+  auto widths = grid.widths();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit rad energy", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
         const double E_avg =
-            cell_average(U, weights, mass(i), vars::cons::RadEnergy, i);
+            cell_average(U, sqrt_gm, weights, widths(i), vars::cons::RadEnergy, i);
 
         // --- Compute minimum over cell ---
         double E_min = E_avg;
@@ -340,16 +339,16 @@ void limit_rad_momentum(StageData &stage_data, const GridStructure &grid) {
   auto U = stage_data.get_field("u_cf");
   auto sqrt_gm = grid.sqrt_gm();
   auto weights = grid.weights();
-  auto mass = grid.mass();
+  auto widths = grid.widths();
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit rad momentum", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
         const double E_avg =
-            cell_average(U, weights, mass(i), vars::cons::RadEnergy, i);
+            cell_average(U, sqrt_gm, weights, widths(i), vars::cons::RadEnergy, i);
 
         const double F_avg =
-            cell_average(U, weights, mass(i), vars::cons::RadFlux, i);
+            cell_average(U, sqrt_gm, weights, widths(i), vars::cons::RadFlux, i);
 
         // --- Compute theta ---
         double theta_cell = 1.0;

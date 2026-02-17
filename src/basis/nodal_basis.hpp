@@ -2,7 +2,6 @@
 
 #include <functional>
 
-#include "basis/polynomial_basis.hpp"
 #include "basic_types.hpp"
 #include "kokkos_types.hpp"
 #include "geometry/grid.hpp"
@@ -50,23 +49,25 @@ public:
   [[nodiscard]] auto inv_mass_matrix() const noexcept -> AthelasArray2D<double>;
 
   /** @brief Polynomial order (nNodes - 1) */
-  auto order() const noexcept -> int;
+  [[nodiscard]] auto order() const noexcept -> int;
 
   /**
    * @brief Project a nodal basis onto a modal representation
    */
    void nodal_to_modal(
     AthelasArray3D<double> u_k,
-    AthelasArray3D<double> ucf) const; 
+    AthelasArray3D<double> ucf, 
+    AthelasArray2D<double> sqrt_gm) const; 
 
   /**
    * @brief Project a modal basis onto a nodal representation
    */
    void modal_to_nodal(
     AthelasArray3D<double> ucf,
-    AthelasArray3D<double> u_k) const; 
+    AthelasArray3D<double> u_k, 
+    AthelasArray2D<double> sqrt_gm) const; 
 
-  // === Evaluation methods (API compatibility) ===
+  // --- Evaluation methods (back compatibility) ---
 
   /**
    * @brief Evaluate nodal representation at location i_eta
@@ -157,5 +158,32 @@ private:
   /** @brief Fill guard cells (mirror interior) */
   void fill_guard_cells(const GridStructure *grid);
 };
+
+template <Interface Face>
+auto basis_eval(AthelasArray3D<double> phi, AthelasArray3D<double> u, const int i,
+                const int v) -> double {
+  static const int nq = static_cast<int>(phi.extent(2));
+  static const IndexRange qb(nq);
+
+  // offset accounts for the design that primitive/aux variables have interface
+  // storage while the evolved/conserved variables do not. It ensures 
+  // that the indexing is over interior collocation points.
+  const int offset = static_cast<int>(u.extent(1)) - nq - 1;
+  if constexpr (Face == Interface::Left) {
+    double result = 0.0;
+    for (int p = 0; p < nq; p++) {
+      result += phi(i, 0, p) * u(i, p + offset, v);
+    }
+    return result;
+  }
+
+  if constexpr (Face == Interface::Right) {
+    double result = 0.0;
+    for (int p = 0; p < nq; p++) {
+      result += phi(i, nq + 1, p) * u(i, p + offset, v);
+    }
+    return result;
+  }
+}
 
 } // namespace athelas::basis

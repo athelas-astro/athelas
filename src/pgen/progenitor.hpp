@@ -248,11 +248,11 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
   // We go ahead and form the basis here now that the grid is constructed.
   // I don't particularly like this pattern, but as it stands the basis is 
   // needed in the Saha solves to come.
-  auto fluid_basis = std::make_unique<basis::NodalBasis>(
+  auto fluid_basis_tmp = std::make_unique<basis::NodalBasis>(
       uPF, grid,
       pin->param()->get<int>("fluid.nnodes"),
       pin->param()->get<int>("problem.nx"), false);
-  mesh_state.setup_fluid_basis(std::move(fluid_basis));
+  mesh_state.setup_fluid_basis(std::move(fluid_basis_tmp));
 
   // Phase 2: Everything else
   const auto &eos = mesh_state.eos();
@@ -484,10 +484,6 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
         }
       });
 
-  // Compute necessary terms for using the Paczynski eos
-  auto sd0 = mesh_state(0);
-  atom::fill_derived_comps<Domain::Interior>(sd0, grid);
-
   // Finally, interpolate the remaining radhydro variables.
   // For the fluid energy we use the progenitor pressure and invert
   // the eos to get a specific internal energy. This helps maintain
@@ -505,6 +501,32 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
               velocity_view(idx + 1), rq);
         }
       });
+
+  // There is one subtelty that must be taken care of:
+  // We have interpolated pressure, density, temperature etc onto element
+  // interfaces. Those values are not guaranteed to be consistent with the 
+  // basis representation. Imagine a first order element: the interface values
+  // on the element must equal the cell center value. This must be enforced 
+  // via the basis before the interface values are used. It needs to be done 
+  // before the first fill derived call. This could be a good candidate for a 
+  // post_init kernel..
+  const auto &basis = mesh_state.fluid_basis(); 
+  auto phi = basis.phi();
+  athelas::par_for(
+      DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Consistent interfaces",
+      DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
+          uAF(i, 0, vars::aux::Pressure) = basis::basis_eval<Interface::Left>(phi, uAF, i, vars::aux::Pressure);
+          uAF(i, nNodes + 1, vars::aux::Pressure) = basis::basis_eval<Interface::Right>(phi, uAF, i, vars::aux::Pressure);
+          uAF(i, 0, vars::aux::Tgas) = basis::basis_eval<Interface::Left>(phi, uAF, i, vars::aux::Tgas);
+          uAF(i, nNodes + 1, vars::aux::Tgas) = basis::basis_eval<Interface::Right>(phi, uAF, i, vars::aux::Tgas);
+          uPF(i, 0, vars::prim::Rho) = basis::basis_eval<Interface::Left>(phi, uPF, i, vars::prim::Rho);
+          uPF(i, nNodes + 1, vars::prim::Rho) = basis::basis_eval<Interface::Right>(phi, uPF, i, vars::prim::Rho);
+      });
+
+  // Compute necessary terms for using the Paczynski eos
+  auto sd0 = mesh_state(0);
+  atom::fill_derived_comps<Domain::Interior>(sd0, grid);
+
 
   // Perform an eos inversion using the progenitor pressure for 
   // the updated temperature. It is coupled to a Saha solver for the 

@@ -10,6 +10,8 @@ enum class Geometry { Planar, Spherical };
 
 enum class Domain { Interior, Entire };
 
+enum class Interface { Left, Right };
+
 class GridStructure {
  public:
   explicit GridStructure(const ProblemIn *pin);
