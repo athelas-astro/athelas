@@ -10,7 +10,6 @@
 #include "Kokkos_Macros.hpp"
 #include "basic_types.hpp"
 #include "bc/boundary_conditions_base.hpp"
-#include "composition/composition.hpp"
 #include "eos/eos_variant.hpp"
 #include "geometry/grid.hpp"
 #include "opacity/opac_variant.hpp"
@@ -35,7 +34,7 @@ using bc::BoundaryConditions;
 
 class RadHydroPackage {
  public:
-  RadHydroPackage(const ProblemIn * /*pin*/, int n_stages, int order,
+  RadHydroPackage(const ProblemIn * /*pin*/, int n_stages, int nq,
                   BoundaryConditions *bcs, double cfl, int nx,
                   bool active = true);
 
