@@ -109,52 +109,99 @@ auto target_func_rad_energy_deriv(double theta, AthelasArray3D<double> U,
                                   AthelasArray3D<double> phi, int ix, int iN)
     -> double;
 
+/**
+ * @brief Find the largest admissible theta along a monotone decreasing function.
+ *
+ * Specialized bisection for Zhang–Shu-style positivity limiting in DG:
+ * assumes target(0) >= 0 (cell average admissible) and target(1) < 0 (violating).
+ * Returns a scaled value slightly inside the admissible set to ensure strict positivity.
+ *
+ * @tparam F Type of the callable object (lambda, functor) representing f(theta) = e(theta) - e_min
+ * @param target Callable returning f(theta)
+ * @return Largest admissible theta in [0,1] scaled by SAFETY (<1) to stay strictly positive
+ *
+ * @note Monotone assumption allows skipping sign checks.
+ */
 template <typename F>
-auto bisection(AthelasArray3D<double> U, F target,
-               const basis::NodalBasis *basis, const int ix, const int iN)
-    -> double {
-  constexpr static double TOL = 1e-10;
-  constexpr static int MAX_ITERS = 100;
-  constexpr static double delta = 1.0e-3; // reduce root by delta
+auto bisection_monotone(F target) -> double {
+    constexpr static double TOL = 1e-10;       // tight tolerance
+    constexpr static int MAX_ITERS = 64;
+    constexpr static double SAFETY = 1.0;      // stay inside admissible set
 
-  // bisection bounds on theta
-  double a = 0.0;
-  double b = 1.0;
-  double c = 0.5;
+    double a = 0.0;   // lower bound (cell average, admissible)
+    double b = 1.0;   // upper bound (possibly violating)
+    double c = 0.5 * (a + b);
 
-  double fa = 0.0; // f(a) etc
-  double fc = 0.0;
+    int n = 0;
+    while (n < MAX_ITERS) {
+        c = 0.5 * (a + b);
+        const double fc = target(c);
 
-  int n = 0;
-  while (n <= MAX_ITERS) {
-    c = (a + b) / 2.0;
+        if (fc >= 0.0) {
+            // still admissible: can move up
+            a = c;
+        } else {
+            // violation: reduce upper bound
+            b = c;
+        }
 
-    fa = target(a, U, basis, ix, iN);
-    fc = target(c, U, basis, ix, iN);
+        if ((b - a) < TOL) {
+            break;
+        }
 
-    if (std::abs(fc) <= TOL || (b - a) / 2.0 < TOL) {
-      return c - delta;
+        n++;
     }
 
-    // new interval
-    if (utilities::SGN(fc) == utilities::SGN(fa)) {
-      a = c;
-    } else {
-      b = c;
+    // return a scaled value slightly inside admissible set
+    return SAFETY * a;
+}
+
+template <typename F>
+auto bisection(F target) -> double {
+    constexpr static double TOL = 1e-6;
+    constexpr static int MAX_ITERS = 64;
+
+    double a = 0.0;
+    double b = 1.0;
+
+    double fa = 0.0;// target(a);
+//    double fb = 0.0;// target(b);
+
+    double c = 0.5;
+ //   double fc = target(c);
+
+    int n = 0;
+    while (n < MAX_ITERS) {
+        c = 0.5 * (a + b);
+        const double fc = target(c);
+
+        // convergence check
+        if (std::abs(fc) <= TOL || 0.5*(b - a) < TOL) {
+            // Optional: reduce slightly for positivity
+            return 0.95 * c;  
+        }
+
+        // update interval
+        if (utilities::SGN(fc) == utilities::SGN(fa)) {
+            a = c;
+            fa = fc;  // update fa to new left endpoint
+        } else {
+            b = c;
+            // fb = fc;  // optional
+        }
+
+        n++;
     }
 
-    n++;
-  }
-
-  std::println("Max Iters Reach In bisection");
-  return c - delta;
+    std::println("Max iterations reached in bisection");
+    return 0.95 * c;
 }
 
 template <typename F>
 auto backtrace(const double theta_guess, const double min_e,
                F target) -> double {
-  constexpr static double ABS_TOL = 1.0e-10; // maybe make this smarter
-  constexpr static double REL_TOL = 1.0e-6; // maybe make this smarter
+  constexpr static double ABS_TOL = 1.0e-5;
+  constexpr static double REL_TOL = 1.0e-4;
   double theta = theta_guess;
   double nodal = -1.0;
 

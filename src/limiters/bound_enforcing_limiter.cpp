@@ -152,14 +152,13 @@ void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
         const double etot_avg =
             cell_average(U, sqrt_gm, weights, widths(i), vars::cons::Energy, i);
 
-        const double e_avg = etot_avg - 0.5 * v_avg * v_avg;
-
         eos::EOSLambda lambda_avg;
         if constexpr (Ionization == IonizationPhysics::Active) {
           // Cell-centered approximations
-          lambda_avg.data[1] = ye(i, 1);
-          lambda_avg.data[6] = e_ion_corr(i, 1);
+          lambda_avg.data[1] = cell_average(ye, sqrt_gm, weights, widths(i), i);
+          lambda_avg.data[6] = cell_average(e_ion_corr, sqrt_gm, weights, widths(i), i);
         }
+        const double e_min_avg = min_sie(eos, 1.0 / tau_avg, lambda_avg.ptr());
 
         // --- Compute global theta ---
         double theta_cell = 1.0;
@@ -178,34 +177,23 @@ void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
             lambda_q.data[6] = e_ion_corr(i, q + 1);
           }
 
-          const double e_floor = min_sie(eos, rho_q, lambda_q.ptr());
-          const double tol = EPS_ABS + EPS_REL * e_floor;
+          const double e_min_q = min_sie(eos, rho_q, lambda_q.ptr());
+          const double tol = EPS_ABS + EPS_REL * e_min_q;
           const double e_q = E_q - 0.5 * v_q * v_q;
 
-          if (e_q <= e_floor + tol) {
+          if (e_q <= e_min_q + 0*tol) {
             // Define nonlinear target function
-            auto target = [&](double t) {
-              const double tau_t = tau_avg + t * (tau_q - tau_avg);
+            auto target = [&](double t) -> auto {
               const double v_t = v_avg + t * (v_q - v_avg);
-              const double E_t = e_avg + t * (E_q - e_avg);
+              const double E_t = etot_avg + t * (E_q - etot_avg);
               const double e_t = E_t - 0.5 * v_t * v_t;
-              const double rho_t = 1.0 / tau_t;
 
-              eos::EOSLambda lambda_t;
-              if constexpr (Ionization == IonizationPhysics::Active) {
-                lambda_t.data[1] = ye(i, q + 1);
-                lambda_t.data[6] = e_ion_corr(i, q + 1);
-              }
-
-              const double e_min_t = min_sie(eos, rho_t, lambda_t.ptr());
-              const double tol_t = EPS_ABS + EPS_REL * e_min_t;
-              return e_t - (e_min_t + tol_t);
+              return e_t - (1.0 - t) * e_min_avg - t * e_min_q;
             };
 
-            const double theta_guess = 1.0;
-
             // Solve for smallest admissible theta
-            const double theta_q = backtrace(theta_guess, 0.0, target);
+            //const double theta_q = backtrace(1.0, 0.0, target);
+	    const double theta_q = bisection_monotone(target);
 
             theta_cell = std::min(theta_cell, theta_q);
           }
@@ -220,7 +208,7 @@ void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
             U(i, q, vars::cons::Velocity) =
                 v_avg + theta_cell * (U(i, q, vars::cons::Velocity) - v_avg);
             U(i, q, vars::cons::Energy) =
-                e_avg + theta_cell * (U(i, q, vars::cons::Energy) - e_avg);
+                etot_avg + theta_cell * (U(i, q, vars::cons::Energy) - etot_avg);
           }
         }
       });
