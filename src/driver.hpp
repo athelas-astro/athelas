@@ -3,7 +3,6 @@
 #include <memory>
 
 #include "atom/atom.hpp"
-#include "basis/polynomial_basis.hpp"
 #include "eos/eos_variant.hpp"
 #include "geometry/grid.hpp"
 #include "history/history.hpp"
