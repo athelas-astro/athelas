@@ -160,6 +160,7 @@ private:
 };
 
 template <Interface Face>
+KOKKOS_FUNCTION
 auto basis_eval(AthelasArray3D<double> phi, AthelasArray3D<double> u, const int i,
                 const int v) -> double {
   static const int nq = static_cast<int>(phi.extent(2));
@@ -168,7 +169,9 @@ auto basis_eval(AthelasArray3D<double> phi, AthelasArray3D<double> u, const int 
   // offset accounts for the design that primitive/aux variables have interface
   // storage while the evolved/conserved variables do not. It ensures 
   // that the indexing is over interior collocation points.
-  const int offset = static_cast<int>(u.extent(1)) - nq - 1;
+  static const int nq_p_i = static_cast<int>(phi.extent(2)); // size of nodes
+  const int nq_u = static_cast<int>(u.extent(1));
+  const int offset = (nq_u == nq_p_i) ? 0 : 1;
   if constexpr (Face == Interface::Left) {
     double result = 0.0;
     for (int p = 0; p < nq; p++) {
