@@ -47,7 +47,7 @@ void rad_wave_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
         uCF(i, k, vars::cons::SpecificVolume) = 1.0 / rho0;
         uCF(i, k, vars::cons::Velocity) = 0.0;
         uCF(i, k, vars::cons::Energy) = (P0 / gm1) / rho0;
-        uCF(i, k, iCR_E) = epsilon;
+        uCF(i, k, vars::cons::RadEnergy) = epsilon;
 
         for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
           uPF(i, iNodeX, vars::prim::Rho) = rho0;

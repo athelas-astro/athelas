@@ -76,14 +76,14 @@ void rad_shock_steady_init(MeshState &mesh_state, GridStructure *grid,
           uCF(i, q, vars::cons::SpecificVolume) = 1.0 / rhoL;
           uCF(i, q, vars::cons::Velocity) = V0;
           uCF(i, q, vars::cons::Energy) = em_gas_L + 0.5 * V0 * V0;
-          uCF(i, q, vars::cons::RadEnergy) = e_rad_L;
+          uCF(i, q, vars::cons::RadEnergy) = e_rad_L / rhoL;
 
           uPF(i, q, vars::prim::Rho) = rhoL;
         } else {
           uCF(i, q, vars::cons::SpecificVolume) = 1.0 / rhoR;
           uCF(i, q, vars::cons::Velocity) = V0;
           uCF(i, q, vars::cons::Energy) = em_gas_R + 0.5 * V0 * V0;
-          uCF(i, q, vars::cons::RadEnergy) = e_rad_R;
+          uCF(i, q, vars::cons::RadEnergy) = e_rad_R / rhoR;
 
           uPF(i, q, vars::prim::Rho) = rhoR;
         }

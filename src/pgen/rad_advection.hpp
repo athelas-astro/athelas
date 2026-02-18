@@ -42,10 +42,10 @@ void rad_advection_init(MeshState &mesh_state, GridStructure *grid,
 
         uCF(i, q, vars::cons::RadEnergy) =
             amp * std::max(std::exp(-std::pow((X1 - 0.5) / width, 2.0) / 2.0),
-                           1.0e-8);
-        uCF(i, q, vars::cons::RadFlux) = 1.0 * constants::c_cgs * uCF(i, q, vars::cons::RadEnergy);
+                           1.0e-8) / D;
+        uCF(i, q, vars::cons::RadFlux) = 1.0 * constants::c_cgs * uCF(i, q, vars::cons::RadEnergy) / D;
 
-        const double Trad = std::pow(uCF(i, q, vars::cons::RadEnergy) / constants::a, 0.25);
+        const double Trad = std::pow(uCF(i, q, vars::cons::RadEnergy)* D / constants::a, 0.25);
         const double sie_fluid =
             constants::k_B * Trad / (gm1 * mu * constants::m_p);
         uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D;
