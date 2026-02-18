@@ -24,6 +24,9 @@ ionization = false
 heating = false
 engine = false
 
+[basis]
+nnodes = 3
+
 [bc]
 [bc.fluid]
 bc_i = "outflow"
@@ -39,11 +42,6 @@ ncycle_out = 100
 dt_init_frac = 1.0005
 dt_hdf5 = 1.0 # only output initial and final
 
-[fluid]
-basis = "legendre"
-nnodes = 3
-porder = 3
-
 [fluid.limiter]
 do_limiter = true
 type = "minmod"
@@ -52,11 +50,6 @@ b_tvd = 1.0
 tci_opt = false
 tci_val = 0.1
 characteristic = false
-
-[radiation]
-basis = "legendre"
-nnodes = 3
-porder = 3
 
 [radiation.limiter]
 do_limiter = true
