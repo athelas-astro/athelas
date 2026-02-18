@@ -118,9 +118,6 @@ void limit_density(StageData &stage_data, const GridStructure &grid) {
  */
 template <IonizationPhysics Ionization>
 void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
-  constexpr static double EPS_ABS = 1.0e-12;
-  constexpr static double EPS_REL = 1.0e-3;
-
   const auto &basis = stage_data.fluid_basis();
   const auto &eos = stage_data.eos();
   const int order = basis.order();
@@ -178,10 +175,9 @@ void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
           }
 
           const double e_min_q = min_sie(eos, rho_q, lambda_q.ptr());
-          const double tol = EPS_ABS + EPS_REL * e_min_q;
           const double e_q = E_q - 0.5 * v_q * v_q;
 
-          if (e_q <= e_min_q + 0*tol) {
+          if (e_q <= e_min_q) {
             // Define nonlinear target function
             auto target = [&](double t) -> auto {
               const double v_t = v_avg + t * (v_q - v_avg);
@@ -193,7 +189,7 @@ void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
 
             // Solve for smallest admissible theta
             //const double theta_q = backtrace(1.0, 0.0, target);
-	    const double theta_q = bisection_monotone(target);
+            const double theta_q = bisection_monotone(target);
 
             theta_cell = std::min(theta_cell, theta_q);
           }
@@ -269,31 +265,27 @@ void limit_rad_energy(StageData &stage_data, const GridStructure &grid) {
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit rad energy", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
+        const double tau_avg =
+            cell_average(U, sqrt_gm, weights, widths(i), vars::cons::SpecificVolume, i);
         const double E_avg =
-            cell_average(U, sqrt_gm, weights, widths(i), vars::cons::RadEnergy, i);
+            cell_average(U, sqrt_gm, weights, widths(i), vars::cons::RadEnergy, i) / tau_avg;
 
         // --- Compute minimum over cell ---
-        double E_min = E_avg;
-        for (int q = 0; q <= order; ++q) {
-          E_min = fmin(E_min, U(i, q, vars::cons::RadEnergy));
-        }
-
-        // --- Compute one global theta ---
         double theta = 1.0;
-        if (E_min < EPSILON) {
-          const double denom = E_avg - E_min;
-          if (denom > EPSILON) {
-            const double theta_candidate = (E_avg - EPSILON) / denom;
+        for (int q = 0; q < order; ++q) {
+          double E_q = U(i, q, vars::cons::RadEnergy) / U(i, q, vars::cons::SpecificVolume);
 
-            theta = std::max(0.0, std::min(1.0, theta_candidate));
+          // Solve for smallest admissible theta
+          if (E_q < EPSILON) {
+            const double theta_q = backtrace(E_avg, E_q, EPSILON);
+            theta = std::min(theta, theta_q);
           }
         }
 
         // --- Rescale ---
         if (theta < 1.0) {
-          for (int q = 0; q <= order; ++q) {
-            const double E_q = U(i, q, vars::cons::RadEnergy);
-
+          for (int q = 0; q < order; ++q) {
+            const double E_q = U(i, q, vars::cons::RadEnergy) / U(i, q, vars::cons::SpecificVolume);
             U(i, q, vars::cons::RadEnergy) = E_avg + theta * (E_q - E_avg);
           }
         }

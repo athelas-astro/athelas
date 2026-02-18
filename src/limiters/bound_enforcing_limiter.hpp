@@ -24,65 +24,13 @@
 
 #include <print>
 
+#include "Kokkos_Macros.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "limiters/slope_limiter_utilities.hpp"
 #include "state/state.hpp"
 #include "utils/utilities.hpp"
 
 namespace athelas::bel {
-
-/**
- * @brief Zhang–Shu positivity limiter
- *
- * This templated function applies the Zhang–Shu limiter to ensure that
- * a specific variable (e.g., density, energy, flux) respects a lower bound
- * or realizability condition using convex rescaling:
- *
- *   U_new(x) = U_avg + theta * (U(x) - U_avg)
- *
- * where theta is computed such that the limiting condition is satisfied.
- *
- * @tparam T Type of the variable (e.g., double, float).
- * @tparam Func Type of the target function used for solving theta.
- * @param U The 3D array of values to limit.
- * @param i The cell index.
- * @param v The variable index.
- * @param U_avg The cell average value of the variable.
- * @param target A lambda function representing the target condition.
- * @param min_value The lower bound to apply (e.g., EPSILON for positivity).
- * @param order The number of nodes (DG order).
- * @param EPSILON A small positive value used for numerical stability.
- * @return void, U is updated in-place with the limited values.
- */
-template <typename T, typename Func>
-void apply_zhang_shu_limiter(T U, const int i, const int v, const double U_avg, const Func& target, const double min_value, const int order, const double EPSILON = 1e-12) {
-  double theta = 1.0;
-  for (int q = 0; q <= order; ++q) {
-    const T U_q = U(i, q, v);
-    if (U_q < min_value + EPSILON) {
-      // Define the target function to satisfy the constraint
-      auto solve_target = [&](double t) {
-        // Linear interpolation between the average and nodal values
-        T U_t = U_avg + t * (U_q - U_avg);
-        return target(U_t);  // Check if condition is met at theta = t
-      };
-
-      // Find theta using a simple backtrace or root-finding method
-      const double theta_q = backtrace(theta, min_value, solve_target);
-
-      // Update the node value using the computed theta
-      U(i, q, v) = U_avg + theta_q * (U_q - U_avg);
-      
-      // Store the smallest theta across all nodes
-      theta = std::min(theta, theta_q);
-    }
-  }
-
-  // Apply the final scaling across all nodes
-  for (int q = 0; q <= order; ++q) {
-    U(i, q, v) = U_avg + theta * (U(i, q, v) - U_avg);
-  }
-}
 
 void limit_density(StageData &stage_data, const GridStructure &grid);
 template <IonizationPhysics Ionization>
@@ -197,17 +145,15 @@ auto bisection(F target) -> double {
     return 0.95 * c;
 }
 
-template <typename F>
-auto backtrace(const double theta_guess, const double min_e,
-               F target) -> double {
+KOKKOS_INLINE_FUNCTION
+auto backtrace(const double ubar, const double u_q, const double u_min) -> double {
   constexpr static double ABS_TOL = 1.0e-5;
   constexpr static double REL_TOL = 1.0e-4;
-  double theta = theta_guess;
-  double nodal = -1.0;
+  double theta = 1.0;
+  double u_lim = 0.0;
 
-  while (nodal < ABS_TOL + REL_TOL * min_e) {
-    nodal = target(theta);
-
+  while (u_lim < ABS_TOL + REL_TOL * u_min) {
+    u_lim = (1.0 - theta) * ubar + theta * u_q;
     theta *= 0.9;
   }
 

@@ -44,7 +44,7 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
   }
 
   constexpr static double sl_threshold_ =
-      1.0e-6; // TODO(astrobarker): move to input deck
+      1.0e-8; // TODO(astrobarker): move to input deck
 
   static constexpr int ilo = 1;
   static const int &ihi = grid->get_ihi();
@@ -106,7 +106,8 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
 
         // Do nothing we don't need to limit slopes
         if (D_(i) > tci_val_ || !tci_opt_) {
-          for (int v : vars_) {
+          //for (std::size_t v = 0; v < vars_.size(); ++v) {
+          for (auto v: vars_) {
 
             // --- Begin TVD Minmod Limiter --- //
             const double s_i = u_k_(i, Slope, v); // target cell slope

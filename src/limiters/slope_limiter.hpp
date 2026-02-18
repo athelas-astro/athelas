@@ -42,7 +42,7 @@ class WENO : public SlopeLimiterBase<WENO> {
         vars_(vars), 
         modified_polynomial_("modified_polynomial",
                                           grid->n_elements() + 2, nvars, order),
-        u_k_("modal coefficients", grid->n_elements() + 2, order, vars.size()),
+        u_k_("modal coefficients", grid->n_elements() + 2, order, nvars),
           D_("TCI", grid->n_elements() + 2),
         limited_cell_("LimitedCell", grid->n_elements() + 2) {
         throw_athelas_error("The WENO slope limiter is not currently working!");
@@ -103,7 +103,7 @@ class TVDMinmod : public SlopeLimiterBase<TVDMinmod> {
       : do_limiter_(enabled), order_(order), nvars_(nvars), b_tvd_(b_tvd),
         m_tvb_(m_tvb), characteristic_(characteristic), tci_opt_(tci_opt),
         tci_val_(tci_val), vars_(vars),
-        u_k_("modal coefficients", grid->n_elements() + 2, order, vars.size()),
+        u_k_("modal coefficients", grid->n_elements() + 2, order, nvars),
           D_("TCI", grid->n_elements() + 2),
         limited_cell_("LimitedCell", grid->n_elements() + 2) {
 

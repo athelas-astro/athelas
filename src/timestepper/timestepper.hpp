@@ -243,10 +243,16 @@ class TimeStepper {
       // limiting madness
       apply_slope_limiter(sl_hydro, u, &grid_s_[iS], fluid_basis, eos);
       apply_slope_limiter(sl_rad, u, &grid_s_[iS], rad_basis, eos);
-      apply_slope_limiter(sl_rad, SumVar_U_, &grid_s_[iS], rad_basis, eos);
-      apply_slope_limiter(sl_hydro, SumVar_U_, &grid_s_[iS], fluid_basis, eos);
       bel::apply_bound_enforcing_limiter(stage_data, grid_s_[iS]);
       bel::apply_bound_enforcing_limiter_rad(stage_data, grid_s_[iS]);
+
+      // set U_s (stage data)
+      athelas::par_for(
+          DEFAULT_LOOP_PATTERN, "Timestepper :: IMEX :: Update Us",
+          DevExecSpace(), ib.s, ib.e, kb.s, kb.e, vb.s, vb.e,
+          KOKKOS_CLASS_LAMBDA(const int i, const int k, const int v) {
+            SumVar_U_(i, k, v) = u(i, k, v);
+          });
 
       // implicit update
       dt_info.stage = iS;
@@ -255,8 +261,10 @@ class TimeStepper {
 
       // Need a fill derived?
       // pkgs->fill_derived(stage_data, grid_s_[iS], dt_info);
+      if (dt_info.dt_coef != 0.0) {
       pkgs->update_implicit_iterative(stage_data, SumVar_U_, grid_s_[iS],
                                       dt_info);
+      }
 
       apply_slope_limiter(sl_hydro, u, &grid_s_[iS], fluid_basis, eos);
       apply_slope_limiter(sl_rad, u, &grid_s_[iS], rad_basis, eos);
