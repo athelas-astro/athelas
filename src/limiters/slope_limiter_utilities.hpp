@@ -42,6 +42,37 @@ void detect_troubled_cells(const AthelasArray3D<double> U,
 
 /**
  * Return the cell average of a field q on cell ix.
+ * This version uses the naive ubar = \sum_q w_q u_q / sum_w
+ * The parameter `int extrapolate` designates how the cell average is
+ *computed.
+ *  0  : Return standard cell average on ix
+ * -1 : Extrapolate left, e.g.,  polynomial from ix+1 into ix
+ * +1 : Extrapolate right, e.g.,  polynomial from ix-1 into ix
+ **/
+KOKKOS_INLINE_FUNCTION
+auto cell_average(AthelasArray3D<double> U,
+                  AthelasArray1D<double> weights, const double dr,
+                  const int v, const int i,
+                  const int extrapolate = 0) -> double {
+  assert((extrapolate == -1 || extrapolate == 0 || extrapolate == 1) && "cell_average:: extrapolate must be -1, 0, 1");
+  static const int nNodes = static_cast<int>(weights.size());
+
+  // Some data structures include interface storage -- do some index gymnastics
+  static const int nq_p_i = static_cast<int>(weights.extent(0)) + 2; // size of nodes + interfaces
+  const int nq_u = static_cast<int>(U.extent(1));
+  const int offset = (nq_u == nq_p_i) ? 1 : 0;
+
+  double avg = 0.0;
+
+  for (int q = 0; q < nNodes; ++q) {
+    const double w = weights(q);
+    avg += w * U(i + extrapolate, q + offset, v);
+  }
+  return avg;
+}
+
+/**
+ * Return the cell average of a field q on cell ix.
  * The parameter `int extrapolate` designates how the cell average is
  *computed.
  *  0  : Return standard cell average on ix

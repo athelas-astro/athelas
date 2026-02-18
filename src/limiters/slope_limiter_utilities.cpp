@@ -1,11 +1,3 @@
-/**
- * @file slope_limiter_utilities.cpp
- * --------------
- *
- * @author Brandon L. Barker
- * @brief Utility functions for slope limiters.
- */
-
 #include <algorithm> // std::min, std::max
 #include <cmath>
 #include <cstdlib> /* abs */
@@ -131,7 +123,6 @@ void detect_troubled_cells(AthelasArray3D<double> U,
   auto phi = basis.phi();
   auto widths = grid->widths();
   auto weights = grid->weights();
-  auto sqrt_gm = grid->sqrt_gm();
   auto mass = grid->mass();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: TCI", DevExecSpace(), ib.s,
@@ -141,16 +132,16 @@ void detect_troubled_cells(AthelasArray3D<double> U,
           if (v == 1 || v == 4) {
             continue; /* skip momenta */
           }
-          const double cell_avg = cell_average(U, sqrt_gm, weights, dr, v, i, 0);
+          const double cell_avg = cell_average(U, weights, dr, v, i, 0);
 
           // Extrapolate neighboring poly representations into current cell
           // and compute the new cell averages
-          const double cell_avg_L_T = cell_average(U, sqrt_gm, weights, dr,
+          const double cell_avg_L_T = cell_average(U, weights, dr,
                                                    v, i + 1, 0); // from right
-          const double cell_avg_R_T = cell_average(U, sqrt_gm, weights, dr,
+          const double cell_avg_R_T = cell_average(U, weights, dr,
                                                    v, i - 1, 0); // from left
-          const double cell_avg_L = cell_average(U, sqrt_gm, weights, widths(i-1), v, i - 1, 0);
-          const double cell_avg_R = cell_average(U, sqrt_gm, weights, widths(i+1), v, i + 1, 0);
+          const double cell_avg_L = cell_average(U, weights, widths(i-1), v, i - 1, 0);
+          const double cell_avg_R = cell_average(U, weights, widths(i+1), v, i + 1, 0);
 
           const double result = (std::abs(cell_avg - cell_avg_L_T) +
                                  std::abs(cell_avg - cell_avg_R_T));
