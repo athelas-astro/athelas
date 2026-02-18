@@ -53,19 +53,25 @@ public:
 
   /**
    * @brief Project a nodal basis onto a modal representation
+   * The IndexRange is for the variables in ucf that we are mapping.
+   * The modal vector u_k_ loops from 0.
    */
    void nodal_to_modal(
     AthelasArray3D<double> u_k,
     AthelasArray3D<double> ucf, 
-    AthelasArray2D<double> sqrt_gm) const; 
+    AthelasArray2D<double> sqrt_gm, 
+    const IndexRange &vb) const; 
 
   /**
    * @brief Project a modal basis onto a nodal representation
+   * The IndexRange is for the variables in ucf that we are mapping.
+   * The modal vector u_k_ loops from 0.
    */
    void modal_to_nodal(
     AthelasArray3D<double> ucf,
     AthelasArray3D<double> u_k, 
-    AthelasArray2D<double> sqrt_gm) const; 
+    AthelasArray2D<double> sqrt_gm, 
+    const IndexRange &vb) const; 
 
   // --- Evaluation methods (back compatibility) ---
 

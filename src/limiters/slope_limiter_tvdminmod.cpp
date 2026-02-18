@@ -58,12 +58,12 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
 
   // --- Apply troubled cell indicator ---
   if (tci_opt_) {
-    detect_troubled_cells(U, D_, grid, basis, vars_);
+    detect_troubled_cells(U, D_, grid, basis, vb_);
   }
 
   // --- Map to modal basis ---
   auto sqrt_gm = grid->sqrt_gm();
-  basis.nodal_to_modal(u_k_, U, sqrt_gm);
+  basis.nodal_to_modal(u_k_, U, sqrt_gm, vb_);
 
   // TODO(astrobarker): this is repeated code: clean up somehow
   // --- map to characteristic vars ---
@@ -107,7 +107,7 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
         // Do nothing we don't need to limit slopes
         if (D_(i) > tci_val_ || !tci_opt_) {
           //for (std::size_t v = 0; v < vars_.size(); ++v) {
-          for (auto v: vars_) {
+          for (int v = 0; v < nvars_; ++v) {
 
             // --- Begin TVD Minmod Limiter --- //
             const double s_i = u_k_(i, Slope, v); // target cell slope
@@ -163,7 +163,7 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
   } // end map from characteristics
 
   // --- Project back onto nodal basis ---
-  basis.modal_to_nodal(U, u_k_, sqrt_gm);
+  basis.modal_to_nodal(U, u_k_, sqrt_gm, vb_);
 } // end apply slope limiter
 
 // limited_cell_ accessor

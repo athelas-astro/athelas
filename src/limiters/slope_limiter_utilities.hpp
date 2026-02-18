@@ -1,14 +1,6 @@
-/**
- * @file slope_limiter_utilities.hpp
- * --------------
- *
- * @brief Utility functions for slope limiters.
- */
-
 #pragma once
 
 #include "Kokkos_Macros.hpp"
-#include "basis/polynomial_basis.hpp"
 #include "geometry/grid.hpp"
 #include "limiters/slope_limiter.hpp"
 #include "utils/utilities.hpp"
@@ -19,7 +11,7 @@ using namespace utilities;
 
 auto initialize_slope_limiter(std::string field, const GridStructure *grid,
                               const ProblemIn *pin,
-                              const std::vector<int> &vars, int nvars)
+                              IndexRange vars)
     -> SlopeLimiter;
 
 // Standard MINMOD function
@@ -46,7 +38,7 @@ auto barth_jespersen(double U_v_L, double U_v_R, double U_c_L, double U_c_T,
 void detect_troubled_cells(const AthelasArray3D<double> U,
                            AthelasArray1D<double> D, const GridStructure *grid,
                            const basis::NodalBasis &basis,
-                           const std::vector<int> &vars);
+                           const IndexRange &vb);
 
 /**
  * Return the cell average of a field q on cell ix.

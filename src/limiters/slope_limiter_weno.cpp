@@ -47,7 +47,7 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U,
 
   // --- Apply troubled cell indicator ---
   if (tci_opt_) {
-    detect_troubled_cells(U, D_, grid, basis, vars_);
+    detect_troubled_cells(U, D_, grid, basis, vb_);
   }
 
   /* map to characteristic vars */
@@ -90,7 +90,7 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U,
 
         // Do nothing we don't need to limit slopes
         if (D_(i) > tci_val_ || !tci_opt_) {
-          for (int v : vars_) {
+          for (int v = 0; v < nvars_; ++v) {
             // get scratch modified_polynomial view for this cell's work
             auto modified_polynomial_i = Kokkos::subview(
                 modified_polynomial_, i, Kokkos::ALL, Kokkos::ALL);

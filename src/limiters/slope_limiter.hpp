@@ -32,26 +32,26 @@ class WENO : public SlopeLimiterBase<WENO> {
  public:
   WENO() = default;
   WENO(const bool enabled, const GridStructure *grid,
-       const std::vector<int> &vars, const int nvars, const int order,
+       IndexRange &vb, const int order,
        const double gamma_i, const double gamma_l, const double gamma_r,
        const double weno_r, const bool characteristic, const bool tci_opt,
        const double tci_val)
-      : do_limiter_(enabled), order_(order), nvars_(nvars), gamma_i_(gamma_i),
+      : do_limiter_(enabled), order_(order), nvars_(vb.size()), gamma_i_(gamma_i),
         gamma_l_(gamma_l), gamma_r_(gamma_r), weno_r_(weno_r),
         characteristic_(characteristic), tci_opt_(tci_opt), tci_val_(tci_val),
-        vars_(vars), 
+        vb_(vb), 
         modified_polynomial_("modified_polynomial",
-                                          grid->n_elements() + 2, nvars, order),
-        u_k_("modal coefficients", grid->n_elements() + 2, order, nvars),
+                                          grid->n_elements() + 2, nvars_, order),
+        u_k_("modal coefficients", grid->n_elements() + 2, order, vb.size()),
           D_("TCI", grid->n_elements() + 2),
         limited_cell_("LimitedCell", grid->n_elements() + 2) {
         throw_athelas_error("The WENO slope limiter is not currently working!");
         if (characteristic) {
-        R_ = AthelasArray3D<double>("R Matrix", grid->n_elements() + 2, nvars, nvars);
-        R_inv_ = AthelasArray3D<double>("invR Matrix", grid->n_elements() + 2, nvars, nvars);
-        U_c_T_ = AthelasArray2D<double>("U_c_T", grid->n_elements() + 2, nvars);
-        w_c_T_ = AthelasArray2D<double>("w_c_T", grid->n_elements() + 2, nvars);
-        mult_ = AthelasArray2D<double>("Mult", grid->n_elements() + 2, nvars);
+        R_ = AthelasArray3D<double>("R Matrix", grid->n_elements() + 2, nvars_, nvars_);
+        R_inv_ = AthelasArray3D<double>("invR Matrix", grid->n_elements() + 2, nvars_, nvars_);
+        U_c_T_ = AthelasArray2D<double>("U_c_T", grid->n_elements() + 2, nvars_);
+        w_c_T_ = AthelasArray2D<double>("w_c_T", grid->n_elements() + 2, nvars_);
+        mult_ = AthelasArray2D<double>("Mult", grid->n_elements() + 2, nvars_);
         }
         }
 
@@ -71,7 +71,7 @@ class WENO : public SlopeLimiterBase<WENO> {
   bool characteristic_{};
   bool tci_opt_{};
   double tci_val_{};
-  std::vector<int> vars_;
+  IndexRange vb_;
 
   AthelasArray3D<double> modified_polynomial_;
 
@@ -97,22 +97,22 @@ class TVDMinmod : public SlopeLimiterBase<TVDMinmod> {
  public:
   TVDMinmod() = default;
   TVDMinmod(const bool enabled, const GridStructure *grid,
-            const std::vector<int> &vars, const int nvars, const int order,
+            IndexRange &vb, const int order,
             const double b_tvd, const double m_tvb, const bool characteristic,
             const bool tci_opt, const double tci_val)
-      : do_limiter_(enabled), order_(order), nvars_(nvars), b_tvd_(b_tvd),
+      : do_limiter_(enabled), order_(order), nvars_(vb.size()), b_tvd_(b_tvd),
         m_tvb_(m_tvb), characteristic_(characteristic), tci_opt_(tci_opt),
-        tci_val_(tci_val), vars_(vars),
-        u_k_("modal coefficients", grid->n_elements() + 2, order, nvars),
+        tci_val_(tci_val), vb_(vb),
+        u_k_("modal coefficients", grid->n_elements() + 2, order, nvars_),
           D_("TCI", grid->n_elements() + 2),
         limited_cell_("LimitedCell", grid->n_elements() + 2) {
 
         if (characteristic) {
-        R_ = AthelasArray3D<double>("R Matrix", grid->n_elements() + 2, nvars, nvars);
-        R_inv_ = AthelasArray3D<double>("invR Matrix", grid->n_elements() + 2, nvars, nvars);
-        U_c_T_ = AthelasArray2D<double>("U_c_T", grid->n_elements() + 2, nvars);
-        w_c_T_ = AthelasArray2D<double>("w_c_T", grid->n_elements() + 2, nvars);
-        mult_ = AthelasArray2D<double>("Mult", grid->n_elements() + 2, nvars);
+        R_ = AthelasArray3D<double>("R Matrix", grid->n_elements() + 2, nvars_, nvars_);
+        R_inv_ = AthelasArray3D<double>("invR Matrix", grid->n_elements() + 2, nvars_, nvars_);
+        U_c_T_ = AthelasArray2D<double>("U_c_T", grid->n_elements() + 2, nvars_);
+        w_c_T_ = AthelasArray2D<double>("w_c_T", grid->n_elements() + 2, nvars_);
+        mult_ = AthelasArray2D<double>("Mult", grid->n_elements() + 2, nvars_);
         }
         }
   void apply_slope_limiter(AthelasArray3D<double> U, const GridStructure *grid,
@@ -129,7 +129,7 @@ class TVDMinmod : public SlopeLimiterBase<TVDMinmod> {
   bool characteristic_{};
   bool tci_opt_{};
   double tci_val_{};
-  std::vector<int> vars_;
+  IndexRange vb_;
 
   AthelasArray3D<double> R_;
   AthelasArray3D<double> R_inv_;

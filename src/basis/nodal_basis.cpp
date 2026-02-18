@@ -261,23 +261,24 @@ void NodalBasis::build_vandermonde_matrices() {
 
 /**
  * @brief Use the inverse Vandermonde to map a nodal basis to a modal one.
+ * The IndexRange is for the variables in ucf that we are mapping.
+ * The modal vector u_k_ loops from 0.
  */
 void NodalBasis::nodal_to_modal(
     AthelasArray3D<double> u_k,
     AthelasArray3D<double> ucf, 
-    AthelasArray2D<double> sqrt_gm) const {
-  const std::size_t nvars = u_k.extent(2);
-
+    AthelasArray2D<double> sqrt_gm, 
+    const IndexRange &vb) const {
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "nodal_to_modal", DevExecSpace(),
       0, u_k.extent(0) - 1, KOKKOS_CLASS_LAMBDA(const int i) {
-        for (std::size_t v = 0; v < nvars; ++v) {
+        for (int v = vb.s; v <= vb.e; ++v) {
           for (int k = 0; k < nNodes_; ++k) {
             double sum = 0.0;
             for (int q = 0; q < nNodes_; ++q) {
               sum += inv_vandermonde_(k, q) * ucf(i, q, v);// * sqrt_gm(i, q + 1);
             }
-            u_k(i, k, v) = sum;
+            u_k(i, k, v - vb.s) = sum;
           }
         }
       });
@@ -285,21 +286,22 @@ void NodalBasis::nodal_to_modal(
 
 /**
  * @brief Use the Vandermonde to map a modal basis to a nodal one.
+ * The IndexRange is for the variables in ucf that we are mapping.
+ * The modal vector u_k_ loops from 0.
  */
 void NodalBasis::modal_to_nodal(
     AthelasArray3D<double> ucf,
     AthelasArray3D<double> u_k, 
-    AthelasArray2D<double> sqrt_gm) const {
-  const std::size_t nvars = u_k.extent(2);
-
+    AthelasArray2D<double> sqrt_gm, 
+    const IndexRange &vb) const {
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "modal_to_nodal", DevExecSpace(),
       0, u_k.extent(0) - 1, KOKKOS_CLASS_LAMBDA(const int i) {
-        for (std::size_t v = 0; v < nvars; ++v) {
+        for (int v = vb.s; v <= vb.e; ++v) {
           for (int q = 0; q < nNodes_; ++q) {
             double sum = 0.0;
             for (int k = 0; k < nNodes_; ++k) {
-              sum += vandermonde_(q, k) * u_k(i, k, v);// / sqrt_gm(i, q + 1);
+              sum += vandermonde_(q, k) * u_k(i, k, v - vb.s);// / sqrt_gm(i, q + 1);
             }
             ucf(i, q, v) = sum;
           }

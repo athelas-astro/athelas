@@ -18,7 +18,6 @@
 #include "limiters/slope_limiter.hpp"
 #include "limiters/slope_limiter_utilities.hpp"
 #include "loop_layout.hpp"
-#include "polynomial_basis.hpp"
 #include "utils/utilities.hpp"
 
 namespace athelas {
@@ -28,7 +27,7 @@ using eos::EOS;
 
 auto initialize_slope_limiter(const std::string field,
                               const GridStructure *grid, const ProblemIn *pin,
-                              const std::vector<int> &vars, const int nvars)
+                              IndexRange vb)
     -> SlopeLimiter {
   const auto enabled =
       pin->param()->get<bool>(field + ".limiter.enabled", false);
@@ -38,7 +37,7 @@ auto initialize_slope_limiter(const std::string field,
   if (enabled) {
     if (utilities::to_lower(type) == "minmod") {
       S_Limiter = TVDMinmod(
-          enabled, grid, vars, nvars, pin->param()->get<int>(field + ".porder"),
+          enabled, grid, vb, pin->param()->get<int>(field + ".porder"),
           pin->param()->get<double>(field + ".limiter.b_tvd"),
           pin->param()->get<double>(field + ".limiter.m_tvb"),
           pin->param()->get<bool>(field + ".limiter.characteristic"),
@@ -46,7 +45,7 @@ auto initialize_slope_limiter(const std::string field,
           pin->param()->get<double>(field + ".limiter.tci_val"));
     } else {
       S_Limiter = WENO(
-          enabled, grid, vars, nvars, pin->param()->get<int>(field + ".porder"),
+          enabled, grid, vb, pin->param()->get<int>(field + ".porder"),
           pin->param()->get<double>(field + ".limiter.gamma_i"),
           pin->param()->get<double>(field + ".limiter.gamma_l"),
           pin->param()->get<double>(field + ".limiter.gamma_r"),
@@ -121,7 +120,7 @@ auto barth_jespersen(double U_v_L, double U_v_R, double U_c_L, double U_c_T,
 void detect_troubled_cells(AthelasArray3D<double> U,
                            AthelasArray1D<double> D, const GridStructure *grid,
                            const NodalBasis &basis,
-                           const std::vector<int> &vars) {
+                           const IndexRange &vb) {
   static const IndexRange ib(grid->domain<Domain::Interior>());
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: TCI :: Zero", DevExecSpace(),
@@ -138,7 +137,7 @@ void detect_troubled_cells(AthelasArray3D<double> U,
       DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: TCI", DevExecSpace(), ib.s,
       ib.e, KOKKOS_LAMBDA(const int i) {
         const double dr = widths(i);
-        for (int v : vars) {
+        for (int v = vb.s; v <= vb.e; ++v) {
           if (v == 1 || v == 4) {
             continue; /* skip momenta */
           }
