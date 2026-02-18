@@ -85,12 +85,9 @@ MeshState::MeshState(const ProblemIn *const pin, const int nstages)
   const bool nickel_evolved =
       pin->param()->get<bool>("physics.heating.nickel.enabled");
   const bool rad_enabled = pin->param()->get<bool>("physics.rad_active");
-  const bool use_nodal =
-      pin->param()->get<bool>("fluid.use_nodal_basis", false);
-  const int porder = use_nodal ? pin->param()->get<int>("fluid.nnodes")
-                               : pin->param()->get<int>("fluid.porder");
+  const int nnodes = pin->param()->get<int>("basis.nnodes");
 
-  params_->add("p_order", porder);
+  params_->add("nnodes", nnodes);
   params_->add("n_stages", nstages);
   params_->add("composition_enabled", composition_enabled);
   params_->add("ionization_enabled", ionization_enabled);

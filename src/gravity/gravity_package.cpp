@@ -25,7 +25,7 @@ GravityPackage::GravityPackage(const ProblemIn *pin, GravityModel model,
     : active_(active), model_(model), gval_(gval), cfl_(cfl),
       delta_("gravity delta", n_stages,
              pin->param()->get<int>("problem.nx") + 2,
-             pin->param()->get<int>("fluid.porder"), 2) {}
+             pin->param()->get<int>("basis.nnodes"), 2) {}
 
 void GravityPackage::update_explicit(const StageData &stage_data,
                                      const GridStructure &grid,

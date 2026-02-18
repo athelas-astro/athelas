@@ -25,6 +25,9 @@ ionization = false
 heating = false
 engine = false
 
+[basis]
+nnodes = 4
+
 [bc]
 [bc.fluid]
 bc_i = "reflecting"
@@ -38,11 +41,6 @@ dt_init_frac = 1.05
 [output.history]
 fn = "hydrostatic_balance.hst"
 #dt = 0.001 # default: dt_hdf5 / 10
-
-[fluid]
-basis = "legendre"
-nnodes = 4
-porder = 4
 
 [fluid.limiter]
 do_limiter = false

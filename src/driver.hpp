@@ -96,10 +96,10 @@ namespace {
  * Compute the CFL timestep restriction.
  **/
 
-inline auto compute_cfl(const double CFL, const int order) -> double {
+inline auto compute_cfl(const double CFL, const int nq) -> double {
   double c = 1.0;
 
   const double max_cfl = 0.95;
-  return std::min(c * CFL / ((2.0 * (order)-1.0)), max_cfl);
+  return std::min(c * CFL / ((2.0 * (nq)-1.0)), max_cfl);
 }
 } // namespace

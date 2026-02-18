@@ -250,7 +250,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
   // needed in the Saha solves to come.
   auto fluid_basis_tmp = std::make_unique<basis::NodalBasis>(
       uPF, grid,
-      pin->param()->get<int>("fluid.nnodes"),
+      nNodes,
       pin->param()->get<int>("problem.nx"), false);
   mesh_state.setup_fluid_basis(std::move(fluid_basis_tmp));
 

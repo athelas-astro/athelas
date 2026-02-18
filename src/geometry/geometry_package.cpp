@@ -14,7 +14,7 @@ GeometryPackage::GeometryPackage(const ProblemIn *pin, const int n_stages,
     : active_(active) {
   const int nx = pin->param()->get<int>("problem.nx");
   int nvars_geom = 1; // sources velocity
-  delta_ = AthelasArray4D<double>("geometry delta", n_stages, nx + 2, pin->param()->get<int>("fluid.nnodes"),
+  delta_ = AthelasArray4D<double>("geometry delta", n_stages, nx + 2, pin->param()->get<int>("basis.nnodes"),
                                   nvars_geom);
 }
 

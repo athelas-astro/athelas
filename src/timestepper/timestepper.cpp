@@ -26,7 +26,7 @@ TimeStepper::TimeStepper(const ProblemIn *pin, GridStructure *grid)
       integrator_(
           create_tableau(pin->param()->get<MethodID>("time.integrator"))),
       nStages_(integrator_.num_stages), tOrder_(integrator_.explicit_order),
-      SumVar_U_("SumVar_U", mSize_ + 1, pin->param()->get<int>("fluid.porder"),
+      SumVar_U_("SumVar_U", mSize_ + 1, pin->param()->get<int>("basis.nnodes"),
                 nvars_evolved_),
       grid_s_(nStages_ + 1, GridStructure(pin)),
       x_l_sumvar_("x_l_sumvar_", nStages_ + 1, mSize_ + 1) {}

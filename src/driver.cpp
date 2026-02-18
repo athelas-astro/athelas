@@ -137,18 +137,10 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   using thermal_engine::ThermalEnginePackage;
 
   const auto nx = pin_->param()->get<int>("problem.nx");
-  const int max_order =
-      std::max(pin_->param()->get<int>("fluid.porder"),
-               pin_->param()->get<int>("radiation.porder", 1));
-  const int max_nodes =
-      std::max(pin_->param()->get<int>("fluid.nnodes"),
-               pin_->param()->get<int>("radiation.nnodes", 1));
-  const bool use_nodal_basis =
-      pin->param()->get<bool>("fluid.use_nodal_basis", false);
+  const int nnodes = pin_->param()->get<int>("basis.nnodes");
   // For nodal DG, u_cf is (ix, node, var); for modal, (ix, mode, var)
-  const int u_cf_middle = use_nodal_basis ? max_nodes : max_order;
   const auto cfl =
-      compute_cfl(pin_->param()->get<double>("problem.cfl"), max_order);
+      compute_cfl(pin_->param()->get<double>("problem.cfl"), nnodes);
   const bool rad_active = pin->param()->get<bool>("physics.rad_active");
   const bool comps_active =
       pin->param()->get<bool>("physics.composition_enabled");
@@ -173,21 +165,21 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
     }
   }
   mesh_state_.register_field("u_cf", DataPolicy::Staged, "Conserved variables",
-                             varnames_cons, nx + 2, u_cf_middle, nvars_cons);
+                             varnames_cons, nx + 2, nnodes, nvars_cons);
 
   int nvars_aux = 3;
   mesh_state_.register_field("u_af", DataPolicy::OneCopy, "Auxiliary variables",
                              {"pressure", "gas temperature", "sound speed"},
-                             nx + 2, max_nodes + 2, nvars_aux);
+                             nx + 2, nnodes + 2, nvars_aux);
   int nvars_prim = 3;
   mesh_state_.register_field("u_pf", DataPolicy::OneCopy, "Primitive variables",
                              {"density", "momentum", "sie"}, nx + 2,
-                             max_nodes + 2, nvars_prim);
+                             nnodes + 2, nvars_prim);
 
   if (comps_active) {
     const auto ncomps = pin->param()->get<int>("composition.ncomps");
     mesh_state_.register_field("x_q", DataPolicy::OneCopy,
-                               "Nodal mass fractions", nx + 2, max_nodes + 2,
+                               "Nodal mass fractions", nx + 2, nnodes + 2,
                                ncomps);
   }
 
@@ -198,24 +190,19 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
     auto sd0 = mesh_state_(0);
     auto prims = sd0.get_field("u_pf");
 
-    // --- Basis: modal or nodal ---
+    auto nx = grid_.n_elements();
     const bool rad_active =
         pin_->param()->get<bool>("physics.rad_active");
       auto fluid_basis = std::make_unique<NodalBasis>(
           prims, &grid_,
-          pin->param()->get<int>("fluid.nnodes"),
-          pin->param()->get<int>("problem.nx"), false);
+          nnodes, nx, false);
       mesh_state_.setup_fluid_basis(std::move(fluid_basis));
       if (rad_active) {
         auto radiation_basis = std::make_unique<NodalBasis>(
             prims, &grid_,
-            pin->param()->get<int>("radiation.nnodes"),
-            pin->param()->get<int>("problem.nx"), false);
+            nnodes, nx, false);
         mesh_state_.setup_rad_basis(std::move(radiation_basis));
       }
-
-    // --- Phase 2: Re-initialize (modal projection or nodal copy) ---
-    //initialize_fields(mesh_state_, &grid_, pin, first_init);
   }
 
   // now that all is said and done, perform post init work
@@ -233,55 +220,55 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   bool split = false;
 
   const int n_stages = ssprk_.n_stages();
-  const int basis_order = use_nodal_basis ? max_nodes : max_order;
   auto sd0 = mesh_state_(0);
 
   // --- Init physics package manager ---
   // NOTE: Hydro/RadHydro should be registered first
+  const bool pkg_active = true;
   if (rad_active) {
     manager_->add_package(
-        RadHydroPackage{pin, n_stages, basis_order, bcs_.get(), cfl, nx, true});
+        RadHydroPackage{pin, n_stages, nnodes, bcs_.get(), cfl, nx, pkg_active});
   } else [[unlikely]] {
     // pure Hydro
     manager_->add_package(
-        HydroPackage{pin, n_stages, basis_order, bcs_.get(), cfl, nx, true});
+        HydroPackage{pin, n_stages, nnodes, bcs_.get(), cfl, nx, pkg_active});
   }
   if (gravity_active) {
     if (!pin->param()->get<bool>("physics.gravity.split")) {
       manager_->add_package(GravityPackage{
           pin, pin->param()->get<GravityModel>("gravity.model"),
-          pin->param()->get<double>("gravity.gval"), cfl, n_stages, true});
+          pin->param()->get<double>("gravity.gval"), cfl, n_stages, pkg_active});
     } else {
       split = true;
       split_manager_->add_package(GravityPackage{
           pin, pin->param()->get<GravityModel>("gravity.model"),
-          pin->param()->get<double>("gravity.gval"), cfl, n_stages, true});
+          pin->param()->get<double>("gravity.gval"), cfl, n_stages, pkg_active});
     }
   }
   if (ni_heating_active) {
     if (!pin->param()->get<bool>("physics.heating.nickel.split")) {
       manager_->add_package(NickelHeatingPackage{
-          pin, sd0.comps()->species_indexer(), n_stages, max_nodes, true});
+          pin, sd0.comps()->species_indexer(), n_stages, nnodes, pkg_active});
     } else {
       split = true;
       split_manager_->add_package(NickelHeatingPackage{
-          pin, sd0.comps()->species_indexer(), n_stages, max_nodes, true});
+          pin, sd0.comps()->species_indexer(), n_stages, nnodes, pkg_active});
     }
   }
   if (thermal_engine_active) {
     if (!pin->param()->get<bool>("physics.engine.thermal.split")) {
       manager_->add_package(
-          ThermalEnginePackage{pin, sd0, &grid_, n_stages, true});
+          ThermalEnginePackage{pin, sd0, &grid_, n_stages, pkg_active});
     } else {
       split = true;
       split_manager_->add_package(
-          ThermalEnginePackage{pin, sd0, &grid_, n_stages, true});
+          ThermalEnginePackage{pin, sd0, &grid_, n_stages, pkg_active});
     }
   }
   // TODO(astrobarker): [split, geometry] Could add option to split.. not
   // important..
   if (geometry) {
-    manager_->add_package(GeometryPackage{pin, n_stages, true});
+    manager_->add_package(GeometryPackage{pin, n_stages, pkg_active});
   }
 
   // set up operator split stepper

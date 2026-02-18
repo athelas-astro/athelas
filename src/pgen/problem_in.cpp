@@ -202,32 +202,23 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   params_->add("physics.heating.active", heating.value());
 
   // ---------------------------------
+  // ---------- basis block ----------
+  // ---------------------------------
+  athelas_requires(config_["basis"].is_table(), "[basis] block must be provided!");
+  std::optional<int> nnodes = config_["basis"]["nnodes"].value<int>();
+  if (!nnodes) {
+    throw_athelas_error("'nnodes' missing in [basis] block!");
+  }
+  params_->add("basis.nnodes", nnodes.value());
+
+  // ---------------------------------
   // ---------- fluid block ----------
   // ---------------------------------
-  if (!config_["fluid"].is_table()) {
-    throw_athelas_error("[fluid] block must be provided!");
-  }
-
+  athelas_requires(config_["fluid"].is_table(), "[fluid] block must be provided!");
   if (config_["fluid"]["operator_split"].is_value()) {
     throw_athelas_error("Operator split not supported for fluid! Remove option "
                         "from [fluid] block.");
   }
-
-  std::optional<int> porder = config_["fluid"]["porder"].value<int>();
-  if (!porder) {
-    throw_athelas_error("fluid enabled but 'porder' missing in [fluid] block!");
-  }
-  params_->add("fluid.porder", porder.value());
-
-  std::optional<int> nnodes = config_["fluid"]["nnodes"].value<int>();
-  if (!nnodes) {
-    throw_athelas_error("fluid enabled but 'nnodes' missing in [fluid] block!");
-  }
-  params_->add("fluid.nnodes", nnodes.value());
-
-  const bool use_nodal_basis =
-      config_["fluid"]["use_nodal_basis"].value_or(false);
-  params_->add("fluid.use_nodal_basis", use_nodal_basis);
 
   if (!config_["fluid"]["limiter"].is_table()) {
     athelas_warning("No [limiter] block in [fluid] - defaulting to minmod with "
@@ -359,29 +350,12 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   // I suspect much of this should really go into
   // the individual packages.
   if (rad.value()) {
-    if (!config_["radiation"].is_table()) {
-      throw_athelas_error(
-          "Radiation is active but radiation block is missing!");
-    }
+    athelas_requires(config_["radiation"].is_table(), "Radiation enabled but [radiation] block is missing!");
 
     if (config_["radiation"]["operator_split"].is_value()) {
-      throw_athelas_error("Operator split not supported for radiation! Remove "
+      throw_athelas_error("Operator split not yet supported for radiation! Remove "
                           "option from [radiation] block.");
     }
-
-    std::optional<int> porder = config_["radiation"]["porder"].value<int>();
-    if (!porder) {
-      throw_athelas_error(
-          "radiation enabled but 'porder' missing in [radiation] block!");
-    }
-    params_->add("radiation.porder", porder.value());
-
-    std::optional<int> nnodes = config_["radiation"]["nnodes"].value<int>();
-    if (!nnodes) {
-      throw_athelas_error(
-          "radiation enabled but 'nnodes' missing in [radiation] block!");
-    }
-    params_->add("radiation.nnodes", nnodes.value());
 
     if (!config_["radiation"]["limiter"].is_table()) {
       athelas_warning("No [limiter] block in [radiation] - defaulting to "
@@ -462,6 +436,9 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
     const bool characteristic =
         config_["radiation"]["limiter"]["characteristic"].value_or(false);
     params_->add("radiation.limiter.characteristic", characteristic);
+
+    // characteristic limiting not yet supported for rad
+    athelas_requires(!characteristic, "Characteristic limiting not currently supported for radiation!");
 
     // --- radiation bc ---
     std::optional<std::string> rad_bc_i =

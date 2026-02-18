@@ -50,7 +50,7 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
   auto mass_enc_h = Kokkos::create_mirror_view(grid->enclosed_mass());
   const double m_start = mass_enc_h(mstart_, 0);
   mend_ += m_start;
-  const int nnodes = pin->param()->get<int>("fluid.nnodes");
+  const int nnodes = pin->param()->get<int>("basis.nnodes");
   for (int i = 1; i <= nx; ++i) {
     for (int q = 0; q < nnodes; ++q) {
       if (mass_enc_h(i, q) <= mend_) {

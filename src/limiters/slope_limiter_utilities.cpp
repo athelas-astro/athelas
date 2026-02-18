@@ -29,7 +29,7 @@ auto initialize_slope_limiter(const std::string field,
   if (enabled) {
     if (utilities::to_lower(type) == "minmod") {
       S_Limiter = TVDMinmod(
-          enabled, grid, vb, pin->param()->get<int>(field + ".porder"),
+          enabled, grid, vb, pin->param()->get<int>("basis.nnodes"),
           pin->param()->get<double>(field + ".limiter.b_tvd"),
           pin->param()->get<double>(field + ".limiter.m_tvb"),
           pin->param()->get<bool>(field + ".limiter.characteristic"),
@@ -37,7 +37,7 @@ auto initialize_slope_limiter(const std::string field,
           pin->param()->get<double>(field + ".limiter.tci_val"));
     } else {
       S_Limiter = WENO(
-          enabled, grid, vb, pin->param()->get<int>(field + ".porder"),
+          enabled, grid, vb, pin->param()->get<int>("basis.nnodes"),
           pin->param()->get<double>(field + ".limiter.gamma_i"),
           pin->param()->get<double>(field + ".limiter.gamma_l"),
           pin->param()->get<double>(field + ".limiter.gamma_r"),

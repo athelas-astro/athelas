@@ -175,11 +175,11 @@ class TimeStepper {
                              GridStructure &grid, const double t,
                              const double dt, SlopeLimiter *sl_hydro,
                              SlopeLimiter *sl_rad) {
-    const auto &order = mesh_state.p_order();
+    static const int nnodes = grid.n_nodes();
 
     static const int nvars = mesh_state.nvars("u_cf");
     static const IndexRange ib(grid.domain<Domain::Entire>());
-    static const IndexRange kb(order);
+    static const IndexRange qb(nnodes);
     static const IndexRange vb(nvars);
 
     grid_s_[0] = grid;
@@ -199,9 +199,9 @@ class TimeStepper {
       auto u = stage_data.get_field("u_cf");
       athelas::par_for(
           DEFAULT_LOOP_PATTERN, "Timestepper :: IMEX :: Reset sumvar",
-          DevExecSpace(), ib.s, ib.e, kb.s, kb.e, vb.s, vb.e,
-          KOKKOS_CLASS_LAMBDA(const int i, const int k, const int v) {
-            SumVar_U_(i, k, v) = u0(i, k, v);
+          DevExecSpace(), ib.s, ib.e, qb.s, qb.e, vb.s, vb.e,
+          KOKKOS_CLASS_LAMBDA(const int i, const int q, const int v) {
+            SumVar_U_(i, q, v) = u0(i, q, v);
             x_l_sumvar_(iS, i) = left_interface(i);
           });
 
@@ -233,9 +233,9 @@ class TimeStepper {
       // set U_s (stage data)
       athelas::par_for(
           DEFAULT_LOOP_PATTERN, "Timestepper :: IMEX :: Update Us",
-          DevExecSpace(), ib.s, ib.e, kb.s, kb.e, vb.s, vb.e,
-          KOKKOS_CLASS_LAMBDA(const int i, const int k, const int v) {
-            u(i, k, v) = SumVar_U_(i, k, v);
+          DevExecSpace(), ib.s, ib.e, qb.s, qb.e, vb.s, vb.e,
+          KOKKOS_CLASS_LAMBDA(const int i, const int q, const int v) {
+            u(i, q, v) = SumVar_U_(i, q, v);
           });
 
       // NOTE: The limiting strategies in this function will fail if
@@ -249,9 +249,9 @@ class TimeStepper {
       // set U_s (stage data)
       athelas::par_for(
           DEFAULT_LOOP_PATTERN, "Timestepper :: IMEX :: Update Us",
-          DevExecSpace(), ib.s, ib.e, kb.s, kb.e, vb.s, vb.e,
-          KOKKOS_CLASS_LAMBDA(const int i, const int k, const int v) {
-            SumVar_U_(i, k, v) = u(i, k, v);
+          DevExecSpace(), ib.s, ib.e, qb.s, qb.e, vb.s, vb.e,
+          KOKKOS_CLASS_LAMBDA(const int i, const int q, const int v) {
+            SumVar_U_(i, q, v) = u(i, q, v);
           });
 
       // implicit update

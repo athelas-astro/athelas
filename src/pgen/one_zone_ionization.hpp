@@ -40,7 +40,6 @@ void one_zone_ionization_init(MeshState &mesh_state, GridStructure *grid,
 
   static const IndexRange ib(grid->domain<Domain::Interior>());
   static const int nNodes = grid->n_nodes();
-  static const int order = mesh_state.p_order();
 
   const auto temperature =
       pin->param()->get<double>("problem.params.temperature", 5800); // K
@@ -57,7 +56,7 @@ void one_zone_ionization_init(MeshState &mesh_state, GridStructure *grid,
   }
 
   std::shared_ptr<atom::CompositionData> comps =
-      std::make_shared<atom::CompositionData>(grid->n_elements() + 2, order,
+      std::make_shared<atom::CompositionData>(grid->n_elements() + 2, nNodes,
                                               ncomps);
   std::shared_ptr<atom::IonizationState> ionization_state =
       std::make_shared<atom::IonizationState>(

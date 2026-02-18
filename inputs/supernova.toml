@@ -27,6 +27,9 @@ ionization = true
 heating = false
 engine = true
 
+[basis]
+nnodes = 1
+
 [engine.thermal]
 enabled = true
 mode = "asymptotic"
@@ -60,11 +63,6 @@ dt_init_frac = 1.01
 fn = "supernova.hst"
 dt = 0.1 # default: dt_hdf5 / 10
 
-[fluid]
-basis = "legendre"
-nnodes = 1
-porder = 1
-
 [fluid.limiter]
 do_limiter = true
 type = "minmod"
@@ -72,11 +70,6 @@ b_tvd = 1.0
 m_tvb = 0.0
 tci_opt = false
 tci_val = 0.25
-
-[radiation]
-basis = "legendre"
-nnodes = 1
-porder = 1
 
 [radiation.limiter]
 type = "minmod"

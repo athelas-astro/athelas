@@ -168,9 +168,6 @@ class MeshState {
   }
 
   [[nodiscard]] auto n_stages() const noexcept -> int { return nstages_; }
-  [[nodiscard]] auto p_order() const noexcept -> int {
-    return params_->get<int>("p_order");
-  }
 
   // --- Feature Flags ---
   [[nodiscard]] auto composition_enabled() const noexcept -> bool {

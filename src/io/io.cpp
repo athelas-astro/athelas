@@ -73,7 +73,7 @@ void print_simulation_parameters(GridStructure &grid, ProblemIn *pin) {
   std::println("");
 
   std::println("# --- Fluid Parameters --- ");
-  std::println("# Spatial Order  : {}", pin->param()->get<int>("fluid.porder"));
+  std::println("# Spatial Order  : {}", pin->param()->get<int>("basis.nnodes"));
   std::println("# Inner BC       : {}",
                pin->param()->get<std::string>("fluid.bc.i"));
   std::println("# Outer BC       : {}",
@@ -81,7 +81,7 @@ void print_simulation_parameters(GridStructure &grid, ProblemIn *pin) {
   std::println("");
 
   std::println("# --- Fluid Limiter --- ");
-  if (pin->param()->get<int>("fluid.porder") == 1) {
+  if (pin->param()->get<int>("basis.nnodes") == 1) {
     std::println("# Spatial Order 1: Slope limiter not applied.");
   }
   if (!pin->param()->get<bool>("fluid.limiter.enabled")) {
@@ -96,7 +96,7 @@ void print_simulation_parameters(GridStructure &grid, ProblemIn *pin) {
   if (rad_enabled) {
     std::println("# --- Radiation Parameters --- ");
     std::println("# Spatial Order  : {}",
-                 pin->param()->get<int>("radiation.porder"));
+                 pin->param()->get<int>("basis.nnodes"));
     std::println("# Inner BC       : {}",
                  pin->param()->get<std::string>("radiation.bc.i"));
     std::println("# Outer BC       : {}",
@@ -104,7 +104,7 @@ void print_simulation_parameters(GridStructure &grid, ProblemIn *pin) {
     std::println("");
 
     std::println("# --- Radiation Limiter Parameters --- ");
-    if (pin->param()->get<int>("radiation.porder") == 1) {
+    if (pin->param()->get<int>("basis.nnodes") == 1) {
       std::println("# Spatial Order 1: Slope limiter not applied.");
     }
     if (!pin->param()->get<bool>("radiation.limiter.enabled")) {
