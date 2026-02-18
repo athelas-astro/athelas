@@ -43,7 +43,7 @@ void rad_equilibrium_init(MeshState &mesh_state, GridStructure *grid,
         uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D;
         uCF(i, q, vars::cons::Velocity) = V0;
         uCF(i, q, vars::cons::Energy) = Ev_gas / D;
-        uCF(i, q, vars::cons::RadEnergy) = Ev_rad;
+        uCF(i, q, vars::cons::RadEnergy) = Ev_rad / D;
 
         uPF(i, q, vars::prim::Rho) = D;
       });

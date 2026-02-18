@@ -55,7 +55,7 @@ void marshak_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
         uCF(i, q, vars::cons::SpecificVolume) = 1.0 / rho0;
         uCF(i, q, vars::cons::Velocity) = V0;
         uCF(i, q, vars::cons::Energy) = em_gas + 0.5 * V0 * V0;
-        uCF(i, q, vars::cons::RadEnergy) = e_rad;
+        uCF(i, q, vars::cons::RadEnergy) = e_rad / rho0;
         uCF(i, q, vars::cons::RadFlux) = 0.0;
 
         uPF(i, q, vars::prim::Rho) = rho0;
