@@ -141,7 +141,7 @@ apply_bc(const BoundaryConditionsData<N> &bc,
   case BcType::Marshak: {
 
     constexpr double c = constants::c_cgs;
-    const double Einc = bc.dirichlet_values[0];
+    const double Einc = bc.dirichlet_values[0] * U(interior_cell, 0, vars::cons::SpecificVolume);
 
     for (int i = 0; i < n_nodes; ++i) {
 
