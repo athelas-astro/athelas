@@ -63,7 +63,7 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
 
   // --- Map to modal basis ---
   auto sqrt_gm = grid->sqrt_gm();
-  basis.nodal_to_modal(u_k_, U, sqrt_gm, vb_);
+  basis.nodal_to_modal(u_k_, U, vb_);
 
   // TODO(astrobarker): this is repeated code: clean up somehow
   // --- map to characteristic vars ---
@@ -106,7 +106,6 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
 
         // Do nothing we don't need to limit slopes
         if (D_(i) > tci_val_ || !tci_opt_) {
-          //for (std::size_t v = 0; v < vars_.size(); ++v) {
           for (int v = 0; v < nvars_; ++v) {
 
             // --- Begin TVD Minmod Limiter --- //
@@ -114,8 +113,13 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
             const double c_i = u_k_(i, CellAverage, v); // target cell avg
             const double c_p = u_k_(i + 1, CellAverage, v); // cell i + 1 avg
             const double c_m = u_k_(i - 1, CellAverage, v); // cell i - 1 avg
+            // Form the neighbor slopes. We have to be mindful of the element
+            // widths as they are not uniform.
+            const double s_p = (c_p - c_i) / (0.5 * (dr(i) + dr(i+1)));
+            const double s_m = (c_i - c_m) / (0.5 * (dr(i) + dr(i-1)));
+            const double scale = 0.5 * dr(i);
             const double new_slope = MINMOD_B(
-                s_i, b_tvd_ * (c_p - c_i), b_tvd_ * (c_i - c_m), dr(i), m_tvb_);
+                s_i, b_tvd_ * scale * s_p, b_tvd_ * scale * s_m, dr(i), m_tvb_);
 
             // check limited slope difference vs threshold
             if (std::abs(new_slope - s_i) >
@@ -163,7 +167,7 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
   } // end map from characteristics
 
   // --- Project back onto nodal basis ---
-  basis.modal_to_nodal(U, u_k_, sqrt_gm, vb_);
+  basis.modal_to_nodal(U, u_k_, vb_);
 } // end apply slope limiter
 
 // limited_cell_ accessor

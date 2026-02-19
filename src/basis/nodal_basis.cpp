@@ -263,7 +263,6 @@ void NodalBasis::build_vandermonde_matrices() {
 void NodalBasis::nodal_to_modal(
     AthelasArray3D<double> u_k,
     AthelasArray3D<double> ucf, 
-    AthelasArray2D<double> sqrt_gm, 
     const IndexRange &vb) const {
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "nodal_to_modal", DevExecSpace(),
@@ -272,7 +271,7 @@ void NodalBasis::nodal_to_modal(
           for (int k = 0; k < nNodes_; ++k) {
             double sum = 0.0;
             for (int q = 0; q < nNodes_; ++q) {
-              sum += inv_vandermonde_(k, q) * ucf(i, q, v);// * sqrt_gm(i, q + 1);
+              sum += inv_vandermonde_(k, q) * ucf(i, q, v);
             }
             u_k(i, k, v - vb.s) = sum;
           }
@@ -288,7 +287,6 @@ void NodalBasis::nodal_to_modal(
 void NodalBasis::modal_to_nodal(
     AthelasArray3D<double> ucf,
     AthelasArray3D<double> u_k, 
-    AthelasArray2D<double> sqrt_gm, 
     const IndexRange &vb) const {
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "modal_to_nodal", DevExecSpace(),
@@ -297,7 +295,7 @@ void NodalBasis::modal_to_nodal(
           for (int q = 0; q < nNodes_; ++q) {
             double sum = 0.0;
             for (int k = 0; k < nNodes_; ++k) {
-              sum += vandermonde_(q, k) * u_k(i, k, v - vb.s);// / sqrt_gm(i, q + 1);
+              sum += vandermonde_(q, k) * u_k(i, k, v - vb.s);
             }
             ucf(i, q, v) = sum;
           }

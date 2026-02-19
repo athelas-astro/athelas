@@ -59,7 +59,6 @@ public:
    void nodal_to_modal(
     AthelasArray3D<double> u_k,
     AthelasArray3D<double> ucf, 
-    AthelasArray2D<double> sqrt_gm, 
     const IndexRange &vb) const; 
 
   /**
@@ -70,7 +69,6 @@ public:
    void modal_to_nodal(
     AthelasArray3D<double> ucf,
     AthelasArray3D<double> u_k, 
-    AthelasArray2D<double> sqrt_gm, 
     const IndexRange &vb) const; 
 
   // --- Evaluation methods (back compatibility) ---
