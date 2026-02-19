@@ -216,7 +216,6 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
   auto newgrid = GridStructure(pin);
   *grid = newgrid;
 
-
   auto r = grid->nodal_grid();
 
   // --- Interpolate density, pressure, temperature at nodes & interfaces. ---
@@ -597,18 +596,6 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
   // composition boundary condition
   static const IndexRange vb_comps(std::make_pair(nvars, nvars + ncomps - 1));
   bc::fill_ghost_zones_composition(uCF, vb_comps);
-
-  // Now let us offset the enclosed mass by the mass cut
-  if (mass_cut != 0.0) {
-    auto menc = grid->enclosed_mass();
-    athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Adjust enclosed mass",
-        DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-          for (int q = 0; q < nNodes; q++) {
-            menc(i, q) += mass_cut * constants::M_sun;
-          }
-        });
-  }
 
   // Fill density and temperature in guard cells.
   // Temperature must be filled in when ionization is active.

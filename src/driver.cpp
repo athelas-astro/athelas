@@ -189,6 +189,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
     initialize_fields(mesh_state_, &grid_, pin);
     auto sd0 = mesh_state_(0);
     auto prims = sd0.get_field("u_pf");
+    grid_.compute_mass(prims);
 
     auto nx = grid_.n_elements();
     const bool rad_active =
@@ -337,6 +338,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
 /**
  * @brief Perform post initialization checks, calculations
  * Currently:
+ * - Call grid's compute enclosed mass.
  * - If composition is enabled
  *   - Compute inv_atomic_mass
  * - If ionization if enabled
@@ -344,8 +346,33 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
  *     - saha_ncomps < ncomps
  */
 void Driver::post_init_work() {
+  auto sd0 = mesh_state_(0);
+  auto prims = sd0.get_field("u_pf");
   const bool comps_active = mesh_state_.composition_enabled();
   const bool ionization_active = mesh_state_.ionization_enabled();
+
+  static const IndexRange ib(grid_.domain<Domain::Interior>());
+
+  grid_.compute_mass(prims);
+  grid_.compute_mass_r(prims);
+  grid_.compute_center_of_mass(prims);
+
+  // If we are doing some kind of mass cut, that mass needs to be included 
+  // in the enclosed mass.
+  const bool do_mass_cut = pin_->param()->contains("problem.params.mass_cut");
+  if (do_mass_cut) {
+    const auto mc = pin_->param()->get<double>("problem.params.mass_cut"); // in M_{\odot}
+    auto menc = grid_.enclosed_mass();
+    const int nNodes = grid_.n_nodes();
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "post_init_work :: Adjust enclosed mass",
+        DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
+          for (int q = 0; q < nNodes; q++) {
+            menc(i, q) += mc * constants::M_sun;
+          }
+        });
+
+  }
 
   // This is a weird one. When ionization is active and needed to be computed
   // in the pgen, then this _must_ be computed there. That is the case

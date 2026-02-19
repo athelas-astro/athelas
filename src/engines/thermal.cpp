@@ -88,8 +88,7 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
         DEFAULT_LOOP_PATTERN, "ThermalEngine :: Total energy", DevExecSpace(),
         1, nx, 0, nnodes - 1,
         KOKKOS_CLASS_LAMBDA(const int i, const int q, double &lenergy) {
-          const double e_fluid =
-              basis::basis_eval(phi, ucf, i, vars::cons::Energy, q + 1);
+          const double e_fluid = ucf(i, q, vars::cons::Energy);
           const double e_grav =
               grav_active * constants::G_GRAV * menc(i, q) / r(i, q + 1);
           lenergy += (e_fluid - e_grav) * weights(q) * mcell(i) * FOURPI;

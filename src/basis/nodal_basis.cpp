@@ -27,10 +27,6 @@ NodalBasis::NodalBasis( AthelasArray3D<double> uPF, GridStructure *grid,
   Kokkos::deep_copy(nodes_, grid->nodes());
   Kokkos::deep_copy(weights_, grid->weights());
 
-  grid->compute_mass(uPF);
-  grid->compute_mass_r(uPF);
-  grid->compute_center_of_mass(uPF);
-
   initialize_basis(uPF, grid);
 }
 
