@@ -84,23 +84,25 @@ void one_zone_ionization_init(MeshState &mesh_state, GridStructure *grid,
         for (int q = 0; q < nNodes + 2; q++) {
           uPF(i, q, vars::prim::Rho) = rho;
           uAF(i, q, vars::aux::Tgas) = temperature;
+
+          mass_fractions(i, q, i_H) = X_H;
+          mass_fractions(i, q, i_He) = X_He;
+          mass_fractions(i, q, i_C) = X_C;
+
           // Set Zbar assuming full ionization -- used as guess in Saha below.
           zbar(i, q, i_H) = 1;
           zbar(i, q, i_He) = 2;
           zbar(i, q, i_C) = 6;
         }
 
-        mass_fractions(i, vars::modes::CellAverage, i_H) = X_H;
         charges(i_H) = 1;
         neutrons(i_H) = 0;
         inv_atomic_mass(i_H) = 1.0;
 
-        mass_fractions(i, vars::modes::CellAverage, i_He) = X_He;
         charges(i_He) = 2;
         neutrons(i_He) = 2;
         inv_atomic_mass(i_He) = 1.0 / 4.0;
 
-        mass_fractions(i, vars::modes::CellAverage, i_C) = X_C;
         charges(i_C) = 6;
         neutrons(i_C) = 6;
         inv_atomic_mass(i_C) = 1.0 / 12.0;
