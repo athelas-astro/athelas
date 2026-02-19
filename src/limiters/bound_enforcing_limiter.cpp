@@ -138,6 +138,7 @@ void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
   auto weights = grid.weights();
   auto widths = grid.widths();
 
+  auto phi = basis.phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit internal energy", DevExecSpace(),
       1, U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
@@ -159,12 +160,10 @@ void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
 
         // --- Compute global theta ---
         double theta_cell = 1.0;
-
-        for (int q = 0; q < order; ++q) {
-
-          const double tau_q = U(i, q, vars::cons::SpecificVolume);
-          const double v_q = U(i, q, vars::cons::Velocity);
-          const double E_q = U(i, q, vars::cons::Energy);
+        for (int q = 0; q <= order + 1; ++q) {
+          const double tau_q = basis_eval(phi, U, i, vars::cons::SpecificVolume, q);
+          const double v_q = basis_eval(phi, U, i, vars::cons::Velocity, q);
+          const double E_q = basis_eval(phi, U, i, vars::cons::Energy, q);
 
           const double rho_q = 1.0 / tau_q;
 

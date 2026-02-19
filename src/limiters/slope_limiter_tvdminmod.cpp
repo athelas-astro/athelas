@@ -11,11 +11,9 @@
  *          oscillations in discontinuous solutions.
  */
 
-#include <algorithm> /* std::min, std::max */
 #include <cstdlib> /* abs */
 
 #include "basic_types.hpp"
-#include "basis/polynomial_basis.hpp"
 #include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
@@ -44,7 +42,7 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
   }
 
   constexpr static double sl_threshold_ =
-      1.0e-8; // TODO(astrobarker): move to input deck
+      1.0e-4; // TODO(astrobarker): move to input deck
 
   static constexpr int ilo = 1;
   static const int &ihi = grid->get_ihi();
@@ -62,7 +60,6 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
   }
 
   // --- Map to modal basis ---
-  auto sqrt_gm = grid->sqrt_gm();
   basis.nodal_to_modal(u_k_, U, vb_);
 
   // TODO(astrobarker): this is repeated code: clean up somehow
@@ -102,8 +99,6 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: Minmod", DevExecSpace(), ilo,
       ihi, KOKKOS_CLASS_LAMBDA(const int i) {
-        limited_cell_(i) = 0;
-
         // Do nothing we don't need to limit slopes
         if (D_(i) > tci_val_ || !tci_opt_) {
           for (int v = 0; v < nvars_; ++v) {
@@ -123,19 +118,20 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
 
             // check limited slope difference vs threshold
             if (std::abs(new_slope - s_i) >
-                  sl_threshold_ * std::abs(s_i)) {
+                   sl_threshold_ * std::abs(s_i)) {
               u_k_(i, Slope, v) = new_slope;
 
               // remove any higher order contributions
               for (int k = 2; k < order_; ++k) {
                 u_k_(i, k, v) = 0.0;
               }
+
+              // --- Note we have limited this cell --- //
+              limited_cell_(i) = 1;
             }
             // --- End TVD Minmod Limiter --- //
             // The TVDMinmod part is really small... reusing a lot of code
 
-            // --- Note we have limited this cell --- //
-            limited_cell_(i) = 1;
 
           } // end loop v
         } // end if "limit_this_cell"
