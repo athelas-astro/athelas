@@ -16,6 +16,7 @@
 
 #include <vector>
 
+#include "basic_types.hpp"
 #include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
@@ -27,7 +28,7 @@ namespace athelas {
 
 GridStructure::GridStructure(const ProblemIn *pin)
     : nElements_(pin->param()->get<int>("problem.nx")),
-      nNodes_(pin->param()->get<int>("fluid.nnodes")), mSize_(nElements_ + 2),
+      nNodes_(pin->param()->get<int>("basis.nnodes")), mSize_(nElements_ + 2),
       xL_(pin->param()->get<double>("problem.xl")),
       xR_(pin->param()->get<double>("problem.xr")),
       geometry_(pin->param()->get<Geometry>("problem.geometry_model")),
@@ -147,9 +148,11 @@ void GridStructure::create_uniform_grid() {
   auto centers_h = Kokkos::create_mirror_view(centers_);
   auto x_l_h = Kokkos::create_mirror_view(x_l_);
 
-  for (int i = 0; i < nElements_ + 2; i++) {
+  for (int i = 1; i < nElements_ + 1; i++) {
     widths_h(i) = (xR_ - xL_) / nElements_;
   }
+  widths_h(0) = widths_h(1);
+  widths_h(nElements_ + 1) = widths_h(nElements_);
 
   x_l_h(1) = xL_;
   for (int ix = 2; ix < nElements_ + 2; ix++) {
@@ -254,7 +257,7 @@ void GridStructure::create_log_grid() {
  * Compute cell masses
  **/
 KOKKOS_FUNCTION
-void GridStructure::compute_mass(const AthelasArray3D<double> uPF) {
+void GridStructure::compute_mass(AthelasArray3D<double> ucf) {
   const int nNodes_ = n_nodes();
   const int ilo = get_ilo();
   const int ihi = get_ihi();
@@ -264,8 +267,9 @@ void GridStructure::compute_mass(const AthelasArray3D<double> uPF) {
       ihi, KOKKOS_CLASS_LAMBDA(const int i) {
         double mass = 0.0;
         for (int q = 0; q < nNodes_; q++) {
+          const double rho = 1.0 / ucf(i, q, vars::cons::SpecificVolume);
           const double X = node_coordinate(i, q);
-          mass += weights_(q) * get_sqrt_gm(X) * uPF(i, q, vars::prim::Rho);
+          mass += weights_(q) * get_sqrt_gm(X) * rho;
         }
         mass *= widths_(i);
         mass_(i) = mass;
@@ -291,7 +295,7 @@ void GridStructure::compute_mass(const AthelasArray3D<double> uPF) {
  * it should be refactored.
  **/
 KOKKOS_FUNCTION
-void GridStructure::compute_mass_r(const AthelasArray3D<double> uPF) {
+void GridStructure::compute_mass_r(AthelasArray3D<double> ucf) {
   const int nNodes_ = n_nodes();
   const int ilo = get_ilo();
   const int ihi = get_ihi();
@@ -309,8 +313,8 @@ void GridStructure::compute_mass_r(const AthelasArray3D<double> uPF) {
         const int ix = ilo + idx / nNodes_;
         const int q = idx % nNodes_;
         const double X = node_coordinate(ix, q);
-        mass_contrib(idx) = weights_(q) * get_sqrt_gm(X) *
-                            uPF(ix, q, vars::prim::Rho) * widths_(ix);
+        const double rho = 1.0 / ucf(ix, q, vars::cons::SpecificVolume);
+        mass_contrib(idx) = weights_(q) * get_sqrt_gm(X) * rho * widths_(ix);
       });
 
   // 2: Perform parallel inclusive scan (cumulative sum)
@@ -349,7 +353,7 @@ auto GridStructure::enclosed_mass(const int ix, const int q) const noexcept
  * Compute cell centers of masses reference coordinates
  **/
 KOKKOS_FUNCTION
-void GridStructure::compute_center_of_mass(const AthelasArray3D<double> uPF) {
+void GridStructure::compute_center_of_mass(AthelasArray3D<double> ucf) {
   const int nNodes_ = n_nodes();
   const int ilo = get_ilo();
   const int ihi = get_ihi();
@@ -361,8 +365,8 @@ void GridStructure::compute_center_of_mass(const AthelasArray3D<double> uPF) {
 
         for (int q = 0; q < nNodes_; q++) {
           const double X = node_coordinate(i, q);
-          com += nodes_(q) * weights_(q) * get_sqrt_gm(X) *
-                 uPF(i, q, vars::prim::Rho);
+          const double rho = 1.0 / ucf(i, q, vars::cons::SpecificVolume);
+          com += nodes_(q) * weights_(q) * get_sqrt_gm(X) * rho;
         }
 
         com *= widths_(i);
@@ -389,7 +393,7 @@ void GridStructure::update_grid(const AthelasArray1D<double> SData) {
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Update (1)", DevExecSpace(), ilo,
-      ihi + 1, KOKKOS_CLASS_LAMBDA(const int i) {
+      ihi + 0, KOKKOS_CLASS_LAMBDA(const int i) {
         x_l_(i) = SData(i);
         widths_(i) = SData(i + 1) - SData(i);
         centers_(i) = 0.5 * (SData(i + 1) + SData(i));

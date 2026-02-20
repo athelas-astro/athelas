@@ -1,13 +1,13 @@
 [problem]
 problem = "rad_shock"
 t_end = 0.2e-9
-nlim = 1000
+nlim = -1
 geometry = "planar"
 restart = false
 xl = 0.0
 xr = 0.01575
 x_d = 0.0132
-cfl = 0.95
+cfl = 0.75
 nx = 256
 grid_type = "uniform"
 
@@ -38,6 +38,9 @@ ionization = false
 heating = false
 engine = false
 
+[basis]
+nnodes = 2
+
 [bc]
 [bc.fluid]
 bc_i = "outflow"
@@ -59,29 +62,19 @@ dt_init_frac = 1.001
 fn = "rad_shock.hst"
 #dt = 0.001 # default: dt_hdf5 / 10
 
-[fluid]
-basis = "legendre"
-nnodes = 2
-porder = 2
-
 [fluid.limiter]
 do_limiter = true
 type = "minmod"
-m_tvb = 4.0
-b_tvd = 1.0
+m_tvb = 0.5
+b_tvd = 0.5
 tci_opt = true
-tci_val = 2.0
+tci_val = 0.45
 characteristic = false
-
-[radiation]
-basis = "legendre"
-nnodes = 2
-porder = 2
 
 [radiation.limiter]
 type = "minmod"
 m_tvb = 0.0
-b_tvd = 1.0
+b_tvd = 0.5
 tci_opt = false
 tci_val = 0.1
 characteristic = false

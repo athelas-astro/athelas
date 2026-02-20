@@ -28,6 +28,9 @@ ionization = false
 heating = false
 engine = false
 
+[basis]
+nnodes = 3
+
 [bc]
 [bc.fluid]
 bc_i = "outflow"
@@ -42,11 +45,6 @@ dt_init_frac = 1.25
 fn = "einfeldt.hst"
 #dt = 0.001 # default: dt_hdf5 / 10
 
-[fluid]
-basis = "legendre"
-nnodes = 3
-porder = 3
-
 [fluid.limiter]
 do_limiter = true
 type = "minmod"
@@ -55,7 +53,6 @@ b_tvd = 1.0
 tci_opt = true
 tci_val = 1.0e-1
 characteristic = false
-gamma_i = 0.998
 
 [time]
 integrator = "EX_SSPRK22"

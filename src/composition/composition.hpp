@@ -37,7 +37,7 @@ void fill_derived_comps(StageData &stage_data,
                         const GridStructure *const grid) {
   static const auto &nnodes = grid->n_nodes();
   static const IndexRange ib(grid->domain<MeshDomain>());
-  static const IndexRange nb(nnodes + 2);
+  static const IndexRange qb(nnodes + 2);
 
   const auto &basis = stage_data.fluid_basis();
   auto phi = basis.phi();
@@ -56,7 +56,7 @@ void fill_derived_comps(StageData &stage_data,
   static constexpr double inv_m_p = 1.0 / constants::m_p;
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Composition :: fill derived", DevExecSpace(), ib.s,
-      ib.e, nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int q) {
+      ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
         double ye_q = 0.0;
         double sum_y = 0.0;
         for (int e = 0; e < num_species; ++e) {
@@ -76,7 +76,7 @@ void fill_derived_comps(StageData &stage_data,
 
 // per-point version called by the below
 KOKKOS_INLINE_FUNCTION
-auto fill_derived_ionization(const basis::ModalBasis &basis,
+auto fill_derived_ionization(const AthelasArray3D<double> phi,
                              const AthelasArray3D<double> mass_fractions,
                              const CompositionData *comps,
                              const IonizationState *ionization_state,
@@ -100,7 +100,6 @@ auto fill_derived_ionization(const basis::ModalBasis &basis,
   double sum3 = 0.0;
   double sum_e_ion_corr = 0.0;
   // Loop over Saha species – solve ionization for the Saha subset
-  auto phi = basis.phi();
   for (int e = eb.s; e <= eb.e; ++e) {
     const int z = species(e);
     const double x_e = basis::basis_eval(phi, mass_fractions, i, e, q);
@@ -156,7 +155,7 @@ void fill_derived_ionization(StageData &stage_data,
                              const GridStructure *const grid) {
   static const auto &nnodes = grid->n_nodes();
   static const IndexRange ib(grid->domain<MeshDomain>());
-  static const IndexRange nb(nnodes + 2);
+  static const IndexRange qb(nnodes + 2);
 
   auto ucf = stage_data.get_field("u_cf");
   const auto *const comps = stage_data.comps();
@@ -184,18 +183,17 @@ void fill_derived_ionization(StageData &stage_data,
 
   // NOTE: check index ranges inside here when saha ncomps =/= num_species
   // Should we be skipping neutrons?
-  const auto &basis = stage_data.fluid_basis();
-  auto phi = basis.phi();
+  auto phi = stage_data.fluid_basis().phi();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Ionization :: fill derived", DevExecSpace(), ib.s,
-      ib.e, nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int q) {
+      ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
         const double rho =
             1.0 / basis::basis_eval(phi, ucf, i, vars::cons::SpecificVolume, q);
         // This kernel is horrible.
         // Reduce the ionization based quantities sigma1-3, e_ion_corr
         ybar(i, q) = electron_number_density(i, q) / number_density(i, q) / rho;
         const auto [s1, s2, s3, eion] =
-            fill_derived_ionization(basis, mass_fractions, comps,
+            fill_derived_ionization(phi, mass_fractions, comps,
                                     ionization_state, eb, num_species, i, q);
         sigma1(i, q) = s1;
         sigma2(i, q) = s2;

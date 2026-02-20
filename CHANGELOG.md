@@ -6,6 +6,8 @@
 
 ### Added (new features/APIs/variables/...)
 
+- [PR 140](https://github.com/athelas-astro/athelas/pull/140) `athelas.py` forms cell averages on `get` call.
+- [PR 140](https://github.com/athelas-astro/athelas/pull/140) Made slope limiter aware of non-uniform mesh.
 - [PR 133](https://github.com/athelas-astro/athelas/pull/133) rho, T powerlaw opacity with floors.
 - [PR 124](https://github.com/athelas-astro/athelas/pull/124) Use minimum internal energy in BEL
 - [PR 123](https://github.com/athelas-astro/athelas/pull/123) Move basis, eos, opac objects into MeshState
@@ -14,6 +16,7 @@
 
 ### Changed (changing behavior/API/variables/...)
 
+- [PR 140](https://github.com/athelas-astro/athelas/pull/140) Move to nodal DG formulation.
 - [PR 138](https://github.com/athelas-astro/athelas/pull/138) Add `params` into hdf5 output
 - [PR 137](https://github.com/athelas-astro/athelas/pull/137) Update `athelas.py`, add `snap.py`
 - [PR 136](https://github.com/athelas-astro/athelas/pull/136) New HDF5 structure
@@ -36,5 +39,6 @@
 ### Removed (removing behavior/API/variables/...)
 
 ### Incompatibilities (i.e. breaking changes)
+- [PR 140](https://github.com/athelas-astro/athelas/pull/140) Move to nodal DG formulation; changed output format.
 - [PR 136](https://github.com/athelas-astro/athelas/pull/136) New HDF5 structure breaks python scripts
 - [PR 132](https://github.com/athelas-astro/athelas/pull/132) Added interfaces into nodal grid: changed hdf5 io.

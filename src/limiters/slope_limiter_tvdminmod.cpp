@@ -1,21 +1,6 @@
-/**
- * @file slope_limiter_tvdminmod.cpp
- * --------------
- *
- * @author Brandon L. Barker
- * @brief TVB Minmod slope limiter for discontinuous Galerkin methods
- *
- * @details This file implements the Total Variation Diminishing (TVD) Minmod
- *          slope limiter based on the work of Cockburn & Shu. The limiter
- *          provides a robust, first-order accurate approach to preventing
- *          oscillations in discontinuous solutions.
- */
-
-#include <algorithm> /* std::min, std::max */
 #include <cstdlib> /* abs */
 
 #include "basic_types.hpp"
-#include "basis/polynomial_basis.hpp"
 #include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
@@ -27,7 +12,7 @@
 
 namespace athelas {
 
-using basis::ModalBasis;
+using basis::NodalBasis;
 using eos::EOS;
 using namespace vars::modes;
 
@@ -35,8 +20,8 @@ using namespace vars::modes;
  * TVD Minmod limiter. See the Cockburn & Shu papers
  **/
 void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
-                                    const GridStructure *grid,
-                                    const ModalBasis &basis, const EOS &eos) {
+                                    const GridStructure &grid,
+                                    const NodalBasis &basis, const EOS &eos) {
 
   // Do not apply for first order method or if we don't want to.
   if (order_ == 1 || !do_limiter_) {
@@ -44,11 +29,10 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
   }
 
   constexpr static double sl_threshold_ =
-      1.0e-6; // TODO(astrobarker): move to input deck
-  constexpr static double EPS = 1.0e-10;
+      1.0e-4; // TODO(astrobarker): move to input deck
 
   static constexpr int ilo = 1;
-  static const int &ihi = grid->get_ihi();
+  static const int &ihi = grid.get_ihi();
 
   const int nvars = nvars_;
 
@@ -59,8 +43,11 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
 
   // --- Apply troubled cell indicator ---
   if (tci_opt_) {
-    detect_troubled_cells(U, D_, grid, basis, vars_);
+    detect_troubled_cells(U, D_, grid, basis, vb_);
   }
+
+  // --- Map to modal basis ---
+  basis.nodal_to_modal(u_k_, U, vb_);
 
   // TODO(astrobarker): this is repeated code: clean up somehow
   // --- map to characteristic vars ---
@@ -71,7 +58,7 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
           // --- Characteristic Limiting Matrices ---
           // Note: using cell averages
           for (int v = 0; v < nvars; ++v) {
-            mult_(i, v) = U(i, CellAverage, v);
+            mult_(i, v) = u_k_(i, CellAverage, v);
           }
 
           auto R_i = Kokkos::subview(R_, i, Kokkos::ALL, Kokkos::ALL);
@@ -83,51 +70,53 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
           for (int k = 0; k <= 1; ++k) {
             // store w_.. = invR @ U_..
             for (int v = 0; v < nvars; ++v) {
-              U_c_T_i(v) = U(i, k, v);
+              U_c_T_i(v) = u_k_(i, k, v);
               w_c_T_i(v) = 0.0;
             }
             MAT_MUL<3>(1.0, R_inv_i, U_c_T_i, 0.0, w_c_T_i);
 
             for (int v = 0; v < nvars; ++v) {
-              U(i, k, v) = w_c_T_i(v);
+              u_k_(i, k, v) = w_c_T_i(v);
             } // end loop vars
           } // end loop k
         }); // par i
   } // end map to characteristics
 
-  const auto dr = grid->widths();
+  auto dr = grid.widths();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: Minmod", DevExecSpace(), ilo,
       ihi, KOKKOS_CLASS_LAMBDA(const int i) {
-        limited_cell_(i) = 0;
-
         // Do nothing we don't need to limit slopes
         if (D_(i) > tci_val_ || !tci_opt_) {
-          for (int v : vars_) {
+          for (int v = 0; v < nvars_; ++v) {
 
             // --- Begin TVD Minmod Limiter --- //
-            const double s_i = U(i, Slope, v); // target cell slope
-            const double c_i = U(i, CellAverage, v); // target cell avg
-            const double c_p = U(i + 1, CellAverage, v); // cell i + 1 avg
-            const double c_m = U(i - 1, CellAverage, v); // cell i - 1 avg
+            const double s_i = u_k_(i, Slope, v); // target cell slope
+            const double c_i = u_k_(i, CellAverage, v); // target cell avg
+            const double c_p = u_k_(i + 1, CellAverage, v); // cell i + 1 avg
+            const double c_m = u_k_(i - 1, CellAverage, v); // cell i - 1 avg
+            // Form the neighbor slopes. We have to be mindful of the element
+            // widths as they are not uniform.
+            const double s_p = (c_p - c_i) / (0.5 * (dr(i) + dr(i + 1)));
+            const double s_m = (c_i - c_m) / (0.5 * (dr(i) + dr(i - 1)));
+            const double scale = 0.5 * dr(i);
             const double new_slope = MINMOD_B(
-                s_i, b_tvd_ * (c_p - c_i), b_tvd_ * (c_i - c_m), dr(i), m_tvb_);
+                s_i, b_tvd_ * scale * s_p, b_tvd_ * scale * s_m, dr(i), m_tvb_);
 
             // check limited slope difference vs threshold
-            if (std::abs(new_slope - s_i) >
-                sl_threshold_ * std::max(std::abs(s_i), EPS)) {
-              // limit
-              U(i, Slope, v) = new_slope;
+            if (std::abs(new_slope - s_i) > sl_threshold_ * std::abs(s_i)) {
+              u_k_(i, Slope, v) = new_slope;
+
               // remove any higher order contributions
               for (int k = 2; k < order_; ++k) {
-                U(i, k, v) = 0.0;
+                u_k_(i, k, v) = 0.0;
               }
+
+              // --- Note we have limited this cell --- //
+              limited_cell_(i) = 1;
             }
             // --- End TVD Minmod Limiter --- //
             // The TVDMinmod part is really small... reusing a lot of code
-
-            // --- Note we have limited this cell --- //
-            limited_cell_(i) = 1;
 
           } // end loop v
         } // end if "limit_this_cell"
@@ -146,17 +135,22 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
           for (int k = 0; k < 2; ++k) {
             // store U.. = R @ w..
             for (int v = 0; v < nvars; ++v) {
-              U_c_T_i(v) = U(i, k, v);
+              U_c_T_i(v) = u_k_(i, k, v);
               w_c_T_i(v) = 0.0;
             }
             MAT_MUL<3>(1.0, R_i, U_c_T_i, 0.0, w_c_T_i);
 
             for (int v = 0; v < nvars; ++v) {
-              U(i, k, v) = w_c_T_i(v);
+              u_k_(i, k, v) = w_c_T_i(v);
             } // end loop vars
           } // end loop k
         }); // par_for i
   } // end map from characteristics
+
+  // conservative_correction(u_k_, U, grid, nvars);
+
+  // --- Project back onto nodal basis ---
+  basis.modal_to_nodal(U, u_k_, vb_);
 } // end apply slope limiter
 
 // limited_cell_ accessor

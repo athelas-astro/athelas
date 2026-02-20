@@ -22,6 +22,9 @@ ionization = false
 heating = false
 engine = false
 
+[basis]
+nnodes = 2
+
 [bc]
 [bc.fluid]
 bc_i = "reflecting"
@@ -34,11 +37,6 @@ dt_hdf5 = 0.05
 [output.history]
 fn = "shockless_noh.hst"
 #dt = 0.001 # default: dt_hdf5 / 10
-
-[fluid]
-basis = "legendre"
-nnodes = 2
-porder = 2
 
 [fluid.limiter]
 tci_opt = false

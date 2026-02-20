@@ -4,7 +4,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "basis/polynomial_basis.hpp"
+#include "basis/nodal_basis.hpp"
 #include "composition/compdata.hpp"
 #include "eos/eos_variant.hpp"
 #include "interface/params.hpp"
@@ -120,8 +120,8 @@ class StageData {
       -> AthelasArray3D<double>;
   [[nodiscard]] auto eos() const -> const eos::EOS &;
   [[nodiscard]] auto opac() const -> const Opacity &;
-  [[nodiscard]] auto fluid_basis() const -> const basis::ModalBasis &;
-  [[nodiscard]] auto rad_basis() const -> const basis::ModalBasis &;
+  [[nodiscard]] auto fluid_basis() const -> const basis::NodalBasis &;
+  [[nodiscard]] auto rad_basis() const -> const basis::NodalBasis &;
 
  private:
   int stage_;
@@ -168,9 +168,6 @@ class MeshState {
   }
 
   [[nodiscard]] auto n_stages() const noexcept -> int { return nstages_; }
-  [[nodiscard]] auto p_order() const noexcept -> int {
-    return params_->get<int>("p_order");
-  }
 
   // --- Feature Flags ---
   [[nodiscard]] auto composition_enabled() const noexcept -> bool {
@@ -198,17 +195,17 @@ class MeshState {
     ionization_state_ = std::move(ion);
   }
 
-  void setup_fluid_basis(std::unique_ptr<basis::ModalBasis> basis) {
+  void setup_fluid_basis(std::unique_ptr<basis::NodalBasis> basis) {
     fluid_basis_ = std::move(basis);
   }
 
-  void setup_rad_basis(std::unique_ptr<basis::ModalBasis> basis) {
+  void setup_rad_basis(std::unique_ptr<basis::NodalBasis> basis) {
     rad_basis_ = std::move(basis);
   }
 
   [[nodiscard]] auto has_rad_basis() const noexcept -> bool;
-  [[nodiscard]] auto fluid_basis() const -> const basis::ModalBasis &;
-  [[nodiscard]] auto rad_basis() const -> const basis::ModalBasis &;
+  [[nodiscard]] auto fluid_basis() const -> const basis::NodalBasis &;
+  [[nodiscard]] auto rad_basis() const -> const basis::NodalBasis &;
 
   [[nodiscard]] auto params() noexcept -> Params * { return params_.get(); }
   // auto mesh() noexcept -> Mesh* { return mesh_.get(); }
@@ -372,8 +369,8 @@ class MeshState {
   std::shared_ptr<atom::IonizationState> ionization_state_;
   std::unique_ptr<eos::EOS> eos_;
   std::unique_ptr<Opacity> opac_;
-  std::unique_ptr<basis::ModalBasis> fluid_basis_;
-  std::unique_ptr<basis::ModalBasis> rad_basis_;
+  std::unique_ptr<basis::NodalBasis> fluid_basis_;
+  std::unique_ptr<basis::NodalBasis> rad_basis_;
 };
 
 } // namespace athelas

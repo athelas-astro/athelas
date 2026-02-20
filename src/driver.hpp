@@ -3,7 +3,6 @@
 #include <memory>
 
 #include "atom/atom.hpp"
-#include "basis/polynomial_basis.hpp"
 #include "eos/eos_variant.hpp"
 #include "geometry/grid.hpp"
 #include "history/history.hpp"
@@ -35,10 +34,9 @@ class Driver {
             bc::make_boundary_conditions(pin.get()))),
         time_(0.0), dt_(pin_->param()->get<double>("output.dt_init")),
         t_end_(pin->param()->get<double>("problem.tf")), grid_(pin.get()),
-        sl_hydro_(
-            initialize_slope_limiter("fluid", &grid_, pin.get(), {0, 1, 2}, 3)),
-        sl_rad_(initialize_slope_limiter("radiation", &grid_, pin.get(), {3, 4},
-                                         2)), // update
+        sl_hydro_(initialize_slope_limiter("fluid", &grid_, pin.get(), {0, 2})),
+        sl_rad_(initialize_slope_limiter("radiation", &grid_, pin.get(),
+                                         {3, 4})), // update
         ssprk_(pin.get(), &grid_),
         history_(std::make_unique<HistoryOutput>(
             pin->param()->get<std::string>("output.hist_fn"),
@@ -98,10 +96,10 @@ namespace {
  * Compute the CFL timestep restriction.
  **/
 
-inline auto compute_cfl(const double CFL, const int order) -> double {
+inline auto compute_cfl(const double CFL, const int nq) -> double {
   double c = 1.0;
 
   const double max_cfl = 0.95;
-  return std::min(c * CFL / ((2.0 * (order)-1.0)), max_cfl);
+  return std::min(c * CFL / ((2.0 * (nq)-1.0)), max_cfl);
 }
 } // namespace

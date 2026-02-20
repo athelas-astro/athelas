@@ -1,6 +1,5 @@
 #include "heating/nickel_package.hpp"
 #include "basic_types.hpp"
-#include "basis/polynomial_basis.hpp"
 #include "compdata.hpp"
 #include "constants.hpp"
 #include "geometry/grid.hpp"
@@ -13,12 +12,12 @@
 
 namespace athelas::nickel {
 using atom::CompositionData;
-using basis::ModalBasis;
+using basis::NodalBasis;
 using utilities::to_lower;
 
 NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,
                                            const Params *indexer,
-                                           const int n_stages, const int order,
+                                           const int n_stages, const int nq,
                                            const bool active)
     : active_(active) {
   // set up heating deposition model
@@ -27,13 +26,11 @@ NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,
   model_ = parse_model(model_str);
 
   const int nx = pin->param()->get<int>("problem.nx");
-  const int nnodes = pin->param()->get<int>("fluid.nnodes");
-  tau_gamma_ = AthelasArray3D<double>("tau_gamma", nx + 2, nnodes,
+  tau_gamma_ = AthelasArray3D<double>("tau_gamma", nx + 2, nq,
                                       8); // TODO(astrobarker): make runtime
-  int_etau_domega_ =
-      AthelasArray2D<double>("int_etau_domega", nx + 2,
-                             nnodes); // integration of e^-tau dOmega
-  delta_ = AthelasArray4D<double>("nickel delta", n_stages, nx + 2, order, 4);
+  int_etau_domega_ = AthelasArray2D<double>("int_etau_domega", nx + 2,
+                                            nq); // integration of e^-tau dOmega
+  delta_ = AthelasArray4D<double>("nickel delta", n_stages, nx + 2, nq, 4);
 
   ind_ni_ = indexer->get<int>("ni56");
   ind_co_ = indexer->get<int>("co56");
@@ -43,12 +40,6 @@ NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,
 void NickelHeatingPackage::update_explicit(const StageData &stage_data,
                                            const GridStructure &grid,
                                            const TimeStepInfo &dt_info) {
-  const int &order = stage_data.fluid_basis().order();
-  static const IndexRange kb(order);
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-
-  auto ucf = stage_data.get_field("u_cf");
-
   auto *comps = stage_data.comps();
 
   if (model_ == NiHeatingModel::Jeffery) {
@@ -58,15 +49,18 @@ void NickelHeatingPackage::update_explicit(const StageData &stage_data,
   }
 }
 
+/**
+ * @brief Nickel heating update.
+ * Computes updates for heating and evolves the decay network.
+ */
 template <NiHeatingModel Model>
 void NickelHeatingPackage::ni_update(const StageData &stage_data,
                                      CompositionData *comps,
                                      const GridStructure &grid,
                                      const TimeStepInfo &dt_info) const {
-  const int &nNodes = grid.n_nodes();
-  const int &order = stage_data.fluid_basis().order();
+  static const int nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  static const IndexRange kb(order);
+  static const IndexRange qb(nNodes);
 
   const int stage = dt_info.stage;
 
@@ -77,74 +71,61 @@ void NickelHeatingPackage::ni_update(const StageData &stage_data,
   static const auto ind_ni = species_indexer->get<int>("ni56");
   static const auto ind_co = species_indexer->get<int>("co56");
 
-  const auto &basis = stage_data.fluid_basis();
-
-  auto mass = grid.mass();
+  auto dm = grid.mass();
   auto weights = grid.weights();
-  auto phi = basis.phi();
-  auto inv_mkk = basis.inv_mass_matrix();
-
-  // NOTE: This source term uses a mass integral instead of a volumetric one.
-  // It's just simpler and natural here.
+  const auto &basis = stage_data.fluid_basis();
+  auto inv_mqq = basis.inv_mass_matrix();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "NickelHeating :: Update", DevExecSpace(), ib.s,
-      ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-        double local_sum = 0.0;
-        for (int q = 0; q < nNodes; ++q) {
-          const double x_ni = ucf(i, vars::modes::CellAverage, ind_ni);
-          const double x_co = ucf(i, vars::modes::CellAverage, ind_co);
-          const double f_dep = this->template deposition_function<Model>(i, q);
-          const double source = ni_source(x_ni, x_co, f_dep);
-          local_sum += f_dep * source * weights(q) * phi(i, q + 1, k);
-        }
+      ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+        const double x_ni = ucf(i, q, ind_ni);
+        const double x_co = ucf(i, q, ind_co);
+        const double f_dep = this->template deposition_function<Model>(i, q);
+        const double source = ni_source(x_ni, x_co, f_dep);
+        const double norm = weights(q) * dm(i) * inv_mqq(i, q);
 
-        const double dx_o_mkk = mass(i) * inv_mkk(i, k);
-        delta_(stage, i, k, pkg_vars::Energy) += local_sum * dx_o_mkk;
+        delta_(stage, i, q, pkg_vars::Energy) = f_dep * source * norm;
       });
 
-  // TODO(astrobarker): Should this be an option?
-  // NOTE: Nickel decay chain only affects cell averages.
   // Realistically I don't need to integrate X_Fe, but oh well.
-  // TODO(astrobarker): decay slopes++ and move above
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "NickelHeating :: Decay network",
-      DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-        const double x_ni = ucf(i, vars::modes::CellAverage, ind_ni);
-        const double x_co = ucf(i, vars::modes::CellAverage, ind_co);
+      DEFAULT_LOOP_PATTERN, "NickelHeating :: Decay network", DevExecSpace(),
+      ib.s, ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+        const double x_ni = ucf(i, q, ind_ni);
+        const double x_co = ucf(i, q, ind_co);
         const double rhs_ni = -LAMBDA_NI_ * x_ni;
         const double rhs_co = LAMBDA_NI_ * x_ni - LAMBDA_CO_ * x_co;
         const double rhs_fe = LAMBDA_CO_ * x_co;
 
-        // Decay only alters cell average mass fractions!
-        delta_(stage, i, vars::modes::CellAverage, pkg_vars::Nickel) += rhs_ni;
-        delta_(stage, i, vars::modes::CellAverage, pkg_vars::Cobalt) += rhs_co;
-        delta_(stage, i, vars::modes::CellAverage, pkg_vars::Iron) += rhs_fe;
+        delta_(stage, i, q, pkg_vars::Nickel) = rhs_ni;
+        delta_(stage, i, q, pkg_vars::Cobalt) = rhs_co;
+        delta_(stage, i, q, pkg_vars::Iron) = rhs_fe;
       });
 }
 
 /**
- * @brief apply nickel package delta
+ * @brief Apply nickel package delta.
  */
 void NickelHeatingPackage::apply_delta(AthelasArray3D<double> lhs,
                                        const TimeStepInfo &dt_info) const {
   static const int nx = static_cast<int>(lhs.extent(0));
-  static const int nk = static_cast<int>(lhs.extent(1));
+  static const int nq = static_cast<int>(lhs.extent(1));
   static const IndexRange ib(std::make_pair(1, nx - 2));
-  static const IndexRange kb(nk);
+  static const IndexRange qb(nq);
 
   const int stage = dt_info.stage;
 
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Nickel :: Apply delta", DevExecSpace(), ib.s, ib.e,
-      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-        lhs(i, k, vars::cons::Energy) +=
-            dt_info.dt_coef * delta_(stage, i, k, pkg_vars::Energy);
-        lhs(i, k, ind_ni_) +=
-            dt_info.dt_coef * delta_(stage, i, k, pkg_vars::Nickel);
-        lhs(i, k, ind_co_) +=
-            dt_info.dt_coef * delta_(stage, i, k, pkg_vars::Cobalt);
-        lhs(i, k, ind_fe_) +=
-            dt_info.dt_coef * delta_(stage, i, k, pkg_vars::Iron);
+      qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+        lhs(i, q, vars::cons::Energy) +=
+            dt_info.dt_coef * delta_(stage, i, q, pkg_vars::Energy);
+        lhs(i, q, ind_ni_) +=
+            dt_info.dt_coef * delta_(stage, i, q, pkg_vars::Nickel);
+        lhs(i, q, ind_co_) +=
+            dt_info.dt_coef * delta_(stage, i, q, pkg_vars::Cobalt);
+        lhs(i, q, ind_fe_) +=
+            dt_info.dt_coef * delta_(stage, i, q, pkg_vars::Iron);
       });
 }
 
@@ -154,15 +135,15 @@ void NickelHeatingPackage::apply_delta(AthelasArray3D<double> lhs,
 void NickelHeatingPackage::zero_delta() const noexcept {
   static const IndexRange sb(static_cast<int>(delta_.extent(0)));
   static const IndexRange ib(static_cast<int>(delta_.extent(1)));
-  static const IndexRange kb(static_cast<int>(delta_.extent(2)));
+  static const IndexRange qb(static_cast<int>(delta_.extent(2)));
   static const IndexRange vb(static_cast<int>(delta_.extent(3)));
 
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Nickel :: Zero delta", DevExecSpace(), sb.s, sb.e,
-      ib.s, ib.e, kb.s, kb.e,
-      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int k) {
+      ib.s, ib.e, qb.s, qb.e,
+      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int q) {
         for (int v = vb.s; v <= vb.e; ++v) {
-          delta_(s, i, k, v) = 0.0;
+          delta_(s, i, q, v) = 0.0;
         }
       });
 }
@@ -196,10 +177,10 @@ void NickelHeatingPackage::fill_derived(StageData &stage_data,
   // don't include that point on the array, so start from
   // outermost quadrature point
 
-  auto uCF = stage_data.get_field("u_cf");
+  auto ucf = stage_data.get_field("u_cf");
   // hacky
   // if (stage == -1) {
-  //  uCF = stage_data.get_field("u_cf");
+  //  ucf = stage_data.get_field("u_cf");
   //}
   auto uPF = stage_data.get_field("u_pf");
   auto uAF = stage_data.get_field("u_af");
@@ -211,7 +192,7 @@ void NickelHeatingPackage::fill_derived(StageData &stage_data,
   static const RadialGridIndexer grid_indexer(nx, nnodes);
   auto coords = grid.nodal_grid();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  static const IndexRange nb(nnodes);
+  static const IndexRange qb(nnodes);
 
   const int nangles = tau_gamma_.extent(2); // TODO(astrobarker): make runtime!
   const int nr = 8; // TODO(astrobarker): make runtime!
@@ -229,7 +210,7 @@ void NickelHeatingPackage::fill_derived(StageData &stage_data,
   athelas::par_for_outer(
       DEFAULT_OUTER_LOOP_PATTERN,
       "NickelHeating :: FillDerived :: OpticalDepth", DevExecSpace(),
-      scratch_size, scratch_level, ib.s, ib.e, nb.s, nb.e,
+      scratch_size, scratch_level, ib.s, ib.e, qb.s, qb.e,
       KOKKOS_CLASS_LAMBDA(athelas::team_mbr_t member, const int i,
                           const int q) {
         const double ri = coords(i, q + 1);
@@ -255,13 +236,10 @@ void NickelHeatingPackage::fill_derived(StageData &stage_data,
                 const double rx = l * dr;
                 const double rj = std::sqrt(ri2 + rx * rx + two_ri_cos * rx);
                 const int index = utilities::find_closest_cell(centers, rj, nx);
-                const double rho_interp =
-                    LINTERP(centers(index), centers(index + 1),
-                            1.0 / uCF(index, vars::modes::CellAverage,
-                                      vars::cons::SpecificVolume),
-                            1.0 / uCF(index + 1, vars::modes::CellAverage,
-                                      vars::cons::SpecificVolume),
-                            rj);
+                const double rho_interp = LINTERP(
+                    centers(index), centers(index + 1),
+                    1.0 / ucf(index, q, vars::cons::SpecificVolume),
+                    1.0 / ucf(index + 1, q, vars::cons::SpecificVolume), rj);
 
                 const double ye_interp =
                     LINTERP(centers(index), centers(index + 1), ye(index, 0),

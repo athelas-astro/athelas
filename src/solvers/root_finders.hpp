@@ -64,55 +64,46 @@ class RadHydroConvergence {
   // TODO(astrobarker) combine the following
   auto fluid_velocity_error(const t u_n, const t u_nm1, const int q) -> double {
     double max_error = 0.0;
-    for (int k = 0; k < num_modes_; ++k) {
-      const double abs_err = std::abs(u_n(k, q) - u_nm1(k, q));
-      const double scale = std::max(
-          {scales_.velocity_scale, std::abs(u_n(k, q)), std::abs(u_nm1(k, q))});
-      const double normalized_err = abs_err / scale;
-      const double weighted_err = normalized_err * mode_weights_[k];
-      max_error = std::max(max_error, weighted_err);
-    }
+    const double abs_err = std::abs(u_n(q) - u_nm1(q));
+    const double scale = std::max(
+        {scales_.velocity_scale, std::abs(u_n(q)), std::abs(u_nm1(q))});
+    const double normalized_err = abs_err / scale;
+    const double weighted_err = normalized_err;
+    max_error = std::max(max_error, weighted_err);
     return max_error;
   }
 
   auto fluid_energy_error(const t u_n, const t u_nm1, const int q) -> double {
     double max_error = 0.0;
-    for (int k = 0; k < num_modes_; ++k) {
-      const double abs_err = std::abs(u_n(k, q) - u_nm1(k, q));
-      const double scale = std::max(
-          {scales_.energy_scale, std::abs(u_n(k, q)), std::abs(u_nm1(k, q))});
-      const double normalized_err = abs_err / scale;
-      const double weighted_err = normalized_err * mode_weights_[k];
-      max_error = std::max(max_error, weighted_err);
-    }
+    const double abs_err = std::abs(u_n(q) - u_nm1(q));
+    const double scale =
+        std::max({scales_.energy_scale, std::abs(u_n(q)), std::abs(u_nm1(q))});
+    const double normalized_err = abs_err / scale;
+    const double weighted_err = normalized_err;
+    max_error = std::max(max_error, weighted_err);
     return max_error;
   }
 
   auto radiation_energy_error(const t u_n, const t u_nm1, const int q)
       -> double {
     double max_error = 0.0;
-    for (int k = 0; k < num_modes_; ++k) {
-      const double abs_err = std::abs(u_n(k, q) - u_nm1(k, q));
-      const double scale =
-          std::max({scales_.rad_energy_scale, std::abs(u_n(k, q)),
-                    std::abs(u_nm1(k, q))});
-      const double normalized_err = abs_err / scale;
-      const double weighted_err = normalized_err * mode_weights_[k];
-      max_error = std::max(max_error, weighted_err);
-    }
+    const double abs_err = std::abs(u_n(q) - u_nm1(q));
+    const double scale = std::max(
+        {scales_.rad_energy_scale, std::abs(u_n(q)), std::abs(u_nm1(q))});
+    const double normalized_err = abs_err / scale;
+    const double weighted_err = normalized_err;
+    max_error = std::max(max_error, weighted_err);
     return max_error;
   }
 
   auto radiation_flux_error(const t u_n, const t u_nm1, const int q) -> double {
     double max_error = 0.0;
-    for (int k = 0; k < num_modes_; ++k) {
-      const double abs_err = std::abs(u_n(k, q) - u_nm1(k, q));
-      const double scale = std::max(
-          {scales_.rad_flux_scale, std::abs(u_n(k, q)), std::abs(u_nm1(k, q))});
-      const double normalized_err = abs_err / scale;
-      const double weighted_err = normalized_err * mode_weights_[k];
-      max_error = std::max(max_error, weighted_err);
-    }
+    const double abs_err = std::abs(u_n(q) - u_nm1(q));
+    const double scale = std::max(
+        {scales_.rad_flux_scale, std::abs(u_n(q)), std::abs(u_nm1(q))});
+    const double normalized_err = abs_err / scale;
+    const double weighted_err = normalized_err;
+    max_error = std::max(max_error, weighted_err);
     return max_error;
   }
 

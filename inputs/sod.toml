@@ -18,6 +18,9 @@ ionization = false
 heating = false
 engine = false
 
+[basis]
+nnodes = 2
+
 [problem.params]
 vL = 0.0
 vR = 0.0
@@ -40,11 +43,6 @@ dt_init_frac = 1.1
 [output.history]
 fn = "sod.hst"
 dt = 0.001
-
-[fluid]
-basis = "legendre"
-nnodes = 2
-porder = 2
 
 [fluid.limiter]
 do_limiter = true

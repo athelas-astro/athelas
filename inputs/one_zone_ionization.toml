@@ -24,6 +24,9 @@ ionization = true
 heating = false
 engine = false
 
+[basis]
+nnodes = 1
+
 [composition]
 ncomps = 3
 
@@ -45,11 +48,6 @@ dt_init_frac = 1.005
 [output.history]
 fn = "one_zone_ionization.hst"
 #dt = 0.001 # default: dt_hdf5 / 10
-
-[fluid]
-basis = "legendre"
-nnodes = 1
-porder = 1
 
 [fluid.limiter]
 do_limiter = false

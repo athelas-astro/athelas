@@ -23,6 +23,9 @@ ionization = false
 heating = false
 engine = false
 
+[basis]
+nnodes = 3
+
 [bc]
 [bc.fluid]
 bc_i = "reflecting"
@@ -36,11 +39,6 @@ dt_init_frac = 1.05
 [output.history]
 fn = "sedov.hst"
 #dt = 0.001 # default: dt_hdf5 / 10
-
-[fluid]
-basis = "legendre"
-nnodes = 3
-porder = 3
 
 [fluid.limiter]
 do_limiter = true

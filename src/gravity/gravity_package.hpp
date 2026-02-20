@@ -8,7 +8,6 @@
 #pragma once
 
 #include "basic_types.hpp"
-#include "basis/polynomial_basis.hpp"
 #include "bc/boundary_conditions_base.hpp"
 #include "geometry/grid.hpp"
 #include "pgen/problem_in.hpp"
@@ -31,8 +30,8 @@ class GravityPackage {
                        const TimeStepInfo &dt_info) const;
 
   template <GravityModel Model>
-  void gravity_update(AthelasArray3D<double> state, const GridStructure &grid,
-                      int stage, const basis::ModalBasis &basis) const;
+  void gravity_update(AthelasArray3D<double> ucf, const GridStructure &grid,
+                      int stage) const;
 
   void apply_delta(AthelasArray3D<double> lhs,
                    const TimeStepInfo &dt_info) const;
@@ -56,12 +55,10 @@ class GravityPackage {
  private:
   bool active_;
   GravityModel model_;
-
   double gval_; // constant gravity
-
   double cfl_;
 
-  AthelasArray4D<double> delta_; // rhs delta [nstages, nx, order, nvars]
+  AthelasArray4D<double> delta_; // rhs delta [nstages, nx, nq, nvars]
 
   static constexpr int NUM_VARS_ = 2;
 };

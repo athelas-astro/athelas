@@ -18,6 +18,9 @@ pL = 0.066666667
 pR = 0.666666667e-10
 x_d = 3.0
 
+[basis]
+nnodes = 2
+
 [physics]
 radiation = false
 gravity = false
@@ -39,12 +42,6 @@ dt_init_frac = 1.1
 [output.history]
 fn = "leblanc.hst"
 #dt = 0.001 # default: dt_hdf5 / 10
-
-[fluid]
-basis = "legendre"
-nnodes = 2
-porder = 2
-
 
 [fluid.limiter]
 do_limiter = true

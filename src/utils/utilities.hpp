@@ -18,13 +18,14 @@
 
 #include "Kokkos_Macros.hpp"
 
+#include "basis/nodal_basis.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "concepts/arithmetic.hpp"
 #include "concepts/types.hpp"
 #include "kokkos_types.hpp"
 
 namespace athelas::utilities {
-using basis::ModalBasis;
+using basis::NodalBasis;
 
 /**
  * @brief constexpr integer power function
@@ -134,6 +135,13 @@ compute_internal_energy(T U, const AthelasArray3D<double> phi, const int ix,
   const double EmT = basis_eval(phi, U, ix, 2, iN);
 
   return EmT - (0.5 * Vel * Vel);
+}
+
+// cell average specific internal energy
+template <class T>
+KOKKOS_INLINE_FUNCTION auto compute_internal_energy(T U, const int i,
+                                                    const int q) -> double {
+  return U(i, q, 2) - (0.5 * U(i, q, 1) * U(i, q, 1));
 }
 
 // cell average specific internal energy

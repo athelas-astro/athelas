@@ -9,7 +9,6 @@
 
 #include "H5Cpp.h"
 
-#include "basis/polynomial_basis.hpp"
 #include "build_info.hpp"
 #include "geometry/grid.hpp"
 #include "io/io.hpp"
@@ -17,7 +16,7 @@
 
 namespace athelas {
 
-using basis::ModalBasis;
+using basis::NodalBasis;
 
 namespace io {
 
@@ -73,7 +72,7 @@ void print_simulation_parameters(GridStructure &grid, ProblemIn *pin) {
   std::println("");
 
   std::println("# --- Fluid Parameters --- ");
-  std::println("# Spatial Order  : {}", pin->param()->get<int>("fluid.porder"));
+  std::println("# Spatial Order  : {}", pin->param()->get<int>("basis.nnodes"));
   std::println("# Inner BC       : {}",
                pin->param()->get<std::string>("fluid.bc.i"));
   std::println("# Outer BC       : {}",
@@ -81,7 +80,7 @@ void print_simulation_parameters(GridStructure &grid, ProblemIn *pin) {
   std::println("");
 
   std::println("# --- Fluid Limiter --- ");
-  if (pin->param()->get<int>("fluid.porder") == 1) {
+  if (pin->param()->get<int>("basis.nnodes") == 1) {
     std::println("# Spatial Order 1: Slope limiter not applied.");
   }
   if (!pin->param()->get<bool>("fluid.limiter.enabled")) {
@@ -96,7 +95,7 @@ void print_simulation_parameters(GridStructure &grid, ProblemIn *pin) {
   if (rad_enabled) {
     std::println("# --- Radiation Parameters --- ");
     std::println("# Spatial Order  : {}",
-                 pin->param()->get<int>("radiation.porder"));
+                 pin->param()->get<int>("basis.nnodes"));
     std::println("# Inner BC       : {}",
                  pin->param()->get<std::string>("radiation.bc.i"));
     std::println("# Outer BC       : {}",
@@ -104,7 +103,7 @@ void print_simulation_parameters(GridStructure &grid, ProblemIn *pin) {
     std::println("");
 
     std::println("# --- Radiation Limiter Parameters --- ");
-    if (pin->param()->get<int>("radiation.porder") == 1) {
+    if (pin->param()->get<int>("basis.nnodes") == 1) {
       std::println("# Spatial Order 1: Slope limiter not applied.");
     }
     if (!pin->param()->get<bool>("radiation.limiter.enabled")) {
@@ -353,30 +352,33 @@ void write_output(const MeshState &mesh_state, GridStructure &mesh,
   writer.create_group("/mesh");
   writer.create_group("/fields");
   writer.create_group("/metadata");
-  writer.create_group("/simulation_info");
-  writer.create_group("/basis/fluid");
+  writer.create_group("/info");
+  writer.create_group("/basis");
   if (mesh_state.radiation_enabled()) {
     writer.create_group("/basis/radiation");
   }
 
   // Write simulation info
-  writer.write_scalar("/simulation_info/cycle", cycle,
-                      H5::PredType::NATIVE_INT);
-  writer.write_scalar("/simulation_info/time", time,
-                      H5::PredType::NATIVE_DOUBLE);
-  writer.write_scalar("/simulation_info/n_stages", mesh_state.n_stages(),
+  writer.write_scalar("/info/cycle", cycle, H5::PredType::NATIVE_INT);
+  writer.write_scalar("/info/time", time, H5::PredType::NATIVE_DOUBLE);
+  writer.write_scalar("/info/n_stages", mesh_state.n_stages(),
                       H5::PredType::NATIVE_INT);
 
+  // Write the mesh.
   writer.write_view(mesh.widths(), "/mesh/dr");
   writer.write_view(mesh.centers(), "/mesh/r");
   writer.write_view(mesh.nodal_grid(), "/mesh/r_q");
   writer.write_view(mesh.enclosed_mass(), "/mesh/enclosed_mass");
+  writer.write_view(mesh.mass(), "/mesh/dm");
+  writer.write_view(mesh.sqrt_gm(), "/mesh/sqrt_gm");
 
   const auto &fluid_basis = mesh_state.fluid_basis();
   auto phi_fluid = fluid_basis.phi();
   auto dphi_fluid = fluid_basis.dphi();
-  writer.write_view(phi_fluid, "/basis/fluid/phi");
-  writer.write_view(dphi_fluid, "/basis/fluid/dphi");
+  writer.write_view(phi_fluid, "/basis/hi");
+  writer.write_view(dphi_fluid, "/basis/dphi");
+  writer.write_view(mesh.nodes(), "/basis/nodes");
+  writer.write_view(mesh.weights(), "/basis/weights");
   if (mesh_state.radiation_enabled()) {
     const auto &basis = mesh_state.rad_basis();
     auto phi = basis.phi();
@@ -453,6 +455,17 @@ void write_output(const MeshState &mesh_state, GridStructure &mesh,
   // Write metadata
   writer.write_field_registry(mesh_state);
   writer.write_variable_metadata(mesh_state);
+
+  // build provenance
+  writer.create_group("/metadata/build");
+  writer.write_string("/metadata/build/git_hash",
+                      athelas::build_info::GIT_HASH);
+  writer.write_string("/metadata/build/compiler",
+                      athelas::build_info::COMPILER);
+  writer.write_string("/metadata/build/timestamp", build_info::BUILD_TIMESTAMP);
+  writer.write_string("/metadata/build/arch", build_info::ARCH);
+  writer.write_string("/metadata/build/os", build_info::OS);
+  writer.write_string("/metadata/build/optimization", build_info::OPTIMIZATION);
 }
 
 // Generate filename with proper padding

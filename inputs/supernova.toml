@@ -1,6 +1,6 @@
 [problem]
 problem = "supernova"
-t_end = 500.0
+t_end = 0.2
 nlim = -1
 geometry = "spherical"
 restart = false
@@ -26,6 +26,15 @@ composition = true
 ionization = true
 heating = false
 engine = true
+
+[time]
+integrator = "EX_SSPRK22"
+#integrator = "IMEX_SSPRK22_DIRK" # bad
+#integrator = "IMEX_ARK32_ESDIRK"
+#integrator = "IMEX_PDARS_ESDIRK"
+
+[basis]
+nnodes = 2
 
 [engine.thermal]
 enabled = true
@@ -60,11 +69,6 @@ dt_init_frac = 1.01
 fn = "supernova.hst"
 dt = 0.1 # default: dt_hdf5 / 10
 
-[fluid]
-basis = "legendre"
-nnodes = 1
-porder = 1
-
 [fluid.limiter]
 do_limiter = true
 type = "minmod"
@@ -72,11 +76,6 @@ b_tvd = 1.0
 m_tvb = 0.0
 tci_opt = false
 tci_val = 0.25
-
-[radiation]
-basis = "legendre"
-nnodes = 1
-porder = 1
 
 [radiation.limiter]
 type = "minmod"
@@ -93,12 +92,6 @@ operator_split = true
 [gravity]
 model = "spherical"
 operator_split = false
-
-[time]
-integrator = "EX_SSPRK11"
-#integrator = "IMEX_SSPRK22_DIRK" # bad
-#integrator = "IMEX_ARK32_ESDIRK"
-#integrator = "IMEX_PDARS_ESDIRK"
 
 [eos]
 type = "paczynski"
