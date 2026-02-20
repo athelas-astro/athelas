@@ -79,15 +79,17 @@ void one_zone_ionization_init(MeshState &mesh_state, GridStructure *grid,
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: OneZoneIonization :: nodal",
       DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-        uCF(i, vars::modes::CellAverage, vars::cons::SpecificVolume) =
+        for (int q = 0; q < nNodes + 2; q++) {
+        uCF(i, q, vars::cons::SpecificVolume) =
             1.0 / rho;
+        mass_fractions(i, q, i_H) = X_H;
+        mass_fractions(i, q, i_He) = X_He;
+        mass_fractions(i, q, i_C) = X_C;
+
+        }
         for (int q = 0; q < nNodes + 2; q++) {
           uPF(i, q, vars::prim::Rho) = rho;
           uAF(i, q, vars::aux::Tgas) = temperature;
-
-          mass_fractions(i, q, i_H) = X_H;
-          mass_fractions(i, q, i_He) = X_He;
-          mass_fractions(i, q, i_C) = X_C;
 
           // Set Zbar assuming full ionization -- used as guess in Saha below.
           zbar(i, q, i_H) = 1;
