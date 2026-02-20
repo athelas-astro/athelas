@@ -26,12 +26,13 @@ def plot_marshak(chk):
   epsilon = 1.0
   alpha_so = 4.0 * a_rad / epsilon
 
-  a = Athelas(fn, basis_fn)
+  a = Athelas(fn)
   r = a.r
-  tau = a.uCF[:, 0, 0]
+  tau = a.get("tau")
+  print(len(tau))
   rho = 1.0 / tau
-  vel = a.uCF[:, 0, 1]
-  emT = a.uCF[:, 0, 2]
+  vel = a.get("vel")
+  emT = a.get("fluid_energy")
   em = emT - 0.5 * vel * vel
   ev = em * rho
 
@@ -39,7 +40,8 @@ def plot_marshak(chk):
   T_g = np.power(4.0 * ev / alpha_so, 0.25)
 
   # rad
-  ev_r = a.uCF[:, 0, 3]
+  ev_r = a.get("rad_energy") * rho
+#  print(ev_r)
   T_r = np.power(ev_r / a_rad, 0.25)
 
   fig, ax = plt.subplots(figsize=(3.5, 3.5))

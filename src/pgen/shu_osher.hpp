@@ -12,7 +12,8 @@ namespace athelas {
 /**
  * @brief Initialize Shu Osher hydro test
  **/
-void shu_osher_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
+void shu_osher_init(MeshState &mesh_state, GridStructure *grid,
+                    ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Shu Osher requires ideal gas eos!");
 
@@ -51,38 +52,37 @@ void shu_osher_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) 
         }
       });
 
-    auto tau_func = [&D_L](double x, int /*ix*/, int /*iN*/) -> double {
-      if (x <= -4.0) {
-        return 1.0 / D_L;
-      }
-      return 1.0 / (1.0 + 0.2 * sin(5.0 * x));
-    };
-    auto velocity_func = [&V0](double x, int /*ix*/, int /*iN*/) -> double {
-      if (x <= -4.0) {
-        return V0;
-      }
-      return 0.0;
-    };
-    auto energy_func = [&P_L, &P_R, &V0, &D_L, &gm1](double x, int /*ix*/,
-                                                     int /*iN*/) -> double {
-      if (x <= -4.0) {
-        return (P_L / gm1) / D_L + 0.5 * V0 * V0;
-      }
-      const double rho = 1.0 + 0.2 * sin(5.0 * x);
-      return (P_R / gm1) / rho;
-    };
+  auto tau_func = [&D_L](double x, int /*ix*/, int /*iN*/) -> double {
+    if (x <= -4.0) {
+      return 1.0 / D_L;
+    }
+    return 1.0 / (1.0 + 0.2 * sin(5.0 * x));
+  };
+  auto velocity_func = [&V0](double x, int /*ix*/, int /*iN*/) -> double {
+    if (x <= -4.0) {
+      return V0;
+    }
+    return 0.0;
+  };
+  auto energy_func = [&P_L, &P_R, &V0, &D_L, &gm1](double x, int /*ix*/,
+                                                   int /*iN*/) -> double {
+    if (x <= -4.0) {
+      return (P_L / gm1) / D_L + 0.5 * V0 * V0;
+    }
+    const double rho = 1.0 + 0.2 * sin(5.0 * x);
+    return (P_R / gm1) / rho;
+  };
 
-      static const IndexRange qb(nNodes);
-      auto r = grid->nodal_grid();
-      athelas::par_for(
-          DEFAULT_LOOP_PATTERN, "Pgen :: ShuOsher", DevExecSpace(),
-          ib.s, ib.e, qb.s, qb.e,
-          KOKKOS_LAMBDA(const int i, const int q) {
-            const double x = r(i, q+1);
-            uCF(i, q, vars::cons::SpecificVolume) = tau_func(x, i, q);
-            uCF(i, q, vars::cons::Velocity) = velocity_func(x, i, q);
-            uCF(i, q, vars::cons::Energy) = energy_func(x, i, q);
-          });
+  static const IndexRange qb(nNodes);
+  auto r = grid->nodal_grid();
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "Pgen :: ShuOsher", DevExecSpace(), ib.s, ib.e,
+      qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
+        const double x = r(i, q + 1);
+        uCF(i, q, vars::cons::SpecificVolume) = tau_func(x, i, q);
+        uCF(i, q, vars::cons::Velocity) = velocity_func(x, i, q);
+        uCF(i, q, vars::cons::Energy) = energy_func(x, i, q);
+      });
 }
 
 } // namespace athelas

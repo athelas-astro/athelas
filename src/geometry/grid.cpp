@@ -16,8 +16,8 @@
 
 #include <vector>
 
-#include "geometry/grid.hpp"
 #include "basic_types.hpp"
+#include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
 #include "loop_layout.hpp"
@@ -312,8 +312,7 @@ void GridStructure::compute_mass_r(AthelasArray3D<double> ucf) {
         const int q = idx % nNodes_;
         const double X = node_coordinate(ix, q);
         const double rho = 1.0 / ucf(ix, q, vars::cons::SpecificVolume);
-        mass_contrib(idx) = weights_(q) * get_sqrt_gm(X) *
-                            rho * widths_(ix);
+        mass_contrib(idx) = weights_(q) * get_sqrt_gm(X) * rho * widths_(ix);
       });
 
   // 2: Perform parallel inclusive scan (cumulative sum)
@@ -365,8 +364,7 @@ void GridStructure::compute_center_of_mass(AthelasArray3D<double> ucf) {
         for (int q = 0; q < nNodes_; q++) {
           const double X = node_coordinate(i, q);
           const double rho = 1.0 / ucf(i, q, vars::cons::SpecificVolume);
-          com += nodes_(q) * weights_(q) * get_sqrt_gm(X) *
-                 rho;
+          com += nodes_(q) * weights_(q) * get_sqrt_gm(X) * rho;
         }
 
         com *= widths_(i);

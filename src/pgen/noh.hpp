@@ -30,12 +30,12 @@ void noh_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   const double gm1 = gamma - 1.0;
 
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Pgen :: Noh", DevExecSpace(), ib.s, ib.e,
-      qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
-
+      DEFAULT_LOOP_PATTERN, "Pgen :: Noh", DevExecSpace(), ib.s, ib.e, qb.s,
+      qb.e, KOKKOS_LAMBDA(const int i, const int q) {
         uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D0;
         uCF(i, q, vars::cons::Velocity) = V0;
-        uCF(i, q, vars::cons::Energy) = (P0 / gm1) * uCF(i, q, vars::cons::SpecificVolume) + 0.5 * V0 * V0;
+        uCF(i, q, vars::cons::Energy) =
+            (P0 / gm1) * uCF(i, q, vars::cons::SpecificVolume) + 0.5 * V0 * V0;
 
         uPF(i, q, vars::prim::Rho) = D0;
       });

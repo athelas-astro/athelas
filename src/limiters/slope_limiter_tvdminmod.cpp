@@ -97,15 +97,14 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
             const double c_m = u_k_(i - 1, CellAverage, v); // cell i - 1 avg
             // Form the neighbor slopes. We have to be mindful of the element
             // widths as they are not uniform.
-            const double s_p = (c_p - c_i) / (0.5 * (dr(i) + dr(i+1)));
-            const double s_m = (c_i - c_m) / (0.5 * (dr(i) + dr(i-1)));
+            const double s_p = (c_p - c_i) / (0.5 * (dr(i) + dr(i + 1)));
+            const double s_m = (c_i - c_m) / (0.5 * (dr(i) + dr(i - 1)));
             const double scale = 0.5 * dr(i);
             const double new_slope = MINMOD_B(
                 s_i, b_tvd_ * scale * s_p, b_tvd_ * scale * s_m, dr(i), m_tvb_);
 
             // check limited slope difference vs threshold
-            if (std::abs(new_slope - s_i) >
-                   sl_threshold_ * std::abs(s_i)) {
+            if (std::abs(new_slope - s_i) > sl_threshold_ * std::abs(s_i)) {
               u_k_(i, Slope, v) = new_slope;
 
               // remove any higher order contributions
@@ -148,7 +147,7 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
         }); // par_for i
   } // end map from characteristics
 
-  //conservative_correction(u_k_, U, grid, nvars);
+  // conservative_correction(u_k_, U, grid, nvars);
 
   // --- Project back onto nodal basis ---
   basis.modal_to_nodal(U, u_k_, vb_);

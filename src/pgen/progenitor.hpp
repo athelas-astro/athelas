@@ -245,12 +245,10 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
       });
 
   // We go ahead and form the basis here now that the grid is constructed.
-  // I don't particularly like this pattern, but as it stands the basis is 
+  // I don't particularly like this pattern, but as it stands the basis is
   // needed in the Saha solves to come.
   auto fluid_basis_tmp = std::make_unique<basis::NodalBasis>(
-      uPF, grid,
-      nNodes,
-      pin->param()->get<int>("problem.nx"));
+      uPF, grid, nNodes, pin->param()->get<int>("problem.nx"));
   mesh_state.setup_fluid_basis(std::move(fluid_basis_tmp));
 
   // Phase 2: Everything else
@@ -404,9 +402,9 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
         const double rq = r_h(i, q + 1);
         const int idx =
             utilities::find_closest_cell(radius_host, rq, n_zones_prog);
-        mass_fractions_h(i, q, e) = utilities::LINTERP(radius_host(idx), radius_host(idx + 1),
-                                       comps_star_host(idx, e),
-                                       comps_star_host(idx + 1, e), rq);
+        mass_fractions_h(i, q, e) = utilities::LINTERP(
+            radius_host(idx), radius_host(idx + 1), comps_star_host(idx, e),
+            comps_star_host(idx + 1, e), rq);
       }
     }
   }
@@ -465,8 +463,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
         const double x_ni = mass_fractions(i, q, ind_ni);
         for (int e = 0; e < ncomps; ++e) {
           if (e != ind_ni) {
-            mass_fractions(i, q, e) *=
-                (1.0 - x_ni) / (sum_x - x_ni);
+            mass_fractions(i, q, e) *= (1.0 - x_ni) / (sum_x - x_ni);
           }
         }
       });
@@ -476,10 +473,11 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
 
   // Set the specific volume
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Tau",
-      DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
+      DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Tau", DevExecSpace(),
+      ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
         for (int q = 0; q < nNodes; ++q) {
-          uCF(i, q, vars::cons::SpecificVolume) = 1.0 / uPF(i, q+1, vars::prim::Rho);
+          uCF(i, q, vars::cons::SpecificVolume) =
+              1.0 / uPF(i, q + 1, vars::prim::Rho);
         }
       });
 
@@ -503,32 +501,38 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
 
   // There is one subtelty that must be taken care of:
   // We have interpolated pressure, density, temperature etc onto element
-  // interfaces. Those values are not guaranteed to be consistent with the 
+  // interfaces. Those values are not guaranteed to be consistent with the
   // basis representation. Imagine a first order element: the interface values
-  // on the element must equal the cell center value. This must be enforced 
-  // via the basis before the interface values are used. It needs to be done 
-  // before the first fill derived call. This could be a good candidate for a 
+  // on the element must equal the cell center value. This must be enforced
+  // via the basis before the interface values are used. It needs to be done
+  // before the first fill derived call. This could be a good candidate for a
   // post_init kernel..
-  const auto &basis = mesh_state.fluid_basis(); 
+  const auto &basis = mesh_state.fluid_basis();
   auto phi = basis.phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Consistent interfaces",
       DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-          uAF(i, 0, vars::aux::Pressure) = basis::basis_eval<Interface::Left>(phi, uAF, i, vars::aux::Pressure);
-          uAF(i, nNodes + 1, vars::aux::Pressure) = basis::basis_eval<Interface::Right>(phi, uAF, i, vars::aux::Pressure);
-          uAF(i, 0, vars::aux::Tgas) = basis::basis_eval<Interface::Left>(phi, uAF, i, vars::aux::Tgas);
-          uAF(i, nNodes + 1, vars::aux::Tgas) = basis::basis_eval<Interface::Right>(phi, uAF, i, vars::aux::Tgas);
-          uPF(i, 0, vars::prim::Rho) = basis::basis_eval<Interface::Left>(phi, uPF, i, vars::prim::Rho);
-          uPF(i, nNodes + 1, vars::prim::Rho) = basis::basis_eval<Interface::Right>(phi, uPF, i, vars::prim::Rho);
+        uAF(i, 0, vars::aux::Pressure) = basis::basis_eval<Interface::Left>(
+            phi, uAF, i, vars::aux::Pressure);
+        uAF(i, nNodes + 1, vars::aux::Pressure) =
+            basis::basis_eval<Interface::Right>(phi, uAF, i,
+                                                vars::aux::Pressure);
+        uAF(i, 0, vars::aux::Tgas) =
+            basis::basis_eval<Interface::Left>(phi, uAF, i, vars::aux::Tgas);
+        uAF(i, nNodes + 1, vars::aux::Tgas) =
+            basis::basis_eval<Interface::Right>(phi, uAF, i, vars::aux::Tgas);
+        uPF(i, 0, vars::prim::Rho) =
+            basis::basis_eval<Interface::Left>(phi, uPF, i, vars::prim::Rho);
+        uPF(i, nNodes + 1, vars::prim::Rho) =
+            basis::basis_eval<Interface::Right>(phi, uPF, i, vars::prim::Rho);
       });
 
   // Compute necessary terms for using the Paczynski eos
   auto sd0 = mesh_state(0);
   atom::fill_derived_comps<Domain::Interior>(sd0, grid);
 
-
-  // Perform an eos inversion using the progenitor pressure for 
-  // the updated temperature. It is coupled to a Saha solver for the 
+  // Perform an eos inversion using the progenitor pressure for
+  // the updated temperature. It is coupled to a Saha solver for the
   // ionization state.
   if (ionization_state->solver() == atom::SahaSolver::Linear) {
     atom::compute_temperature_with_saha<Domain::Interior,
@@ -553,18 +557,19 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
         for (int q = 0; q < nNodes; ++q) {
           const double temperature_q = uAF(i, q + 1, vars::aux::Tgas);
           const double vel = uCF(i, q, vars::cons::Velocity);
-            eos::EOSLambda lambda;
-            lambda.data[0] = number_density(i, q + 1);
-            lambda.data[1] = ye(i, q + 1);
-            lambda.data[2] = ybar(i, q + 1);
-            lambda.data[3] = sigma1(i, q + 1);
-            lambda.data[4] = sigma2(i, q + 1);
-            lambda.data[5] = sigma3(i, q + 1);
-            lambda.data[6] = e_ion_corr(i, q + 1);
-            lambda.data[7] = temperature_q;
+          eos::EOSLambda lambda;
+          lambda.data[0] = number_density(i, q + 1);
+          lambda.data[1] = ye(i, q + 1);
+          lambda.data[2] = ybar(i, q + 1);
+          lambda.data[3] = sigma1(i, q + 1);
+          lambda.data[4] = sigma2(i, q + 1);
+          lambda.data[5] = sigma3(i, q + 1);
+          lambda.data[6] = e_ion_corr(i, q + 1);
+          lambda.data[7] = temperature_q;
           uCF(i, q, vars::cons::Energy) =
-              eos::sie_from_density_temperature(eos, 1.0 / uCF(i, q, vars::cons::SpecificVolume),
-                                                temperature_q, lambda.ptr()) +
+              eos::sie_from_density_temperature(
+                  eos, 1.0 / uCF(i, q, vars::cons::SpecificVolume),
+                  temperature_q, lambda.ptr()) +
               0.5 * vel * vel;
         }
       });

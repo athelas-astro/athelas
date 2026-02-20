@@ -119,7 +119,8 @@ void RadHydroPackage::update_implicit(const StageData &stage_data,
         ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
           const auto ucf_i = Kokkos::subview(ucf, i, q, Kokkos::ALL);
           const auto [du1, du2, du3, du4] =
-              compute_increment_radhydro_source_nodal<IonizationPhysics::Active>(
+              compute_increment_radhydro_source_nodal<
+                  IonizationPhysics::Active>(
                   ucf_i, uaf, phi_fluid, phi_rad, inv_mkk_fluid, inv_mkk_rad,
                   eos, opac, dr, sqrt_gm, weights, content, i, q);
           delta_im_(stage, i, q, vars::cons::Velocity) = du1;
@@ -143,7 +144,8 @@ void RadHydroPackage::update_implicit(const StageData &stage_data,
         ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
           const auto ucf_i = Kokkos::subview(ucf, i, q, Kokkos::ALL);
           const auto [du1, du2, du3, du4] =
-              compute_increment_radhydro_source_nodal<IonizationPhysics::Inactive>(
+              compute_increment_radhydro_source_nodal<
+                  IonizationPhysics::Inactive>(
                   ucf_i, uaf, phi_fluid, phi_rad, inv_mkk_fluid, inv_mkk_rad,
                   eos, opac, dr, sqrt_gm, weights, content, i, q);
           delta_im_(stage, i, q, vars::cons::Velocity) = du1;
@@ -193,64 +195,61 @@ void RadHydroPackage::update_implicit_iterative(const StageData &stage_data,
     RadHydroSolverIonizationContent content{
         number_density, ye, ybar, sigma1, sigma2, sigma3, e_ion_corr};
     athelas::par_for(
-        DEFAULT_LOOP_PATTERN, "RadHydro :: Implicit iterative",
-        DevExecSpace(), ib.s, ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+        DEFAULT_LOOP_PATTERN, "RadHydro :: Implicit iterative", DevExecSpace(),
+        ib.s, ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
           const auto ucf_i = Kokkos::subview(ucf, i, q, Kokkos::ALL);
-          auto scratch_sol_i =
-              Kokkos::subview(scratch_sol_, i, q, Kokkos::ALL);
-          auto scratch_sol_i_k =
-              Kokkos::subview(scratch_k_, i, q, Kokkos::ALL);
+          auto scratch_sol_i = Kokkos::subview(scratch_sol_, i, q, Kokkos::ALL);
+          auto scratch_sol_i_k = Kokkos::subview(scratch_k_, i, q, Kokkos::ALL);
           auto scratch_sol_i_km1 =
               Kokkos::subview(scratch_km1_, i, q, Kokkos::ALL);
           const auto R_i = Kokkos::subview(R, i, q, Kokkos::ALL);
 
-            // set radhydro vars
-            for (int v = 0; v < NUM_VARS_; ++v) {
-              const double &u = ucf_i(v);
-              scratch_sol_i_k(v) = u;
-              scratch_sol_i_km1(v) = u;
-              scratch_sol_i(v) = u;
-            }
+          // set radhydro vars
+          for (int v = 0; v < NUM_VARS_; ++v) {
+            const double &u = ucf_i(v);
+            scratch_sol_i_k(v) = u;
+            scratch_sol_i_km1(v) = u;
+            scratch_sol_i(v) = u;
+          }
 
           fixed_point_radhydro<IonizationPhysics::Active>(
               R_i, dt_info.dt_coef, scratch_sol_i_k, scratch_sol_i_km1,
               scratch_sol_i, uaf, phi_fluid, phi_rad, inv_mkk_fluid,
               inv_mkk_rad, eos, opac, dr, sqrt_gm, weights, content, i, q);
 
-            for (int v = 1; v < NUM_VARS_; ++v) {
-              ucf(i, q, v) = scratch_sol_i(v);
-            }
+          for (int v = 1; v < NUM_VARS_; ++v) {
+            ucf(i, q, v) = scratch_sol_i(v);
+          }
         });
   } else {
     const RadHydroSolverIonizationContent content;
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Implicit iterative",
-        DevExecSpace(), ib.s, ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+        DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
+        KOKKOS_CLASS_LAMBDA(const int i, const int q) {
           const auto ucf_i = Kokkos::subview(ucf, i, q, Kokkos::ALL);
-          auto scratch_sol_i =
-              Kokkos::subview(scratch_sol_, i, q, Kokkos::ALL);
-          auto scratch_sol_i_k =
-              Kokkos::subview(scratch_k_, i, q, Kokkos::ALL);
+          auto scratch_sol_i = Kokkos::subview(scratch_sol_, i, q, Kokkos::ALL);
+          auto scratch_sol_i_k = Kokkos::subview(scratch_k_, i, q, Kokkos::ALL);
           auto scratch_sol_i_km1 =
               Kokkos::subview(scratch_km1_, i, q, Kokkos::ALL);
           const auto R_i = Kokkos::subview(R, i, q, Kokkos::ALL);
 
-            // set radhydro vars
-            for (int v = 0; v < NUM_VARS_; ++v) {
-              const double &u = ucf_i(v);
-              scratch_sol_i_k(v) = u;
-              scratch_sol_i_km1(v) = u;
-              scratch_sol_i(v) = u;
-            }
+          // set radhydro vars
+          for (int v = 0; v < NUM_VARS_; ++v) {
+            const double &u = ucf_i(v);
+            scratch_sol_i_k(v) = u;
+            scratch_sol_i_km1(v) = u;
+            scratch_sol_i(v) = u;
+          }
 
           fixed_point_radhydro<IonizationPhysics::Inactive>(
               R_i, dt_info.dt_coef, scratch_sol_i_k, scratch_sol_i_km1,
               scratch_sol_i, uaf, phi_fluid, phi_rad, inv_mkk_fluid,
               inv_mkk_rad, eos, opac, dr, sqrt_gm, weights, content, i, q);
 
-            for (int v = 1; v < NUM_VARS_; ++v) {
-              ucf(i, q, v) = scratch_sol_i(v);
-            }
+          for (int v = 1; v < NUM_VARS_; ++v) {
+            ucf(i, q, v) = scratch_sol_i(v);
+          }
         });
   }
 
@@ -438,7 +437,8 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
             const auto [flux1, flux2, flux3] =
                 athelas::fluid::flux_fluid(vel, pressure);
             const auto [flux_e, flux_f] = flux_rad(e_rad, f_rad, p_rad, vstar);
-	          const double w_dphi_sqrtgm = weights(q) * dphi_fluid(i, qp1, p) * sqrt_gm(i, qp1);
+            const double w_dphi_sqrtgm =
+                weights(q) * dphi_fluid(i, qp1, p) * sqrt_gm(i, qp1);
             local_sum1 += w_dphi_sqrtgm * flux1;
             local_sum2 += w_dphi_sqrtgm * flux2;
             local_sum3 += w_dphi_sqrtgm * flux3;

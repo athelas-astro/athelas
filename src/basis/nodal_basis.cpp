@@ -1,20 +1,19 @@
+#include "basis/nodal_basis.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "kokkos_abstraction.hpp"
-#include "basis/nodal_basis.hpp"
 
 namespace athelas::basis {
 
-NodalBasis::NodalBasis( AthelasArray3D<double> uPF, GridStructure *grid,
+NodalBasis::NodalBasis(AthelasArray3D<double> uPF, GridStructure *grid,
                        const int nN, const int nElements)
-    : nX_(nElements), nNodes_(nN),
-      nodes_("quadrature nodes", nN),
+    : nX_(nElements), nNodes_(nN), nodes_("quadrature nodes", nN),
       weights_("quadrature weights", nN),
       phi_("phi_", nElements + 2, nN + 2, nN),
       dphi_("dphi_", nElements + 2, nN + 2, nN),
       mass_matrix_("MassMatrix", nElements + 2, nN),
       inv_mass_matrix_("InvMassMatrix", nElements + 2, nN),
-      differentiation_matrix_("DiffMatrix", nN, nN), 
-      vandermonde_("vandermonde", nN, nN), 
+      differentiation_matrix_("DiffMatrix", nN, nN),
+      vandermonde_("vandermonde", nN, nN),
       inv_vandermonde_("inverse vandermonde", nN, nN) {
 
   Kokkos::deep_copy(nodes_, grid->nodes());
@@ -167,10 +166,10 @@ void NodalBasis::build_differentiation_matrix() {
 
 /**
  * @brief Build the Vandermonde and inverse Vandermonde matrices
- * We make use of the relation 
+ * We make use of the relation
  *   M = V^T W V
  * Where M is the mass matrix, V the Vandermonde, and W = diag{w_i}
- * contains quadrature weights. 
+ * contains quadrature weights.
  */
 void NodalBasis::build_vandermonde_matrices() {
   auto V_h = Kokkos::create_mirror_view(vandermonde_);
@@ -182,7 +181,7 @@ void NodalBasis::build_vandermonde_matrices() {
 
   // Build V_{qk} = P_k(x_q)
   for (int q = 0; q < nNodes_; ++q) {
-    const double xq = 2.0*nodes_h(q);
+    const double xq = 2.0 * nodes_h(q);
     for (int k = 0; k < nNodes_; ++k) {
       V_h(q, k) = legendre(k, xq);
     }
@@ -206,13 +205,12 @@ void NodalBasis::build_vandermonde_matrices() {
  * The IndexRange is for the variables in ucf that we are mapping.
  * The modal vector u_k_ loops from 0.
  */
-void NodalBasis::nodal_to_modal(
-    AthelasArray3D<double> u_k,
-    AthelasArray3D<double> ucf, 
-    const IndexRange &vb) const {
+void NodalBasis::nodal_to_modal(AthelasArray3D<double> u_k,
+                                AthelasArray3D<double> ucf,
+                                const IndexRange &vb) const {
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "nodal_to_modal", DevExecSpace(),
-      0, u_k.extent(0) - 1, KOKKOS_CLASS_LAMBDA(const int i) {
+      DEFAULT_FLAT_LOOP_PATTERN, "nodal_to_modal", DevExecSpace(), 0,
+      u_k.extent(0) - 1, KOKKOS_CLASS_LAMBDA(const int i) {
         for (int v = vb.s; v <= vb.e; ++v) {
           for (int k = 0; k < nNodes_; ++k) {
             double sum = 0.0;
@@ -230,13 +228,12 @@ void NodalBasis::nodal_to_modal(
  * The IndexRange is for the variables in ucf that we are mapping.
  * The modal vector u_k_ loops from 0.
  */
-void NodalBasis::modal_to_nodal(
-    AthelasArray3D<double> ucf,
-    AthelasArray3D<double> u_k, 
-    const IndexRange &vb) const {
+void NodalBasis::modal_to_nodal(AthelasArray3D<double> ucf,
+                                AthelasArray3D<double> u_k,
+                                const IndexRange &vb) const {
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "modal_to_nodal", DevExecSpace(),
-      0, u_k.extent(0) - 1, KOKKOS_CLASS_LAMBDA(const int i) {
+      DEFAULT_FLAT_LOOP_PATTERN, "modal_to_nodal", DevExecSpace(), 0,
+      u_k.extent(0) - 1, KOKKOS_CLASS_LAMBDA(const int i) {
         for (int v = vb.s; v <= vb.e; ++v) {
           for (int q = 0; q < nNodes_; ++q) {
             double sum = 0.0;

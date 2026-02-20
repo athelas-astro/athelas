@@ -9,11 +9,12 @@ namespace athelas {
 
 using namespace utilities;
 
-void conservative_correction(AthelasArray3D<double> u_k, AthelasArray3D<double> ucf, const GridStructure &grid, int nv);
+void conservative_correction(AthelasArray3D<double> u_k,
+                             AthelasArray3D<double> ucf,
+                             const GridStructure &grid, int nv);
 
 auto initialize_slope_limiter(std::string field, const GridStructure *grid,
-                              const ProblemIn *pin,
-                              IndexRange vars)
+                              const ProblemIn *pin, IndexRange vars)
     -> SlopeLimiter;
 
 // Standard MINMOD function
@@ -52,15 +53,16 @@ void detect_troubled_cells(const AthelasArray3D<double> U,
  * +1 : Extrapolate right, e.g.,  polynomial from ix-1 into ix
  **/
 KOKKOS_INLINE_FUNCTION
-auto cell_average(AthelasArray3D<double> U,
-                  AthelasArray1D<double> weights, const double dr,
-                  const int v, const int i,
+auto cell_average(AthelasArray3D<double> U, AthelasArray1D<double> weights,
+                  const double dr, const int v, const int i,
                   const int extrapolate = 0) -> double {
-  assert((extrapolate == -1 || extrapolate == 0 || extrapolate == 1) && "cell_average:: extrapolate must be -1, 0, 1");
+  assert((extrapolate == -1 || extrapolate == 0 || extrapolate == 1) &&
+         "cell_average:: extrapolate must be -1, 0, 1");
   static const int nNodes = static_cast<int>(weights.size());
 
   // Some data structures include interface storage -- do some index gymnastics
-  static const int nq_p_i = static_cast<int>(weights.extent(0)) + 2; // size of nodes + interfaces
+  static const int nq_p_i =
+      static_cast<int>(weights.extent(0)) + 2; // size of nodes + interfaces
   const int nq_u = static_cast<int>(U.extent(1));
   const int offset = (nq_u == nq_p_i) ? 1 : 0;
 
@@ -82,16 +84,16 @@ auto cell_average(AthelasArray3D<double> U,
  * +1 : Extrapolate right, e.g.,  polynomial from ix-1 into ix
  **/
 KOKKOS_INLINE_FUNCTION
-auto cell_average(AthelasArray3D<double> U,
-                  AthelasArray2D<double> sqrt_gm,
-                  AthelasArray1D<double> weights, const double dr,
-                  const int v, const int i,
-                  const int extrapolate = 0) -> double {
-  assert((extrapolate == -1 || extrapolate == 0 || extrapolate == 1) && "cell_average:: extrapolate must be -1, 0, 1");
+auto cell_average(AthelasArray3D<double> U, AthelasArray2D<double> sqrt_gm,
+                  AthelasArray1D<double> weights, const double dr, const int v,
+                  const int i, const int extrapolate = 0) -> double {
+  assert((extrapolate == -1 || extrapolate == 0 || extrapolate == 1) &&
+         "cell_average:: extrapolate must be -1, 0, 1");
   static const int nNodes = static_cast<int>(weights.size());
 
   // Some data structures include interface storage -- do some index gymnastics
-  static const int nq_p_i = static_cast<int>(sqrt_gm.extent(1)); // size of nodes + interfaces
+  static const int nq_p_i =
+      static_cast<int>(sqrt_gm.extent(1)); // size of nodes + interfaces
   const int nq_u = static_cast<int>(U.extent(1));
   const int offset = (nq_u == nq_p_i) ? 1 : 0;
 
@@ -112,16 +114,16 @@ auto cell_average(AthelasArray3D<double> U,
  * Takes a specific quantity (nx, nq) instead of a field (nx, nq, nv).
  **/
 KOKKOS_INLINE_FUNCTION
-auto cell_average(AthelasArray2D<double> U,
-                  AthelasArray2D<double> sqrt_gm,
-                  AthelasArray1D<double> weights, const double dr,
-                  const int i,
+auto cell_average(AthelasArray2D<double> U, AthelasArray2D<double> sqrt_gm,
+                  AthelasArray1D<double> weights, const double dr, const int i,
                   const int extrapolate = 0) -> double {
-  assert((extrapolate == -1 || extrapolate == 0 || extrapolate == 1) && "cell_average:: extrapolate must be -1, 0, 1");
+  assert((extrapolate == -1 || extrapolate == 0 || extrapolate == 1) &&
+         "cell_average:: extrapolate must be -1, 0, 1");
   static const int nNodes = static_cast<int>(weights.size());
 
   // Some data structures include interface storage -- do some index gymnastics
-  static const int nq_p_i = static_cast<int>(sqrt_gm.extent(1)); // size of nodes + interfaces
+  static const int nq_p_i =
+      static_cast<int>(sqrt_gm.extent(1)); // size of nodes + interfaces
   const int nq_u = static_cast<int>(U.extent(1));
   const int offset = (nq_u == nq_p_i) ? 0 : 1;
 

@@ -38,8 +38,8 @@ void rad_equilibrium_init(MeshState &mesh_state, GridStructure *grid,
   const double Ev_rad = std::pow(10.0, logE_rad);
 
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Pgen :: RadEquilibrium", DevExecSpace(),
-      ib.s, ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
+      DEFAULT_LOOP_PATTERN, "Pgen :: RadEquilibrium", DevExecSpace(), ib.s,
+      ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
         uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D;
         uCF(i, q, vars::cons::Velocity) = V0;
         uCF(i, q, vars::cons::Energy) = Ev_gas / D;

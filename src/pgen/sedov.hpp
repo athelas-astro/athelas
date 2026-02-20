@@ -36,8 +36,8 @@ void sedov_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   const double gm1 = gamma - 1.0;
 
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Pgen :: Sedov", DevExecSpace(), ib.s,
-      ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
+      DEFAULT_LOOP_PATTERN, "Pgen :: Sedov", DevExecSpace(), ib.s, ib.e, qb.s,
+      qb.e, KOKKOS_LAMBDA(const int i, const int q) {
         const double volume =
             (4.0 * M_PI / 3.0) * std::pow(left_interface(origin + 1), 3.0);
         const double P0 = gm1 * E0 / volume;
@@ -45,12 +45,16 @@ void sedov_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
         uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D0;
         uCF(i, q, vars::cons::Velocity) = V0;
         if (i == origin - 1 || i == origin) {
-          uCF(i, q, vars::cons::Energy) = (P0 / gm1) * uCF(i, q, vars::cons::SpecificVolume) + 0.5 * V0 * V0;
+          uCF(i, q, vars::cons::Energy) =
+              (P0 / gm1) * uCF(i, q, vars::cons::SpecificVolume) +
+              0.5 * V0 * V0;
         } else {
-          uCF(i, q, vars::cons::Energy) = (1.0e-6 / gm1) * uCF(i, q, vars::cons::SpecificVolume) + 0.5 * V0 * V0;
+          uCF(i, q, vars::cons::Energy) =
+              (1.0e-6 / gm1) * uCF(i, q, vars::cons::SpecificVolume) +
+              0.5 * V0 * V0;
         }
 
-          uPF(i, q, vars::prim::Rho) = D0;
+        uPF(i, q, vars::prim::Rho) = D0;
       });
 
   // Fill density in guard cells

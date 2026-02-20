@@ -89,8 +89,8 @@ def main():
   te.evolve()
 
   files = sorted(glob.glob("rad_eq*.h5"))[:]
-  athelas_time = np.zeros(len(files) - 1)
-  athelas_ener = np.zeros(len(files) - 1)
+  athelas_time = np.zeros(len(files) - 0)
+  athelas_ener = np.zeros(len(files) - 0)
 
   fig, ax = plt.subplots()
   i = 0
@@ -99,7 +99,7 @@ def main():
       continue
     a = Athelas(fn)
     athelas_time[i] = a.time
-    athelas_ener[i] = a.uCF[0, 0, 2] / a.uCF[0, 0, 0]
+    athelas_ener[i] = a.get("fluid_energy")[0] / a.get("tau")[0]
     i += 1
   print(athelas_time)
   print(athelas_ener)

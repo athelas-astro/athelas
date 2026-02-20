@@ -28,9 +28,8 @@ NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,
   const int nx = pin->param()->get<int>("problem.nx");
   tau_gamma_ = AthelasArray3D<double>("tau_gamma", nx + 2, nq,
                                       8); // TODO(astrobarker): make runtime
-  int_etau_domega_ =
-      AthelasArray2D<double>("int_etau_domega", nx + 2,
-                             nq); // integration of e^-tau dOmega
+  int_etau_domega_ = AthelasArray2D<double>("int_etau_domega", nx + 2,
+                                            nq); // integration of e^-tau dOmega
   delta_ = AthelasArray4D<double>("nickel delta", n_stages, nx + 2, nq, 4);
 
   ind_ni_ = indexer->get<int>("ni56");
@@ -51,7 +50,7 @@ void NickelHeatingPackage::update_explicit(const StageData &stage_data,
 }
 
 /**
- * @brief Nickel heating update. 
+ * @brief Nickel heating update.
  * Computes updates for heating and evolves the decay network.
  */
 template <NiHeatingModel Model>
@@ -79,19 +78,19 @@ void NickelHeatingPackage::ni_update(const StageData &stage_data,
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "NickelHeating :: Update", DevExecSpace(), ib.s,
       ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-          const double x_ni = ucf(i, q, ind_ni);
-          const double x_co = ucf(i, q, ind_co);
-          const double f_dep = this->template deposition_function<Model>(i, q);
-          const double source = ni_source(x_ni, x_co, f_dep);
-          const double norm = weights(q) * dm(i) * inv_mqq(i, q);
+        const double x_ni = ucf(i, q, ind_ni);
+        const double x_co = ucf(i, q, ind_co);
+        const double f_dep = this->template deposition_function<Model>(i, q);
+        const double source = ni_source(x_ni, x_co, f_dep);
+        const double norm = weights(q) * dm(i) * inv_mqq(i, q);
 
         delta_(stage, i, q, pkg_vars::Energy) = f_dep * source * norm;
       });
 
   // Realistically I don't need to integrate X_Fe, but oh well.
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "NickelHeating :: Decay network",
-      DevExecSpace(), ib.s, ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+      DEFAULT_LOOP_PATTERN, "NickelHeating :: Decay network", DevExecSpace(),
+      ib.s, ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
         const double x_ni = ucf(i, q, ind_ni);
         const double x_co = ucf(i, q, ind_co);
         const double rhs_ni = -LAMBDA_NI_ * x_ni;
@@ -237,13 +236,10 @@ void NickelHeatingPackage::fill_derived(StageData &stage_data,
                 const double rx = l * dr;
                 const double rj = std::sqrt(ri2 + rx * rx + two_ri_cos * rx);
                 const int index = utilities::find_closest_cell(centers, rj, nx);
-                const double rho_interp =
-                    LINTERP(centers(index), centers(index + 1),
-                            1.0 / ucf(index, q,
-                                      vars::cons::SpecificVolume),
-                            1.0 / ucf(index + 1, q,
-                                      vars::cons::SpecificVolume),
-                            rj);
+                const double rho_interp = LINTERP(
+                    centers(index), centers(index + 1),
+                    1.0 / ucf(index, q, vars::cons::SpecificVolume),
+                    1.0 / ucf(index + 1, q, vars::cons::SpecificVolume), rj);
 
                 const double ye_interp =
                     LINTERP(centers(index), centers(index + 1), ye(index, 0),

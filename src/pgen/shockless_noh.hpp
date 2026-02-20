@@ -26,13 +26,15 @@ void shockless_noh_init(MeshState &mesh_state, GridStructure *grid,
       pin->param()->get<double>("problem.params.specific_energy", 1.0);
 
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Pgen :: ShocklessNoh", DevExecSpace(),
-      ib.s, ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
+      DEFAULT_LOOP_PATTERN, "Pgen :: ShocklessNoh", DevExecSpace(), ib.s, ib.e,
+      qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
         const double X1 = grid->centers(i);
 
         uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D;
         uCF(i, q, vars::cons::Velocity) = -X1;
-        uCF(i, q, vars::cons::Energy) = E_M + 0.5 * uCF(i, q, vars::cons::Velocity) * uCF(i, q, vars::cons::Velocity);
+        uCF(i, q, vars::cons::Energy) =
+            E_M + 0.5 * uCF(i, q, vars::cons::Velocity) *
+                      uCF(i, q, vars::cons::Velocity);
 
         uPF(i, q, vars::prim::Rho) = D;
       });

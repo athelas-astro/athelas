@@ -14,7 +14,8 @@ GeometryPackage::GeometryPackage(const ProblemIn *pin, const int n_stages,
     : active_(active) {
   const int nx = pin->param()->get<int>("problem.nx");
   int nvars_geom = 1; // sources velocity
-  delta_ = AthelasArray4D<double>("geometry delta", n_stages, nx + 2, pin->param()->get<int>("basis.nnodes"),
+  delta_ = AthelasArray4D<double>("geometry delta", n_stages, nx + 2,
+                                  pin->param()->get<int>("basis.nnodes"),
                                   nvars_geom);
 }
 
@@ -36,8 +37,8 @@ void GeometryPackage::update_explicit(const StageData &stage_data,
   const auto &basis = stage_data.fluid_basis();
   auto inv_mkk = basis.inv_mass_matrix();
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Geometry::Explicit", DevExecSpace(), ib.s,
-      ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+      DEFAULT_LOOP_PATTERN, "Geometry::Explicit", DevExecSpace(), ib.s, ib.e,
+      qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
         const double P = uaf(i, q + 1, vars::aux::Pressure);
 
         delta_(stage, i, q, pkg_vars::Velocity) =

@@ -1,6 +1,6 @@
 [problem]
 problem = "supernova"
-t_end = 500.0
+t_end = 0.2
 nlim = -1
 geometry = "spherical"
 restart = false
@@ -27,8 +27,14 @@ ionization = true
 heating = false
 engine = true
 
+[time]
+integrator = "EX_SSPRK22"
+#integrator = "IMEX_SSPRK22_DIRK" # bad
+#integrator = "IMEX_ARK32_ESDIRK"
+#integrator = "IMEX_PDARS_ESDIRK"
+
 [basis]
-nnodes = 1
+nnodes = 2
 
 [engine.thermal]
 enabled = true
@@ -86,12 +92,6 @@ operator_split = true
 [gravity]
 model = "spherical"
 operator_split = false
-
-[time]
-integrator = "EX_SSPRK11"
-#integrator = "IMEX_SSPRK22_DIRK" # bad
-#integrator = "IMEX_ARK32_ESDIRK"
-#integrator = "IMEX_PDARS_ESDIRK"
 
 [eos]
 type = "paczynski"

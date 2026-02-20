@@ -315,7 +315,8 @@ void HydroPackage::fill_derived(StageData &stage_data,
           for (int q = 0; q < nNodes + 2; ++q) {
             const double rho =
                 1.0 / basis.basis_eval(uCF, i, vars::cons::SpecificVolume, q);
-            const double vel = basis.basis_eval(uCF, i, vars::cons::Velocity, q);
+            const double vel =
+                basis.basis_eval(uCF, i, vars::cons::Velocity, q);
             const double emt = basis.basis_eval(uCF, i, vars::cons::Energy, q);
             const double sie = emt - 0.5 * vel * vel;
             uAF(i, q, vars::aux::Tgas) =
@@ -341,7 +342,8 @@ void HydroPackage::fill_derived(StageData &stage_data,
           for (int q = 0; q < nNodes + 2; ++q) {
             const double rho =
                 1.0 / basis.basis_eval(uCF, i, vars::cons::SpecificVolume, q);
-            const double vel = basis.basis_eval(uCF, i, vars::cons::Velocity, q);
+            const double vel =
+                basis.basis_eval(uCF, i, vars::cons::Velocity, q);
             const double emt = basis.basis_eval(uCF, i, vars::cons::Energy, q);
 
             const double momentum = rho * vel;
@@ -379,7 +381,8 @@ void HydroPackage::fill_derived(StageData &stage_data,
           for (int q = 0; q < nNodes + 2; ++q) {
             const double rho =
                 1.0 / basis.basis_eval(uCF, i, vars::cons::SpecificVolume, q);
-            const double vel = basis.basis_eval(uCF, i, vars::cons::Velocity, q);
+            const double vel =
+                basis.basis_eval(uCF, i, vars::cons::Velocity, q);
             const double emt = basis.basis_eval(uCF, i, vars::cons::Energy, q);
 
             const double momentum = rho * vel;

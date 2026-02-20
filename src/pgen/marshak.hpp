@@ -50,8 +50,8 @@ void marshak_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   const double e_rad = constants::a * std::pow(T0, 4.0);
 
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Pgen :: Marshak", DevExecSpace(), ib.s,
-      ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
+      DEFAULT_LOOP_PATTERN, "Pgen :: Marshak", DevExecSpace(), ib.s, ib.e, qb.s,
+      qb.e, KOKKOS_LAMBDA(const int i, const int q) {
         uCF(i, q, vars::cons::SpecificVolume) = 1.0 / rho0;
         uCF(i, q, vars::cons::Velocity) = V0;
         uCF(i, q, vars::cons::Energy) = em_gas + 0.5 * V0 * V0;

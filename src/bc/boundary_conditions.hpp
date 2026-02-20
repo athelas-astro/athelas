@@ -69,13 +69,9 @@ void fill_ghost_zones(AthelasArray3D<double> U, const GridStructure *grid,
 
 template <int N>
 KOKKOS_INLINE_FUNCTION void
-apply_bc(const BoundaryConditionsData<N> &bc,
-               AthelasArray3D<double> U,
-               const int v,
-               const int ghost_cell,
-               const int interior_cell,
-               const int n_nodes)
-{
+apply_bc(const BoundaryConditionsData<N> &bc, AthelasArray3D<double> U,
+         const int v, const int ghost_cell, const int interior_cell,
+         const int n_nodes) {
   switch (bc.type) {
 
   // --------------------------------------------------
@@ -110,12 +106,10 @@ apply_bc(const BoundaryConditionsData<N> &bc,
 
       if (v == 1 || v == 4) {
         // normal momentum / radiation flux
-        U(ghost_cell, i, v) =
-            -U(interior_cell, i_ref, v);
+        U(ghost_cell, i, v) = -U(interior_cell, i_ref, v);
       } else {
         // scalar quantities
-        U(ghost_cell, i, v) =
-            U(interior_cell, i_ref, v);
+        U(ghost_cell, i, v) = U(interior_cell, i_ref, v);
       }
     }
     break;
@@ -141,7 +135,8 @@ apply_bc(const BoundaryConditionsData<N> &bc,
   case BcType::Marshak: {
 
     constexpr double c = constants::c_cgs;
-    const double Einc = bc.dirichlet_values[0] * U(interior_cell, 0, vars::cons::SpecificVolume);
+    const double Einc = bc.dirichlet_values[0] *
+                        U(interior_cell, 0, vars::cons::SpecificVolume);
 
     for (int i = 0; i < n_nodes; ++i) {
 
@@ -152,24 +147,17 @@ apply_bc(const BoundaryConditionsData<N> &bc,
         // Set incoming radiation energy to Einc
         U(ghost_cell, i, v) = Einc;
 
-      }
-      else if (v == vars::cons::RadFlux) {
+      } else if (v == vars::cons::RadFlux) {
 
-        const double E0 = U(interior_cell, i_ref,
-                            vars::cons::RadEnergy);
+        const double E0 = U(interior_cell, i_ref, vars::cons::RadEnergy);
 
-        const double F0 = U(interior_cell, i_ref,
-                            vars::cons::RadFlux);
+        const double F0 = U(interior_cell, i_ref, vars::cons::RadFlux);
 
         // Marshak incoming flux
-        U(ghost_cell, i, v) =
-            0.5 * c * Einc
-          - 0.5 * (c * E0 + 2.0 * F0);
-      }
-      else {
+        U(ghost_cell, i, v) = 0.5 * c * Einc - 0.5 * (c * E0 + 2.0 * F0);
+      } else {
         // other vars: simple reflection
-        U(ghost_cell, i, v) =
-            U(interior_cell, i_ref, v);
+        U(ghost_cell, i, v) = U(interior_cell, i_ref, v);
       }
     }
 

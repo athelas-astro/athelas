@@ -49,25 +49,26 @@ void sod_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
         }
       });
 
-    static const IndexRange nb(nNodes);
-    auto r = grid->nodal_grid();
-    athelas::par_for(
-        DEFAULT_LOOP_PATTERN, "Pgen :: Sod", DevExecSpace(), ib.s, ib.e,
-        nb.s, nb.e,
-        KOKKOS_LAMBDA(const int i, const int q) {
-          const double x = r(i, q+1);
-          if (x <= x_d) {
-            uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D_L;
-            uCF(i, q, vars::cons::Velocity) = V_L;
-            uCF(i, q, vars::cons::Energy) =
-                (P_L / gm1) * uCF(i, q, vars::cons::SpecificVolume) + 0.5 * V_L * V_L;
-          } else {
-            uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D_R;
-            uCF(i, q, vars::cons::Velocity) = V_R;
-            uCF(i, q, vars::cons::Energy) =
-                (P_R / gm1) * uCF(i, q, vars::cons::SpecificVolume) + 0.5 * V_R * V_R;
-          }
-        });
+  static const IndexRange nb(nNodes);
+  auto r = grid->nodal_grid();
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "Pgen :: Sod", DevExecSpace(), ib.s, ib.e, nb.s,
+      nb.e, KOKKOS_LAMBDA(const int i, const int q) {
+        const double x = r(i, q + 1);
+        if (x <= x_d) {
+          uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D_L;
+          uCF(i, q, vars::cons::Velocity) = V_L;
+          uCF(i, q, vars::cons::Energy) =
+              (P_L / gm1) * uCF(i, q, vars::cons::SpecificVolume) +
+              0.5 * V_L * V_L;
+        } else {
+          uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D_R;
+          uCF(i, q, vars::cons::Velocity) = V_R;
+          uCF(i, q, vars::cons::Energy) =
+              (P_R / gm1) * uCF(i, q, vars::cons::SpecificVolume) +
+              0.5 * V_R * V_R;
+        }
+      });
 }
 
 } // namespace athelas

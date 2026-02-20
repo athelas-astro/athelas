@@ -48,7 +48,7 @@ void HydrostaticEquilibrium::solve(MeshState &mesh_state, GridStructure *grid,
   // host data
   auto h_uAF = Kokkos::create_mirror_view(uAF);
 
-  const int size = grid->n_elements() * (nNodes + 2) + 2 * (nNodes+2);
+  const int size = grid->n_elements() * (nNodes + 2) + 2 * (nNodes + 2);
   AthelasArray1D<double> d_r("host radius", size);
   std::vector<double> pressure(1);
   std::vector<double> radius(1);

@@ -13,7 +13,8 @@ namespace athelas {
 /**
  * @brief Initialize radiating shock
  **/
-void rad_shock_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
+void rad_shock_init(MeshState &mesh_state, GridStructure *grid,
+                    ProblemIn *pin) {
   const bool rad_active = pin->param()->get<bool>("physics.rad_active");
   athelas_requires(rad_active, "Radiative shock requires radiation enabled!");
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
@@ -45,8 +46,8 @@ void rad_shock_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) 
   const double e_rad_R = constants::a * std::pow(T_R, 4.0);
 
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Pgen :: RadShock", DevExecSpace(), ib.s,
-      ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
+      DEFAULT_LOOP_PATTERN, "Pgen :: RadShock", DevExecSpace(), ib.s, ib.e,
+      qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
         const double X1 = grid->centers(i);
 
         if (X1 <= x_d) {

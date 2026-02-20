@@ -19,8 +19,7 @@ using eos::EOS;
 
 auto initialize_slope_limiter(const std::string field,
                               const GridStructure *grid, const ProblemIn *pin,
-                              IndexRange vb)
-    -> SlopeLimiter {
+                              IndexRange vb) -> SlopeLimiter {
   const auto enabled =
       pin->param()->get<bool>(field + ".limiter.enabled", false);
   const auto type =
@@ -28,23 +27,23 @@ auto initialize_slope_limiter(const std::string field,
   SlopeLimiter S_Limiter;
   if (enabled) {
     if (utilities::to_lower(type) == "minmod") {
-      S_Limiter = TVDMinmod(
-          enabled, grid, vb, pin->param()->get<int>("basis.nnodes"),
-          pin->param()->get<double>(field + ".limiter.b_tvd"),
-          pin->param()->get<double>(field + ".limiter.m_tvb"),
-          pin->param()->get<bool>(field + ".limiter.characteristic"),
-          pin->param()->get<bool>(field + ".limiter.tci_enabled"),
-          pin->param()->get<double>(field + ".limiter.tci_val"));
+      S_Limiter =
+          TVDMinmod(enabled, grid, vb, pin->param()->get<int>("basis.nnodes"),
+                    pin->param()->get<double>(field + ".limiter.b_tvd"),
+                    pin->param()->get<double>(field + ".limiter.m_tvb"),
+                    pin->param()->get<bool>(field + ".limiter.characteristic"),
+                    pin->param()->get<bool>(field + ".limiter.tci_enabled"),
+                    pin->param()->get<double>(field + ".limiter.tci_val"));
     } else {
-      S_Limiter = WENO(
-          enabled, grid, vb, pin->param()->get<int>("basis.nnodes"),
-          pin->param()->get<double>(field + ".limiter.gamma_i"),
-          pin->param()->get<double>(field + ".limiter.gamma_l"),
-          pin->param()->get<double>(field + ".limiter.gamma_r"),
-          pin->param()->get<double>(field + ".limiter.weno_r"),
-          pin->param()->get<bool>(field + ".limiter.characteristic"),
-          pin->param()->get<bool>(field + ".limiter.tci_enabled"),
-          pin->param()->get<double>(field + ".limiter.tci_val"));
+      S_Limiter =
+          WENO(enabled, grid, vb, pin->param()->get<int>("basis.nnodes"),
+               pin->param()->get<double>(field + ".limiter.gamma_i"),
+               pin->param()->get<double>(field + ".limiter.gamma_l"),
+               pin->param()->get<double>(field + ".limiter.gamma_r"),
+               pin->param()->get<double>(field + ".limiter.weno_r"),
+               pin->param()->get<bool>(field + ".limiter.characteristic"),
+               pin->param()->get<bool>(field + ".limiter.tci_enabled"),
+               pin->param()->get<double>(field + ".limiter.tci_val"));
     }
   } else {
     S_Limiter = Unlimited(); // no-op "limiter" when limiting is disabled
@@ -53,7 +52,9 @@ auto initialize_slope_limiter(const std::string field,
   return S_Limiter;
 }
 
-void conservative_correction(AthelasArray3D<double> u_k, AthelasArray3D<double> ucf, const GridStructure &grid, const int nv) {
+void conservative_correction(AthelasArray3D<double> u_k,
+                             AthelasArray3D<double> ucf,
+                             const GridStructure &grid, const int nv) {
   auto nodes = grid.nodes();
   auto weights = grid.weights();
   auto sqrt_gm = grid.sqrt_gm();
@@ -63,28 +64,29 @@ void conservative_correction(AthelasArray3D<double> u_k, AthelasArray3D<double> 
   static const IndexRange ib(grid.domain<Domain::Interior>());
   const IndexRange vb(nv);
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "SlopeLimiter :: Conservative Correction", DevExecSpace(), ib.s,
-      ib.e, vb.s, vb.e, KOKKOS_LAMBDA(const int i, const int v) {
-      double corr = 0.0;
-      for (int k = 1; k < order; ++k) {
-      for (int q = 0; q < nq; ++q) {
-        const double dv = weights(q) * sqrt_gm(i, q+1);
-        corr += basis::legendre(k, nodes(q)) * u_k(i, k, v) * dv;
-      }
-      }
+      DEFAULT_LOOP_PATTERN, "SlopeLimiter :: Conservative Correction",
+      DevExecSpace(), ib.s, ib.e, vb.s, vb.e,
+      KOKKOS_LAMBDA(const int i, const int v) {
+        double corr = 0.0;
+        for (int k = 1; k < order; ++k) {
+          for (int q = 0; q < nq; ++q) {
+            const double dv = weights(q) * sqrt_gm(i, q + 1);
+            corr += basis::legendre(k, nodes(q)) * u_k(i, k, v) * dv;
+          }
+        }
 
-      double vol = 0.0;
-      double avg = 0.0;
-      for (int q = 0; q < nq; ++q) {
-        const double dv = weights(q) * sqrt_gm(i, q+1);
-        avg += ucf(i, q, v) * dv;
-        vol += dv;
-      }
+        double vol = 0.0;
+        double avg = 0.0;
+        for (int q = 0; q < nq; ++q) {
+          const double dv = weights(q) * sqrt_gm(i, q + 1);
+          avg += ucf(i, q, v) * dv;
+          vol += dv;
+        }
 
-      //std::println("i old avg new avg {} {:.5e} {:.5e}", i, u_k(i, 0, v), (avg-corr)/vol);
-      u_k(i, vars::modes::CellAverage, v) = (avg - corr) / vol;
-  });
-
+        // std::println("i old avg new avg {} {:.5e} {:.5e}", i, u_k(i, 0, v),
+        // (avg-corr)/vol);
+        u_k(i, vars::modes::CellAverage, v) = (avg - corr) / vol;
+      });
 }
 
 /**
@@ -143,9 +145,8 @@ auto barth_jespersen(double U_v_L, double U_v_R, double U_c_L, double U_c_T,
  * Detects smoothness by comparing local cell averages to extrapolated
  * neighbor projections.
  **/
-void detect_troubled_cells(AthelasArray3D<double> U,
-                           AthelasArray1D<double> D, const GridStructure &grid,
-                           const NodalBasis &basis,
+void detect_troubled_cells(AthelasArray3D<double> U, AthelasArray1D<double> D,
+                           const GridStructure &grid, const NodalBasis &basis,
                            const IndexRange &vb) {
   static const IndexRange ib(grid.domain<Domain::Interior>());
   athelas::par_for(
@@ -170,12 +171,14 @@ void detect_troubled_cells(AthelasArray3D<double> U,
 
           // Extrapolate neighboring poly representations into current cell
           // and compute the new cell averages
-          const double cell_avg_L_T = cell_average(U, weights, dr,
-                                                   v, i + 1, 0); // from right
-          const double cell_avg_R_T = cell_average(U, weights, dr,
-                                                   v, i - 1, 0); // from left
-          const double cell_avg_L = cell_average(U, weights, widths(i-1), v, i - 1, 0);
-          const double cell_avg_R = cell_average(U, weights, widths(i+1), v, i + 1, 0);
+          const double cell_avg_L_T =
+              cell_average(U, weights, dr, v, i + 1, 0); // from right
+          const double cell_avg_R_T =
+              cell_average(U, weights, dr, v, i - 1, 0); // from left
+          const double cell_avg_L =
+              cell_average(U, weights, widths(i - 1), v, i - 1, 0);
+          const double cell_avg_R =
+              cell_average(U, weights, widths(i + 1), v, i + 1, 0);
 
           const double result = (std::abs(cell_avg - cell_avg_L_T) +
                                  std::abs(cell_avg - cell_avg_R_T));

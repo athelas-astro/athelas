@@ -9,7 +9,7 @@
 
 namespace athelas {
 
-constexpr int MAX_ORDER = 8;  // maximum supported polynomial degree
+constexpr int MAX_ORDER = 8; // maximum supported polynomial degree
 
 namespace vars {
 

@@ -114,31 +114,30 @@ void one_zone_ionization_init(MeshState &mesh_state, GridStructure *grid,
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: OneZoneIonization :: Energy",
       DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-          eos::EOSLambda lambda;
-          for (int q = 0; q < nNodes + 2; q++) {
-            uPF(i, q, vars::prim::Rho) = rho;
-            uAF(i, q, vars::aux::Tgas) = temperature;
-            if (eos_type == "paczynski") {
-              atom::paczynski_terms(sd0, i, q, lambda.ptr());
-            }
-            uAF(i, q, vars::aux::Pressure) = pressure_from_density_temperature(
-                eos, rho, temperature, lambda.ptr());
-            uPF(i, q, vars::prim::Sie) = sie_from_density_pressure(
-                eos, rho, uAF(i, q, vars::aux::Pressure), lambda.ptr());
+        eos::EOSLambda lambda;
+        for (int q = 0; q < nNodes + 2; q++) {
+          uPF(i, q, vars::prim::Rho) = rho;
+          uAF(i, q, vars::aux::Tgas) = temperature;
+          if (eos_type == "paczynski") {
+            atom::paczynski_terms(sd0, i, q, lambda.ptr());
           }
-          for (int q = 0; q < nNodes; ++q) {
-            uCF(i, q, vars::cons::Energy) = uPF(i, q + 1, vars::prim::Sie);
-          }
+          uAF(i, q, vars::aux::Pressure) = pressure_from_density_temperature(
+              eos, rho, temperature, lambda.ptr());
+          uPF(i, q, vars::prim::Sie) = sie_from_density_pressure(
+              eos, rho, uAF(i, q, vars::aux::Pressure), lambda.ptr());
+        }
+        for (int q = 0; q < nNodes; ++q) {
+          uCF(i, q, vars::cons::Energy) = uPF(i, q + 1, vars::prim::Sie);
+        }
       });
 
-
-    //atom::fill_derived_comps<Domain::Interior>(sd0, grid);
-    //atom::solve_saha_ionization<Domain::Interior, atom::SahaSolver::Linear>(
-    //    sd0, *grid);
-    //atom::fill_derived_ionization<Domain::Interior>(sd0, grid);
-    // composition boundary condition
-    static const IndexRange vb_comps(std::make_pair(3, 3 + ncomps - 1));
-    bc::fill_ghost_zones_composition(uCF, vb_comps);
+  // atom::fill_derived_comps<Domain::Interior>(sd0, grid);
+  // atom::solve_saha_ionization<Domain::Interior, atom::SahaSolver::Linear>(
+  //     sd0, *grid);
+  // atom::fill_derived_ionization<Domain::Interior>(sd0, grid);
+  //  composition boundary condition
+  static const IndexRange vb_comps(std::make_pair(3, 3 + ncomps - 1));
+  bc::fill_ghost_zones_composition(uCF, vb_comps);
 
   // Fill density and temperature in guard cells
   athelas::par_for(

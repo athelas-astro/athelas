@@ -33,8 +33,8 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
 
   const int nx = pin->param()->get<int>("problem.nx");
   const int nq = grid->n_nodes();
-  delta_ = AthelasArray4D<double>("thermal engine delta", n_stages, nx + 2,
-                                  nq, 1);
+  delta_ =
+      AthelasArray4D<double>("thermal engine delta", n_stages, nx + 2, nq, 1);
 
   energy_target_ = pin->param()->get<double>("physics.engine.thermal.energy");
   mode_ =
@@ -155,9 +155,8 @@ void ThermalEnginePackage::update_explicit(const StageData &stage_data,
       ib_dep.s, ib_dep.e, qb.s, qb.e,
       KOKKOS_CLASS_LAMBDA(const int i, const int q) {
         const double b_coeff = d_coeff_ * std::exp(-c_coeff_ * time) / b_int_;
-          delta_(stage, i, q, pkg_vars::Energy) =
-              weights(q) * b_coeff *
-              std::exp(-a_coeff_ * menc(i, q));
+        delta_(stage, i, q, pkg_vars::Energy) =
+            weights(q) * b_coeff * std::exp(-a_coeff_ * menc(i, q));
         delta_(stage, i, q, pkg_vars::Energy) *= mass(i);
       });
 

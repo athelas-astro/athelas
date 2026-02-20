@@ -8,12 +8,12 @@
 
 #include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
-#include "utils/constants.hpp"
 #include "geometry/grid.hpp"
 #include "gravity/gravity_package.hpp"
 #include "kokkos_abstraction.hpp"
 #include "loop_layout.hpp"
 #include "pgen/problem_in.hpp"
+#include "utils/constants.hpp"
 
 namespace athelas::gravity {
 
@@ -44,7 +44,8 @@ void GravityPackage::update_explicit(const StageData &stage_data,
 
 template <GravityModel Model>
 void GravityPackage::gravity_update(AthelasArray3D<double> ucf,
-                                    const GridStructure &grid, const int stage) const {
+                                    const GridStructure &grid,
+                                    const int stage) const {
   using basis::basis_eval;
   static const int nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
@@ -58,17 +59,21 @@ void GravityPackage::gravity_update(AthelasArray3D<double> ucf,
   // NOTE: the update is divided by 4pi as this factor is weirdly included
   // in enclosed mass but not in, e.g., the mass matrix.
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Gravity :: Update", DevExecSpace(), ib.s, ib.e,
-      KOKKOS_CLASS_LAMBDA(const int i) {
+      DEFAULT_FLAT_LOOP_PATTERN, "Gravity :: Update", DevExecSpace(), ib.s,
+      ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
         for (int q = qb.s; q <= qb.e; ++q) {
           const double X = r(i, q + 1);
           const double denom = X * X * constants::FOURPI;
           if constexpr (Model == GravityModel::Spherical) {
-            delta_(stage, i, q, pkg_vars::Velocity) = - constants::G_GRAV * enclosed_mass(i, q) / denom;
-            delta_(stage, i, q, pkg_vars::Energy) = delta_(stage, i, q, pkg_vars::Velocity) * ucf(i, q, vars::cons::Velocity);
+            delta_(stage, i, q, pkg_vars::Velocity) =
+                -constants::G_GRAV * enclosed_mass(i, q) / denom;
+            delta_(stage, i, q, pkg_vars::Energy) =
+                delta_(stage, i, q, pkg_vars::Velocity) *
+                ucf(i, q, vars::cons::Velocity);
           } else {
-            delta_(stage, i, q, pkg_vars::Velocity) = - constants::G_GRAV * gval;
-            delta_(stage, i, q, pkg_vars::Energy) = - constants::G_GRAV * gval * ucf(i, q, vars::cons::Velocity);
+            delta_(stage, i, q, pkg_vars::Velocity) = -constants::G_GRAV * gval;
+            delta_(stage, i, q, pkg_vars::Energy) =
+                -constants::G_GRAV * gval * ucf(i, q, vars::cons::Velocity);
           }
         }
       });

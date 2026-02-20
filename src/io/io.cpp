@@ -359,14 +359,12 @@ void write_output(const MeshState &mesh_state, GridStructure &mesh,
   }
 
   // Write simulation info
-  writer.write_scalar("/info/cycle", cycle,
-                      H5::PredType::NATIVE_INT);
-  writer.write_scalar("/info/time", time,
-                      H5::PredType::NATIVE_DOUBLE);
+  writer.write_scalar("/info/cycle", cycle, H5::PredType::NATIVE_INT);
+  writer.write_scalar("/info/time", time, H5::PredType::NATIVE_DOUBLE);
   writer.write_scalar("/info/n_stages", mesh_state.n_stages(),
                       H5::PredType::NATIVE_INT);
 
-  // Write the mesh. 
+  // Write the mesh.
   writer.write_view(mesh.widths(), "/mesh/dr");
   writer.write_view(mesh.centers(), "/mesh/r");
   writer.write_view(mesh.nodal_grid(), "/mesh/r_q");

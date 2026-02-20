@@ -20,7 +20,8 @@ namespace athelas {
 /**
  * @brief Initialize advection test
  **/
-void advection_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
+void advection_init(MeshState &mesh_state, GridStructure *grid,
+                    ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Advection requires ideal gas eos!");
 
@@ -44,32 +45,33 @@ void advection_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) 
       ib.e, KOKKOS_LAMBDA(const int i) {
         for (int iNodeX = 0; iNodeX < nNodes; iNodeX++) {
           const double x = grid->node_coordinate(i, iNodeX);
-          uPF(i, iNodeX, vars::prim::Rho) = (2.0 + Amp * sin(2.0 * constants::PI * x));
+          uPF(i, iNodeX, vars::prim::Rho) =
+              (2.0 + Amp * sin(2.0 * constants::PI * x));
         }
       });
 
-    auto density_func = [&Amp](double x, int /*ix*/, int /*iN*/) -> double {
-      return 2.0 + Amp * sin(2.0 * constants::PI * x);
-    };
-    auto velocity_func = [&V0](double /*x*/, int /*ix*/, int /*iN*/) -> double {
-      return V0;
-    };
-    auto energy_func = [&P0, &V0, &Amp, &gm1](double x, int /*ix*/,
-                                              int /*iN*/) -> double {
-      const double rho = 2.0 + Amp * sin(2.0 * constants::PI * x);
-      return (P0 / gm1) / rho + 0.5 * V0 * V0;
-    };
+  auto density_func = [&Amp](double x, int /*ix*/, int /*iN*/) -> double {
+    return 2.0 + Amp * sin(2.0 * constants::PI * x);
+  };
+  auto velocity_func = [&V0](double /*x*/, int /*ix*/, int /*iN*/) -> double {
+    return V0;
+  };
+  auto energy_func = [&P0, &V0, &Amp, &gm1](double x, int /*ix*/,
+                                            int /*iN*/) -> double {
+    const double rho = 2.0 + Amp * sin(2.0 * constants::PI * x);
+    return (P0 / gm1) / rho + 0.5 * V0 * V0;
+  };
 
-      static const IndexRange nb(nNodes);
-      athelas::par_for(
-          DEFAULT_LOOP_PATTERN, "Pgen :: Advection (nodal)", DevExecSpace(),
-          ib.s, ib.e, nb.s, nb.e,
-          KOKKOS_LAMBDA(const int i, const int node) {
-            const double x = grid->node_coordinate(i, node);
-            uCF(i, node, vars::cons::SpecificVolume) = 1.0 / density_func(x, i, node);
-            uCF(i, node, vars::cons::Velocity) = velocity_func(x, i, node);
-            uCF(i, node, vars::cons::Energy) = energy_func(x, i, node);
-          });
+  static const IndexRange nb(nNodes);
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "Pgen :: Advection (nodal)", DevExecSpace(), ib.s,
+      ib.e, nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int node) {
+        const double x = grid->node_coordinate(i, node);
+        uCF(i, node, vars::cons::SpecificVolume) =
+            1.0 / density_func(x, i, node);
+        uCF(i, node, vars::cons::Velocity) = velocity_func(x, i, node);
+        uCF(i, node, vars::cons::Energy) = energy_func(x, i, node);
+      });
 }
 
 } // namespace athelas

@@ -41,9 +41,11 @@ void gas_collapse_init(MeshState &mesh_state, GridStructure *grid,
       ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
         const int k = 0;
 
-        uCF(i, k, vars::cons::SpecificVolume) = rho0; // / rho0 * (1.0 / std::cosh(x / H));
+        uCF(i, k, vars::cons::SpecificVolume) =
+            rho0; // / rho0 * (1.0 / std::cosh(x / H));
         uCF(i, k, vars::cons::Velocity) = V0;
-        uCF(i, k, vars::cons::Energy) = (p0 / gm1) * uCF(i, k, vars::cons::SpecificVolume) + 0.5 * V0 * V0;
+        uCF(i, k, vars::cons::Energy) =
+            (p0 / gm1) * uCF(i, k, vars::cons::SpecificVolume) + 0.5 * V0 * V0;
 
         for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
           uPF(i, iNodeX, vars::prim::Rho) = rho0;

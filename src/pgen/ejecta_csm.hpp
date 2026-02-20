@@ -16,7 +16,8 @@ namespace athelas {
  * @brief Ejecta - CSM interaction test.
  * See Duffell 2016 (doi:10.3847/0004-637X/821/2/76)
  */
-void ejecta_csm_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
+void ejecta_csm_init(MeshState &mesh_state, GridStructure *grid,
+                     ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Shu-Osher requires ideal gas eos!");
 
@@ -53,26 +54,27 @@ void ejecta_csm_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin)
         }
       });
 
-    athelas::par_for(
-        DEFAULT_LOOP_PATTERN, "Pgen :: EjectaCSM (2)", DevExecSpace(),
-        ib.s, ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
-          const double X1 = r(i);
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "Pgen :: EjectaCSM (2)", DevExecSpace(), ib.s, ib.e,
+      qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
+        const double X1 = r(i);
 
-          if (X1 <= rstar) {
-            const double rho = 1.0 / (constants::FOURPI * rstar3 / 3.0);
-            const double pressure = (1.0e-5) * rho * vmax * vmax;
-            const double vel = vmax * (X1 / rstar);
-            uCF(i, q, vars::cons::SpecificVolume) = 1.0 / rho;
-            uCF(i, q, vars::cons::Velocity) = vel;
-            uCF(i, q, vars::cons::Energy) = (pressure / gm1 / rho) + 0.5 * vel * vel;
-          } else {
-            const double rho = 1.0;
-            const double pressure = (1.0e-5) * rho * vmax * vmax;
-            uCF(i, q, vars::cons::SpecificVolume) = 1.0 / rho;
-            uCF(i, q, vars::cons::Velocity) = 0.0;
-            uCF(i, q, vars::cons::Energy) = (pressure / gm1 / rho);
-          }
-        });
+        if (X1 <= rstar) {
+          const double rho = 1.0 / (constants::FOURPI * rstar3 / 3.0);
+          const double pressure = (1.0e-5) * rho * vmax * vmax;
+          const double vel = vmax * (X1 / rstar);
+          uCF(i, q, vars::cons::SpecificVolume) = 1.0 / rho;
+          uCF(i, q, vars::cons::Velocity) = vel;
+          uCF(i, q, vars::cons::Energy) =
+              (pressure / gm1 / rho) + 0.5 * vel * vel;
+        } else {
+          const double rho = 1.0;
+          const double pressure = (1.0e-5) * rho * vmax * vmax;
+          uCF(i, q, vars::cons::SpecificVolume) = 1.0 / rho;
+          uCF(i, q, vars::cons::Velocity) = 0.0;
+          uCF(i, q, vars::cons::Energy) = (pressure / gm1 / rho);
+        }
+      });
 }
 
 } // namespace athelas

@@ -211,20 +211,20 @@ class Athelas:
   # Accessors
   # ------------------------------------------------------------------
 
-#  def get(self, name: str) -> np.ndarray:
-#    if name in self.variables:
-#      return self.variables[name].get(self.sl)
-#
-#    if name in self.fields:
-#      return self.fields[name].slice(self.sl)
-#
-#    if name in self._derived_registry:
-#      key = name
-#      if key not in self._derived:
-#        self._derived[key] = self._derived_registry[name]()
-#      return self._derived[key]
-#
-#    raise AthelasError(f"Unknown variable or field '{name}'")
+  #  def get(self, name: str) -> np.ndarray:
+  #    if name in self.variables:
+  #      return self.variables[name].get(self.sl)
+  #
+  #    if name in self.fields:
+  #      return self.fields[name].slice(self.sl)
+  #
+  #    if name in self._derived_registry:
+  #      key = name
+  #      if key not in self._derived:
+  #        self._derived[key] = self._derived_registry[name]()
+  #      return self._derived[key]
+  #
+  #    raise AthelasError(f"Unknown variable or field '{name}'")
 
   def get(self, name: str, average: bool = True) -> np.ndarray:
     """
@@ -263,16 +263,18 @@ class Athelas:
     # Handle variables with interface points (nnodes + 2)
     nnodes = len(self.quadrature.weights)
     if data.shape[1] > nnodes:
-        # Strip interface points (first and last in second dimension)
-        data = data[:, 1:-1]
+      # Strip interface points (first and last in second dimension)
+      data = data[:, 1:-1]
 
     # Check cache for cell-averaged version
     cache_key = (name, "average")
     if cache_key not in self._derived:
       # Compute cell averages: shape (nx, nnodes) -> (nx,)
       weights = self.quadrature.weights
-      #self._derived[cache_key] = np.sum(data * weights[np.newaxis, :], axis=1) / np.sum(weights[np.newaxis, :])
-      self._derived[cache_key] = np.sum(data * weights[np.newaxis, :] * self.sqrt_gm[:, 1:-1], axis=1) / np.sum(weights[np.newaxis, :] * self.sqrt_gm[:, 1:-1])
+      self._derived[cache_key] = np.sum(
+        data * weights[np.newaxis, :], axis=1
+      ) / np.sum(weights[np.newaxis, :])
+      # self._derived[cache_key] = np.sum(data * weights[np.newaxis, :] * self.sqrt_gm[:, 1:-1], axis=1) / np.sum(weights[np.newaxis, :] * self.sqrt_gm[:, 1:-1])
 
     return self._derived[cache_key]
 

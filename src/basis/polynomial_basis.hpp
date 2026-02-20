@@ -49,10 +49,8 @@ class ModalBasis {
   [[nodiscard]] auto phi() const noexcept -> AthelasArray3D<double>;
   [[nodiscard]] auto get_d_phi(int ix, int i_eta, int k) const -> double;
   [[nodiscard]] auto dphi() const noexcept -> AthelasArray3D<double>;
-  [[nodiscard]] auto mass_matrix() const noexcept
-      -> AthelasArray2D<double>;
-  [[nodiscard]] auto inv_mass_matrix() const noexcept
-      -> AthelasArray2D<double>;
+  [[nodiscard]] auto mass_matrix() const noexcept -> AthelasArray2D<double>;
+  [[nodiscard]] auto inv_mass_matrix() const noexcept -> AthelasArray2D<double>;
 
   [[nodiscard]] auto order() const noexcept -> int;
 

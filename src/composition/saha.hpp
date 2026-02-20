@@ -585,7 +585,7 @@ auto temperature_residual(const double temperature, const double rho,
 
     // We're going to do a line search to keep the temperature above 500 K
     // Saha gets upset if it gets too cold.
-    // I don't expect we will actually evolve this cold, but if we do, 
+    // I don't expect we will actually evolve this cold, but if we do,
     // we'll need to consider it here.
     double lam = 1.0;
     double trial = temperature - inv_dfdt * f;

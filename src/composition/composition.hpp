@@ -194,7 +194,7 @@ void fill_derived_ionization(StageData &stage_data,
         ybar(i, q) = electron_number_density(i, q) / number_density(i, q) / rho;
         const auto [s1, s2, s3, eion] =
             fill_derived_ionization(phi, mass_fractions, comps,
-                                   ionization_state, eb, num_species, i, q);
+                                    ionization_state, eb, num_species, i, q);
         sigma1(i, q) = s1;
         sigma2(i, q) = s2;
         sigma3(i, q) = s3;

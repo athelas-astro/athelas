@@ -33,8 +33,8 @@
 #include "grid.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
-#include "limiters/slope_limiter_utilities.hpp"
 #include "limiters/bound_enforcing_limiter.hpp"
+#include "limiters/slope_limiter_utilities.hpp"
 #include "loop_layout.hpp"
 #include "utils/utilities.hpp"
 
@@ -73,8 +73,8 @@ void limit_density(StageData &stage_data, const GridStructure &grid) {
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit density", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
         // Compute cell average
-        const double avg =
-            cell_average(U, sqrt_gm, weights, widths(i), vars::cons::SpecificVolume, i);
+        const double avg = cell_average(U, sqrt_gm, weights, widths(i),
+                                        vars::cons::SpecificVolume, i);
         // Compute minimum in cell
         double u_min = avg;
         for (int q = 0; q < order; ++q) {
@@ -144,10 +144,10 @@ void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit internal energy", DevExecSpace(),
       1, U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
         // Compute cell-averaged conserved quantities for reconstruction
-        const double tau_avg =
-            cell_average(U, sqrt_gm, weights, widths(i), vars::cons::SpecificVolume, i);
-        const double v_avg =
-            cell_average(U, sqrt_gm, weights, widths(i), vars::cons::Velocity, i);
+        const double tau_avg = cell_average(U, sqrt_gm, weights, widths(i),
+                                            vars::cons::SpecificVolume, i);
+        const double v_avg = cell_average(U, sqrt_gm, weights, widths(i),
+                                          vars::cons::Velocity, i);
         const double etot_avg =
             cell_average(U, sqrt_gm, weights, widths(i), vars::cons::Energy, i);
 
@@ -155,14 +155,16 @@ void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
         if constexpr (Ionization == IonizationPhysics::Active) {
           // Cell-centered approximations
           lambda_avg.data[1] = cell_average(ye, sqrt_gm, weights, widths(i), i);
-          lambda_avg.data[6] = cell_average(e_ion_corr, sqrt_gm, weights, widths(i), i);
+          lambda_avg.data[6] =
+              cell_average(e_ion_corr, sqrt_gm, weights, widths(i), i);
         }
         const double e_min_avg = min_sie(eos, 1.0 / tau_avg, lambda_avg.ptr());
 
         // --- Compute global theta ---
         double theta_cell = 1.0;
         for (int q = 0; q <= order + 1; ++q) {
-          const double tau_q = basis_eval(phi, U, i, vars::cons::SpecificVolume, q);
+          const double tau_q =
+              basis_eval(phi, U, i, vars::cons::SpecificVolume, q);
           const double v_q = basis_eval(phi, U, i, vars::cons::Velocity, q);
           const double E_q = basis_eval(phi, U, i, vars::cons::Energy, q);
 
@@ -188,7 +190,7 @@ void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
             };
 
             // Solve for smallest admissible theta
-            //const double theta_q = backtrace(1.0, 0.0, target);
+            // const double theta_q = backtrace(1.0, 0.0, target);
             const double theta_q = bisection(target);
 
             theta_cell = std::min(theta_cell, theta_q);
@@ -204,7 +206,8 @@ void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
             U(i, q, vars::cons::Velocity) =
                 v_avg + theta_cell * (U(i, q, vars::cons::Velocity) - v_avg);
             U(i, q, vars::cons::Energy) =
-                etot_avg + theta_cell * (U(i, q, vars::cons::Energy) - etot_avg);
+                etot_avg +
+                theta_cell * (U(i, q, vars::cons::Energy) - etot_avg);
           }
         }
       });
@@ -265,15 +268,17 @@ void limit_rad_energy(StageData &stage_data, const GridStructure &grid) {
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit rad energy", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
-        const double tau_avg =
-            cell_average(U, sqrt_gm, weights, widths(i), vars::cons::SpecificVolume, i);
-        const double E_avg =
-            cell_average(U, sqrt_gm, weights, widths(i), vars::cons::RadEnergy, i) / tau_avg;
+        const double tau_avg = cell_average(U, sqrt_gm, weights, widths(i),
+                                            vars::cons::SpecificVolume, i);
+        const double E_avg = cell_average(U, sqrt_gm, weights, widths(i),
+                                          vars::cons::RadEnergy, i) /
+                             tau_avg;
 
         // --- Compute minimum over cell ---
         double theta = 1.0;
         for (int q = 0; q < order; ++q) {
-          double E_q = U(i, q, vars::cons::RadEnergy) / U(i, q, vars::cons::SpecificVolume);
+          double E_q = U(i, q, vars::cons::RadEnergy) /
+                       U(i, q, vars::cons::SpecificVolume);
 
           // Solve for smallest admissible theta
           if (E_q < EPSILON) {
@@ -285,7 +290,8 @@ void limit_rad_energy(StageData &stage_data, const GridStructure &grid) {
         // --- Rescale ---
         if (theta < 1.0) {
           for (int q = 0; q < order; ++q) {
-            const double E_q = U(i, q, vars::cons::RadEnergy) / U(i, q, vars::cons::SpecificVolume);
+            const double E_q = U(i, q, vars::cons::RadEnergy) /
+                               U(i, q, vars::cons::SpecificVolume);
             U(i, q, vars::cons::RadEnergy) = E_avg + theta * (E_q - E_avg);
           }
         }
@@ -324,11 +330,11 @@ void limit_rad_momentum(StageData &stage_data, const GridStructure &grid) {
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit rad momentum", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
-        const double E_avg =
-            cell_average(U, sqrt_gm, weights, widths(i), vars::cons::RadEnergy, i);
+        const double E_avg = cell_average(U, sqrt_gm, weights, widths(i),
+                                          vars::cons::RadEnergy, i);
 
-        const double F_avg =
-            cell_average(U, sqrt_gm, weights, widths(i), vars::cons::RadFlux, i);
+        const double F_avg = cell_average(U, sqrt_gm, weights, widths(i),
+                                          vars::cons::RadFlux, i);
 
         // --- Compute theta ---
         double theta_cell = 1.0;
@@ -345,7 +351,8 @@ void limit_rad_momentum(StageData &stage_data, const GridStructure &grid) {
 
               const double theta_q = numerator / denominator;
 
-              theta_cell = std::min(theta_cell, std::max(0.0, std::min(1.0, theta_q)));
+              theta_cell =
+                  std::min(theta_cell, std::max(0.0, std::min(1.0, theta_q)));
             }
           }
         }

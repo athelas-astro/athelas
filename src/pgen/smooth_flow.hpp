@@ -32,31 +32,32 @@ void smooth_flow_init(MeshState &mesh_state, GridStructure *grid,
       ib.e, KOKKOS_LAMBDA(const int i) {
         for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
           const double x = grid->node_coordinate(i, iNodeX);
-          uPF(i, iNodeX, vars::prim::Rho) = (1.0 + amp * sin(constants::PI * x));
+          uPF(i, iNodeX, vars::prim::Rho) =
+              (1.0 + amp * sin(constants::PI * x));
         }
       });
 
-    auto density_func = [&amp](double x, int /*ix*/, int /*iN*/) -> double {
-      return 1.0 + amp * sin(constants::PI * x);
-    };
-    auto velocity_func = [](double /*x*/, int /*ix*/, int /*iN*/) -> double {
-      return 0.0;
-    };
-    auto energy_func = [&amp](double x, int /*ix*/, int /*iN*/) -> double {
-      const double D = 1.0 + amp * sin(constants::PI * x);
-      return (D * D * D / 2.0) / D;
-    };
+  auto density_func = [&amp](double x, int /*ix*/, int /*iN*/) -> double {
+    return 1.0 + amp * sin(constants::PI * x);
+  };
+  auto velocity_func = [](double /*x*/, int /*ix*/, int /*iN*/) -> double {
+    return 0.0;
+  };
+  auto energy_func = [&amp](double x, int /*ix*/, int /*iN*/) -> double {
+    const double D = 1.0 + amp * sin(constants::PI * x);
+    return (D * D * D / 2.0) / D;
+  };
 
-      static const IndexRange nb(nNodes);
-      athelas::par_for(
-          DEFAULT_LOOP_PATTERN, "Pgen :: SmoothFlow (2)", DevExecSpace(),
-          ib.s, ib.e, nb.s, nb.e,
-          KOKKOS_LAMBDA(const int i, const int node) {
-            const double x = grid->node_coordinate(i, node);
-            uCF(i, node, vars::cons::SpecificVolume) = 1.0 / density_func(x, i, node);
-            uCF(i, node, vars::cons::Velocity) = velocity_func(x, i, node);
-            uCF(i, node, vars::cons::Energy) = energy_func(x, i, node);
-          });
+  static const IndexRange nb(nNodes);
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "Pgen :: SmoothFlow (2)", DevExecSpace(), ib.s,
+      ib.e, nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int node) {
+        const double x = grid->node_coordinate(i, node);
+        uCF(i, node, vars::cons::SpecificVolume) =
+            1.0 / density_func(x, i, node);
+        uCF(i, node, vars::cons::Velocity) = velocity_func(x, i, node);
+        uCF(i, node, vars::cons::Energy) = energy_func(x, i, node);
+      });
 }
 
 } // namespace athelas

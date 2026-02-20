@@ -34,9 +34,9 @@ class Driver {
             bc::make_boundary_conditions(pin.get()))),
         time_(0.0), dt_(pin_->param()->get<double>("output.dt_init")),
         t_end_(pin->param()->get<double>("problem.tf")), grid_(pin.get()),
-        sl_hydro_(
-            initialize_slope_limiter("fluid", &grid_, pin.get(), {0, 2})),
-        sl_rad_(initialize_slope_limiter("radiation", &grid_, pin.get(), {3, 4})), // update
+        sl_hydro_(initialize_slope_limiter("fluid", &grid_, pin.get(), {0, 2})),
+        sl_rad_(initialize_slope_limiter("radiation", &grid_, pin.get(),
+                                         {3, 4})), // update
         ssprk_(pin.get(), &grid_),
         history_(std::make_unique<HistoryOutput>(
             pin->param()->get<std::string>("output.hist_fn"),

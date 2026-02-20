@@ -204,7 +204,8 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   // ---------------------------------
   // ---------- basis block ----------
   // ---------------------------------
-  athelas_requires(config_["basis"].is_table(), "[basis] block must be provided!");
+  athelas_requires(config_["basis"].is_table(),
+                   "[basis] block must be provided!");
   std::optional<int> nnodes = config_["basis"]["nnodes"].value<int>();
   if (!nnodes) {
     throw_athelas_error("'nnodes' missing in [basis] block!");
@@ -214,7 +215,8 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   // ---------------------------------
   // ---------- fluid block ----------
   // ---------------------------------
-  athelas_requires(config_["fluid"].is_table(), "[fluid] block must be provided!");
+  athelas_requires(config_["fluid"].is_table(),
+                   "[fluid] block must be provided!");
   if (config_["fluid"]["operator_split"].is_value()) {
     throw_athelas_error("Operator split not supported for fluid! Remove option "
                         "from [fluid] block.");
@@ -350,11 +352,13 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   // I suspect much of this should really go into
   // the individual packages.
   if (rad.value()) {
-    athelas_requires(config_["radiation"].is_table(), "Radiation enabled but [radiation] block is missing!");
+    athelas_requires(config_["radiation"].is_table(),
+                     "Radiation enabled but [radiation] block is missing!");
 
     if (config_["radiation"]["operator_split"].is_value()) {
-      throw_athelas_error("Operator split not yet supported for radiation! Remove "
-                          "option from [radiation] block.");
+      throw_athelas_error(
+          "Operator split not yet supported for radiation! Remove "
+          "option from [radiation] block.");
     }
 
     if (!config_["radiation"]["limiter"].is_table()) {
@@ -438,7 +442,9 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
     params_->add("radiation.limiter.characteristic", characteristic);
 
     // characteristic limiting not yet supported for rad
-    athelas_requires(!characteristic, "Characteristic limiting not currently supported for radiation!");
+    athelas_requires(
+        !characteristic,
+        "Characteristic limiting not currently supported for radiation!");
 
     // --- radiation bc ---
     std::optional<std::string> rad_bc_i =
