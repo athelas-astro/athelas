@@ -148,9 +148,11 @@ void GridStructure::create_uniform_grid() {
   auto centers_h = Kokkos::create_mirror_view(centers_);
   auto x_l_h = Kokkos::create_mirror_view(x_l_);
 
-  for (int i = 0; i < nElements_ + 2; i++) {
+  for (int i = 1; i < nElements_ + 1; i++) {
     widths_h(i) = (xR_ - xL_) / nElements_;
   }
+  widths_h(0) = widths_h(1);
+  widths_h(nElements_ + 1) = widths_h(nElements_);
 
   x_l_h(1) = xL_;
   for (int ix = 2; ix < nElements_ + 2; ix++) {
@@ -391,7 +393,7 @@ void GridStructure::update_grid(const AthelasArray1D<double> SData) {
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Update (1)", DevExecSpace(), ilo,
-      ihi + 1, KOKKOS_CLASS_LAMBDA(const int i) {
+      ihi + 0, KOKKOS_CLASS_LAMBDA(const int i) {
         x_l_(i) = SData(i);
         widths_(i) = SData(i + 1) - SData(i);
         centers_(i) = 0.5 * (SData(i + 1) + SData(i));
