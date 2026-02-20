@@ -250,7 +250,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
   auto fluid_basis_tmp = std::make_unique<basis::NodalBasis>(
       uPF, grid,
       nNodes,
-      pin->param()->get<int>("problem.nx"), false);
+      pin->param()->get<int>("problem.nx"));
   mesh_state.setup_fluid_basis(std::move(fluid_basis_tmp));
 
   // Phase 2: Everything else
