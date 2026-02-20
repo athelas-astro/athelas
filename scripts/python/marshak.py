@@ -41,7 +41,7 @@ def plot_marshak(chk):
 
   # rad
   ev_r = a.get("rad_energy") * rho
-#  print(ev_r)
+  #  print(ev_r)
   T_r = np.power(ev_r / a_rad, 0.25)
 
   fig, ax = plt.subplots(figsize=(3.5, 3.5))

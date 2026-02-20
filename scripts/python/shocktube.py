@@ -15,7 +15,6 @@ plt.style.use("style.mplstyle")
 def plot_shocktube(chk):
   problem = "sod"
   fn = f"{problem}_{chk}.h5"
-  basis_fn = f"{problem}_basis.h5"
 
   a = Athelas(fn)
   r = a.r
