@@ -33,6 +33,7 @@
 #include "grid.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
+#include "limiters/slope_limiter_utilities.hpp"
 #include "limiters/bound_enforcing_limiter.hpp"
 #include "loop_layout.hpp"
 #include "utils/utilities.hpp"
