@@ -53,6 +53,40 @@ auto initialize_slope_limiter(const std::string field,
   return S_Limiter;
 }
 
+void conservative_correction(AthelasArray3D<double> u_k, AthelasArray3D<double> ucf, const GridStructure &grid, const int nv) {
+  auto nodes = grid.nodes();
+  auto weights = grid.weights();
+  auto sqrt_gm = grid.sqrt_gm();
+
+  static const int nq = static_cast<int>(nodes.size());
+  static const int order = nq;
+  static const IndexRange ib(grid.domain<Domain::Interior>());
+  const IndexRange vb(nv);
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "SlopeLimiter :: Conservative Correction", DevExecSpace(), ib.s,
+      ib.e, vb.s, vb.e, KOKKOS_LAMBDA(const int i, const int v) {
+      double corr = 0.0;
+      for (int k = 1; k < order; ++k) {
+      for (int q = 0; q < nq; ++q) {
+        const double dv = weights(q) * sqrt_gm(i, q+1);
+        corr += basis::legendre(k, nodes(q)) * u_k(i, k, v) * dv;
+      }
+      }
+
+      double vol = 0.0;
+      double avg = 0.0;
+      for (int q = 0; q < nq; ++q) {
+        const double dv = weights(q) * sqrt_gm(i, q+1);
+        avg += ucf(i, q, v) * dv;
+        vol += dv;
+      }
+
+      //std::println("i old avg new avg {} {:.5e} {:.5e}", i, u_k(i, 0, v), (avg-corr)/vol);
+      u_k(i, vars::modes::CellAverage, v) = (avg - corr) / vol;
+  });
+
+}
+
 /**
  *  UNUSED
  *  Barth-Jespersen limiter
@@ -110,10 +144,10 @@ auto barth_jespersen(double U_v_L, double U_v_R, double U_c_L, double U_c_T,
  * neighbor projections.
  **/
 void detect_troubled_cells(AthelasArray3D<double> U,
-                           AthelasArray1D<double> D, const GridStructure *grid,
+                           AthelasArray1D<double> D, const GridStructure &grid,
                            const NodalBasis &basis,
                            const IndexRange &vb) {
-  static const IndexRange ib(grid->domain<Domain::Interior>());
+  static const IndexRange ib(grid.domain<Domain::Interior>());
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: TCI :: Zero", DevExecSpace(),
       ib.s, ib.e, KOKKOS_LAMBDA(const int i) { D(i) = 0.0; });
@@ -121,9 +155,9 @@ void detect_troubled_cells(AthelasArray3D<double> U,
   // Cell averages by extrapolating L and R neighbors into current cell
 
   auto phi = basis.phi();
-  auto widths = grid->widths();
-  auto weights = grid->weights();
-  auto mass = grid->mass();
+  auto widths = grid.widths();
+  auto weights = grid.weights();
+  auto mass = grid.mass();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: TCI", DevExecSpace(), ib.s,
       ib.e, KOKKOS_LAMBDA(const int i) {
@@ -196,14 +230,14 @@ void modify_polynomial(AthelasArray3D<double> U,
 // TODO(astrobarker): pass in views remove accessors
 auto smoothness_indicator(AthelasArray3D<double> U,
                           AthelasArray2D<double> modified_polynomial,
-                          const GridStructure *grid, const NodalBasis &basis,
+                          const GridStructure &grid, const NodalBasis &basis,
                           const int ix, const int i, const int /*q*/)
     -> double {
-  const int k = U.extent(1);
+  const int k = static_cast<int>(U.extent(1));
 
-  auto dr = grid->widths();
-  auto weights = grid->weights();
-  auto r = grid->nodal_grid();
+  auto dr = grid.widths();
+  auto weights = grid.weights();
+  auto r = grid.nodal_grid();
 
   double beta = 0.0; // output var
   for (int s = 1; s < k; s++) { // loop over modes

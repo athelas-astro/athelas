@@ -37,25 +37,26 @@ void ejecta_csm_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin)
   const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
 
+  // We use cell centers for setting up the profile to avoid intense gradients.
+  auto r = grid->centers();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: EjectaCSM (1)", DevExecSpace(), ib.s,
       ib.e, KOKKOS_LAMBDA(const int i) {
-        for (int iNodeX = 0; iNodeX < nNodes; iNodeX++) {
-          const double x = grid->node_coordinate(i, iNodeX);
+        const double x = r(i);
+        for (int q = 0; q < nNodes + 2; q++) {
           if (x <= rstar) {
-            uPF(i, iNodeX + 1, vars::prim::Rho) =
+            uPF(i, q, vars::prim::Rho) =
                 1.0 / (constants::FOURPI * rstar3 / 3.0);
           } else {
-            uPF(i, iNodeX + 1, vars::prim::Rho) = 1.0;
+            uPF(i, q, vars::prim::Rho) = 1.0;
           }
         }
       });
 
-  auto r = grid->nodal_grid();
     athelas::par_for(
         DEFAULT_LOOP_PATTERN, "Pgen :: EjectaCSM (2)", DevExecSpace(),
         ib.s, ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
-          const double X1 = r(i, q + 1);
+          const double X1 = r(i);
 
           if (X1 <= rstar) {
             const double rho = 1.0 / (constants::FOURPI * rstar3 / 3.0);

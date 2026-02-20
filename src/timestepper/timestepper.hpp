@@ -6,14 +6,11 @@
  *
  * @details Timestppers for hydro and rad hydro.
  *          Uses explicit for transport terms and implicit for coupling.
- *
- * TODO(astrobarker) move to calling step<fluid> / step<radhydro>
  */
 
 #pragma once
 
 #include "basic_types.hpp"
-#include "bc/boundary_conditions.hpp"
 #include "bc/boundary_conditions_base.hpp"
 #include "eos/eos_variant.hpp"
 #include "fluid/hydro_package.hpp"
@@ -120,7 +117,7 @@ class TimeStepper {
       grid_s_[iS] = grid;
       grid_s_[iS].update_grid(x_l_sumvar_s);
 
-      apply_slope_limiter(sl_hydro, u, &grid_s_[iS], fluid_basis, eos);
+      apply_slope_limiter(sl_hydro, u, grid_s_[iS], fluid_basis, eos);
       bel::apply_bound_enforcing_limiter(stage_data, grid_s_[iS]);
 
       dt_info.stage = iS;
@@ -152,7 +149,7 @@ class TimeStepper {
 
     auto sd0 = mesh_state(0);
     grid = grid_s_[nStages_ - 1];
-    apply_slope_limiter(sl_hydro, u0, &grid, sd0.fluid_basis(), sd0.eos());
+    apply_slope_limiter(sl_hydro, u0, grid, sd0.fluid_basis(), sd0.eos());
     bel::apply_bound_enforcing_limiter(sd0, grid);
 
     pkgs->zero_delta();
@@ -241,8 +238,8 @@ class TimeStepper {
       // NOTE: The limiting strategies in this function will fail if
       // the pkg does not have access to a rad_basis and fluid_basis
       // limiting madness
-      apply_slope_limiter(sl_hydro, u, &grid_s_[iS], fluid_basis, eos);
-      apply_slope_limiter(sl_rad, u, &grid_s_[iS], rad_basis, eos);
+      apply_slope_limiter(sl_hydro, u, grid_s_[iS], fluid_basis, eos);
+      apply_slope_limiter(sl_rad, u, grid_s_[iS], rad_basis, eos);
       bel::apply_bound_enforcing_limiter(stage_data, grid_s_[iS]);
       bel::apply_bound_enforcing_limiter_rad(stage_data, grid_s_[iS]);
 
@@ -266,8 +263,8 @@ class TimeStepper {
                                       dt_info);
       }
 
-      apply_slope_limiter(sl_hydro, u, &grid_s_[iS], fluid_basis, eos);
-      apply_slope_limiter(sl_rad, u, &grid_s_[iS], rad_basis, eos);
+      apply_slope_limiter(sl_hydro, u, grid_s_[iS], fluid_basis, eos);
+      apply_slope_limiter(sl_rad, u, grid_s_[iS], rad_basis, eos);
       bel::apply_bound_enforcing_limiter(stage_data, grid_s_[iS]);
       bel::apply_bound_enforcing_limiter_rad(stage_data, grid_s_[iS]);
 
@@ -301,8 +298,8 @@ class TimeStepper {
 
     auto sd0 = mesh_state(0);
     grid = grid_s_[nStages_ - 1];
-    apply_slope_limiter(sl_hydro, u0, &grid, fluid_basis, eos);
-    apply_slope_limiter(sl_rad, u0, &grid, rad_basis, eos);
+    apply_slope_limiter(sl_hydro, u0, grid, fluid_basis, eos);
+    apply_slope_limiter(sl_rad, u0, grid, rad_basis, eos);
     bel::apply_bound_enforcing_limiter(sd0, grid);
     bel::apply_bound_enforcing_limiter_rad(sd0, grid);
 

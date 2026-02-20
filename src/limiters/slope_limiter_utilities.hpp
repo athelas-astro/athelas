@@ -9,6 +9,8 @@ namespace athelas {
 
 using namespace utilities;
 
+void conservative_correction(AthelasArray3D<double> u_k, AthelasArray3D<double> ucf, const GridStructure &grid, int nv);
+
 auto initialize_slope_limiter(std::string field, const GridStructure *grid,
                               const ProblemIn *pin,
                               IndexRange vars)
@@ -36,7 +38,7 @@ auto barth_jespersen(double U_v_L, double U_v_R, double U_c_L, double U_c_T,
                      double U_c_R, double alpha) -> double;
 
 void detect_troubled_cells(const AthelasArray3D<double> U,
-                           AthelasArray1D<double> D, const GridStructure *grid,
+                           AthelasArray1D<double> D, const GridStructure &grid,
                            const basis::NodalBasis &basis,
                            const IndexRange &vb);
 
@@ -142,7 +144,7 @@ void modify_polynomial(AthelasArray3D<double> U,
 
 auto smoothness_indicator(AthelasArray3D<double> U,
                           AthelasArray2D<double> modified_polynomial,
-                          const GridStructure *grid,
+                          const GridStructure &grid,
                           const basis::NodalBasis &basis, int ix, int i,
                           int iCQ) -> double;
 

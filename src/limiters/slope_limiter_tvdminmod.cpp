@@ -1,16 +1,3 @@
-/**
- * @file slope_limiter_tvdminmod.cpp
- * --------------
- *
- * @author Brandon L. Barker
- * @brief TVB Minmod slope limiter for discontinuous Galerkin methods
- *
- * @details This file implements the Total Variation Diminishing (TVD) Minmod
- *          slope limiter based on the work of Cockburn & Shu. The limiter
- *          provides a robust, first-order accurate approach to preventing
- *          oscillations in discontinuous solutions.
- */
-
 #include <cstdlib> /* abs */
 
 #include "basic_types.hpp"
@@ -33,7 +20,7 @@ using namespace vars::modes;
  * TVD Minmod limiter. See the Cockburn & Shu papers
  **/
 void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
-                                    const GridStructure *grid,
+                                    const GridStructure &grid,
                                     const NodalBasis &basis, const EOS &eos) {
 
   // Do not apply for first order method or if we don't want to.
@@ -45,7 +32,7 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
       1.0e-4; // TODO(astrobarker): move to input deck
 
   static constexpr int ilo = 1;
-  static const int &ihi = grid->get_ihi();
+  static const int &ihi = grid.get_ihi();
 
   const int nvars = nvars_;
 
@@ -95,7 +82,7 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
         }); // par i
   } // end map to characteristics
 
-  auto dr = grid->widths();
+  auto dr = grid.widths();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: Minmod", DevExecSpace(), ilo,
       ihi, KOKKOS_CLASS_LAMBDA(const int i) {
@@ -132,7 +119,6 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
             // --- End TVD Minmod Limiter --- //
             // The TVDMinmod part is really small... reusing a lot of code
 
-
           } // end loop v
         } // end if "limit_this_cell"
       }); // par_for i
@@ -161,6 +147,8 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
           } // end loop k
         }); // par_for i
   } // end map from characteristics
+
+  //conservative_correction(u_k_, U, grid, nvars);
 
   // --- Project back onto nodal basis ---
   basis.modal_to_nodal(U, u_k_, vb_);

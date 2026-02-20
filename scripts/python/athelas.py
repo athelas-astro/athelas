@@ -114,6 +114,7 @@ class Athelas:
     self.cycle = int(f["info/cycle"][()])
 
     self.params = read_hdf5_group(f["params"])
+    self.geometry = self.params["problem.geometry"]
 
     # ----------------------
     # Grid
@@ -127,6 +128,11 @@ class Athelas:
     self.r_q = f["mesh/r_q"][self.sl, 1:-1].reshape(-1)
     self.r_q_u = f["mesh/r_q"][self.sl].reshape(-1)
     self.dr = f["mesh/dr"][self.sl]
+    self.sqrt_gm = f["mesh/sqrt_gm"][self.sl]
+    self.dm = f["mesh/dm"][self.sl]
+    self.mass = f["mesh/enclosed_mass"][self.sl]
+    if self.geometry == "spherical":
+      self.dm *= 4.0 * np.pi
 
     # ----------------------
     # Load fields
@@ -254,12 +260,19 @@ class Athelas:
     if not average or data.ndim == 1:
       return data
 
+    # Handle variables with interface points (nnodes + 2)
+    nnodes = len(self.quadrature.weights)
+    if data.shape[1] > nnodes:
+        # Strip interface points (first and last in second dimension)
+        data = data[:, 1:-1]
+
     # Check cache for cell-averaged version
     cache_key = (name, "average")
     if cache_key not in self._derived:
       # Compute cell averages: shape (nx, nnodes) -> (nx,)
       weights = self.quadrature.weights
-      self._derived[cache_key] = np.sum(data * weights[np.newaxis, :], axis=1) / np.sum(weights)
+      #self._derived[cache_key] = np.sum(data * weights[np.newaxis, :], axis=1) / np.sum(weights[np.newaxis, :])
+      self._derived[cache_key] = np.sum(data * weights[np.newaxis, :] * self.sqrt_gm[:, 1:-1], axis=1) / np.sum(weights[np.newaxis, :] * self.sqrt_gm[:, 1:-1])
 
     return self._derived[cache_key]
 
@@ -381,7 +394,7 @@ class Athelas:
     if ax is None:
       _, ax = plt.subplots(figsize=(8, 5))
 
-    x = self.r_q
+    x = self.r
     y = self.get(name)
 
     if logx:
@@ -399,7 +412,7 @@ class Athelas:
     if label is None:
       label = f"{name} "
 
-    ax.plot(x, y, label=label, marker=".", **kwargs)
+    ax.plot(x, y, label=label, **kwargs)
     ax.grid(alpha=0.3)
     ax.legend()
 

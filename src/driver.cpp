@@ -196,12 +196,12 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
         pin_->param()->get<bool>("physics.rad_active");
       auto fluid_basis = std::make_unique<NodalBasis>(
           prims, &grid_,
-          nnodes, nx, false);
+          nnodes, nx);
       mesh_state_.setup_fluid_basis(std::move(fluid_basis));
       if (rad_active) {
         auto radiation_basis = std::make_unique<NodalBasis>(
             prims, &grid_,
-            nnodes, nx, false);
+            nnodes, nx);
         mesh_state_.setup_rad_basis(std::move(radiation_basis));
       }
   }
@@ -289,15 +289,17 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   }
   std::print("\n\n");
 
-  // --- Fill ghosts and apply slope limiter to initial condition ---
+  // --- Fill ghosts and apply limiters to initial condition ---
   auto ucf = sd0.get_field("u_cf");
   const auto &basis = sd0.fluid_basis();
   bc::fill_ghost_zones<3>(ucf, &grid_, basis, bcs_.get(), {0, 2});
   if (rad_active) {
     bc::fill_ghost_zones<2>(ucf, &grid_, sd0.rad_basis(), bcs_.get(), {3, 4});
   }
-  apply_slope_limiter(&sl_hydro_, sd0.get_field("u_cf"), &grid_,
+  auto cons = sd0.get_field("u_cf");
+  apply_slope_limiter(&sl_hydro_, cons, grid_,
                       sd0.fluid_basis(), sd0.eos());
+  bel::apply_bound_enforcing_limiter(sd0, grid_);
 
   // --- Add history outputs ---
   // NOTE: Could be nice to have gravitational energy added

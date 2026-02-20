@@ -1,34 +1,7 @@
-/**
- * @file bound_enforcing_limiter.hpp
- * --------------
- *
- * @brief Implementation of bound enforcing limiters for enforcing physicality.
- *
- * @details This file implements a suite of bound enforcing limiters based on
- *          K. Schaal et al 2015 (ADS: 10.1093/mnras/stv1859). These limiters
- *          ensure physicality of the solution by preventing negative values of
- *          key physical quantities:
- *
- *          - limit_density: Prevents negative density by scaling slope
- *            coefficients
- *          - limit_internal_energy: Maintains positive internal energy using
- *            root-finding algorithms
- *          - limit_rad_momentum: Ensures physical radiation momentum values
- *
- *          Multiple root finders for the internal energy solve are implemented
- *          and an Anderson accelerated fixed point iteration is the default.
- *          point iteration being the default choice.
- */
-
 #pragma once
 
-#include <print>
-
 #include "Kokkos_Macros.hpp"
-#include "basis/polynomial_basis.hpp"
-#include "limiters/slope_limiter_utilities.hpp"
 #include "state/state.hpp"
-#include "utils/utilities.hpp"
 
 namespace athelas::bel {
 
@@ -71,13 +44,13 @@ auto target_func_rad_energy_deriv(double theta, AthelasArray3D<double> U,
  * @note Monotone assumption allows skipping sign checks.
  */
 template <typename F>
-auto bisection_monotone(F target) -> double {
-    constexpr static double TOL = 1e-10;       // tight tolerance
+auto bisection(F target) -> double {
+    constexpr static double TOL = 1e-10;
     constexpr static int MAX_ITERS = 64;
-    constexpr static double SAFETY = 1.0;      // stay inside admissible set
+    constexpr static double SAFETY = 0.99;// stay inside admissible set
 
     double a = 0.0;   // lower bound (cell average, admissible)
-    double b = 1.0;   // upper bound (possibly violating)
+    double b = 1.0;   // upper bound (violating)
     double c = 0.5 * (a + b);
 
     int n = 0;
@@ -102,47 +75,6 @@ auto bisection_monotone(F target) -> double {
 
     // return a scaled value slightly inside admissible set
     return SAFETY * a;
-}
-
-template <typename F>
-auto bisection(F target) -> double {
-    constexpr static double TOL = 1e-6;
-    constexpr static int MAX_ITERS = 64;
-
-    double a = 0.0;
-    double b = 1.0;
-
-    double fa = 0.0;// target(a);
-//    double fb = 0.0;// target(b);
-
-    double c = 0.5;
- //   double fc = target(c);
-
-    int n = 0;
-    while (n < MAX_ITERS) {
-        c = 0.5 * (a + b);
-        const double fc = target(c);
-
-        // convergence check
-        if (std::abs(fc) <= TOL || 0.5*(b - a) < TOL) {
-            // Optional: reduce slightly for positivity
-            return 0.95 * c;  
-        }
-
-        // update interval
-        if (utilities::SGN(fc) == utilities::SGN(fa)) {
-            a = c;
-            fa = fc;  // update fa to new left endpoint
-        } else {
-            b = c;
-            // fb = fc;  // optional
-        }
-
-        n++;
-    }
-
-    std::println("Max iterations reached in bisection");
-    return 0.95 * c;
 }
 
 KOKKOS_INLINE_FUNCTION

@@ -1,8 +1,3 @@
-/**
- * @file NodalBasis.cpp
- * @brief Implementation of nodal DG basis using Lagrange polynomials
- */
-
 #include "basis/polynomial_basis.hpp"
 #include "kokkos_abstraction.hpp"
 #include "basis/nodal_basis.hpp"
@@ -10,10 +5,8 @@
 namespace athelas::basis {
 
 NodalBasis::NodalBasis( AthelasArray3D<double> uPF, GridStructure *grid,
-                       const int nN, const int nElements,
-                       const bool density_weight)
+                       const int nN, const int nElements)
     : nX_(nElements), nNodes_(nN),
-      density_weight_(density_weight),
       nodes_("quadrature nodes", nN),
       weights_("quadrature weights", nN),
       phi_("phi_", nElements + 2, nN + 2, nN),
@@ -62,79 +55,32 @@ auto NodalBasis::order() const noexcept -> int { return nNodes_; }
 
 /**
  * @brief Evaluate nodal representation at i_eta
- * @details Interior nodes: direct return. Faces: Lagrange extrapolation via
- * phi_
  */
 auto NodalBasis::basis_eval(AthelasArray3D<double> U, const int ix, const int q,
                             const int i_eta) const -> double {
-
-  // Left face: extrapolate using phi_(ix, 0, j) = L_j(-0.5)
-  if (i_eta == 0) {
-    double result = 0.0;
-    for (int j = 0; j < nNodes_; j++) {
-      result += phi_(ix, 0, j) * U(ix, j, q);
-    }
-    return result;
+  double result = 0.0;
+  for (int j = 0; j < nNodes_; j++) {
+    result += phi_(ix, i_eta, j) * U(ix, j, q);
   }
-
-  // Right face: extrapolate using phi_(ix, nNodes+1, j) = L_j(0.5)
-  if (i_eta == nNodes_ + 1) {
-    double result = 0.0;
-    for (int j = 0; j < nNodes_; j++) {
-      result += phi_(ix, nNodes_ + 1, j) * U(ix, j, q);
-    }
-    return result;
-  }
-
-  // Interior nodes: direct return
-  const int j = i_eta - 1;
-  return U(ix, j, q);
+  return result;
 }
 
 auto NodalBasis::basis_eval(AthelasArray2D<double> U, const int ix, const int q,
                             const int i_eta) const -> double {
-
-  if (i_eta == 0) {
-    double result = 0.0;
-    for (int j = 0; j < nNodes_; j++) {
-      result += phi_(ix, 0, j) * U(j, q);
-    }
-    return result;
+  double result = 0.0;
+  for (int j = 0; j < nNodes_; j++) {
+    result += phi_(ix, i_eta, j) * U(j, q);
   }
-
-  if (i_eta == nNodes_ + 1) {
-    double result = 0.0;
-    for (int j = 0; j < nNodes_; j++) {
-      result += phi_(ix, nNodes_ + 1, j) * U(j, q);
-    }
-    return result;
-  }
-
-  const int j = i_eta - 1;
-  return U(j, q);
+  return result;
 }
 
 auto NodalBasis::basis_eval(AthelasArray1D<double> U, const int ix,
                             const int i_eta) const -> double {
-
-  if (i_eta == 0) {
-    double result = 0.0;
-    for (int j = 0; j < nNodes_; j++) {
-      result += phi_(ix, 0, j) * U(j);
-    }
-    return result;
+  double result = 0.0;
+  for (int j = 0; j < nNodes_; j++) {
+    result += phi_(ix, i_eta, j) * U(j);
   }
-
-  if (i_eta == nNodes_ + 1) {
-    double result = 0.0;
-    for (int j = 0; j < nNodes_; j++) {
-      result += phi_(ix, nNodes_ + 1, j) * U(j);
-    }
-    return result;
-  }
-
-  const int j = i_eta - 1;
-  return U(j);
+  return result;
 }
 
 auto NodalBasis::lagrange_polynomial(const int j, const double xi,
@@ -372,7 +318,6 @@ void NodalBasis::compute_mass_matrix(const GridStructure *grid) {
 
   for (int i = ilo; i <= ihi; ++i) {
     for (int j = 0; j < nNodes_; j++) {
-
       const double M_jj = weights(j) * mass(i);
 
       mass_h(i, j) = M_jj;

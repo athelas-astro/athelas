@@ -16,13 +16,11 @@ public:
    * @param grid Grid structure
    * @param nN Number of nodes
    * @param nElements Number of elements
-   * @param density_weight Include density in mass matrix
    */
   NodalBasis(const AthelasArray3D<double> uPF,
              GridStructure *grid, 
              const int nN,
-             const int nElements, 
-             const bool density_weight);
+             const int nElements);
 
   /**
    * @brief Lagrange basis values L_j(eta_i)
@@ -125,7 +123,6 @@ public:
 private:
   int nX_;
   int nNodes_;
-  bool density_weight_;
 
   AthelasArray1D<double> nodes_;
   AthelasArray1D<double> weights_;

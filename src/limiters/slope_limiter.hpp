@@ -55,7 +55,7 @@ class WENO : public SlopeLimiterBase<WENO> {
         }
         }
 
-  void apply_slope_limiter(AthelasArray3D<double> U, const GridStructure *grid,
+  void apply_slope_limiter(AthelasArray3D<double> U, const GridStructure &grid,
                            const basis::NodalBasis &basis, const eos::EOS &eos);
   [[nodiscard]] auto get_limited(int ix) const -> int;
   [[nodiscard]] auto limited() const -> AthelasArray1D<int>;
@@ -115,7 +115,7 @@ class TVDMinmod : public SlopeLimiterBase<TVDMinmod> {
         mult_ = AthelasArray2D<double>("Mult", grid->n_elements() + 2, nvars_);
         }
         }
-  void apply_slope_limiter(AthelasArray3D<double> U, const GridStructure *grid,
+  void apply_slope_limiter(AthelasArray3D<double> U, const GridStructure &grid,
                            const basis::NodalBasis &basis, const eos::EOS &eos);
   [[nodiscard]] auto get_limited(int ix) const -> int;
   [[nodiscard]] auto limited() const -> AthelasArray1D<int>;
@@ -153,7 +153,7 @@ class TVDMinmod : public SlopeLimiterBase<TVDMinmod> {
 class Unlimited : public SlopeLimiterBase<Unlimited> {
  public:
   Unlimited() = default;
-  void apply_slope_limiter(AthelasArray3D<double> U, const GridStructure *grid,
+  void apply_slope_limiter(AthelasArray3D<double> U, const GridStructure &grid,
                            const basis::NodalBasis &basis, const eos::EOS &eos);
   [[nodiscard]] auto get_limited(int ix) const -> int;
   [[nodiscard]] auto limited() const -> AthelasArray1D<int>;
@@ -166,7 +166,7 @@ using SlopeLimiter = std::variant<WENO, TVDMinmod, Unlimited>;
 
 // std::visit functions
 inline void apply_slope_limiter(SlopeLimiter *limiter, AthelasArray3D<double> U,
-                                const GridStructure *grid,
+                                const GridStructure &grid,
                                 const basis::NodalBasis &basis,
                                 const eos::EOS &eos) {
   std::visit(

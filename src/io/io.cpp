@@ -9,7 +9,6 @@
 
 #include "H5Cpp.h"
 
-#include "basis/polynomial_basis.hpp"
 #include "build_info.hpp"
 #include "geometry/grid.hpp"
 #include "io/io.hpp"
@@ -367,6 +366,7 @@ void write_output(const MeshState &mesh_state, GridStructure &mesh,
   writer.write_scalar("/info/n_stages", mesh_state.n_stages(),
                       H5::PredType::NATIVE_INT);
 
+  // Write the mesh. 
   writer.write_view(mesh.widths(), "/mesh/dr");
   writer.write_view(mesh.centers(), "/mesh/r");
   writer.write_view(mesh.nodal_grid(), "/mesh/r_q");
@@ -457,6 +457,17 @@ void write_output(const MeshState &mesh_state, GridStructure &mesh,
   // Write metadata
   writer.write_field_registry(mesh_state);
   writer.write_variable_metadata(mesh_state);
+
+  // build provenance
+  writer.create_group("/metadata/build");
+  writer.write_string("/metadata/build/git_hash",
+                      athelas::build_info::GIT_HASH);
+  writer.write_string("/metadata/build/compiler",
+                      athelas::build_info::COMPILER);
+  writer.write_string("/metadata/build/timestamp", build_info::BUILD_TIMESTAMP);
+  writer.write_string("/metadata/build/arch", build_info::ARCH);
+  writer.write_string("/metadata/build/os", build_info::OS);
+  writer.write_string("/metadata/build/optimization", build_info::OPTIMIZATION);
 }
 
 // Generate filename with proper padding

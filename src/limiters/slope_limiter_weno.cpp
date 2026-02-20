@@ -33,7 +33,7 @@ using namespace vars::modes;
  * H. Zhu 2020, simple, high-order compact WENO RKDG slope limiter
  **/
 void WENO::apply_slope_limiter(AthelasArray3D<double> U,
-                               const GridStructure *grid,
+                               const GridStructure &grid,
                                const NodalBasis &basis, const EOS &eos) {
 
   // Do not apply for first order method or if we don't want to.
@@ -41,7 +41,7 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U,
     return;
   }
 
-  static const IndexRange ib(grid->domain<Domain::Interior>());
+  static const IndexRange ib(grid.domain<Domain::Interior>());
 
   const auto nvars = nvars_;
 
@@ -82,7 +82,7 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U,
         }); // par i
   } // end map to characteristics
 
-  const auto dr = grid->widths();
+  const auto dr = grid.widths();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: WENO", DevExecSpace(), ib.s,
       ib.e, KOKKOS_CLASS_LAMBDA(const int i) {

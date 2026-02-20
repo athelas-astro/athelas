@@ -6,7 +6,7 @@ namespace athelas {
  * No op
  */
 void Unlimited::apply_slope_limiter(AthelasArray3D<double> /*U*/,
-                                    const GridStructure * /*grid*/,
+                                    const GridStructure & /*grid*/,
                                     const basis::NodalBasis & /*basis*/,
                                     const eos::EOS & /*eos*/) {}
 

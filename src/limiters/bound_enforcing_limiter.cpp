@@ -188,7 +188,7 @@ void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
 
             // Solve for smallest admissible theta
             //const double theta_q = backtrace(1.0, 0.0, target);
-            const double theta_q = bisection_monotone(target);
+            const double theta_q = bisection(target);
 
             theta_cell = std::min(theta_cell, theta_q);
           }
