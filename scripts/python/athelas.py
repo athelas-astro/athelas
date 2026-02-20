@@ -171,7 +171,7 @@ class Athelas:
     # ----------------------
     # Basis
     # ----------------------
-    self.basis = f[f"basis/"]
+    self.basis = f["basis/"]
     self.quadrature = Quadrature(
       self.basis["nodes"][:], self.basis["weights"][:]
     )

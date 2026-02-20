@@ -14,7 +14,6 @@ plt.style.use("style.mplstyle")
 def plot_marshak(chk):
   problem = "marshak"
   fn = f"{problem}_{chk}.h5"
-  basis_fn = f"{problem}_basis.h5"
 
   kappa = 577
   rho0 = 10.0
