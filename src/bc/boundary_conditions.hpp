@@ -44,7 +44,7 @@ void fill_ghost_zones_composition(AthelasArray3D<double> U,
  **/
 template <int N> // N = 3 for fluid, N = 2 for rad...
 void fill_ghost_zones(AthelasArray3D<double> U, const GridStructure *grid,
-                      const basis::NodalBasis &basis, BoundaryConditions *bcs,
+                      BoundaryConditions *bcs,
                       const std::tuple<int, int> &vars) {
 
   const int nX = grid->n_elements();

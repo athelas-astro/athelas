@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "geometry/grid.hpp"
+#include "basic_types.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
 #include "loop_layout.hpp"
@@ -254,7 +255,7 @@ void GridStructure::create_log_grid() {
  * Compute cell masses
  **/
 KOKKOS_FUNCTION
-void GridStructure::compute_mass(const AthelasArray3D<double> uPF) {
+void GridStructure::compute_mass(AthelasArray3D<double> ucf) {
   const int nNodes_ = n_nodes();
   const int ilo = get_ilo();
   const int ihi = get_ihi();
@@ -264,8 +265,9 @@ void GridStructure::compute_mass(const AthelasArray3D<double> uPF) {
       ihi, KOKKOS_CLASS_LAMBDA(const int i) {
         double mass = 0.0;
         for (int q = 0; q < nNodes_; q++) {
+          const double rho = 1.0 / ucf(i, q, vars::cons::SpecificVolume);
           const double X = node_coordinate(i, q);
-          mass += weights_(q) * get_sqrt_gm(X) * uPF(i, q+1, vars::prim::Rho);
+          mass += weights_(q) * get_sqrt_gm(X) * rho;
         }
         mass *= widths_(i);
         mass_(i) = mass;
@@ -291,7 +293,7 @@ void GridStructure::compute_mass(const AthelasArray3D<double> uPF) {
  * it should be refactored.
  **/
 KOKKOS_FUNCTION
-void GridStructure::compute_mass_r(const AthelasArray3D<double> uPF) {
+void GridStructure::compute_mass_r(AthelasArray3D<double> ucf) {
   const int nNodes_ = n_nodes();
   const int ilo = get_ilo();
   const int ihi = get_ihi();
@@ -309,8 +311,9 @@ void GridStructure::compute_mass_r(const AthelasArray3D<double> uPF) {
         const int ix = ilo + idx / nNodes_;
         const int q = idx % nNodes_;
         const double X = node_coordinate(ix, q);
+        const double rho = 1.0 / ucf(ix, q, vars::cons::SpecificVolume);
         mass_contrib(idx) = weights_(q) * get_sqrt_gm(X) *
-                            uPF(ix, q, vars::prim::Rho) * widths_(ix);
+                            rho * widths_(ix);
       });
 
   // 2: Perform parallel inclusive scan (cumulative sum)
@@ -349,7 +352,7 @@ auto GridStructure::enclosed_mass(const int ix, const int q) const noexcept
  * Compute cell centers of masses reference coordinates
  **/
 KOKKOS_FUNCTION
-void GridStructure::compute_center_of_mass(const AthelasArray3D<double> uPF) {
+void GridStructure::compute_center_of_mass(AthelasArray3D<double> ucf) {
   const int nNodes_ = n_nodes();
   const int ilo = get_ilo();
   const int ihi = get_ihi();
@@ -361,8 +364,9 @@ void GridStructure::compute_center_of_mass(const AthelasArray3D<double> uPF) {
 
         for (int q = 0; q < nNodes_; q++) {
           const double X = node_coordinate(i, q);
+          const double rho = 1.0 / ucf(i, q, vars::cons::SpecificVolume);
           com += nodes_(q) * weights_(q) * get_sqrt_gm(X) *
-                 uPF(i, q, vars::prim::Rho);
+                 rho;
         }
 
         com *= widths_(i);

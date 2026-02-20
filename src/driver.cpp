@@ -189,7 +189,9 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
     initialize_fields(mesh_state_, &grid_, pin);
     auto sd0 = mesh_state_(0);
     auto prims = sd0.get_field("u_pf");
-    grid_.compute_mass(prims);
+    auto cons = sd0.get_field("u_cf");
+    bc::fill_ghost_zones<3>(cons, &grid_, bcs_.get(), {0, 2});
+    grid_.compute_mass(cons);
 
     auto nx = grid_.n_elements();
     const bool rad_active =
@@ -291,10 +293,9 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
 
   // --- Fill ghosts and apply limiters to initial condition ---
   auto ucf = sd0.get_field("u_cf");
-  const auto &basis = sd0.fluid_basis();
-  bc::fill_ghost_zones<3>(ucf, &grid_, basis, bcs_.get(), {0, 2});
+  bc::fill_ghost_zones<3>(ucf, &grid_, bcs_.get(), {0, 2});
   if (rad_active) {
-    bc::fill_ghost_zones<2>(ucf, &grid_, sd0.rad_basis(), bcs_.get(), {3, 4});
+    bc::fill_ghost_zones<2>(ucf, &grid_, bcs_.get(), {3, 4});
   }
   auto cons = sd0.get_field("u_cf");
   apply_slope_limiter(&sl_hydro_, cons, grid_,
@@ -349,15 +350,15 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
  */
 void Driver::post_init_work() {
   auto sd0 = mesh_state_(0);
-  auto prims = sd0.get_field("u_pf");
+  auto cons = sd0.get_field("u_cf");
   const bool comps_active = mesh_state_.composition_enabled();
   const bool ionization_active = mesh_state_.ionization_enabled();
 
   static const IndexRange ib(grid_.domain<Domain::Interior>());
 
-  grid_.compute_mass(prims);
-  grid_.compute_mass_r(prims);
-  grid_.compute_center_of_mass(prims);
+  grid_.compute_mass(cons);
+  grid_.compute_mass_r(cons);
+  grid_.compute_center_of_mass(cons);
 
   // If we are doing some kind of mass cut, that mass needs to be included 
   // in the enclosed mass.

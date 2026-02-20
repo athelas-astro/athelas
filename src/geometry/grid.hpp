@@ -34,10 +34,10 @@ class GridStructure {
   void create_log_grid();
 
   void update_grid(AthelasArray1D<double> SData);
-  void compute_mass(AthelasArray3D<double> uPF);
-  void compute_mass_r(AthelasArray3D<double> uPF);
+  void compute_mass(AthelasArray3D<double> ucf);
+  void compute_mass_r(AthelasArray3D<double> ucf);
   auto enclosed_mass(int ix, int iN) const noexcept -> double;
-  void compute_center_of_mass(AthelasArray3D<double> uPF);
+  void compute_center_of_mass(AthelasArray3D<double> ucf);
   void compute_center_of_mass_radius(AthelasArray3D<double> uPF);
 
   [[nodiscard]] auto x_l() const -> AthelasArray1D<double>;

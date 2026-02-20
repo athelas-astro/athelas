@@ -46,8 +46,8 @@ void RadHydroPackage::update_explicit(const StageData &stage_data,
   const auto ucf = stage_data.get_field("u_cf");
 
   // --- Apply BC ---
-  bc::fill_ghost_zones<2>(ucf, &grid, rad_basis, bcs_, {3, 4});
-  bc::fill_ghost_zones<3>(ucf, &grid, fluid_basis, bcs_, {0, 2});
+  bc::fill_ghost_zones<2>(ucf, &grid, bcs_, {3, 4});
+  bc::fill_ghost_zones<3>(ucf, &grid, bcs_, {0, 2});
 
   // --- radiation Increment : Divergence ---
   radhydro_divergence(stage_data, grid, stage);
@@ -502,7 +502,6 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
   auto uPF = stage_data.get_field("u_pf");
   auto uAF = stage_data.get_field("u_af");
 
-  const auto &rad_basis = stage_data.rad_basis();
   const auto &fluid_basis = stage_data.fluid_basis();
 
   const auto &eos = stage_data.eos();
@@ -514,8 +513,8 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
   auto phi_fluid = fluid_basis.phi();
 
   // --- Apply BC ---
-  bc::fill_ghost_zones<2>(uCF, &grid, rad_basis, bcs_, {3, 4});
-  bc::fill_ghost_zones<3>(uCF, &grid, fluid_basis, bcs_, {0, 2});
+  bc::fill_ghost_zones<2>(uCF, &grid, bcs_, {3, 4});
+  bc::fill_ghost_zones<3>(uCF, &grid, bcs_, {0, 2});
 
   if (stage_data.composition_enabled()) {
     static constexpr int nvars = 5; // non-comps
