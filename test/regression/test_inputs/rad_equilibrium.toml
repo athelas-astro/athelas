@@ -41,7 +41,9 @@ ncycle_out = 100
 #dt_hdf5 = 1.0e-10 # default: 100 outputs
 dt_init_frac = 1.05
 
-[fluid.limiters]
+[fluid.limiter]
+do_limiter = true
+type = "minmod"
 tci_opt = false
 tci_val = 0.1
 characteristic = false
