@@ -172,8 +172,8 @@ void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
 
           eos::EOSLambda lambda_q;
           if constexpr (Ionization == IonizationPhysics::Active) {
-            lambda_q.data[1] = ye(i, q + 1);
-            lambda_q.data[6] = e_ion_corr(i, q + 1);
+            lambda_q.data[1] = ye(i, q);
+            lambda_q.data[6] = e_ion_corr(i, q);
           }
 
           const double e_min_q = min_sie(eos, rho_q, lambda_q.ptr());
