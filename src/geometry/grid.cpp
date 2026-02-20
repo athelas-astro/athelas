@@ -265,7 +265,7 @@ void GridStructure::compute_mass(const AthelasArray3D<double> uPF) {
         double mass = 0.0;
         for (int q = 0; q < nNodes_; q++) {
           const double X = node_coordinate(i, q);
-          mass += weights_(q) * get_sqrt_gm(X) * uPF(i, q, vars::prim::Rho);
+          mass += weights_(q) * get_sqrt_gm(X) * uPF(i, q+1, vars::prim::Rho);
         }
         mass *= widths_(i);
         mass_(i) = mass;
