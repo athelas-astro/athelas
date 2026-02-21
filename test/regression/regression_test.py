@@ -203,7 +203,7 @@ class AthelasRegressionTest(unittest.TestCase):
 
     # load sim data
     basename = os.path.splitext(os.path.basename(self.infile))[0]
-    filename = basename + "_final.h5"
+    filename = basename + "_final.ath"
     variables_data = self.load_output(filename, self.varlist)
 
     # Compress results, if desired

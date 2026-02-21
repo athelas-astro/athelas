@@ -1,5 +1,6 @@
 # output
 *.h5
+*.ath
 src/out
 out
 *.hst

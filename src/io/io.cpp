@@ -482,7 +482,7 @@ auto generate_filename(const std::string &problem_name,
     oss << "final";
   }
 
-  oss << ".h5";
+  oss << ".ath";
   return oss.str();
 }
 

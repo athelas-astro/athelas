@@ -11,8 +11,8 @@ plt.style.use("style.mplstyle")
 
 def plot_rad_shock(chk):
   problem = "rad_shock"
-  fn = f"{problem}_{chk}.h5"
-  basis_fn = f"{problem}_basis.h5"
+  fn = f"{problem}_{chk}.ath"
+  basis_fn = f"{problem}_basis.ath"
 
   c = consts.c.cgs.value
   sigma = consts.sigma_sb.cgs.value

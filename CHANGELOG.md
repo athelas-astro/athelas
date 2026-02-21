@@ -19,6 +19,7 @@
 
 ### Changed (changing behavior/API/variables/...)
 
+- [PR 149](https://github.com/athelas-astro/athelas/pull/149) .h5 -> .ath
 - [PR 140](https://github.com/athelas-astro/athelas/pull/140) Move to nodal DG formulation.
 - [PR 138](https://github.com/athelas-astro/athelas/pull/138) Add `params` into hdf5 output
 - [PR 137](https://github.com/athelas-astro/athelas/pull/137) Update `athelas.py`, add `snap.py`
@@ -40,8 +41,11 @@
 - [PR 124](https://github.com/athelas-astro/athelas/pull/124) Introduce `EOSLambda` lambda wrapper
 
 ### Removed (removing behavior/API/variables/...)
+- [PR 149](https://github.com/athelas-astro/athelas/pull/149) .h5 -> .ath
+- [PR 140](https://github.com/athelas-astro/athelas/pull/140) Move to nodal DG formulation.
 
 ### Incompatibilities (i.e. breaking changes)
+- [PR 149](https://github.com/athelas-astro/athelas/pull/149) .h5 -> .ath
 - [PR 140](https://github.com/athelas-astro/athelas/pull/140) Move to nodal DG formulation; changed output format.
 - [PR 136](https://github.com/athelas-astro/athelas/pull/136) New HDF5 structure breaks python scripts
 - [PR 132](https://github.com/athelas-astro/athelas/pull/132) Added interfaces into nodal grid: changed hdf5 io.
