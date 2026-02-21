@@ -91,7 +91,8 @@ class Paczynski : public EosBase<Paczynski> {
       double rho, double temp, double pressure, const double *lambda) const
       -> double;
   [[nodiscard]] auto cv_from_density_temperature(double rho, double temp,
-                                   const double *lambda) const -> double;
+                                                 const double *lambda) const
+      -> double;
   [[nodiscard]] static auto p_end(double rho, double T, double ybar, double N)
       -> double;
   [[nodiscard]] static auto p_ednr(double rho, double ye) -> double;
@@ -163,7 +164,8 @@ class IdealGas : public EosBase<IdealGas> {
                             const double *lambda) const noexcept -> double;
   [[nodiscard]] auto gamma1() const noexcept -> double;
   [[nodiscard]] auto cv_from_density_temperature(double rho, double temp,
-                                   const double *lambda) const -> double;
+                                                 const double *lambda) const
+      -> double;
 
  private:
   double gamma_{};

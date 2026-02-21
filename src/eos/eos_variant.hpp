@@ -46,9 +46,8 @@ temperature_from_density_pressure(const EOS &eos, const double rho,
 }
 
 KOKKOS_INLINE_FUNCTION auto
-cv_from_density_temperature(const EOS &eos, const double rho,
-                                  const double temp, const double *const lambda)
-    -> double {
+cv_from_density_temperature(const EOS &eos, const double rho, const double temp,
+                            const double *const lambda) -> double {
   return std::visit(
       [&rho, &temp, &lambda](auto &eos) {
         return eos.cv_from_density_temperature(rho, temp, lambda);
