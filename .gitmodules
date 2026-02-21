@@ -7,3 +7,6 @@
 [submodule "external/eigen"]
 	path = external/eigen
 	url = https://gitlab.com/libeigen/eigen.git
+[submodule "utils/spiner"]
+	path = utils/spiner
+  url = https://github.com/lanl/spiner

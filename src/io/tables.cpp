@@ -50,12 +50,10 @@ auto load_opacity_table(const std::string &filename) -> DataBox {
 
   if (tab.nX != tab.X.size() || tab.nZ != tab.Z.size() ||
       tab.nT != tab.logT.size() || tab.nR != tab.logR.size()) {
-    throw_athelas_error(
-        "Dimension mismatch between axes and kappa dataset");
+    throw_athelas_error("Dimension mismatch between axes and kappa dataset");
   }
 
-  tab.kappa = HostArray4D<double>(
-      "kappa", tab.nX, tab.nZ, tab.nT, tab.nR);
+  tab.kappa = HostArray4D<double>("kappa", tab.nX, tab.nZ, tab.nT, tab.nR);
 
   H5::DataSpace mem_space(rank, dims.data());
   dset.read(tab.kappa.data(), H5::PredType::NATIVE_DOUBLE, mem_space,
@@ -68,13 +66,13 @@ auto load_opacity_table(const std::string &filename) -> DataBox {
   db.setRange(3, tab.X[0], tab.X.back(), db.dim(4));
 
   for (std::size_t l = 0; l < tab.nR; ++l) {
-  for (std::size_t k = 0; k < tab.nT; ++k) {
-  for (std::size_t j = 0; j < tab.nZ; ++j) {
-  for (std::size_t i = 0; i < tab.nX; ++i) {
-    db(i, j, k, l) = tab.kappa(i, j, k, l);
-  }
-  }
-  }
+    for (std::size_t k = 0; k < tab.nT; ++k) {
+      for (std::size_t j = 0; j < tab.nZ; ++j) {
+        for (std::size_t i = 0; i < tab.nX; ++i) {
+          db(i, j, k, l) = tab.kappa(i, j, k, l);
+        }
+      }
+    }
   }
 
   std::println("... complete!\n");

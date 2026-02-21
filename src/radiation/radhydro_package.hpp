@@ -167,8 +167,7 @@ auto compute_increment_radhydro_source(
     const double t_g = eos::temperature_from_density_sie(
         eos, rho, em_t - 0.5 * vel * vel, lambda.ptr());
 
-    const double kappa_r =
-        opac.rosseland_mean(rho, t_g, X, Z, lambda.ptr());
+    const double kappa_r = opac.rosseland_mean(rho, t_g, X, Z, lambda.ptr());
     const double kappa_p = opac.planck_mean(rho, t_g, X, Z, lambda.ptr());
 
     const double E_r = basis_eval(phi_rad, uCRH, i, vars::cons::RadEnergy, qp1);

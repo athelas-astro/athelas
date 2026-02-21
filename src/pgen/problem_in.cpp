@@ -830,16 +830,22 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
     std::string floor_type =
         config_["opacity"]["floors"]["type"].value_or("core_envelope");
     params_->add("opacity.floors.type", floor_type);
-    if(floor_type != "core_envelope" && floor_type != "constant") {
-        throw_athelas_error("[opacity.floors.type] must be 'core_envelope' or 'constant'!");
+    if (floor_type != "core_envelope" && floor_type != "constant") {
+      throw_athelas_error(
+          "[opacity.floors.type] must be 'core_envelope' or 'constant'!");
     }
     if (floor_type == "core_envelope") {
-      double core_planck = config_["opacity"]["floors"]["core_planck"].value_or(0.24);
-      double core_rosseland = config_["opacity"]["floors"]["core_rosseland"].value_or(0.24);
-      double env_planck = config_["opacity"]["floors"]["env_planck"].value_or(0.01);
-      double env_rosseland = config_["opacity"]["floors"]["env_rosseland"].value_or(0.01);
+      double core_planck =
+          config_["opacity"]["floors"]["core_planck"].value_or(0.24);
+      double core_rosseland =
+          config_["opacity"]["floors"]["core_rosseland"].value_or(0.24);
+      double env_planck =
+          config_["opacity"]["floors"]["env_planck"].value_or(0.01);
+      double env_rosseland =
+          config_["opacity"]["floors"]["env_rosseland"].value_or(0.01);
       if ((core_planck < env_planck) || (core_rosseland < env_rosseland)) {
-        throw_athelas_error("In the `core_envelope` floor model the core floor must be higher than the envelope floor!");
+        throw_athelas_error("In the `core_envelope` floor model the core floor "
+                            "must be higher than the envelope floor!");
       }
       params_->add("opacity.floors.core_planck", core_planck);
       params_->add("opacity.floors.core_rosseland", core_rosseland);
@@ -848,7 +854,8 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
     }
     if (floor_type == "constant") {
       double planck = config_["opacity"]["floors"]["planck"].value_or(1.0e-3);
-      double rosseland = config_["opacity"]["floors"]["rosseland"].value_or(1.0e-3);
+      double rosseland =
+          config_["opacity"]["floors"]["rosseland"].value_or(1.0e-3);
       params_->add("opacity.floors.planck", planck);
       params_->add("opacity.floors.rosseland", rosseland);
     }

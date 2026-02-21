@@ -14,7 +14,8 @@ namespace athelas {
 template <class FLOOR>
 class OpacityFloorModel {
  public:
-  [[nodiscard]] KOKKOS_INLINE_FUNCTION auto rosseland(double z) const -> double {
+  [[nodiscard]] KOKKOS_INLINE_FUNCTION auto rosseland(double z) const
+      -> double {
     return static_cast<const FLOOR *>(this)->rosseland_impl(z);
   }
 
@@ -32,13 +33,13 @@ class ConstantFloor : public OpacityFloorModel<ConstantFloor> {
                                                 double planck = 0.0)
       : rosseland_(rosseland), planck_(planck) {}
 
-  [[nodiscard]] KOKKOS_INLINE_FUNCTION auto rosseland_impl(double /* metallicity */) const
-      -> double {
+  [[nodiscard]] KOKKOS_INLINE_FUNCTION auto
+  rosseland_impl(double /* metallicity */) const -> double {
     return rosseland_;
   }
 
-  [[nodiscard]] KOKKOS_INLINE_FUNCTION auto planck_impl(double /* metallicity */) const
-      -> double {
+  [[nodiscard]] KOKKOS_INLINE_FUNCTION auto
+  planck_impl(double /* metallicity */) const -> double {
     return planck_;
   }
 
@@ -52,21 +53,19 @@ class ConstantFloor : public OpacityFloorModel<ConstantFloor> {
  */
 class CoreEnvelopeFloor : public OpacityFloorModel<CoreEnvelopeFloor> {
  public:
-  KOKKOS_INLINE_FUNCTION CoreEnvelopeFloor(double core_rosseland,
-                                            double core_planck,
-                                            double env_rosseland,
-                                            double env_planck)
-      : core_rosseland_(core_rosseland),
-        core_planck_(core_planck),
-        env_rosseland_(env_rosseland),
-        env_planck_(env_planck) {}
+  KOKKOS_INLINE_FUNCTION
+  CoreEnvelopeFloor(double core_rosseland, double core_planck,
+                    double env_rosseland, double env_planck)
+      : core_rosseland_(core_rosseland), core_planck_(core_planck),
+        env_rosseland_(env_rosseland), env_planck_(env_planck) {}
 
-  [[nodiscard]] KOKKOS_INLINE_FUNCTION auto rosseland_impl(double metallicity) const
-      -> double {
+  [[nodiscard]] KOKKOS_INLINE_FUNCTION auto
+  rosseland_impl(double metallicity) const -> double {
     return compute_floor(core_rosseland_, env_rosseland_, metallicity);
   }
 
-  [[nodiscard]] KOKKOS_INLINE_FUNCTION auto planck_impl(double metallicity) const -> double {
+  [[nodiscard]] KOKKOS_INLINE_FUNCTION auto
+  planck_impl(double metallicity) const -> double {
     return compute_floor(core_planck_, env_planck_, metallicity);
   }
 
@@ -77,7 +76,7 @@ class CoreEnvelopeFloor : public OpacityFloorModel<CoreEnvelopeFloor> {
   double env_planck_;
 
   KOKKOS_INLINE_FUNCTION static auto compute_floor(double f_core, double f_env,
-                                                     double z) -> double {
+                                                   double z) -> double {
     constexpr double Z_sun = 0.02;
     return (f_core * Z_sun - f_env + z * (f_env - f_core)) / (Z_sun - 1.0);
   }
@@ -99,7 +98,8 @@ class OpacityFloor {
   explicit OpacityFloor(const ConstantFloor &floor) : variant_(floor) {}
   explicit OpacityFloor(ConstantFloor &&floor) : variant_(std::move(floor)) {}
   explicit OpacityFloor(const CoreEnvelopeFloor &floor) : variant_(floor) {}
-  explicit OpacityFloor(CoreEnvelopeFloor &&floor) : variant_(std::move(floor)) {}
+  explicit OpacityFloor(CoreEnvelopeFloor &&floor)
+      : variant_(std::move(floor)) {}
 
   // Assignment operators
   auto operator=(const ConstantFloor &floor) -> OpacityFloor & {
@@ -120,14 +120,15 @@ class OpacityFloor {
   }
 
   // Member methods that dispatch via std::visit
-  [[nodiscard]] KOKKOS_INLINE_FUNCTION auto rosseland(double z) const -> double {
-    return std::visit(
-        [z](const auto &floor) { return floor.rosseland(z); }, variant_);
+  [[nodiscard]] KOKKOS_INLINE_FUNCTION auto rosseland(double z) const
+      -> double {
+    return std::visit([z](const auto &floor) { return floor.rosseland(z); },
+                      variant_);
   }
 
   [[nodiscard]] KOKKOS_INLINE_FUNCTION auto planck(double z) const -> double {
-    return std::visit(
-        [z](const auto &floor) { return floor.planck(z); }, variant_);
+    return std::visit([z](const auto &floor) { return floor.planck(z); },
+                      variant_);
   }
 
  private:
@@ -135,5 +136,3 @@ class OpacityFloor {
 };
 
 } // namespace athelas
-
-

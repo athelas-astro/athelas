@@ -25,15 +25,15 @@ struct OpacityTable {
 auto load_opacity_table(const std::string &filename) -> DataBox;
 
 // Helper function to read metadata attribute
-template<typename T>
-auto read_metadata_attr(H5::H5File &file, const std::string &path, 
-                     const std::string &attr_name) -> T {
+template <typename T>
+auto read_metadata_attr(H5::H5File &file, const std::string &path,
+                        const std::string &attr_name) -> T {
   H5::Group group = file.openGroup(path);
   H5::Attribute attr = group.openAttribute(attr_name);
-  
+
   T value;
   attr.read(attr.getDataType(), &value);
-  
+
   return value;
 }
 } // namespace athelas
