@@ -90,6 +90,9 @@ class Paczynski : public EosBase<Paczynski> {
   [[nodiscard]] auto gamma1_from_density_temperature_pressure(
       double rho, double temp, double pressure, const double *lambda) const
       -> double;
+  [[nodiscard]] auto cv_from_density_temperature(double rho, double temp,
+                                                 const double *lambda) const
+      -> double;
   [[nodiscard]] static auto p_end(double rho, double T, double ybar, double N)
       -> double;
   [[nodiscard]] static auto p_ednr(double rho, double ye) -> double;
@@ -160,6 +163,9 @@ class IdealGas : public EosBase<IdealGas> {
   [[nodiscard]] auto gamma1(double tau, double V, double EmT,
                             const double *lambda) const noexcept -> double;
   [[nodiscard]] auto gamma1() const noexcept -> double;
+  [[nodiscard]] auto cv_from_density_temperature(double rho, double temp,
+                                                 const double *lambda) const
+      -> double;
 
  private:
   double gamma_{};
@@ -205,6 +211,8 @@ class Polytropic : public EosBase<Polytropic> {
   [[nodiscard]] auto gamma1(double tau, double V, double EmT,
                             const double *lambda) const noexcept -> double;
   [[nodiscard]] auto gamma1() const noexcept -> double;
+  auto cv_from_density_temperature(double rho, double temp,
+                                   const double *lambda) const -> double;
 
  private:
   double k_{};
@@ -252,6 +260,8 @@ class Marshak : public EosBase<Marshak> {
   [[nodiscard]] auto gamma1(double tau, double V, double EmT,
                             const double *lambda) const noexcept -> double;
   [[nodiscard]] auto gamma1() const noexcept -> double;
+  auto cv_from_density_temperature(double rho, double temp,
+                                   const double *lambda) const -> double;
 
  private:
   double gamma_{};
@@ -277,10 +287,10 @@ template <class EOS>
  *          energy for the Paczynski equation of state.
  */
 template <>
-[[nodiscard]] inline auto min_sie<Paczynski>(const Paczynski & /*eos*/,
-                                             double rho, const double *lambda)
-    -> double {
-  return Paczynski::eps_min(rho, lambda);
+[[nodiscard]] inline auto
+min_sie<athelas::eos::Paczynski>(const athelas::eos::Paczynski & /*eos*/,
+                                 double rho, const double *lambda) -> double {
+  return athelas::eos::Paczynski::eps_min(rho, lambda);
 }
 
 } // namespace athelas::eos
