@@ -72,6 +72,7 @@ Marshak::sie_from_density_pressure(const double rho, const double pressure,
   const double pressure =
       pressure_from_density_temperature(rho, temperature, lambda);
   const double ev = pressure / (gamma_ - 1.0);
+  //const double ev = constants::a * std::pow(temperature, 4.0);
   return ev / rho;
 }
 
@@ -82,5 +83,16 @@ Marshak::gamma1(const double /*tau*/, const double /*V*/, const double /*EmT*/,
 }
 
 [[nodiscard]] auto Marshak::gamma1() const noexcept -> double { return gamma_; }
+
+[[nodiscard]] auto Marshak::cv_from_density_temperature(
+    const double rho, const double temp,
+    const double *const /*lambda*/) const -> double {
+  // For Marshak (radiation-dominated ideal gas), cv is similar to ideal gas
+  //static constexpr double mu =
+  //    1.0 + constants::m_e / constants::m_p; // TODO(astrobarker) generalize
+  //constexpr double k_B_over_m_p = constants::k_B / constants::m_p;
+  //return k_B_over_m_p / ((gamma_ - 1.0) * mu);
+  return 4.0 * constants::a * std::pow(temp, 3.0);// / rho;
+}
 
 } // namespace athelas::eos

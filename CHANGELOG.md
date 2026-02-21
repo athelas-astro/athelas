@@ -6,6 +6,7 @@
 
 ### Added (new features/APIs/variables/...)
 
+- [PR 148](https://github.com/athelas-astro/athelas/pull/148) EOs implement c_v.
 - [PR 147](https://github.com/athelas-astro/athelas/pull/147) Geometric source for radiation flux.
 - [PR 146](https://github.com/athelas-astro/athelas/pull/146) Tabular opacity, opacity floor, add Spiner submodule
 - [PR 140](https://github.com/athelas-astro/athelas/pull/140) `athelas.py` forms cell averages on `get` call.

@@ -395,12 +395,18 @@ Paczynski::sie_from_density_temperature(const double rho,
 [[nodiscard]] auto Paczynski::eps_min(double rho, const double *lambda)
     -> double {
   const double ye = lambda[1];
+  const double e_ionization = lambda[6];
 
   const double pednr = p_ednr(rho, ye);
   const double pedr = p_edr(rho, ye);
   const double ped = p_ed(pednr, pedr);
   const double f = degeneracy_factor(ped, pednr, pedr);
-  return ped / (rho * (f - 1.0));
+  return ped / (rho * (f - 1.0)) + e_ionization;
+}
+
+[[nodiscard]] auto Paczynski::cv_from_density_temperature(
+    double rho, double temp, const double *const lambda) const -> double {
+  return dsie_dt(temp, rho, lambda);
 }
 
 } // namespace athelas::eos

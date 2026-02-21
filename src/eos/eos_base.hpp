@@ -87,6 +87,11 @@ class EosBase {
   [[nodiscard]] auto gamma1() const -> double {
     return static_cast<EOS const *>(this)->gamma();
   }
+  auto cv_from_density_temperature(const double rho, const double temp,
+                                   const double *const lambda) const -> double {
+    return static_cast<EOS const *>(this)->cv_from_density_temperature(
+        rho, temp, lambda);
+  }
 };
 
 } // namespace athelas::eos

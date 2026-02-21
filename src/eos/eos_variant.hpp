@@ -46,6 +46,17 @@ temperature_from_density_pressure(const EOS &eos, const double rho,
 }
 
 KOKKOS_INLINE_FUNCTION auto
+cv_from_density_temperature(const EOS &eos, const double rho,
+                                  const double temp, const double *const lambda)
+    -> double {
+  return std::visit(
+      [&rho, &temp, &lambda](auto &eos) {
+        return eos.cv_from_density_temperature(rho, temp, lambda);
+      },
+      eos);
+}
+
+KOKKOS_INLINE_FUNCTION auto
 pressure_from_density_temperature(const EOS &eos, const double rho,
                                   const double temp, const double *const lambda)
     -> double {
@@ -150,8 +161,8 @@ KOKKOS_INLINE_FUNCTION auto initialize_eos(const ProblemIn *pin) -> EOS {
     // NOTE: This is currently where the tolerances are hard coded.
     // TODO(astrobarker): make tolerances runtime configurable.
     // Stretch goal: make algorithm configurable.
-    static constexpr double abstol = 1.0e-10;
-    static constexpr double reltol = 1.0e-10;
+    static constexpr double abstol = 1.0e-12;
+    static constexpr double reltol = 1.0e-12;
     static constexpr int max_iters = 64;
     eos = Paczynski(abstol, reltol, max_iters);
   } else if (type == "ideal") {

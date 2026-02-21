@@ -89,4 +89,10 @@ IdealGas::gamma1(const double /*tau*/, const double /*V*/, const double /*EmT*/,
   return gamma_;
 }
 
+[[nodiscard]] auto IdealGas::cv_from_density_temperature(
+    const double /*rho*/, const double /*temp*/,
+    const double *const /*lambda*/) const -> double {
+  return constants::k_B / ((constants::m_e + constants::m_p) * (gamma_ - 1.0));
+}
+
 } // namespace athelas::eos
