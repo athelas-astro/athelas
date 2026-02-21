@@ -139,14 +139,21 @@ radiation_four_force(const double D, const double V, const double T,
 [[nodiscard]] KOKKOS_INLINE_FUNCTION auto compute_closure(const double E,
                                                           const double F)
     -> double {
-  assert(E > 0.0 && "Radiation :: compute_closure :: Non positive definite "
-                    "radiation energy density.");
-  constexpr static double one_third = 1.0 / 3.0;
+  assert(E > 0.0 &&
+         "Radiation :: compute_closure(radial) :: Non positive definite "
+         "radiation energy density.");
   const double f = std::clamp(flux_factor(E, F), 0.0, 1.0);
   const double chi = eddington_factor(f);
-  const double T = std::clamp(
-      ((1.0 - chi) / 2.0) + ((3.0 * chi - 1.0) * 1.0 / 2.0), one_third, 1.0);
-  return E * T;
+  return chi * E;
+}
+
+[[nodiscard]] KOKKOS_INLINE_FUNCTION auto p_rad_perp(const double E,
+                                                     const double F) -> double {
+  assert(E > 0.0 && "Radiation :: p_rad_perp :: Non positive definite "
+                    "radiation energy density.");
+  const double f = std::clamp(flux_factor(E, F), 0.0, 1.0);
+  const double chi = eddington_factor(f);
+  return E * (1.0 - chi) * 0.5;
 }
 
 /**

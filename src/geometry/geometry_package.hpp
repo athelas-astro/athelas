@@ -1,7 +1,6 @@
 #pragma once
 
 #include "basic_types.hpp"
-#include "basis/polynomial_basis.hpp"
 #include "geometry/grid.hpp"
 #include "pgen/problem_in.hpp"
 #include "state/state.hpp"
@@ -10,6 +9,7 @@ namespace athelas::geometry {
 
 namespace pkg_vars {
 constexpr int Velocity = 0;
+constexpr int RadFlux = 0;
 } // namespace pkg_vars
 
 class GeometryPackage {
