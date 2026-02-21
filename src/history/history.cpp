@@ -54,10 +54,14 @@ void HistoryOutput::write(const MeshState &mesh_state,
   }
   file_ << std::format("\n{:.15e}", time);
 
+  Kokkos::Profiling::pushRegion("IO");
+  Kokkos::Profiling::pushRegion("History");
   for (const auto &name : quantity_names_) {
     const double value = quantities_[name](mesh_state, grid);
     file_ << std::format(" {:.15e}", value);
   }
+  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion();
 
   // We don't necessarily want to force a flush.
   // file_.flush();

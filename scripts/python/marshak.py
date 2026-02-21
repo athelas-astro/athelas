@@ -13,7 +13,7 @@ plt.style.use("style.mplstyle")
 # needs a massive cleanup
 def plot_marshak(chk):
   problem = "marshak"
-  fn = f"{problem}_{chk}.h5"
+  fn = f"{problem}_{chk}.ath"
 
   kappa = 577
   rho0 = 10.0

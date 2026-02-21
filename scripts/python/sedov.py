@@ -12,7 +12,7 @@ plt.style.use("style.mplstyle")
 
 def plot_sedov(chk):
   problem = "sedov"
-  fn = f"{problem}_{chk}.h5"
+  fn = f"{problem}_{chk}.ath"
 
   a = Athelas(fn)
   r = a.r
