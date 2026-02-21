@@ -75,5 +75,3 @@ kP = 4.0e-8
 kR = 4.0e-8
 rho_exp = -1.0
 t_exp = 0.0
-kP_floor = 0.0
-kR_floor = 0.0
