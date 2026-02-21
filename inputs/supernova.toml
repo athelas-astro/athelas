@@ -101,6 +101,7 @@ type = "tabular"
 filename = "../data/opac_new.h5"
 
 [opacity.floors]
+type = "core_envelope"
 core_rosseland = 0.24
 core_planck = 0.24
 env_rosseland = 0.01
