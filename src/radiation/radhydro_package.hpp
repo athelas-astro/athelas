@@ -92,12 +92,12 @@ class RadHydroPackage {
 };
 
 KOKKOS_FUNCTION
-template <IonizationPhysics Ionization>
+template <IonizationPhysics Ionization, typename T>
 auto compute_increment_radhydro_source_nodal(
-    AthelasArray1D<double> uCRH, AthelasArray3D<double> uaf,
-    AthelasArray3D<double> phi_fluid, AthelasArray3D<double> phi_rad,
-    AthelasArray2D<double> inv_mkk_fluid, AthelasArray2D<double> inv_mkk_rad,
-    const eos::EOS &eos, const Opacity &opac, AthelasArray1D<double> dx,
+    T uCRH, AthelasArray3D<double> uaf, AthelasArray3D<double> phi_fluid,
+    AthelasArray3D<double> phi_rad, AthelasArray2D<double> inv_mkk_fluid,
+    AthelasArray2D<double> inv_mkk_rad, const eos::EOS &eos,
+    const Opacity &opac, AthelasArray1D<double> dx,
     AthelasArray2D<double> sqrt_gm, AthelasArray1D<double> weights,
     const RadHydroSolverIonizationContent &content, const int i, const int q)
     -> std::tuple<double, double, double, double> {
@@ -130,13 +130,13 @@ auto compute_increment_radhydro_source_nodal(
 
   // Note: basis evaluations are awkward here.
   // must be sure to use the correct basis functions.
-  const double tau = uCRH(vars::cons::SpecificVolume);
+  const double tau = uCRH[vars::cons::SpecificVolume];
   const double rho = 1.0 / tau;
-  const double vel = uCRH(vars::cons::Velocity);
-  const double em_t = uCRH(vars::cons::Energy);
+  const double vel = uCRH[vars::cons::Velocity];
+  const double em_t = uCRH[vars::cons::Energy];
   const double sie = em_t - 0.5 * vel * vel;
-  const double E_r = uCRH(vars::cons::RadEnergy) * rho;
-  const double F_r = uCRH(vars::cons::RadFlux) * rho;
+  const double E_r = uCRH[vars::cons::RadEnergy] * rho;
+  const double F_r = uCRH[vars::cons::RadFlux] * rho;
   const double P_r = compute_closure(E_r, F_r);
 
   // Should I move these into a lambda?
@@ -299,7 +299,7 @@ KOKKOS_INLINE_FUNCTION void fixed_point_radhydro(T R, double dt_a_ii, G scratch,
   static_assert(T::rank == 1, "fixed_point_radhydro expects rank-1 views.");
   static constexpr int nvars = 5;
 
-  auto target = [&](T u) {
+  auto target = [&](G u) {
     const auto [s_1, s_2, s_3, s_4] =
         compute_increment_radhydro_source_nodal<Ionization>(u, args...);
     return std::make_tuple(R(1) + dt_a_ii * s_1, R(2) + dt_a_ii * s_2,
@@ -315,7 +315,7 @@ KOKKOS_INLINE_FUNCTION void fixed_point_radhydro(T R, double dt_a_ii, G scratch,
                                      .rad_energy_scale = 1.0e12,
                                      .rad_flux_scale = 1.0e20};
 
-  static RadHydroConvergence<T> convergence_checker(
+  static RadHydroConvergence<G> convergence_checker(
       scales, root_finders::ABSTOL, root_finders::RELTOL, 1);
 
   unsigned int n = 0;
