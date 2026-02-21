@@ -87,22 +87,17 @@ class RadHydroPackage {
   AthelasArray4D<double> delta_; // rhs delta [nstages, nx, order, nvars]
   AthelasArray4D<double> delta_im_; // rhs delta
 
-  // iterative solver storage
-  AthelasArray3D<double> scratch_k_;
-  AthelasArray3D<double> scratch_km1_;
-  AthelasArray3D<double> scratch_sol_;
-
   // constants
   static constexpr int NUM_VARS_ = 5;
 };
 
 KOKKOS_FUNCTION
-template <IonizationPhysics Ionization>
+template <IonizationPhysics Ionization, typename T>
 auto compute_increment_radhydro_source_nodal(
-    AthelasArray1D<double> uCRH, AthelasArray3D<double> uaf,
-    AthelasArray3D<double> phi_fluid, AthelasArray3D<double> phi_rad,
-    AthelasArray2D<double> inv_mkk_fluid, AthelasArray2D<double> inv_mkk_rad,
-    const eos::EOS &eos, const Opacity &opac, AthelasArray1D<double> dx,
+    T uCRH, AthelasArray3D<double> uaf, AthelasArray3D<double> phi_fluid,
+    AthelasArray3D<double> phi_rad, AthelasArray2D<double> inv_mkk_fluid,
+    AthelasArray2D<double> inv_mkk_rad, const eos::EOS &eos,
+    const Opacity &opac, AthelasArray1D<double> dx,
     AthelasArray2D<double> sqrt_gm, AthelasArray1D<double> weights,
     const RadHydroSolverIonizationContent &content, const int i, const int q)
     -> std::tuple<double, double, double, double> {
@@ -135,13 +130,13 @@ auto compute_increment_radhydro_source_nodal(
 
   // Note: basis evaluations are awkward here.
   // must be sure to use the correct basis functions.
-  const double tau = uCRH(vars::cons::SpecificVolume);
+  const double tau = uCRH[vars::cons::SpecificVolume];
   const double rho = 1.0 / tau;
-  const double vel = uCRH(vars::cons::Velocity);
-  const double em_t = uCRH(vars::cons::Energy);
+  const double vel = uCRH[vars::cons::Velocity];
+  const double em_t = uCRH[vars::cons::Energy];
   const double sie = em_t - 0.5 * vel * vel;
-  const double E_r = uCRH(vars::cons::RadEnergy) * rho;
-  const double F_r = uCRH(vars::cons::RadFlux) * rho;
+  const double E_r = uCRH[vars::cons::RadEnergy] * rho;
+  const double F_r = uCRH[vars::cons::RadFlux] * rho;
   const double P_r = compute_closure(E_r, F_r);
 
   // Should I move these into a lambda?
@@ -297,14 +292,14 @@ auto compute_increment_radhydro_source(
  * This should not live here forever.
  * TODO(astrobarker): port to the new root finders infra
  */
-template <IonizationPhysics Ionization, typename T, typename... Args>
-KOKKOS_INLINE_FUNCTION void fixed_point_radhydro(T R, double dt_a_ii,
-                                                 T scratch_n, T scratch_nm1,
-                                                 T scratch, Args... args) {
-  static_assert(T::rank == 1, "fixed_point_radhydro expects rank-2 views.");
+template <IonizationPhysics Ionization, typename T, typename G,
+          typename... Args>
+KOKKOS_INLINE_FUNCTION void fixed_point_radhydro(T R, double dt_a_ii, G scratch,
+                                                 G scratch_nm1, Args... args) {
+  static_assert(T::rank == 1, "fixed_point_radhydro expects rank-1 views.");
   static constexpr int nvars = 5;
 
-  auto target = [&](T u) {
+  auto target = [&](G u) {
     const auto [s_1, s_2, s_3, s_4] =
         compute_increment_radhydro_source_nodal<Ionization>(u, args...);
     return std::make_tuple(R(1) + dt_a_ii * s_1, R(2) + dt_a_ii * s_2,
@@ -312,7 +307,7 @@ KOKKOS_INLINE_FUNCTION void fixed_point_radhydro(T R, double dt_a_ii,
   };
 
   for (int v = 0; v < nvars; ++v) {
-    scratch_nm1(v) = scratch_n(v); // set to initial guess
+    scratch_nm1[v] = scratch[v]; // set to initial guess
   }
 
   static const PhysicalScales scales{.velocity_scale = 1.0e7,
@@ -320,25 +315,25 @@ KOKKOS_INLINE_FUNCTION void fixed_point_radhydro(T R, double dt_a_ii,
                                      .rad_energy_scale = 1.0e12,
                                      .rad_flux_scale = 1.0e20};
 
-  static RadHydroConvergence<T> convergence_checker(
+  static RadHydroConvergence<G> convergence_checker(
       scales, root_finders::ABSTOL, root_finders::RELTOL, 1);
 
   unsigned int n = 0;
   bool converged = false;
   while (n <= root_finders::MAX_ITERS && !converged) {
-    const auto [xkp1_1, xkp1_2, xkp1_3, xkp1_4] = target(scratch_n);
-    scratch(vars::cons::Velocity) = xkp1_1; // fluid vel
-    scratch(vars::cons::Energy) = xkp1_2; // fluid energy
-    scratch(vars::cons::RadEnergy) = xkp1_3; // rad energy
-    scratch(vars::cons::RadFlux) = xkp1_4; // rad flux
+    const auto [xkp1_1, xkp1_2, xkp1_3, xkp1_4] = target(scratch);
+    scratch[vars::cons::Velocity] = xkp1_1; // fluid vel
+    scratch[vars::cons::Energy] = xkp1_2; // fluid energy
+    scratch[vars::cons::RadEnergy] = xkp1_3; // rad energy
+    scratch[vars::cons::RadFlux] = xkp1_4; // rad flux
+                                           //
+    converged = convergence_checker.check_convergence(scratch, scratch_nm1);
 
     // --- update ---
     for (int v = 1; v < nvars; ++v) {
-      scratch_nm1(v) = scratch_n(v);
-      scratch_n(v) = scratch(v);
+      scratch_nm1[v] = scratch[v];
     }
 
-    converged = convergence_checker.check_convergence(scratch_n, scratch_nm1);
     ++n;
   } // while not converged
 }

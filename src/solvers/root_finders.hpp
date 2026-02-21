@@ -64,9 +64,9 @@ class RadHydroConvergence {
   // TODO(astrobarker) combine the following
   auto fluid_velocity_error(const t u_n, const t u_nm1, const int q) -> double {
     double max_error = 0.0;
-    const double abs_err = std::abs(u_n(q) - u_nm1(q));
+    const double abs_err = std::abs(u_n[q] - u_nm1[q]);
     const double scale = std::max(
-        {scales_.velocity_scale, std::abs(u_n(q)), std::abs(u_nm1(q))});
+        {scales_.velocity_scale, std::abs(u_n[q]), std::abs(u_nm1[q])});
     const double normalized_err = abs_err / scale;
     const double weighted_err = normalized_err;
     max_error = std::max(max_error, weighted_err);
@@ -75,9 +75,9 @@ class RadHydroConvergence {
 
   auto fluid_energy_error(const t u_n, const t u_nm1, const int q) -> double {
     double max_error = 0.0;
-    const double abs_err = std::abs(u_n(q) - u_nm1(q));
+    const double abs_err = std::abs(u_n[q] - u_nm1[q]);
     const double scale =
-        std::max({scales_.energy_scale, std::abs(u_n(q)), std::abs(u_nm1(q))});
+        std::max({scales_.energy_scale, std::abs(u_n[q]), std::abs(u_nm1[q])});
     const double normalized_err = abs_err / scale;
     const double weighted_err = normalized_err;
     max_error = std::max(max_error, weighted_err);
@@ -87,9 +87,9 @@ class RadHydroConvergence {
   auto radiation_energy_error(const t u_n, const t u_nm1, const int q)
       -> double {
     double max_error = 0.0;
-    const double abs_err = std::abs(u_n(q) - u_nm1(q));
+    const double abs_err = std::abs(u_n[q] - u_nm1[q]);
     const double scale = std::max(
-        {scales_.rad_energy_scale, std::abs(u_n(q)), std::abs(u_nm1(q))});
+        {scales_.rad_energy_scale, std::abs(u_n[q]), std::abs(u_nm1[q])});
     const double normalized_err = abs_err / scale;
     const double weighted_err = normalized_err;
     max_error = std::max(max_error, weighted_err);
@@ -98,9 +98,9 @@ class RadHydroConvergence {
 
   auto radiation_flux_error(const t u_n, const t u_nm1, const int q) -> double {
     double max_error = 0.0;
-    const double abs_err = std::abs(u_n(q) - u_nm1(q));
+    const double abs_err = std::abs(u_n[q] - u_nm1[q]);
     const double scale = std::max(
-        {scales_.rad_flux_scale, std::abs(u_n(q)), std::abs(u_nm1(q))});
+        {scales_.rad_flux_scale, std::abs(u_n[q]), std::abs(u_nm1[q])});
     const double normalized_err = abs_err / scale;
     const double weighted_err = normalized_err;
     max_error = std::max(max_error, weighted_err);
