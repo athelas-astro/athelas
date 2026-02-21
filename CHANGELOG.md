@@ -19,6 +19,7 @@
 
 ### Changed (changing behavior/API/variables/...)
 
+- [PR 149](https://github.com/athelas-astro/athelas/pull/149) Remove radiation solver scratch storage.
 - [PR 140](https://github.com/athelas-astro/athelas/pull/140) Move to nodal DG formulation.
 - [PR 138](https://github.com/athelas-astro/athelas/pull/138) Add `params` into hdf5 output
 - [PR 137](https://github.com/athelas-astro/athelas/pull/137) Update `athelas.py`, add `snap.py`
