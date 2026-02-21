@@ -11,13 +11,13 @@ def plot_worker(chk):
 
 
 if __name__ == "__main__":
-  # Get list of matching .h5 files
-  file_list = glob.glob("sod_*.h5")
+  # Get list of matching .ath files
+  file_list = glob.glob("sod_*.ath")
 
   # Extract the identifier part using regex
   identifiers = []
   for filename in file_list:
-    match = re.search(r"sod_(.*)\.h5", filename)
+    match = re.search(r"sod_(.*)\.ath", filename)
     if match:
       identifiers.append(match.group(1))
 
