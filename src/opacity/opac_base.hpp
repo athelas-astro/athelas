@@ -28,16 +28,16 @@ template <class OPAC>
 class OpacBase {
  public:
   KOKKOS_INLINE_FUNCTION auto planck_mean(const double rho, const double T, const double X,
-                   const double Y, const double Z, double *lambda) const
+                   const double Z, double *lambda) const
       -> double {
-    return static_cast<OPAC const *>(this)->planck_mean(rho, T, X, Y, Z,
+    return static_cast<OPAC const *>(this)->planck_mean(rho, T, X, Z,
                                                         lambda);
   }
 
   KOKKOS_INLINE_FUNCTION auto rosseland_mean(const double rho, const double T, const double X,
-                      const double Y, const double Z, double *lambda) const
+                       const double Z, double *lambda) const
       -> double {
-    return static_cast<OPAC const *>(this)->rosseland_mean(rho, T, X, Y, Z,
+    return static_cast<OPAC const *>(this)->rosseland_mean(rho, T, X, Z,
                                                            lambda);
   }
 };

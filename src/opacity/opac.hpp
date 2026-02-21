@@ -36,10 +36,10 @@ class TabularOpacity : public OpacBase<TabularOpacity> {
     table_ = load_opacity_table(fn_);
   }
 
-  auto planck_mean(double rho, double T, double X, double Y, double Z,
+  auto planck_mean(double rho, double T, double X, double Z,
                    double *lambda) const -> double;
 
-  auto rosseland_mean(double rho, double T, double X, double Y, double Z,
+  auto rosseland_mean(double rho, double T, double X, double Z,
                       double *lambda) const -> double;
 
  private:
@@ -53,10 +53,10 @@ class Constant : public OpacBase<Constant> {
   Constant() = default;
   explicit Constant(double kP, double kR) : kP_(kP), kR_(kR) {}
 
-  auto planck_mean(double rho, double T, double X, double Y, double Z,
+  auto planck_mean(double rho, double T, double X, double Z,
                    double *lambda) const -> double;
 
-  auto rosseland_mean(double rho, double T, double X, double Y, double Z,
+  auto rosseland_mean(double rho, double T, double X, double Z,
                       double *lambda) const -> double;
 
  private:
@@ -73,10 +73,10 @@ class Powerlaw : public OpacBase<Powerlaw> {
         floor_model_(std::move(floor)), kP_offset_(kP_offset),
         kR_offset_(kR_offset) {}
 
-  auto planck_mean(double rho, double T, double X, double Y, double Z,
+  auto planck_mean(double rho, double T, double X, double Z,
                    double *lambda) const -> double;
 
-  auto rosseland_mean(double rho, double T, double X, double Y, double Z,
+  auto rosseland_mean(double rho, double T, double X, double Z,
                       double *lambda) const -> double;
 
  private:

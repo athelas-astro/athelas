@@ -1,12 +1,11 @@
 #include <cmath>
-#include <print>
 
 #include "opacity/opac.hpp"
 
 namespace athelas {
 
 auto TabularOpacity::planck_mean(const double rho, const double T, const double X,
-                        const double /*Y*/, const double Z,
+                        const double Z,
                         double * /*lambda*/) const -> double {
   const double logT = std::clamp(std::log10(T), 2.0, 9.05);
   const double logR = std::log10(rho) - 3.0 * logT + 18.0;
@@ -16,7 +15,7 @@ auto TabularOpacity::planck_mean(const double rho, const double T, const double 
 }
 
 auto TabularOpacity::rosseland_mean(const double rho, const double T, const double X,
-                           const double /*Y*/, const double Z,
+                           const double Z,
                            double * /*lambda*/) const -> double {
   const double logT = std::clamp(std::log10(T), 2.0, 9.05);
   const double logR = std::log10(rho) - 3.0 * logT + 18.0;

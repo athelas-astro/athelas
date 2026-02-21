@@ -1,14 +1,3 @@
-/**
- * @file opac_variant.hpp
- * --------------
- *
- * @brief Provides variant-based dispatch for opacity model operations
- *
- * @details This header implements a type-safe way to handle different opacity
- *          models at runtime using std::variant. The Opacity class wraps the
- *          variant and provides member methods for opacity calculations.
- */
-
 #pragma once
 
 #include <variant>
@@ -64,23 +53,23 @@ class Opacity {
 
   // Member methods for opacity calculations
   KOKKOS_INLINE_FUNCTION auto planck_mean(const double rho, const double T,
-                                          const double X, const double Y,
+                                          const double X,
                                           const double Z, double *lambda) const
       -> double {
     return std::visit(
-        [&rho, &T, &X, &Y, &Z, &lambda](const auto &opac) {
-          return opac.planck_mean(rho, T, X, Y, Z, lambda);
+        [&rho, &T, &X, &Z, &lambda](const auto &opac) {
+          return opac.planck_mean(rho, T, X, Z, lambda);
         },
         variant_);
   }
 
   KOKKOS_INLINE_FUNCTION auto rosseland_mean(const double rho, const double T,
-                                             const double X, const double Y,
+                                             const double X,
                                              const double Z, double *lambda) const
       -> double {
     return std::visit(
-        [&rho, &T, &X, &Y, &Z, &lambda](const auto &opac) {
-          return opac.rosseland_mean(rho, T, X, Y, Z, lambda);
+        [&rho, &T, &X, &Z, &lambda](const auto &opac) {
+          return opac.rosseland_mean(rho, T, X, Z, lambda);
         },
         variant_);
   }

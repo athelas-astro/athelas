@@ -148,10 +148,8 @@ auto compute_increment_radhydro_source(
 
     // Should I move these into a lambda?
     static const int x_idx = 0;
-    static const int y_idx = 1;
     static const int z_idx = 2;
     double X = 0.0;
-    double Y = 0.0;
     double Z = 0.0;
     if constexpr (Ionization == IonizationPhysics::Active) {
       lambda.data[0] = number_density(i, q);
@@ -164,17 +162,14 @@ auto compute_increment_radhydro_source(
       lambda.data[7] = uaf(i, q, vars::aux::Tgas);
 
       X = bulk(i, qp1, x_idx);
-      Y = bulk(i, qp1, y_idx);
       Z = bulk(i, qp1, z_idx);
     }
     const double t_g = eos::temperature_from_density_sie(
         eos, rho, em_t - 0.5 * vel * vel, lambda.ptr());
 
     const double kappa_r =
-        opac.rosseland_mean(rho, t_g, X, Y, Z, lambda.ptr());
-    const double kappa_p = opac.planck_mean(rho, t_g, X, Y, Z, lambda.ptr());
-    //std::println("i rho T kappap {} {:.5e} {:.5e} {:.5e}", i, rho, t_g, kappa_p);
-    //std::println("X Z logT logR logkappa {} {} {} {} {}", X, Z, std::log10(t_g), std::log10(rho) - 3.0 * std::log10(t_g) + 18, std::log10(kappa_p));
+        opac.rosseland_mean(rho, t_g, X, Z, lambda.ptr());
+    const double kappa_p = opac.planck_mean(rho, t_g, X, Z, lambda.ptr());
 
     const double E_r = basis_eval(phi_rad, uCRH, i, vars::cons::RadEnergy, qp1);
     const double F_r = basis_eval(phi_rad, uCRH, i, vars::cons::RadFlux, qp1);

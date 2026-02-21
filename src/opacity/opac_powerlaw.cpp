@@ -14,7 +14,7 @@
 namespace athelas {
 
 auto Powerlaw::planck_mean(const double rho, const double T, const double /*X*/,
-                           const double /*Y*/, const double Z,
+                           const double Z,
                            double * /*lambda*/) const -> double {
   const double kappa =
       kP_ * std::pow(rho, rho_exp_) * std::pow(T, t_exp_) + kP_offset_;
@@ -22,7 +22,7 @@ auto Powerlaw::planck_mean(const double rho, const double T, const double /*X*/,
 }
 
 auto Powerlaw::rosseland_mean(const double rho, const double T,
-                              const double /*X*/, const double /*Y*/,
+                              const double /*X*/,
                               const double Z, double * /*lambda*/) const
     -> double {
   const double kappa =
