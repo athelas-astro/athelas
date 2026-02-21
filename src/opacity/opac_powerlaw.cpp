@@ -14,20 +14,19 @@
 namespace athelas {
 
 auto Powerlaw::planck_mean(const double rho, const double T, const double /*X*/,
-                           const double /*Y*/, const double /*Z*/,
-                           double * /*lambda*/) const -> double {
-  return std::max(kP_floor_,
-                  kP_ * std::pow(rho, rho_exp_) * std::pow(T, t_exp_) +
-                      kP_offset_);
+                           const double Z, double * /*lambda*/) const
+    -> double {
+  const double kappa =
+      kP_ * std::pow(rho, rho_exp_) * std::pow(T, t_exp_) + kP_offset_;
+  return std::max(floor_model_.planck(Z), kappa);
 }
 
 auto Powerlaw::rosseland_mean(const double rho, const double T,
-                              const double /*X*/, const double /*Y*/,
-                              const double /*Z*/, double * /*lambda*/) const
-    -> double {
-  return std::max(kR_floor_,
-                  kR_ * std::pow(rho, rho_exp_) * std::pow(T, t_exp_) +
-                      kR_offset_);
+                              const double /*X*/, const double Z,
+                              double * /*lambda*/) const -> double {
+  const double kappa =
+      kR_ * std::pow(rho, rho_exp_) * std::pow(T, t_exp_) + kR_offset_;
+  return std::max(floor_model_.rosseland(Z), kappa);
 }
 
 } // namespace athelas

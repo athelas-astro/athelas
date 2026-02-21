@@ -177,10 +177,15 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
                              nvars_prim);
 
   if (comps_active) {
+    // TODO(astrobarker) [composition] Get rid of x_q nodal mass fractions
     const auto ncomps = pin->param()->get<int>("composition.ncomps");
     mesh_state_.register_field("x_q", DataPolicy::OneCopy,
                                "Nodal mass fractions", nx + 2, nnodes + 2,
                                ncomps);
+
+    mesh_state_.register_field("bulk_composition", DataPolicy::OneCopy,
+                               "bulk mass fractions", {"X", "Y", "Z"}, nx + 2,
+                               nnodes + 2, 3);
   }
 
   // auto info = mesh_state_.field_info();

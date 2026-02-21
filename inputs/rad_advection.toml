@@ -66,3 +66,8 @@ type = "powerlaw_rho"
 kP = 4.0e-8 # 1 / cm
 kR = 4.0e-8 # 1 / cm
 exp = -1.0
+
+[opacity.floors]
+type = "constant"
+planck = 0.0
+rosseland = 0.0

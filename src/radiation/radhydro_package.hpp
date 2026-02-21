@@ -22,6 +22,7 @@ struct RadHydroSolverIonizationContent {
   AthelasArray2D<double> sigma2;
   AthelasArray2D<double> sigma3;
   AthelasArray2D<double> e_ion_corr;
+  AthelasArray3D<double> bulk;
 };
 
 using bc::BoundaryConditions;
@@ -109,6 +110,8 @@ auto compute_increment_radhydro_source_nodal(
   constexpr static double c = constants::c_cgs;
   constexpr static double c2 = c * c;
 
+  const double qp1 = q + 1;
+
   const double dr_i = dx(i);
 
   // Set up views
@@ -120,6 +123,7 @@ auto compute_increment_radhydro_source_nodal(
   auto sigma2 = content.sigma2;
   auto sigma3 = content.sigma3;
   auto e_ion_corr = content.e_ion_corr;
+  auto bulk = content.bulk;
 
   double local_sum_e_r = 0.0; // radiation energy source
   double local_sum_m_r = 0.0; // radiation momentum (flux) source
@@ -127,7 +131,7 @@ auto compute_increment_radhydro_source_nodal(
   double local_sum_m_g = 0.0; // gas momentum (velocity) source
   eos::EOSLambda lambda;
   const double wq = weights(q);
-  const double wq_sqrtgm = wq * sqrt_gm(i, q + 1);
+  const double wq_sqrtgm = wq * sqrt_gm(i, qp1);
 
   // Note: basis evaluations are awkward here.
   // must be sure to use the correct basis functions.
@@ -135,33 +139,36 @@ auto compute_increment_radhydro_source_nodal(
   const double rho = 1.0 / tau;
   const double vel = uCRH(vars::cons::Velocity);
   const double em_t = uCRH(vars::cons::Energy);
-
-  if constexpr (Ionization == IonizationPhysics::Active) {
-    lambda.data[0] = number_density(i, q + 1);
-    lambda.data[1] = ye(i, q + 1);
-    lambda.data[2] = ybar(i, q + 1);
-    lambda.data[3] = sigma1(i, q + 1);
-    lambda.data[4] = sigma2(i, q + 1);
-    lambda.data[5] = sigma3(i, q + 1);
-    lambda.data[6] = e_ion_corr(i, q + 1);
-    lambda.data[7] = uaf(i, q + 1, vars::aux::Tgas);
-  }
-  const double t_g = eos::temperature_from_density_sie(
-      eos, rho, em_t - 0.5 * vel * vel, lambda.ptr());
-  uaf(i, q, vars::aux::Tgas) = t_g;
-
-  // TODO(astrobarker): composition
-  // Should I move these into a lambda?
-  const double X = 1.0;
-  const double Y = 1.0;
-  const double Z = 1.0;
-
-  const double kappa_r = rosseland_mean(opac, rho, t_g, X, Y, Z, lambda.ptr());
-  const double kappa_p = planck_mean(opac, rho, t_g, X, Y, Z, lambda.ptr());
-
+  const double sie = em_t - 0.5 * vel * vel;
   const double E_r = uCRH(vars::cons::RadEnergy) * rho;
   const double F_r = uCRH(vars::cons::RadFlux) * rho;
   const double P_r = compute_closure(E_r, F_r);
+
+  // Should I move these into a lambda?
+  static const int x_idx = 0;
+  static const int z_idx = 2;
+  double X = 0.0;
+  double Z = 0.0;
+  if constexpr (Ionization == IonizationPhysics::Active) {
+    lambda.data[0] = number_density(i, qp1);
+    lambda.data[1] = ye(i, qp1);
+    lambda.data[2] = ybar(i, qp1);
+    lambda.data[3] = sigma1(i, qp1);
+    lambda.data[4] = sigma2(i, qp1);
+    lambda.data[5] = sigma3(i, qp1);
+    lambda.data[6] = e_ion_corr(i, qp1);
+    lambda.data[7] = uaf(i, qp1, vars::aux::Tgas);
+
+    X = bulk(i, qp1, x_idx);
+    Z = bulk(i, qp1, z_idx);
+  }
+
+  const double t_g =
+      eos::temperature_from_density_sie(eos, rho, sie, lambda.ptr());
+  uaf(i, qp1, vars::aux::Tgas) = t_g;
+
+  const double kappa_r = opac.rosseland_mean(rho, t_g, X, Z, lambda.ptr());
+  const double kappa_p = opac.planck_mean(rho, t_g, X, Z, lambda.ptr());
 
   // 4 force
   const auto [G0, G] =
@@ -213,6 +220,7 @@ auto compute_increment_radhydro_source(
   auto sigma2 = content.sigma2;
   auto sigma3 = content.sigma3;
   auto e_ion_corr = content.e_ion_corr;
+  auto bulk = content.bulk;
 
   double local_sum_e_r = 0.0; // radiation energy source
   double local_sum_m_r = 0.0; // radiation momentum (flux) source
@@ -234,6 +242,11 @@ auto compute_increment_radhydro_source(
         basis_eval(phi_fluid, uCRH, i, vars::cons::Velocity, qp1);
     const double em_t = basis_eval(phi_fluid, uCRH, i, vars::cons::Energy, qp1);
 
+    // Should I move these into a lambda?
+    static const int x_idx = 0;
+    static const int z_idx = 2;
+    double X = 0.0;
+    double Z = 0.0;
     if constexpr (Ionization == IonizationPhysics::Active) {
       lambda.data[0] = number_density(i, q);
       lambda.data[1] = ye(i, q);
@@ -243,19 +256,15 @@ auto compute_increment_radhydro_source(
       lambda.data[5] = sigma3(i, q);
       lambda.data[6] = e_ion_corr(i, q);
       lambda.data[7] = uaf(i, q, vars::aux::Tgas);
+
+      X = bulk(i, qp1, x_idx);
+      Z = bulk(i, qp1, z_idx);
     }
     const double t_g = eos::temperature_from_density_sie(
         eos, rho, em_t - 0.5 * vel * vel, lambda.ptr());
 
-    // TODO(astrobarker): composition
-    // Should I move these into a lambda?
-    const double X = 1.0;
-    const double Y = 1.0;
-    const double Z = 1.0;
-
-    const double kappa_r =
-        rosseland_mean(opac, rho, t_g, X, Y, Z, lambda.ptr());
-    const double kappa_p = planck_mean(opac, rho, t_g, X, Y, Z, lambda.ptr());
+    const double kappa_r = opac.rosseland_mean(rho, t_g, X, Z, lambda.ptr());
+    const double kappa_p = opac.planck_mean(rho, t_g, X, Z, lambda.ptr());
 
     const double E_r = basis_eval(phi_rad, uCRH, i, vars::cons::RadEnergy, qp1);
     const double F_r = basis_eval(phi_rad, uCRH, i, vars::cons::RadFlux, qp1);
@@ -346,7 +355,7 @@ fixed_point_radhydro_nodal(T R, double dt_a_ii, T scratch_n, T scratch_nm1,
     const auto [s1, s2, s3, s4] =
         compute_increment_radhydro_source_nodal<Ionization>(u, args...);
 
-    const double omega = 1.0;
+    const double omega = 1.0e-11;
     const double g1 = R(1) + dt_a_ii * s1;
     const double g2 = R(2) + dt_a_ii * s2;
     const double g3 = R(3) + dt_a_ii * s3;
@@ -364,8 +373,7 @@ fixed_point_radhydro_nodal(T R, double dt_a_ii, T scratch_n, T scratch_nm1,
   }
 
   // --- first fixed point iteration ---
-  const double beta = 1.0;
-  // const double beta = 1.0;
+  const double beta = 0.001;
   const auto [xnp1_1_k, xnp1_2_k, xnp1_3_k, xnp1_4_k] = target(scratch_n);
   scratch(vars::cons::Velocity) =
       (1.0 - beta) * scratch(vars::cons::Velocity) + beta * xnp1_1_k;
@@ -413,7 +421,6 @@ fixed_point_radhydro_nodal(T R, double dt_a_ii, T scratch_n, T scratch_nm1,
   double s_4_nm1 = scratch_nm1(4);
 
   unsigned int n = 1;
-  double omega = 1.0;
   while (n < root_finders::MAX_ITERS && !converged) {
     // TODO(astrobarker): we can cut down on evals.
     auto [s_1_n, s_2_n, s_3_n, s_4_n] = target(scratch_n);

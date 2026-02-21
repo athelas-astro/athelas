@@ -141,6 +141,7 @@ set( ATHELAS_SOURCES
   "src/geometry/grid.cpp"
   "src/gravity/gravity_package.cpp"
   "src/io/io.cpp"
+  "src/io/tables.cpp"
   "src/linalg/linear_algebra.cpp"
   "src/quadrature/quadrature.cpp"
   "src/limiters/bound_enforcing_limiter.cpp"
@@ -150,6 +151,7 @@ set( ATHELAS_SOURCES
   "src/limiters/slope_limiter_weno.cpp"
   "src/opacity/opac_constant.cpp"
   "src/opacity/opac_powerlaw.cpp"
+  "src/opacity/opac_tabular.cpp"
   "src/solvers/hydrostatic_equilibrium.cpp"
   "src/state/state.cpp"
   "src/timestepper/tableau.cpp"
@@ -291,6 +293,9 @@ configure_file(
 )
 
 # Eigen
+add_subdirectory(external/spiner)
+
+# Eigen
 add_subdirectory(external/eigen)
 
 # HDF5
@@ -335,6 +340,7 @@ endif()
 target_link_libraries(athelas PRIVATE
         #    libathelas
     kokkos
+    spiner::spiner
     Eigen3::Eigen
     git_version
     OpenMP::OpenMP_CXX

@@ -53,6 +53,11 @@ void fill_derived_comps(StageData &stage_data,
   auto number_density = comps->number_density();
   static const int num_species = static_cast<int>(comps->n_species());
 
+  auto bulk = stage_data.get_field("bulk_composition");
+  static const int idx_x = 0;
+  static const int idx_y = 1;
+  static const int idx_z = 2;
+
   static constexpr double inv_m_p = 1.0 / constants::m_p;
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Composition :: fill derived", DevExecSpace(), ib.s,
@@ -67,10 +72,18 @@ void fill_derived_comps(StageData &stage_data,
           ye_q += Z * xk_invA;
           sum_y += xk_invA;
           mass_fractions_nodal(i, q, e) = xk;
+
+          if (Z == 1) {
+            bulk(i, q, idx_x) = xk;
+          }
+          if (Z == 2) {
+            bulk(i, q, idx_y) = xk;
+          }
         }
         number_density(i, q) = sum_y * inv_m_p;
         ye(i, q) = ye_q;
         abar(i, q) = 1.0 / (sum_y);
+        bulk(i, q, idx_z) = 1.0 - (bulk(i, q, idx_x) + bulk(i, q, idx_y));
       });
 }
 

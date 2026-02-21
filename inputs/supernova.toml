@@ -20,7 +20,7 @@ ni_mass = 0.07 # Msun
 ni_boundary = 3.0 # Msun; > mass_cut
 
 [physics]
-radiation = false
+radiation = true
 gravity = true
 composition = true
 ionization = true
@@ -97,12 +97,12 @@ operator_split = false
 type = "paczynski"
 
 [opacity]
-type = "powerlaw"
-kP = 2.0e26 # cm^2 / g
-kR = 2.0e26 # cm^2 / g
-rho_exp = 1.0
-t_exp = -3.5
-kR_floor = 0.0
-kP_floor = 1.0e-4
-kR_offset = 0.34
-kP_offset = 0.0
+type = "tabular"
+filename = "../data/opac_new.h5"
+
+[opacity.floors]
+type = "core_envelope"
+core_rosseland = 0.24
+core_planck = 0.24
+env_rosseland = 0.01
+env_planck = 0.01

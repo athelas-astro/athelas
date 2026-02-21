@@ -112,8 +112,9 @@ void RadHydroPackage::update_implicit(const StageData &stage_data,
     auto sigma2 = ionization_state->sigma2();
     auto sigma3 = ionization_state->sigma3();
     auto e_ion_corr = ionization_state->e_ion_corr();
+    auto bulk = stage_data.get_field("bulk_composition");
     RadHydroSolverIonizationContent content{
-        number_density, ye, ybar, sigma1, sigma2, sigma3, e_ion_corr};
+        number_density, ye, ybar, sigma1, sigma2, sigma3, e_ion_corr, bulk};
     athelas::par_for(
         DEFAULT_LOOP_PATTERN, "RadHydro :: Implicit", DevExecSpace(), ib.s,
         ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
@@ -129,15 +130,7 @@ void RadHydroPackage::update_implicit(const StageData &stage_data,
           delta_im_(stage, i, q, vars::cons::RadFlux) = du4;
         });
   } else {
-    AthelasArray2D<double> number_density;
-    AthelasArray2D<double> ye;
-    AthelasArray2D<double> ybar;
-    AthelasArray2D<double> sigma1;
-    AthelasArray2D<double> sigma2;
-    AthelasArray2D<double> sigma3;
-    AthelasArray2D<double> e_ion_corr;
-    RadHydroSolverIonizationContent content{
-        number_density, ye, ybar, sigma1, sigma2, sigma3, e_ion_corr};
+    RadHydroSolverIonizationContent content;
     const RadHydroSolverIonizationContent test;
     athelas::par_for(
         DEFAULT_LOOP_PATTERN, "RadHydro :: Implicit", DevExecSpace(), ib.s,
@@ -192,8 +185,9 @@ void RadHydroPackage::update_implicit_iterative(const StageData &stage_data,
     auto sigma2 = ionization_state->sigma2();
     auto sigma3 = ionization_state->sigma3();
     auto e_ion_corr = ionization_state->e_ion_corr();
+    auto bulk = stage_data.get_field("bulk_composition");
     RadHydroSolverIonizationContent content{
-        number_density, ye, ybar, sigma1, sigma2, sigma3, e_ion_corr};
+        number_density, ye, ybar, sigma1, sigma2, sigma3, e_ion_corr, bulk};
     athelas::par_for(
         DEFAULT_LOOP_PATTERN, "RadHydro :: Implicit iterative", DevExecSpace(),
         ib.s, ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
@@ -212,7 +206,7 @@ void RadHydroPackage::update_implicit_iterative(const StageData &stage_data,
             scratch_sol_i(v) = u;
           }
 
-          fixed_point_radhydro<IonizationPhysics::Active>(
+          fixed_point_radhydro_nodal<IonizationPhysics::Active>(
               R_i, dt_info.dt_coef, scratch_sol_i_k, scratch_sol_i_km1,
               scratch_sol_i, uaf, phi_fluid, phi_rad, inv_mkk_fluid,
               inv_mkk_rad, eos, opac, dr, sqrt_gm, weights, content, i, q);
