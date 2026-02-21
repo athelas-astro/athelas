@@ -5,6 +5,7 @@
 #include "kokkos_types.hpp"
 #include "loop_layout.hpp"
 #include "pgen/problem_in.hpp"
+#include "radiation/rad_utilities.hpp"
 
 namespace athelas::geometry {
 using basis::NodalBasis;
@@ -13,7 +14,11 @@ GeometryPackage::GeometryPackage(const ProblemIn *pin, const int n_stages,
                                  const bool active)
     : active_(active) {
   const int nx = pin->param()->get<int>("problem.nx");
+  bool rad_active = pin->param()->get<bool>("physics.rad_active");
   int nvars_geom = 1; // sources velocity
+  if (rad_active) {
+    nvars_geom++;
+  }
   delta_ = AthelasArray4D<double>("geometry delta", n_stages, nx + 2,
                                   pin->param()->get<int>("basis.nnodes"),
                                   nvars_geom);
@@ -44,6 +49,21 @@ void GeometryPackage::update_explicit(const StageData &stage_data,
         delta_(stage, i, q, pkg_vars::Velocity) =
             (2.0 * w(q) * P * r(i, q + 1) * dr(i)) * inv_mkk(i, q);
       });
+
+  const bool rad_active = stage_data.radiation_enabled();
+  if (rad_active) {
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN, "Geometry::Explicit", DevExecSpace(), ib.s, ib.e,
+        qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+          const double rho = 1.0 / ucf(i, q, vars::cons::SpecificVolume);
+          const double e_rad = ucf(i, q, vars::cons::RadEnergy) * rho;
+          const double f_rad = ucf(i, q, vars::cons::RadFlux) * rho;
+          const double Pperp = radiation::p_rad_perp(e_rad, f_rad);
+
+          delta_(stage, i, q, pkg_vars::RadFlux) =
+              (2.0 * w(q) * Pperp * r(i, q + 1) * dr(i)) * inv_mkk(i, q);
+        });
+  }
 }
 
 /**
@@ -55,6 +75,7 @@ void GeometryPackage::apply_delta(AthelasArray3D<double> lhs,
   static const int nq = static_cast<int>(lhs.extent(1));
   static const IndexRange ib(std::make_pair(1, nx - 2));
   static const IndexRange qb(nq);
+  static const int nvars_geom = delta_.extent(3);
 
   const int stage = dt_info.stage;
 
@@ -64,6 +85,18 @@ void GeometryPackage::apply_delta(AthelasArray3D<double> lhs,
         lhs(i, q, vars::cons::Velocity) +=
             dt_info.dt_coef * delta_(stage, i, q, pkg_vars::Velocity);
       });
+
+  // Clunky, but checks for radiation enabled. If more things are sources
+  // by geometry later we will need to revisit.
+  if (nvars_geom == 2) {
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN, "Geometry :: Apply delta :: Radiation",
+        DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
+        KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+          lhs(i, q, vars::cons::RadFlux) +=
+              dt_info.dt_coef * delta_(stage, i, q, pkg_vars::RadFlux);
+        });
+  }
 }
 
 /**
