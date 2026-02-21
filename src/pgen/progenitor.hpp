@@ -500,7 +500,6 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
       uPF, grid, nNodes, pin->param()->get<int>("problem.nx"));
   mesh_state.setup_fluid_basis(std::move(fluid_basis_tmp));
 
-
   // There is one subtelty that must be taken care of:
   // We have interpolated pressure, density, temperature etc onto element
   // interfaces. Those values are not guaranteed to be consistent with the
@@ -589,9 +588,11 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
             const int idx =
                 utilities::find_closest_cell(radius_view, rq, n_zones_prog);
             uCF(i, q, vars::cons::RadEnergy) =
-                radiation::rad_energy(uAF(i, q, vars::aux::Tgas)) * uCF(i, q, vars::cons::SpecificVolume);
+                radiation::rad_energy(uAF(i, q, vars::aux::Tgas)) *
+                uCF(i, q, vars::cons::SpecificVolume);
             uCF(i, q, vars::cons::RadFlux) =
-                 uCF(i, q, vars::cons::SpecificVolume) * utilities::LINTERP(radius_view(idx), radius_view(idx + 1),
+                uCF(i, q, vars::cons::SpecificVolume) *
+                utilities::LINTERP(radius_view(idx), radius_view(idx + 1),
                                    luminosity_view(idx),
                                    luminosity_view(idx + 1), rq) /
                 (constants::FOURPI * rq * rq);

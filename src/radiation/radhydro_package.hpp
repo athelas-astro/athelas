@@ -144,28 +144,27 @@ auto compute_increment_radhydro_source_nodal(
   const double F_r = uCRH(vars::cons::RadFlux) * rho;
   const double P_r = compute_closure(E_r, F_r);
 
+  // Should I move these into a lambda?
+  static const int x_idx = 0;
+  static const int z_idx = 2;
+  double X = 0.0;
+  double Z = 0.0;
+  if constexpr (Ionization == IonizationPhysics::Active) {
+    lambda.data[0] = number_density(i, qp1);
+    lambda.data[1] = ye(i, qp1);
+    lambda.data[2] = ybar(i, qp1);
+    lambda.data[3] = sigma1(i, qp1);
+    lambda.data[4] = sigma2(i, qp1);
+    lambda.data[5] = sigma3(i, qp1);
+    lambda.data[6] = e_ion_corr(i, qp1);
+    lambda.data[7] = uaf(i, qp1, vars::aux::Tgas);
 
-    // Should I move these into a lambda?
-    static const int x_idx = 0;
-    static const int z_idx = 2;
-    double X = 0.0;
-    double Z = 0.0;
-    if constexpr (Ionization == IonizationPhysics::Active) {
-      lambda.data[0] = number_density(i, qp1);
-      lambda.data[1] = ye(i, qp1);
-      lambda.data[2] = ybar(i, qp1);
-      lambda.data[3] = sigma1(i, qp1);
-      lambda.data[4] = sigma2(i, qp1);
-      lambda.data[5] = sigma3(i, qp1);
-      lambda.data[6] = e_ion_corr(i, qp1);
-      lambda.data[7] = uaf(i, qp1, vars::aux::Tgas);
+    X = bulk(i, qp1, x_idx);
+    Z = bulk(i, qp1, z_idx);
+  }
 
-      X = bulk(i, qp1, x_idx);
-      Z = bulk(i, qp1, z_idx);
-    }
-
-  const double t_g = eos::temperature_from_density_sie(
-      eos, rho, sie, lambda.ptr());
+  const double t_g =
+      eos::temperature_from_density_sie(eos, rho, sie, lambda.ptr());
   uaf(i, qp1, vars::aux::Tgas) = t_g;
 
   const double kappa_r = opac.rosseland_mean(rho, t_g, X, Z, lambda.ptr());
