@@ -16,19 +16,25 @@
 
 #pragma once
 
+#include "Kokkos_Macros.hpp"
 namespace athelas {
+
+struct FloorValues {
+    double rosseland;
+    double planck;
+};
 
 template <class OPAC>
 class OpacBase {
  public:
-  auto planck_mean(const double rho, const double T, const double X,
+  KOKKOS_INLINE_FUNCTION auto planck_mean(const double rho, const double T, const double X,
                    const double Y, const double Z, double *lambda) const
       -> double {
     return static_cast<OPAC const *>(this)->planck_mean(rho, T, X, Y, Z,
                                                         lambda);
   }
 
-  auto rosseland_mean(const double rho, const double T, const double X,
+  KOKKOS_INLINE_FUNCTION auto rosseland_mean(const double rho, const double T, const double X,
                       const double Y, const double Z, double *lambda) const
       -> double {
     return static_cast<OPAC const *>(this)->rosseland_mean(rho, T, X, Y, Z,

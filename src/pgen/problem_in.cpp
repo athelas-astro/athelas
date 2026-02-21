@@ -787,17 +787,21 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
     if (!opac_type.has_value()) {
       throw_athelas_error("'type' not provided in [opac] block!");
     }
-    params_->add("opac.type", opac_type.value());
+    params_->add("opacity.type", opac_type.value());
 
-    if (opac_type.value() == "constant") {
+    if (opac_type.value() == "tabular") {
+      std::optional<std::string> fn =
+          config_["opacity"]["filename"].value<std::string>();
+      params_->add("opacity.filename", fn.value());
+    } else if (opac_type.value() == "constant") {
       std::optional<double> kr = config_["opacity"]["kR"].value<double>();
       std::optional<double> kp = config_["opacity"]["kP"].value<double>();
       if (!kr.has_value() || !kp.has_value()) {
         throw_athelas_error(
             "Constant opacity must specify mean opacities kR and kP!");
       }
-      params_->add("opac.kR", kr.value());
-      params_->add("opac.kP", kp.value());
+      params_->add("opacity.kR", kr.value());
+      params_->add("opacity.kP", kp.value());
     }
     if (opac_type.value() == "powerlaw") {
       std::optional<double> kr = config_["opacity"]["kR"].value<double>();
@@ -810,27 +814,43 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
           config_["opacity"]["kP_offset"].value<double>();
       std::optional<double> kr_offset =
           config_["opacity"]["kR_offset"].value<double>();
-      std::optional<double> kp_floor =
-          config_["opacity"]["kP_floor"].value<double>();
-      std::optional<double> kr_floor =
-          config_["opacity"]["kR_floor"].value<double>();
       if (!kr.has_value() || !kp.has_value() || !rho_exp.has_value() ||
           !t_exp.has_value()) {
         throw_athelas_error("Powerlaw rho opacity must specify mean opacities "
                             "kR and kP and rho_exp and t_exp!");
       }
-      if (!kp_floor.has_value() || !kr_floor.has_value()) {
-        throw_athelas_error("Please specify kR_floor and kP_floor for the "
-                            "powerlaw opacity model!");
+      params_->add("opacity.kR", kr.value());
+      params_->add("opacity.kP", kp.value());
+      params_->add("opacity.rho_exp", rho_exp.value());
+      params_->add("opacity.t_exp", t_exp.value());
+      params_->add("opacity.kR_offset", kr_offset.value_or(0.0));
+      params_->add("opacity.kP_offset", kp_offset.value_or(0.0));
+    }
+    // floors
+    std::string floor_type =
+        config_["opacity"]["floors"]["type"].value_or("core_envelope");
+    params_->add("opacity.floors.type", floor_type);
+    if(floor_type != "core_envelope" && floor_type != "constant") {
+        throw_athelas_error("[opacity.floors.type] must be 'core_envelope' or 'constant'!");
+    }
+    if (floor_type == "core_envelope") {
+      double core_planck = config_["opacity"]["floors"]["core_planck"].value_or(0.24);
+      double core_rosseland = config_["opacity"]["floors"]["core_rosseland"].value_or(0.24);
+      double env_planck = config_["opacity"]["floors"]["env_planck"].value_or(0.01);
+      double env_rosseland = config_["opacity"]["floors"]["env_rosseland"].value_or(0.01);
+      if ((core_planck < env_planck) || (core_rosseland < env_rosseland)) {
+        throw_athelas_error("In the `core_envelope` floor model the core floor must be higher than the envelope floor!");
       }
-      params_->add("opac.kR", kr.value());
-      params_->add("opac.kP", kp.value());
-      params_->add("opac.rho_exp", rho_exp.value());
-      params_->add("opac.t_exp", t_exp.value());
-      params_->add("opac.kR_offset", kr_offset.value_or(0.0));
-      params_->add("opac.kP_offset", kp_offset.value_or(0.0));
-      params_->add("opac.kR_floor", kr_floor.value());
-      params_->add("opac.kP_floor", kp_floor.value());
+      params_->add("opacity.floors.core_planck", core_planck);
+      params_->add("opacity.floors.core_rosseland", core_rosseland);
+      params_->add("opacity.floors.env_planck", env_planck);
+      params_->add("opacity.floors.env_rosseland", env_rosseland);
+    }
+    if (floor_type == "constant") {
+      double planck = config_["opacity"]["floors"]["planck"].value_or(1.0e-3);
+      double rosseland = config_["opacity"]["floors"]["rosseland"].value_or(1.0e-3);
+      params_->add("opacity.floors.planck", planck);
+      params_->add("opacity.floors.rosseland", rosseland);
     }
   }
 

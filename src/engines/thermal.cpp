@@ -161,7 +161,7 @@ void ThermalEnginePackage::update_explicit(const StageData &stage_data,
         for (int q = qb.s; q <= qb.e; ++q) {
           delta_(stage, i, k, pkg_vars::Energy) +=
               weights(q) * phi(i, q, k) * b_coeff *
-              std::exp(-a_coeff_ * menc(i, q + 1));
+              std::exp(-a_coeff_ * menc(i, q));
         }
         delta_(stage, i, k, pkg_vars::Energy) *= mass(i);
       });

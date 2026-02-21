@@ -1,10 +1,3 @@
-/**
- * @file radhydro_package.hpp
- * --------------
- *
- * @brief Radiation hydrodynamics package
- */
-
 #pragma once
 
 #include "Kokkos_Macros.hpp"
@@ -29,6 +22,7 @@ struct RadHydroSolverIonizationContent {
   AthelasArray2D<double> sigma2;
   AthelasArray2D<double> sigma3;
   AthelasArray2D<double> e_ion_corr;
+  AthelasArray3D<double> bulk;
 };
 
 using bc::BoundaryConditions;
@@ -130,6 +124,7 @@ auto compute_increment_radhydro_source(
   auto sigma2 = content.sigma2;
   auto sigma3 = content.sigma3;
   auto e_ion_corr = content.e_ion_corr;
+  auto bulk = content.bulk;
 
   double local_sum_e_r = 0.0; // radiation energy source
   double local_sum_m_r = 0.0; // radiation momentum (flux) source
@@ -151,6 +146,13 @@ auto compute_increment_radhydro_source(
         basis_eval(phi_fluid, uCRH, i, vars::cons::Velocity, qp1);
     const double em_t = basis_eval(phi_fluid, uCRH, i, vars::cons::Energy, qp1);
 
+    // Should I move these into a lambda?
+    static const int x_idx = 0;
+    static const int y_idx = 1;
+    static const int z_idx = 2;
+    double X = 0.0;
+    double Y = 0.0;
+    double Z = 0.0;
     if constexpr (Ionization == IonizationPhysics::Active) {
       lambda.data[0] = number_density(i, q);
       lambda.data[1] = ye(i, q);
@@ -160,19 +162,19 @@ auto compute_increment_radhydro_source(
       lambda.data[5] = sigma3(i, q);
       lambda.data[6] = e_ion_corr(i, q);
       lambda.data[7] = uaf(i, q, vars::aux::Tgas);
+
+      X = bulk(i, qp1, x_idx);
+      Y = bulk(i, qp1, y_idx);
+      Z = bulk(i, qp1, z_idx);
     }
     const double t_g = eos::temperature_from_density_sie(
         eos, rho, em_t - 0.5 * vel * vel, lambda.ptr());
 
-    // TODO(astrobarker): composition
-    // Should I move these into a lambda?
-    const double X = 1.0;
-    const double Y = 1.0;
-    const double Z = 1.0;
-
     const double kappa_r =
-        rosseland_mean(opac, rho, t_g, X, Y, Z, lambda.ptr());
-    const double kappa_p = planck_mean(opac, rho, t_g, X, Y, Z, lambda.ptr());
+        opac.rosseland_mean(rho, t_g, X, Y, Z, lambda.ptr());
+    const double kappa_p = opac.planck_mean(rho, t_g, X, Y, Z, lambda.ptr());
+    //std::println("i rho T kappap {} {:.5e} {:.5e} {:.5e}", i, rho, t_g, kappa_p);
+    //std::println("X Z logT logR logkappa {} {} {} {} {}", X, Z, std::log10(t_g), std::log10(rho) - 3.0 * std::log10(t_g) + 18, std::log10(kappa_p));
 
     const double E_r = basis_eval(phi_rad, uCRH, i, vars::cons::RadEnergy, qp1);
     const double F_r = basis_eval(phi_rad, uCRH, i, vars::cons::RadFlux, qp1);
