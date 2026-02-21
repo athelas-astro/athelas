@@ -185,7 +185,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
 
     mesh_state_.register_field("bulk_composition", DataPolicy::OneCopy,
                                "bulk mass fractions", {"X", "Y", "Z"}, nx + 2,
-                               max_nodes + 2, 3);
+                               nnodes + 2, 3);
   }
 
   // auto info = mesh_state_.field_info();

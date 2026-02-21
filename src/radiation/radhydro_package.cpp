@@ -206,7 +206,7 @@ void RadHydroPackage::update_implicit_iterative(const StageData &stage_data,
             scratch_sol_i(v) = u;
           }
 
-          fixed_point_radhydro<IonizationPhysics::Active>(
+          fixed_point_radhydro_nodal<IonizationPhysics::Active>(
               R_i, dt_info.dt_coef, scratch_sol_i_k, scratch_sol_i_km1,
               scratch_sol_i, uaf, phi_fluid, phi_rad, inv_mkk_fluid,
               inv_mkk_rad, eos, opac, dr, sqrt_gm, weights, content, i, q);

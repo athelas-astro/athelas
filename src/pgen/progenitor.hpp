@@ -244,13 +244,6 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
         }
       });
 
-  // We go ahead and form the basis here now that the grid is constructed.
-  // I don't particularly like this pattern, but as it stands the basis is
-  // needed in the Saha solves to come.
-  auto fluid_basis_tmp = std::make_unique<basis::NodalBasis>(
-      uPF, grid, nNodes, pin->param()->get<int>("problem.nx"));
-  mesh_state.setup_fluid_basis(std::move(fluid_basis_tmp));
-
   // Phase 2: Everything else
   const auto &eos = mesh_state.eos();
   auto species = comps->charge();
@@ -499,6 +492,15 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
         }
       });
 
+  // We go ahead and form the basis here now that the grid is constructed.
+  // I don't particularly like this pattern, but as it stands the basis is
+  // needed in the Saha solves to come.
+  grid->compute_mass(uCF);
+  auto fluid_basis_tmp = std::make_unique<basis::NodalBasis>(
+      uPF, grid, nNodes, pin->param()->get<int>("problem.nx"));
+  mesh_state.setup_fluid_basis(std::move(fluid_basis_tmp));
+
+
   // There is one subtelty that must be taken care of:
   // We have interpolated pressure, density, temperature etc onto element
   // interfaces. Those values are not guaranteed to be consistent with the
@@ -587,9 +589,9 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
             const int idx =
                 utilities::find_closest_cell(radius_view, rq, n_zones_prog);
             uCF(i, q, vars::cons::RadEnergy) =
-                radiation::rad_energy(uAF(i, q, vars::aux::Tgas));
+                radiation::rad_energy(uAF(i, q, vars::aux::Tgas)) * uCF(i, q, vars::cons::SpecificVolume);
             uCF(i, q, vars::cons::RadFlux) =
-                utilities::LINTERP(radius_view(idx), radius_view(idx + 1),
+                 uCF(i, q, vars::cons::SpecificVolume) * utilities::LINTERP(radius_view(idx), radius_view(idx + 1),
                                    luminosity_view(idx),
                                    luminosity_view(idx + 1), rq) /
                 (constants::FOURPI * rq * rq);

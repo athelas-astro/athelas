@@ -42,6 +42,7 @@ namespace athelas {
  **/
 void initialize_fields(MeshState &mesh_state, GridStructure *grid,
                        ProblemIn *pin) {
+  std::print("# Running problem generator... ");
 
   const auto problem_name = pin->param()->get<std::string>("problem.problem");
 
@@ -85,6 +86,7 @@ void initialize_fields(MeshState &mesh_state, GridStructure *grid,
   } else {
     throw_athelas_error("Please choose a valid problem_name!");
   }
+  std::println(" .. complete!\n");
 }
 
 } // namespace athelas

@@ -23,7 +23,7 @@ static auto read_1d_double_dataset(H5::H5File &file, const std::string &path)
 }
 
 auto load_opacity_table(const std::string &filename) -> DataBox {
-  std::print("Building opacity table...");
+  std::print("# Building opacity table...");
   OpacityTable tab;
 
   // Open file
