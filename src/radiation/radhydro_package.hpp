@@ -87,11 +87,6 @@ class RadHydroPackage {
   AthelasArray4D<double> delta_; // rhs delta [nstages, nx, order, nvars]
   AthelasArray4D<double> delta_im_; // rhs delta
 
-  // iterative solver storage
-  AthelasArray3D<double> scratch_k_;
-  AthelasArray3D<double> scratch_km1_;
-  AthelasArray3D<double> scratch_sol_;
-
   // constants
   static constexpr int NUM_VARS_ = 5;
 };
@@ -297,11 +292,11 @@ auto compute_increment_radhydro_source(
  * This should not live here forever.
  * TODO(astrobarker): port to the new root finders infra
  */
-template <IonizationPhysics Ionization, typename T, typename... Args>
-KOKKOS_INLINE_FUNCTION void fixed_point_radhydro(T R, double dt_a_ii,
-                                                 T scratch_n, T scratch_nm1,
-                                                 T scratch, Args... args) {
-  static_assert(T::rank == 1, "fixed_point_radhydro expects rank-2 views.");
+template <IonizationPhysics Ionization, typename T, typename G,
+          typename... Args>
+KOKKOS_INLINE_FUNCTION void fixed_point_radhydro(T R, double dt_a_ii, G scratch,
+                                                 G scratch_nm1, Args... args) {
+  static_assert(T::rank == 1, "fixed_point_radhydro expects rank-1 views.");
   static constexpr int nvars = 5;
 
   auto target = [&](T u) {
@@ -312,7 +307,7 @@ KOKKOS_INLINE_FUNCTION void fixed_point_radhydro(T R, double dt_a_ii,
   };
 
   for (int v = 0; v < nvars; ++v) {
-    scratch_nm1(v) = scratch_n(v); // set to initial guess
+    scratch_nm1[v] = scratch[v]; // set to initial guess
   }
 
   static const PhysicalScales scales{.velocity_scale = 1.0e7,
@@ -326,19 +321,19 @@ KOKKOS_INLINE_FUNCTION void fixed_point_radhydro(T R, double dt_a_ii,
   unsigned int n = 0;
   bool converged = false;
   while (n <= root_finders::MAX_ITERS && !converged) {
-    const auto [xkp1_1, xkp1_2, xkp1_3, xkp1_4] = target(scratch_n);
-    scratch(vars::cons::Velocity) = xkp1_1; // fluid vel
-    scratch(vars::cons::Energy) = xkp1_2; // fluid energy
-    scratch(vars::cons::RadEnergy) = xkp1_3; // rad energy
-    scratch(vars::cons::RadFlux) = xkp1_4; // rad flux
+    const auto [xkp1_1, xkp1_2, xkp1_3, xkp1_4] = target(scratch);
+    scratch[vars::cons::Velocity] = xkp1_1; // fluid vel
+    scratch[vars::cons::Energy] = xkp1_2; // fluid energy
+    scratch[vars::cons::RadEnergy] = xkp1_3; // rad energy
+    scratch[vars::cons::RadFlux] = xkp1_4; // rad flux
+                                           //
+    converged = convergence_checker.check_convergence(scratch, scratch_nm1);
 
     // --- update ---
     for (int v = 1; v < nvars; ++v) {
-      scratch_nm1(v) = scratch_n(v);
-      scratch_n(v) = scratch(v);
+      scratch_nm1[v] = scratch[v];
     }
 
-    converged = convergence_checker.check_convergence(scratch_n, scratch_nm1);
     ++n;
   } // while not converged
 }

@@ -26,10 +26,7 @@ RadHydroPackage::RadHydroPackage(const ProblemIn *pin, int n_stages, int nq,
       u_f_l_("hydro::u_f_l_", nx + 2, 5), u_f_r_("hydro::u_f_r_", nx + 2, 5),
       flux_u_("hydro::flux_u_", n_stages, nx + 2 + 1),
       delta_("radhydro delta", n_stages, nx + 2, nq, 5),
-      delta_im_("radhydro delta implicit", n_stages, nx + 2, nq, 5),
-      scratch_k_("scratch_k_", nx + 2, nq, 5),
-      scratch_km1_("scratch_km1_", nx + 2, nq, 5),
-      scratch_sol_("scratch_k_", nx + 2, nq, 5) {
+      delta_im_("radhydro delta implicit", n_stages, nx + 2, nq, 5) {
 } // Need long term solution for flux_u_
 
 void RadHydroPackage::update_explicit(const StageData &stage_data,
@@ -192,27 +189,25 @@ void RadHydroPackage::update_implicit_iterative(const StageData &stage_data,
         DEFAULT_LOOP_PATTERN, "RadHydro :: Implicit iterative", DevExecSpace(),
         ib.s, ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
           const auto ucf_i = Kokkos::subview(ucf, i, q, Kokkos::ALL);
-          auto scratch_sol_i = Kokkos::subview(scratch_sol_, i, q, Kokkos::ALL);
-          auto scratch_sol_i_k = Kokkos::subview(scratch_k_, i, q, Kokkos::ALL);
-          auto scratch_sol_i_km1 =
-              Kokkos::subview(scratch_km1_, i, q, Kokkos::ALL);
           const auto R_i = Kokkos::subview(R, i, q, Kokkos::ALL);
+
+          double scratch_sol[NUM_VARS_];
+          double scratch_sol_nm1[NUM_VARS_];
 
           // set radhydro vars
           for (int v = 0; v < NUM_VARS_; ++v) {
             const double &u = ucf_i(v);
-            scratch_sol_i_k(v) = u;
-            scratch_sol_i_km1(v) = u;
-            scratch_sol_i(v) = u;
+            scratch_sol_nm1[v] = u;
+            scratch_sol[v] = u;
           }
 
-          fixed_point_radhydro_nodal<IonizationPhysics::Active>(
-              R_i, dt_info.dt_coef, scratch_sol_i_k, scratch_sol_i_km1,
-              scratch_sol_i, uaf, phi_fluid, phi_rad, inv_mkk_fluid,
-              inv_mkk_rad, eos, opac, dr, sqrt_gm, weights, content, i, q);
+          fixed_point_radhydro<IonizationPhysics::Active>(
+              R_i, dt_info.dt_coef, scratch_sol, scratch_sol_nm1, uaf,
+              phi_fluid, phi_rad, inv_mkk_fluid, inv_mkk_rad, eos, opac, dr,
+              sqrt_gm, weights, content, i, q);
 
           for (int v = 1; v < NUM_VARS_; ++v) {
-            ucf(i, q, v) = scratch_sol_i(v);
+            ucf(i, q, v) = scratch_sol[v];
           }
         });
   } else {
@@ -222,27 +217,25 @@ void RadHydroPackage::update_implicit_iterative(const StageData &stage_data,
         DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
         KOKKOS_CLASS_LAMBDA(const int i, const int q) {
           const auto ucf_i = Kokkos::subview(ucf, i, q, Kokkos::ALL);
-          auto scratch_sol_i = Kokkos::subview(scratch_sol_, i, q, Kokkos::ALL);
-          auto scratch_sol_i_k = Kokkos::subview(scratch_k_, i, q, Kokkos::ALL);
-          auto scratch_sol_i_km1 =
-              Kokkos::subview(scratch_km1_, i, q, Kokkos::ALL);
           const auto R_i = Kokkos::subview(R, i, q, Kokkos::ALL);
+
+          double scratch_sol[NUM_VARS_];
+          double scratch_sol_nm1[NUM_VARS_];
 
           // set radhydro vars
           for (int v = 0; v < NUM_VARS_; ++v) {
             const double &u = ucf_i(v);
-            scratch_sol_i_k(v) = u;
-            scratch_sol_i_km1(v) = u;
-            scratch_sol_i(v) = u;
+            scratch_sol_nm1[v] = u;
+            scratch_sol[v] = u;
           }
 
           fixed_point_radhydro<IonizationPhysics::Inactive>(
-              R_i, dt_info.dt_coef, scratch_sol_i_k, scratch_sol_i_km1,
-              scratch_sol_i, uaf, phi_fluid, phi_rad, inv_mkk_fluid,
-              inv_mkk_rad, eos, opac, dr, sqrt_gm, weights, content, i, q);
+              R_i, dt_info.dt_coef, scratch_sol, scratch_sol_nm1, uaf,
+              phi_fluid, phi_rad, inv_mkk_fluid, inv_mkk_rad, eos, opac, dr,
+              sqrt_gm, weights, content, i, q);
 
           for (int v = 1; v < NUM_VARS_; ++v) {
-            ucf(i, q, v) = scratch_sol_i(v);
+            ucf(i, q, v) = scratch_sol[v];
           }
         });
   }
