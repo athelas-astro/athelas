@@ -7,6 +7,15 @@
 
 namespace athelas::basis {
 
+// legendre polynomials
+KOKKOS_INLINE_FUNCTION auto legendre(const int n, const double x) -> double {
+  return (n == 0)   ? 1.0
+         : (n == 1) ? x
+                    : (((2 * n) - 1) * x * legendre(n - 1, x) -
+                       (n - 1) * legendre(n - 2, x)) /
+                          n;
+}
+
 using BasisFuncType = double(int, double, double);
 
 class ModalBasis {

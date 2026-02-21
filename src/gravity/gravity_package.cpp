@@ -13,10 +13,11 @@
 #include "kokkos_abstraction.hpp"
 #include "loop_layout.hpp"
 #include "pgen/problem_in.hpp"
+#include "utils/constants.hpp"
 
 namespace athelas::gravity {
 
-using basis::ModalBasis;
+using basis::NodalBasis;
 
 GravityPackage::GravityPackage(const ProblemIn *pin, GravityModel model,
                                const double gval, const double cfl,
@@ -24,7 +25,7 @@ GravityPackage::GravityPackage(const ProblemIn *pin, GravityModel model,
     : active_(active), model_(model), gval_(gval), cfl_(cfl),
       delta_("gravity delta", n_stages,
              pin->param()->get<int>("problem.nx") + 2,
-             pin->param()->get<int>("fluid.porder"), 2) {}
+             pin->param()->get<int>("basis.nnodes"), 2) {}
 
 void GravityPackage::update_explicit(const StageData &stage_data,
                                      const GridStructure &grid,
@@ -32,67 +33,49 @@ void GravityPackage::update_explicit(const StageData &stage_data,
   const auto stage = dt_info.stage;
   auto ucf = stage_data.get_field("u_cf");
 
-  const auto &basis = stage_data.fluid_basis();
   static const IndexRange ib(grid.domain<Domain::Interior>());
 
   if (model_ == GravityModel::Spherical) {
-    gravity_update<GravityModel::Spherical>(ucf, grid, stage, basis);
+    gravity_update<GravityModel::Spherical>(ucf, grid, stage);
   } else [[unlikely]] {
-    gravity_update<GravityModel::Constant>(ucf, grid, stage, basis);
+    gravity_update<GravityModel::Constant>(ucf, grid, stage);
   }
 }
 
 template <GravityModel Model>
-void GravityPackage::gravity_update(AthelasArray3D<double> state,
-                                    const GridStructure &grid, const int stage,
-                                    const basis::ModalBasis &basis) const {
+void GravityPackage::gravity_update(AthelasArray3D<double> ucf,
+                                    const GridStructure &grid,
+                                    const int stage) const {
   using basis::basis_eval;
-  const int nNodes = grid.n_nodes();
-  const int &order = basis.order();
+  static const int nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  static const IndexRange kb(order);
+  static const IndexRange qb(nNodes);
 
   auto r = grid.nodal_grid();
-  auto dr = grid.widths();
   auto enclosed_mass = grid.enclosed_mass();
-  auto mass = grid.mass();
-  auto weights = grid.weights();
-  auto sqrt_gm = grid.sqrt_gm();
-  auto phi = basis.phi();
-  auto inv_mkk = basis.inv_mass_matrix();
 
   const double gval = gval_;
   // This can probably be simplified.
+  // NOTE: the update is divided by 4pi as this factor is weirdly included
+  // in enclosed mass but not in, e.g., the mass matrix.
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Gravity :: Update", DevExecSpace(), ib.s, ib.e,
-      kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
-        double local_sum_v = 0.0;
-        double local_sum_e = 0.0;
-        for (int q = 0; q < nNodes; ++q) {
-          const double &X = r(i, q + 1);
-          const double &weight = weights(q);
-          const double &phi_kq = phi(i, q + 1, k);
-          const double X2 = X * X;
+      DEFAULT_FLAT_LOOP_PATTERN, "Gravity :: Update", DevExecSpace(), ib.s,
+      ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
+        for (int q = qb.s; q <= qb.e; ++q) {
+          const double X = r(i, q + 1);
+          const double denom = X * X * constants::FOURPI;
           if constexpr (Model == GravityModel::Spherical) {
-            local_sum_v += weight * phi_kq * enclosed_mass(i, q) * 1.0 / ((X2));
-            local_sum_e +=
-                (weight * phi_kq / (X2)) *
-                basis_eval(phi, state, i, vars::cons::Velocity, q + 1);
+            delta_(stage, i, q, pkg_vars::Velocity) =
+                -constants::G_GRAV * enclosed_mass(i, q) / denom;
+            delta_(stage, i, q, pkg_vars::Energy) =
+                delta_(stage, i, q, pkg_vars::Velocity) *
+                ucf(i, q, vars::cons::Velocity);
           } else {
-            local_sum_v +=
-                sqrt_gm(i, q + 1) * weight * phi(i, q + 1, k) * gval /
-                basis_eval(phi, state, i, vars::cons::SpecificVolume, q + 1);
-            local_sum_e +=
-                local_sum_v *
-                basis_eval(phi, state, i, vars::cons::Velocity, q + 1);
+            delta_(stage, i, q, pkg_vars::Velocity) = -constants::G_GRAV * gval;
+            delta_(stage, i, q, pkg_vars::Energy) =
+                -constants::G_GRAV * gval * ucf(i, q, vars::cons::Velocity);
           }
         }
-
-        const double dm_o_mkk = mass(i) * inv_mkk(i, k);
-        delta_(stage, i, k, pkg_vars::Velocity) =
-            -constants::G_GRAV * local_sum_v * dm_o_mkk;
-        delta_(stage, i, k, pkg_vars::Energy) =
-            -constants::G_GRAV * local_sum_e * dm_o_mkk;
       });
 }
 
@@ -102,18 +85,18 @@ void GravityPackage::gravity_update(AthelasArray3D<double> state,
 void GravityPackage::apply_delta(AthelasArray3D<double> lhs,
                                  const TimeStepInfo &dt_info) const {
   static const int nx = static_cast<int>(lhs.extent(0));
-  static const int nk = static_cast<int>(lhs.extent(1));
+  static const int nq = static_cast<int>(lhs.extent(1));
   static const IndexRange ib(std::make_pair(1, nx - 2));
-  static const IndexRange kb(nk);
+  static const IndexRange qb(nq);
   static const IndexRange vb(NUM_VARS_);
 
   const int stage = dt_info.stage;
 
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Gravity :: Apply delta", DevExecSpace(), ib.s,
-      ib.e, kb.s, kb.e, KOKKOS_CLASS_LAMBDA(const int i, const int k) {
+      ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
         for (int v = vb.s; v <= vb.e; ++v) {
-          lhs(i, k, v + 1) += dt_info.dt_coef * delta_(stage, i, k, v);
+          lhs(i, q, v + 1) += dt_info.dt_coef * delta_(stage, i, q, v);
         }
       });
 }
@@ -124,15 +107,15 @@ void GravityPackage::apply_delta(AthelasArray3D<double> lhs,
 void GravityPackage::zero_delta() const noexcept {
   static const IndexRange sb(static_cast<int>(delta_.extent(0)));
   static const IndexRange ib(static_cast<int>(delta_.extent(1)));
-  static const IndexRange kb(static_cast<int>(delta_.extent(2)));
+  static const IndexRange qb(static_cast<int>(delta_.extent(2)));
   static const IndexRange vb(static_cast<int>(delta_.extent(3)));
 
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Gravity :: Zero delta", DevExecSpace(), sb.s, sb.e,
-      ib.s, ib.e, kb.s, kb.e,
-      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int k) {
+      ib.s, ib.e, qb.s, qb.e,
+      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int q) {
         for (int v = vb.s; v <= vb.e; ++v) {
-          delta_(s, i, k, v) = 0.0;
+          delta_(s, i, q, v) = 0.0;
         }
       });
 }

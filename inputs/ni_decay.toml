@@ -22,6 +22,9 @@ ionization = false
 heating = true
 engine = false
 
+[basis]
+nnodes = 2
+
 [composition]
 ncomps = 3
 
@@ -43,11 +46,6 @@ dt_init_frac = 1.01
 [output.history]
 fn = "ni_decay.hst"
 #dt = 0.001 # default: dt_hdf5 / 10
-
-[fluid]
-basis = "legendre"
-nnodes = 2
-porder = 2
 
 [fluid.limiter]
 do_limiter = true

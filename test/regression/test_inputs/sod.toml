@@ -19,6 +19,9 @@ pL = 1.0
 pR = 0.1
 x_d = 0.5
 
+[basis]
+nnodes = 3
+
 [physics]
 radiation = false
 gravity = false
@@ -36,11 +39,6 @@ bc_o = "outflow"
 ncycle_out = 100000
 dt_hdf5 = 1.0
 dt_init_frac = 1.5
-
-[fluid]
-basis = "legendre"
-nnodes = 3
-porder = 3
 
 [fluid.limiter]
 do_limiter = true

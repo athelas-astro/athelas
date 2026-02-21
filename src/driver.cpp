@@ -1,5 +1,6 @@
 #include "driver.hpp"
 #include "basic_types.hpp"
+#include "basis/nodal_basis.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "fluid/hydro_package.hpp"
 #include "geometry/geometry_package.hpp"
@@ -21,6 +22,7 @@
 namespace athelas {
 
 using basis::ModalBasis;
+using basis::NodalBasis;
 using io::write_output, io::print_simulation_parameters;
 
 auto Driver::execute() -> int {
@@ -60,7 +62,6 @@ auto Driver::execute() -> int {
   int i_out_hist = 1; // output hist
   std::println("# Step    t       dt       zone_cycles / wall_second");
   while (time_ < t_end_ && iStep <= nlim) {
-
     if (!fixed_dt) {
       dt_ =
           std::min(manager_->min_timestep(mesh_state_(0), grid_,
@@ -136,14 +137,10 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   using thermal_engine::ThermalEnginePackage;
 
   const auto nx = pin_->param()->get<int>("problem.nx");
-  const int max_order =
-      std::max(pin_->param()->get<int>("fluid.porder"),
-               pin_->param()->get<int>("radiation.porder", 1));
-  const int max_nodes =
-      std::max(pin_->param()->get<int>("fluid.nnodes"),
-               pin_->param()->get<int>("radiation.nnodes", 1));
+  const int nnodes = pin_->param()->get<int>("basis.nnodes");
+  // For nodal DG, u_cf is (ix, node, var); for modal, (ix, mode, var)
   const auto cfl =
-      compute_cfl(pin_->param()->get<double>("problem.cfl"), max_order);
+      compute_cfl(pin_->param()->get<double>("problem.cfl"), nnodes);
   const bool rad_active = pin->param()->get<bool>("physics.rad_active");
   const bool comps_active =
       pin->param()->get<bool>("physics.composition_enabled");
@@ -168,22 +165,22 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
     }
   }
   mesh_state_.register_field("u_cf", DataPolicy::Staged, "Conserved variables",
-                             varnames_cons, nx + 2, max_order, nvars_cons);
+                             varnames_cons, nx + 2, nnodes, nvars_cons);
 
   int nvars_aux = 3;
   mesh_state_.register_field("u_af", DataPolicy::OneCopy, "Auxiliary variables",
                              {"pressure", "gas temperature", "sound speed"},
-                             nx + 2, max_nodes + 2, nvars_aux);
+                             nx + 2, nnodes + 2, nvars_aux);
   int nvars_prim = 3;
   mesh_state_.register_field("u_pf", DataPolicy::OneCopy, "Primitive variables",
-                             {"density", "momentum", "sie"}, nx + 2,
-                             max_nodes + 2, nvars_prim);
+                             {"density", "momentum", "sie"}, nx + 2, nnodes + 2,
+                             nvars_prim);
 
   if (comps_active) {
     // TODO(astrobarker) [composition] Get rid of x_q nodal mass fractions
     const auto ncomps = pin->param()->get<int>("composition.ncomps");
     mesh_state_.register_field("x_q", DataPolicy::OneCopy,
-                               "Nodal mass fractions", nx + 2, max_nodes + 2,
+                               "Nodal mass fractions", nx + 2, nnodes + 2,
                                ncomps);
 
     mesh_state_.register_field("bulk_composition", DataPolicy::OneCopy,
@@ -192,48 +189,24 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   }
 
   // auto info = mesh_state_.field_info();
-  auto sd0 = mesh_state_(0);
-  auto prims = sd0.get_field("u_pf");
-
-  bool first_init = true;
 
   if (!restart_) {
-    // The pattern here is annoying and due to a chicken-and-egg
-    // pattern between problem generation and basis construction.
-    // Some problems, like Shu-Osher, need the basis at setup
-    // to perform the L2 projection from nodal to modal
-    // representation. Basis construction, however, requires the
-    // nodal density field as density weighted inner products are used.
-    // So here, the firist initialize_fields call may only populate nodal
-    // density in uPF. Then bases are constructed. Then, the second
-    // initialize_fields call populates the conserved variables.
-    // For simple cases, like Sod, the layering is redundant, as
-    // the bases are never used.
-    initialize_fields(mesh_state_, &grid_, pin, first_init);
-    first_init = false;
+    initialize_fields(mesh_state_, &grid_, pin);
+    auto sd0 = mesh_state_(0);
+    auto prims = sd0.get_field("u_pf");
+    auto cons = sd0.get_field("u_cf");
+    bc::fill_ghost_zones<3>(cons, &grid_, bcs_.get(), {0, 2});
+    grid_.compute_mass(cons);
 
-    // --- Datastructure for modal basis ---
-    static const bool rad_active =
-        pin_->param()->get<bool>("physics.rad_active");
-    auto fluid_basis = std::make_unique<ModalBasis>(
-        poly_basis::legendre, prims, &grid_,
-        pin->param()->get<int>("fluid.porder"),
-        pin->param()->get<int>("fluid.nnodes"),
-        pin->param()->get<int>("problem.nx"), true);
+    auto nx = grid_.n_elements();
+    const bool rad_active = pin_->param()->get<bool>("physics.rad_active");
+    auto fluid_basis = std::make_unique<NodalBasis>(prims, &grid_, nnodes, nx);
     mesh_state_.setup_fluid_basis(std::move(fluid_basis));
     if (rad_active) {
-      auto radiation_basis = std::make_unique<ModalBasis>(
-          poly_basis::legendre, prims, &grid_,
-          pin->param()->get<int>("radiation.porder"),
-          pin->param()->get<int>("radiation.nnodes"),
-          pin->param()->get<int>("problem.nx"), false);
+      auto radiation_basis =
+          std::make_unique<NodalBasis>(prims, &grid_, nnodes, nx);
       mesh_state_.setup_rad_basis(std::move(radiation_basis));
     }
-
-    // --- Phase 2: Re-initialize with modal projection ---
-    // This will use the nodal density from Phase 1 to construct proper modal
-    // coefficients
-    initialize_fields(mesh_state_, &grid_, pin, first_init);
   }
 
   // now that all is said and done, perform post init work
@@ -251,53 +224,57 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   bool split = false;
 
   const int n_stages = ssprk_.n_stages();
+  auto sd0 = mesh_state_(0);
 
   // --- Init physics package manager ---
   // NOTE: Hydro/RadHydro should be registered first
+  const bool pkg_active = true;
   if (rad_active) {
-    manager_->add_package(
-        RadHydroPackage{pin, n_stages, max_order, bcs_.get(), cfl, nx, true});
+    manager_->add_package(RadHydroPackage{pin, n_stages, nnodes, bcs_.get(),
+                                          cfl, nx, pkg_active});
   } else [[unlikely]] {
     // pure Hydro
     manager_->add_package(
-        HydroPackage{pin, n_stages, max_order, bcs_.get(), cfl, nx, true});
+        HydroPackage{pin, n_stages, nnodes, bcs_.get(), cfl, nx, pkg_active});
   }
   if (gravity_active) {
     if (!pin->param()->get<bool>("physics.gravity.split")) {
-      manager_->add_package(GravityPackage{
-          pin, pin->param()->get<GravityModel>("gravity.model"),
-          pin->param()->get<double>("gravity.gval"), cfl, n_stages, true});
+      manager_->add_package(
+          GravityPackage{pin, pin->param()->get<GravityModel>("gravity.model"),
+                         pin->param()->get<double>("gravity.gval"), cfl,
+                         n_stages, pkg_active});
     } else {
       split = true;
-      split_manager_->add_package(GravityPackage{
-          pin, pin->param()->get<GravityModel>("gravity.model"),
-          pin->param()->get<double>("gravity.gval"), cfl, n_stages, true});
+      split_manager_->add_package(
+          GravityPackage{pin, pin->param()->get<GravityModel>("gravity.model"),
+                         pin->param()->get<double>("gravity.gval"), cfl,
+                         n_stages, pkg_active});
     }
   }
   if (ni_heating_active) {
     if (!pin->param()->get<bool>("physics.heating.nickel.split")) {
       manager_->add_package(NickelHeatingPackage{
-          pin, sd0.comps()->species_indexer(), n_stages, max_order, true});
+          pin, sd0.comps()->species_indexer(), n_stages, nnodes, pkg_active});
     } else {
       split = true;
       split_manager_->add_package(NickelHeatingPackage{
-          pin, sd0.comps()->species_indexer(), n_stages, true});
+          pin, sd0.comps()->species_indexer(), n_stages, nnodes, pkg_active});
     }
   }
   if (thermal_engine_active) {
     if (!pin->param()->get<bool>("physics.engine.thermal.split")) {
       manager_->add_package(
-          ThermalEnginePackage{pin, sd0, &grid_, n_stages, true});
+          ThermalEnginePackage{pin, sd0, &grid_, n_stages, pkg_active});
     } else {
       split = true;
       split_manager_->add_package(
-          ThermalEnginePackage{pin, sd0, &grid_, n_stages, true});
+          ThermalEnginePackage{pin, sd0, &grid_, n_stages, pkg_active});
     }
   }
   // TODO(astrobarker): [split, geometry] Could add option to split.. not
   // important..
   if (geometry) {
-    manager_->add_package(GeometryPackage{pin, n_stages, true});
+    manager_->add_package(GeometryPackage{pin, n_stages, pkg_active});
   }
 
   // set up operator split stepper
@@ -317,9 +294,15 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   }
   std::print("\n\n");
 
-  // --- slope limiter to initial condition ---
-  apply_slope_limiter(&sl_hydro_, sd0.get_field("u_cf"), &grid_,
-                      sd0.fluid_basis(), sd0.eos());
+  // --- Fill ghosts and apply limiters to initial condition ---
+  auto ucf = sd0.get_field("u_cf");
+  bc::fill_ghost_zones<3>(ucf, &grid_, bcs_.get(), {0, 2});
+  if (rad_active) {
+    bc::fill_ghost_zones<2>(ucf, &grid_, bcs_.get(), {3, 4});
+  }
+  auto cons = sd0.get_field("u_cf");
+  apply_slope_limiter(&sl_hydro_, cons, grid_, sd0.fluid_basis(), sd0.eos());
+  bel::apply_bound_enforcing_limiter(sd0, grid_);
 
   // --- Add history outputs ---
   // NOTE: Could be nice to have gravitational energy added
@@ -360,6 +343,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
 /**
  * @brief Perform post initialization checks, calculations
  * Currently:
+ * - Call grid's compute enclosed mass.
  * - If composition is enabled
  *   - Compute inv_atomic_mass
  * - If ionization if enabled
@@ -367,8 +351,33 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
  *     - saha_ncomps < ncomps
  */
 void Driver::post_init_work() {
+  auto sd0 = mesh_state_(0);
+  auto cons = sd0.get_field("u_cf");
   const bool comps_active = mesh_state_.composition_enabled();
   const bool ionization_active = mesh_state_.ionization_enabled();
+
+  static const IndexRange ib(grid_.domain<Domain::Interior>());
+
+  grid_.compute_mass(cons);
+  grid_.compute_mass_r(cons);
+  grid_.compute_center_of_mass(cons);
+
+  // If we are doing some kind of mass cut, that mass needs to be included
+  // in the enclosed mass.
+  const bool do_mass_cut = pin_->param()->contains("problem.params.mass_cut");
+  if (do_mass_cut) {
+    const auto mc =
+        pin_->param()->get<double>("problem.params.mass_cut"); // in M_{\odot}
+    auto menc = grid_.enclosed_mass();
+    const int nNodes = grid_.n_nodes();
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "post_init_work :: Adjust enclosed mass",
+        DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
+          for (int q = 0; q < nNodes; q++) {
+            menc(i, q) += mc * constants::M_sun;
+          }
+        });
+  }
 
   // This is a weird one. When ionization is active and needed to be computed
   // in the pgen, then this _must_ be computed there. That is the case
@@ -439,40 +448,40 @@ void Driver::post_step_work() {
   }
   const bool ionization_enabled = mesh_state_.ionization_enabled();
   if (ionization_enabled) {
+    static const IndexRange ib(grid_.domain<Domain::Interior>());
+    static const IndexRange qb(grid_.n_nodes());
+
     const auto &eos = mesh_state_.eos();
     auto ucf = mesh_state_(0).get_field("u_cf");
-    static const IndexRange ib(grid_.domain<Domain::Interior>());
+
     const auto *const comps = mesh_state_.comps();
-    const auto number_density = comps->number_density();
-    const auto ye = comps->ye();
+    auto number_density = comps->number_density();
+    auto ye = comps->ye();
 
     const auto *const ionization_states = mesh_state_.ionization_state();
-    const auto ybar = ionization_states->ybar();
-    const auto e_ion_corr = ionization_states->e_ion_corr();
-    const auto sigma1 = ionization_states->sigma1();
-    const auto sigma2 = ionization_states->sigma2();
-    const auto sigma3 = ionization_states->sigma3();
+    auto ybar = ionization_states->ybar();
+    auto e_ion_corr = ionization_states->e_ion_corr();
+    auto sigma1 = ionization_states->sigma1();
+    auto sigma2 = ionization_states->sigma2();
+    auto sigma3 = ionization_states->sigma3();
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Fixup", DevExecSpace(), ib.s, ib.e,
         KOKKOS_LAMBDA(const int i) {
-          const double rho = 1.0 / ucf(i, vars::modes::CellAverage,
-                                       vars::cons::SpecificVolume);
-          const double vel =
-              ucf(i, vars::modes::CellAverage, vars::cons::Velocity);
-          const double emt =
-              ucf(i, vars::modes::CellAverage, vars::cons::Energy);
-          const double sie = emt - 0.5 * vel * vel;
-          eos::EOSLambda lambda;
-          int q = 0;
-          lambda.data[1] = ye(i, q);
-          lambda.data[6] = e_ion_corr(i, q);
-          const double emin = eos::min_sie(eos, rho, lambda.ptr());
-          if (sie <= emin) {
-            double sie_fix = 1.1 * emin;
-            ucf(i, vars::modes::CellAverage, vars::cons::Energy) =
-                sie_fix + 0.5 * vel * vel;
-            std::println("FIXUP i sie sie_min siefix {} {:.5e} {:.5e} {:.5e}",
-                         i, sie, emin, sie_fix);
+          for (int q = qb.s; q <= qb.e; ++q) {
+            const double rho = 1.0 / ucf(i, q, vars::cons::SpecificVolume);
+            const double vel = ucf(i, q, vars::cons::Velocity);
+            const double emt = ucf(i, q, vars::cons::Energy);
+            const double sie = emt - 0.5 * vel * vel;
+            eos::EOSLambda lambda;
+            lambda.data[1] = ye(i, q + 1);
+            lambda.data[6] = e_ion_corr(i, q + 1);
+            const double emin = eos::min_sie(eos, rho, lambda.ptr());
+            if (sie <= emin) {
+              double sie_fix = 1.1 * emin;
+              ucf(i, q, vars::cons::Energy) = sie_fix + 0.5 * vel * vel;
+              std::println("FIXUP i sie sie_min siefix {} {:.8e} {:.8e} {:.5e}",
+                           i, sie, emin, sie_fix);
+            }
           }
         });
   }

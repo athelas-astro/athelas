@@ -39,7 +39,7 @@ inline auto parse_model(const std::string &model) -> NiHeatingModel {
 class NickelHeatingPackage {
  public:
   NickelHeatingPackage(const ProblemIn *pin, const Params *indexer,
-                       int n_stages, int order, bool active = true);
+                       int n_stages, int nq, bool active = true);
 
   void update_explicit(const StageData &stage_data, const GridStructure &grid,
                        const TimeStepInfo &dt_info);
@@ -127,7 +127,7 @@ class NickelHeatingPackage {
   AthelasArray3D<double> tau_gamma_; // [nx][node][angle]
   AthelasArray2D<double> int_etau_domega_; // integration of e^-tau dOmega
 
-  AthelasArray4D<double> delta_; // [nstages, nx, order, nvars]
+  AthelasArray4D<double> delta_; // [nstages, nx, nq, nvars]
 
   // We need to store the indices of our required species.
   // These are indices in the "full" ucons.

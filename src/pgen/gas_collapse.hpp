@@ -1,10 +1,3 @@
-/**
- * @file gas_collapse.hpp
- * --------------
- *
- * @brief Collapsing gas cloud
- */
-
 #pragma once
 
 #include "basis/polynomial_basis.hpp"
@@ -30,11 +23,11 @@ void gas_collapse_init(MeshState &mesh_state, GridStructure *grid,
   static const IndexRange ib(grid->domain<Domain::Interior>());
   const int nNodes = grid->n_nodes();
 
-  constexpr static int q_Tau = 0;
-  constexpr static int q_V = 1;
-  constexpr static int q_E = 2;
+  constexpr static int vars::cons::SpecificVolume = 0;
+  constexpr static int vars::cons::Velocity = 1;
+  constexpr static int vars::cons::Energy = 2;
 
-  constexpr static int iPF_D = 0;
+  constexpr static int vars::prim::Rho = 0;
 
   const auto V0 = pin->param()->get<double>("problem.params.v0", 0.0);
   const auto rho0 = pin->param()->get<double>("problem.params.rho0", 1.0);
@@ -48,12 +41,14 @@ void gas_collapse_init(MeshState &mesh_state, GridStructure *grid,
       ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
         const int k = 0;
 
-        uCF(i, k, q_Tau) = rho0; // / rho0 * (1.0 / std::cosh(x / H));
-        uCF(i, k, q_V) = V0;
-        uCF(i, k, q_E) = (p0 / gm1) * uCF(i, k, q_Tau) + 0.5 * V0 * V0;
+        uCF(i, k, vars::cons::SpecificVolume) =
+            rho0; // / rho0 * (1.0 / std::cosh(x / H));
+        uCF(i, k, vars::cons::Velocity) = V0;
+        uCF(i, k, vars::cons::Energy) =
+            (p0 / gm1) * uCF(i, k, vars::cons::SpecificVolume) + 0.5 * V0 * V0;
 
         for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
-          uPF(i, iNodeX, iPF_D) = rho0;
+          uPF(i, iNodeX, vars::prim::Rho) = rho0;
         }
       });
 

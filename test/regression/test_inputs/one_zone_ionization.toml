@@ -22,6 +22,9 @@ ionization = true
 heating = false
 engine = false
 
+[basis]
+nnodes = 2
+
 [ionization]
 fn_ionization = "../../../data/atomic_data_ionization.dat"
 fn_degeneracy = "../../../data/atomic_data_degeneracy_factors.dat"
@@ -43,11 +46,6 @@ dt_init_frac = 1.005
 [output.history]
 fn = "one_zone_ionization.hst"
 #dt = 0.001 # default: dt_hdf5 / 10
-
-[fluid]
-basis = "legendre"
-nnodes = 2
-porder = 2
 
 [fluid.limiter]
 do_limiter = false

@@ -13,12 +13,11 @@ plt.style.use("style.mplstyle")
 def plot_sedov(chk):
   problem = "sedov"
   fn = f"{problem}_{chk}.h5"
-  basis_fn = f"{problem}_basis.h5"
 
-  a = Athelas(fn, basis_fn)
+  a = Athelas(fn)
   r = a.r
   print(r[0])
-  tau = a.uCF[:, 0, 0]
+  tau = a.get("tau")
   # vel = a.uCF[:, 0, 1]
   # emT = a.uCF[:, 0, 2]
   # em = emT - 0.5 * vel * vel

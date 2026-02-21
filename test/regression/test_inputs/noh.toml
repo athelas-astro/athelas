@@ -24,6 +24,9 @@ ionization = false
 heating = false
 engine = false
 
+[basis]
+nnodes = 2
+
 [bc]
 [bc.fluid]
 bc_i = "outflow"
@@ -33,11 +36,6 @@ bc_o = "outflow"
 ncycle_out = 100
 dt_hdf5 = 0.1
 dt_init_frac = 1.01
-
-[fluid]
-basis = "legendre"
-nnodes = 2
-porder = 2
 
 [fluid.limiter]
 do_limiter = true

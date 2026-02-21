@@ -23,6 +23,9 @@ ionization = false
 heating = false
 engine = false
 
+[basis]
+nnodes = 3
+
 [bc]
 [bc.fluid]
 bc_i = "periodic"
@@ -35,11 +38,6 @@ dt_hdf5 = 0.1
 [output.history]
 fn = "athelas.hst"
 dt = 0.001
-
-[fluid]
-basis = "legendre"
-nnodes = 3
-porder = 3
 
 [time]
 integrator = "EX_SSPRK33"

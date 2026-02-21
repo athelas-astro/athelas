@@ -18,6 +18,9 @@ ionization = false
 heating = false
 engine = false
 
+[basis]
+nnodes = 2
+
 [problem.params]
 rstar = 0.01
 vmax = 1.8257418583505537 # sqrt(10/3)
@@ -35,11 +38,6 @@ dt_init_frac = 1.01
 [output.history]
 fn = "ejecta_csm.hst"
 dt = 0.001
-
-[fluid]
-basis = "legendre"
-nnodes = 2
-porder = 2
 
 [fluid.limiter]
 do_limiter = true

@@ -9,7 +9,7 @@
 
 namespace athelas::atom {
 
-using basis::ModalBasis;
+using basis::NodalBasis;
 
 /**
  * @brief Store the extra "lambda" terms for paczynski eos

@@ -36,6 +36,12 @@ ParamValue = Union[
 ]
 
 
+class Quadrature:
+  def __init__(self, qs: np.typing.NDArray[Any], ws: np.typing.NDArray[Any]):
+    self.nodes = qs
+    self.weights = ws
+
+
 class Field:
   def __init__(self, name: str, dataset: h5py.Dataset, meta: dict):
     self.name = name
@@ -45,8 +51,8 @@ class Field:
     self.policy = meta["policy"]
     self.description = meta["description"]
 
-  def slice(self, sl, mode: int):
-    return self.dataset[sl, mode, :]
+  def slice(self, sl):
+    return self.dataset[sl, :, :]
 
 
 class Variable:
@@ -55,8 +61,8 @@ class Variable:
     self.field = field
     self.index = index
 
-  def get(self, sl, mode: int):
-    return self.field.dataset[sl, mode, self.index]
+  def get(self, sl):
+    return self.field.dataset[sl, :, self.index]
 
 
 # ============================================================================
@@ -103,11 +109,12 @@ class Athelas:
     # ----------------------
     # Simulation info
     # ----------------------
-    self.time = float(f["simulation_info/time"][()])
-    self.n_stages = int(f["simulation_info/n_stages"][()])
-    self.cycle = int(f["simulation_info/cycle"][()])
+    self.time = float(f["info/time"][()])
+    self.n_stages = int(f["info/n_stages"][()])
+    self.cycle = int(f["info/cycle"][()])
 
     self.params = read_hdf5_group(f["params"])
+    self.geometry = self.params["problem.geometry"]
 
     # ----------------------
     # Grid
@@ -118,8 +125,14 @@ class Athelas:
       self.sl = slice(1, -1)
 
     self.r = f["mesh/r"][self.sl]
-    self.r_q = f["mesh/r_q"][self.sl]
+    self.r_q = f["mesh/r_q"][self.sl, 1:-1].reshape(-1)
+    self.r_q_u = f["mesh/r_q"][self.sl].reshape(-1)
     self.dr = f["mesh/dr"][self.sl]
+    self.sqrt_gm = f["mesh/sqrt_gm"][self.sl]
+    self.dm = f["mesh/dm"][self.sl]
+    self.mass = f["mesh/enclosed_mass"][self.sl]
+    if self.geometry == "spherical":
+      self.dm *= 4.0 * np.pi
 
     # ----------------------
     # Load fields
@@ -158,12 +171,10 @@ class Athelas:
     # ----------------------
     # Basis
     # ----------------------
-    self.basis = {}
-    if "basis" in f:
-      for phys in f["basis"]:
-        self.basis[phys] = {}
-        for name in f[f"basis/{phys}"]:
-          self.basis[phys][name] = f[f"basis/{phys}/{name}"][...]
+    self.basis = f["basis/"]
+    self.quadrature = Quadrature(
+      self.basis["nodes"][:], self.basis["weights"][:]
+    )
 
     # ----------------------
     # Derived
@@ -178,7 +189,7 @@ class Athelas:
   # Derived
   # ------------------------------------------------------------------
 
-  def _derive_flux_factor(self, mode: int = 0) -> np.ndarray:
+  def _derive_flux_factor(self) -> np.ndarray:
     """
     Radiation flux factor f = |F| / (c E)
     """
@@ -189,8 +200,8 @@ class Athelas:
       basis="radiation",
     )
 
-    E = self.get("rad_energy", mode=mode)
-    F = self.get("rad_momentum", mode=mode)
+    E = self.get("rad_energy")
+    F = self.get("rad_momentum")
 
     return np.abs(F) / (consts.c.cgs.value * E)
 
@@ -200,20 +211,72 @@ class Athelas:
   # Accessors
   # ------------------------------------------------------------------
 
-  def get(self, name: str, mode: int = 0) -> np.ndarray:
+  #  def get(self, name: str) -> np.ndarray:
+  #    if name in self.variables:
+  #      return self.variables[name].get(self.sl)
+  #
+  #    if name in self.fields:
+  #      return self.fields[name].slice(self.sl)
+  #
+  #    if name in self._derived_registry:
+  #      key = name
+  #      if key not in self._derived:
+  #        self._derived[key] = self._derived_registry[name]()
+  #      return self._derived[key]
+  #
+  #    raise AthelasError(f"Unknown variable or field '{name}'")
+
+  def get(self, name: str, average: bool = True) -> np.ndarray:
+    """
+    Get variable, field, or derived quantity.
+
+    Parameters
+    ----------
+    name : str
+        Variable, field, or derived quantity name
+    average : bool, default=True
+        If True, return cell averages for nodal data.
+        If False, return full nodal data.
+
+    Returns
+    -------
+    np.ndarray
+        Shape (nx,) if average=True, (nx, nnodes) if average=False
+    """
+    # Get the raw data
     if name in self.variables:
-      return self.variables[name].get(self.sl, mode)
-
-    if name in self.fields:
-      return self.fields[name].slice(self.sl, mode)
-
-    if name in self._derived_registry:
-      key = (name, mode)
+      data = self.variables[name].get(self.sl)
+    elif name in self.fields:
+      data = self.fields[name].slice(self.sl)
+    elif name in self._derived_registry:
+      key = (name,)
       if key not in self._derived:
-        self._derived[key] = self._derived_registry[name](mode)
-      return self._derived[key]
+        self._derived[key] = self._derived_registry[name]()
+      data = self._derived[key]
+    else:
+      raise AthelasError(f"Unknown variable or field '{name}'")
 
-    raise AthelasError(f"Unknown variable or field '{name}'")
+    # If not averaging or data is already 1D, return as-is
+    if not average or data.ndim == 1:
+      return data
+
+    # Handle variables with interface points (nnodes + 2)
+    nnodes = len(self.quadrature.weights)
+    if data.shape[1] > nnodes:
+      # Strip interface points (first and last in second dimension)
+      data = data[:, 1:-1]
+
+    # Check cache for cell-averaged version
+    cache_key = (name, "average")
+    if cache_key not in self._derived:
+      # Compute cell averages: shape (nx, nnodes) -> (nx,)
+      weights = self.quadrature.weights
+      self._derived[cache_key] = np.sum(
+        data * weights[np.newaxis, :], axis=1
+      ) / np.sum(weights[np.newaxis, :])
+      # self._derived[cache_key] = np.sum(data * weights[np.newaxis, :] * self.sqrt_gm[:, 1:-1], axis=1) / np.sum(weights[np.newaxis, :] * self.sqrt_gm[:, 1:-1])
+
+    return self._derived[cache_key]
 
   def __getitem__(self, name: str) -> np.ndarray:
     return self.get(name)
@@ -324,7 +387,6 @@ class Athelas:
     self,
     name: str,
     *,
-    mode: int = 0,
     ax: Optional[plt.Axes] = None,
     logx: bool = False,
     logy: bool = False,
@@ -335,7 +397,7 @@ class Athelas:
       _, ax = plt.subplots(figsize=(8, 5))
 
     x = self.r
-    y = self.get(name, mode)
+    y = self.get(name)
 
     if logx:
       x = np.log10(np.abs(x))
@@ -350,7 +412,7 @@ class Athelas:
       ax.set_ylabel(name)
 
     if label is None:
-      label = f"{name} (mode {mode})" if mode else name
+      label = f"{name} "
 
     ax.plot(x, y, label=label, **kwargs)
     ax.grid(alpha=0.3)

@@ -40,6 +40,9 @@ ionization = false
 heating = false
 engine = false
 
+[basis]
+nnodes = 1
+
 # TODO(astrobarker) fix
 [bc]
 [bc.fluid]
@@ -58,21 +61,11 @@ dt_init_frac = 1.0001
 fn = "rad_shock_steady.hst"
 #dt = 0.001 # default: dt_hdf5 / 10
 
-[fluid]
-basis = "legendre"
-nnodes = 1
-porder = 1
-
 [fluid.limiter]
 type = "minmod"
 tci_opt = false
 tci_val = 0.1
 characteristic = false
-
-[radiation]
-basis = "legendre"
-nnodes = 1
-porder = 1
 
 [radiation.limiter]
 tci_opt = false

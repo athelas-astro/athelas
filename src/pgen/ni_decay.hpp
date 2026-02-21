@@ -1,6 +1,5 @@
 #pragma once
 
-#include "basis/polynomial_basis.hpp"
 #include "bc/boundary_conditions.hpp"
 #include "eos/eos_variant.hpp"
 #include "geometry/grid.hpp"
@@ -12,8 +11,7 @@ namespace athelas {
 /**
  * Initialize ni_decay test
  **/
-void ni_decay_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
-                   bool /*first_init*/) {
+void ni_decay_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   const bool composition_active =
       pin->param()->get<bool>("physics.composition_enabled");
   const bool ni_decay_active =
@@ -30,15 +28,10 @@ void ni_decay_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   auto uPF = mesh_state(0).get_field("u_pf");
   auto uAF = mesh_state(0).get_field("u_af");
 
-  static const IndexRange ib(grid->domain<Domain::Interior>());
   static const int nNodes = grid->n_nodes();
   static const int order = nNodes;
-
-  const int q_Tau = 0;
-  const int q_V = 1;
-  const int q_E = 2;
-
-  const int iPF_D = 0;
+  static const IndexRange ib(grid->domain<Domain::Interior>());
+  const IndexRange qb(nNodes);
 
   const auto temperature =
       pin->param()->get<double>("problem.params.temperature", 5800); // K
@@ -70,24 +63,22 @@ void ni_decay_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   species_indexer->add("co56", 4);
   species_indexer->add("fe56", 5);
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: NiDecay (1)", DevExecSpace(), ib.s,
-      ib.e, KOKKOS_LAMBDA(const int i) {
-        const int k = 0;
-
-        uCF(i, k, q_Tau) = tau;
-        uCF(i, k, q_V) = vel;
-        uCF(i, k, q_E) = sie;
+      DEFAULT_LOOP_PATTERN, "Pgen :: NiDecay", DevExecSpace(), ib.s, ib.e, qb.s,
+      qb.e, KOKKOS_LAMBDA(const int i, const int q) {
+        uCF(i, q, vars::cons::SpecificVolume) = tau;
+        uCF(i, q, vars::cons::Velocity) = vel;
+        uCF(i, q, vars::cons::Energy) = sie;
 
         for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
-          uPF(i, iNodeX, iPF_D) = rho;
+          uPF(i, iNodeX, vars::prim::Rho) = rho;
           uAF(i, iNodeX, 1) = temperature;
           ye(i, iNodeX) = 0.5;
         }
 
         // set up comps
         // For this problem we set up a contiguous list of species
-        // form Z = 1 to ncomps. Mass fractions are uniform with no slopes.
-        mass_fractions(i, k, 0) = 1.0; // Pure Ni
+        // form Z = 1 to ncomps. Mass fractions are uniform.
+        mass_fractions(i, q, 0) = 1.0; // Pure Ni
 
         // Ni
         charges(0) = 28;
@@ -108,16 +99,6 @@ void ni_decay_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   // composition boundary condition
   static const IndexRange vb_comps(std::make_pair(3, 3 + ncomps - 1));
   bc::fill_ghost_zones_composition(uCF, vb_comps);
-
-  // Fill density in guard cells
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: NiDecay (ghost)", DevExecSpace(), 0,
-      ib.s - 1, KOKKOS_LAMBDA(const int i) {
-        for (int iN = 0; iN < nNodes + 2; iN++) {
-          uPF(ib.s - 1 - i, iN, 0) = uPF(ib.s + i, (nNodes + 2) - iN - 1, 0);
-          uPF(ib.s + 1 + i, iN, 0) = uPF(ib.s - i, (nNodes + 2) - iN - 1, 0);
-        }
-      });
 }
 
 } // namespace athelas

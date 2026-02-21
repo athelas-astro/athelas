@@ -23,7 +23,7 @@
 
 namespace athelas {
 
-using basis::ModalBasis;
+using basis::NodalBasis;
 using eos::EOS;
 using utilities::ratio;
 using namespace vars::modes;
@@ -33,21 +33,21 @@ using namespace vars::modes;
  * H. Zhu 2020, simple, high-order compact WENO RKDG slope limiter
  **/
 void WENO::apply_slope_limiter(AthelasArray3D<double> U,
-                               const GridStructure *grid,
-                               const ModalBasis &basis, const EOS &eos) {
+                               const GridStructure &grid,
+                               const NodalBasis &basis, const EOS &eos) {
 
   // Do not apply for first order method or if we don't want to.
   if (order_ == 1 || !do_limiter_) {
     return;
   }
 
-  static const IndexRange ib(grid->domain<Domain::Interior>());
+  static const IndexRange ib(grid.domain<Domain::Interior>());
 
   const auto nvars = nvars_;
 
   // --- Apply troubled cell indicator ---
   if (tci_opt_) {
-    detect_troubled_cells(U, D_, grid, basis, vars_);
+    detect_troubled_cells(U, D_, grid, basis, vb_);
   }
 
   /* map to characteristic vars */
@@ -82,7 +82,7 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U,
         }); // par i
   } // end map to characteristics
 
-  const auto dr = grid->widths();
+  const auto dr = grid.widths();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: WENO", DevExecSpace(), ib.s,
       ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
@@ -90,7 +90,7 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U,
 
         // Do nothing we don't need to limit slopes
         if (D_(i) > tci_val_ || !tci_opt_) {
-          for (int v : vars_) {
+          for (int v = 0; v < nvars_; ++v) {
             // get scratch modified_polynomial view for this cell's work
             auto modified_polynomial_i = Kokkos::subview(
                 modified_polynomial_, i, Kokkos::ALL, Kokkos::ALL);
