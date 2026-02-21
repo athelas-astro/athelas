@@ -6,7 +6,7 @@
 
 ### Added (new features/APIs/variables/...)
 
-- [PR 146](https://github.com/athelas-astro/athelas/pull/140) Tabular opacity, opacity floor
+- [PR 146](https://github.com/athelas-astro/athelas/pull/140) Tabular opacity, opacity floor, add Spiner submodule
 - [PR 140](https://github.com/athelas-astro/athelas/pull/140) `athelas.py` forms cell averages on `get` call.
 - [PR 140](https://github.com/athelas-astro/athelas/pull/140) Made slope limiter aware of non-uniform mesh.
 - [PR 133](https://github.com/athelas-astro/athelas/pull/133) rho, T powerlaw opacity with floors.
