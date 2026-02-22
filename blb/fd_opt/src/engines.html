@@ -1,0 +1,512 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>Engines &#8212; Athelas v25.10 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/clipboard.min.js"></script>
+    <script src="../_static/copybutton.js"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'src/engines';</script>
+    <link rel="canonical" href="https://athelas-astro.github.io/athelas/src/engines.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Saha Ionization Model" href="saha.html" />
+    <link rel="prev" title="Contributing" href="contributing.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">Athelas v25.10 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="building.html">Building</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Engines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="saha.html">Saha Ionization Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sphinx-doc.html">How to Use Sphinx for Writing Docs</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/src/engines.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Engines</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#thermal-engine">Thermal Engine</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#input-deck">Input Deck</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="engines">
+<h1>Engines<a class="headerlink" href="#engines" title="Permalink to this heading">#</a></h1>
+<p><code class="docutils literal notranslate"><span class="pre">Athelas</span></code> supports methods for artificially driving a supernova called <code class="docutils literal notranslate"><span class="pre">engines</span></code>.
+These <code class="docutils literal notranslate"><span class="pre">engines</span></code> are <code class="docutils literal notranslate"><span class="pre">packages</span></code> which may implement one or more source terms
+and other options. Currently, we implmenent a <code class="docutils literal notranslate"><span class="pre">ThermalEngine</span></code> to drive a supernova.
+This is often referred to as a “thermal bomb.”</p>
+<section id="thermal-engine">
+<h2>Thermal Engine<a class="headerlink" href="#thermal-engine" title="Permalink to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">ThermalEngine</span></code> model for driving an explosion injects a fixed amount of energy
+through a time dependent heating source term over a fixed interval in mass coordinate
+and in time. The energy injection profile is an exponential decay in mass and in time,
+described delow.</p>
+<p>We chose the energy per unit time injected into the star to be given by:</p>
+<div class="math notranslate nohighlight" id="equation-src-engines-0">
+<span class="eqno">(1)<a class="headerlink" href="#equation-src-engines-0" title="Permalink to this equation">#</a></span>\[Q_{\text{engine}}(t) = d' e^{-c' t}\]</div>
+<p>We set the ratio</p>
+<div class="math notranslate nohighlight" id="equation-src-engines-1">
+<span class="eqno">(2)<a class="headerlink" href="#equation-src-engines-1" title="Permalink to this equation">#</a></span>\[\frac{Q_{\text{engine}}(t_{\text{start}})}{Q_{\text{engine}}(t_{\text{end}})} = R_t,\]</div>
+<p>where R_t controls the steepness of the exponential decay in time
+and is set to 100.0 in <code class="docutils literal notranslate"><span class="pre">engines/thermal.hpp</span></code>. Note that the start time
+of energy injection is taken to be time 0.0. Then, using this ratio and
+integrating over the injection timescale,</p>
+<div class="math notranslate nohighlight" id="equation-src-engines-2">
+<span class="eqno">(3)<a class="headerlink" href="#equation-src-engines-2" title="Permalink to this equation">#</a></span>\[c' = \frac{\ln R_t}{t_{\text{end}} - t_{\text{start}}}
+\quad d' = \frac{c' E_{\text{tot}}}{e^{-c' t_{\text{start}}} - e^{-c' t_{\text{end}}}}\]</div>
+<p>where E_tot is the total energy to be deposited.
+The energy injected per unit time per unit mass is then of the form</p>
+<div class="math notranslate nohighlight" id="equation-src-engines-3">
+<span class="eqno">(4)<a class="headerlink" href="#equation-src-engines-3" title="Permalink to this equation">#</a></span>\[Q_{\text{engine}, i}(m_i) = b' e^{-a' m_i}.\]</div>
+<p>The above is the source term implemented in the <code class="docutils literal notranslate"><span class="pre">ThermalEngine</span></code> package.
+Similarly to above, we control the steepness of the decay in mass coordinate</p>
+<div class="math notranslate nohighlight" id="equation-src-engines-4">
+<span class="eqno">(5)<a class="headerlink" href="#equation-src-engines-4" title="Permalink to this equation">#</a></span>\[\frac{Q_{\text{engine}, m_i}(m_{\text{start}})}{Q_{\text{engine}, m_i}(m_{\text{end}})}
+= R_m,\]</div>
+<p>where R_m is again set to 100.0 in <code class="docutils literal notranslate"><span class="pre">engines/thermal.hpp</span></code>.
+we obtain the final coefficients</p>
+<div class="math notranslate nohighlight" id="equation-src-engines-5">
+<span class="eqno">(6)<a class="headerlink" href="#equation-src-engines-5" title="Permalink to this equation">#</a></span>\[a' = \frac{\ln R_m}{m_{\text{end}} - m_{\text{start}}}
+\quad b' = \frac{d' e^{-c' t}}{\sum_i e^{-a' m_i} \Delta m}\]</div>
+<p>where the summation in the expression for b’ is performed over the mass extent of the injection.</p>
+<p>Note that to determine d’ we perform an integration assuming a
+continuous time coordinate. This approach is valid because the timestep
+at the beginning of the calculation is much smaller than the duration of
+energy injection by the engine. However, individual cell masses are generally
+not small enough to justify a continuum approximation, so we instead use a sum over
+discrete mass cells.</p>
+<p>Once the injection timescale has passed the <code class="docutils literal notranslate"><span class="pre">ThermalEngine</span></code> package is disabled
+and the source term no longer computed or applied.</p>
+<div class="admonition-timestep-restriction admonition">
+<p class="admonition-title">Timestep Restriction</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">ThermalEngine</span></code> requires that the energy injection is spread out over
+at least 2500 timesteps.</p>
+</div>
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Permalink to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">ThermalEngine</span></code> has a few relevant controls.
+The extent of injection in time and mass space can be controlled.
+Most importantly, the <em>mode</em> of calculating the injected energy can be set.
+The <code class="docutils literal notranslate"><span class="pre">direct</span></code> mode specifies the amount of energy to be injected and uses
+that for E_tot. This may not be sufficient energy to unbind the star,
+resulting in a failed supernova. More useful is <code class="docutils literal notranslate"><span class="pre">asymptotic</span></code> where the
+desired <em>final</em> energy is specified. In this mode the total energy of
+the stellar model is calculated and the injection energy is adjust such that
+the energy of the ejecta reaches the desired energy after unbinding the
+star. If for some reason the calculated energy is determined to be less than
+the binding energy of the progenitor the code will crash.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We do not at present allow runtime configuration of the steepness
+parameters R_t and R_m. This is simple to add.</p>
+</div>
+</section>
+<section id="input-deck">
+<h2>Input Deck<a class="headerlink" href="#input-deck" title="Permalink to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">ThermalEngine</span></code> is controlled in the input deck as follows:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">physics</span><span class="p">]</span>
+<span class="n">engine</span> <span class="o">=</span> <span class="n">true</span>
+
+<span class="p">[</span><span class="n">engine</span><span class="o">.</span><span class="n">thermal</span><span class="p">]</span>
+<span class="n">enabled</span> <span class="o">=</span> <span class="n">true</span>
+<span class="n">mode</span> <span class="o">=</span> <span class="s2">&quot;asymptotic&quot;</span> <span class="c1"># or &quot;direct&quot;</span>
+<span class="n">energy</span> <span class="o">=</span> <span class="mf">1.5e51</span> <span class="c1"># erg</span>
+<span class="n">tend</span> <span class="o">=</span> <span class="mf">0.1</span> <span class="c1"># seconds</span>
+<span class="n">mend</span> <span class="o">=</span> <span class="mf">0.1</span> <span class="c1"># Msun</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="contributing.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Contributing</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="saha.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Saha Ionization Model</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#thermal-engine">Thermal Engine</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#input-deck">Input Deck</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Brandon L. Barker
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

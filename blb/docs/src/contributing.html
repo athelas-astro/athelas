@@ -1,0 +1,613 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>Contributing &#8212; Athelas v25.10 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/clipboard.min.js"></script>
+    <script src="../_static/copybutton.js"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'src/contributing';</script>
+    <link rel="canonical" href="https://athelas-astro.github.io/athelas/src/contributing.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="How to Use Sphinx for Writing Docs" href="sphinx-doc.html" />
+    <link rel="prev" title="Building" href="building.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">Athelas v25.10 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="building.html">Building</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sphinx-doc.html">How to Use Sphinx for Writing Docs</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/src/contributing.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Contributing</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pull-request-protocol">Pull request protocol</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#test-suite">Test Suite</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-tests">Adding Tests</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#unit">Unit</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#regression">Regression</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#expectations-for-code-review">Expectations for code review</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#from-the-perspective-of-the-contributor">From the perspective of the contributor</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#expectations-of-code-reviewers">Expectations of code reviewers</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#general-principle-for-everyone">General principle for everyone</a></li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="contributing">
+<h1>Contributing<a class="headerlink" href="#contributing" title="Permalink to this heading">#</a></h1>
+<p>To contribute to <code class="docutils literal notranslate"><span class="pre">athelas</span></code>, feel free to submit a pull
+request or open an issue.</p>
+<ol class="arabic simple">
+<li><p>Create a new fork or branch of off <code class="docutils literal notranslate"><span class="pre">main</span></code> where your changes can be made.</p></li>
+<li><p>When ready, create a pull request, describe what you’ve done
+and ensure the branch has no conflicts.</p></li>
+<li><p>At least one Maintainer will review the PR.</p></li>
+<li><p>Once comments/feedback is addressed, the PR will be merged into the
+main branch and changes will be added to list of changes in the next
+release.</p></li>
+<li><p>At present, Releases (with a git version tag) for the <code class="docutils literal notranslate"><span class="pre">main</span></code> branch
+of <code class="docutils literal notranslate"><span class="pre">athelas</span></code> will occur at a 6 to 12 month cadence or following
+implementation of a major enhancement or capability to the code base.</p></li>
+</ol>
+<section id="pull-request-protocol">
+<h2>Pull request protocol<a class="headerlink" href="#pull-request-protocol" title="Permalink to this heading">#</a></h2>
+<p>When submitting a pull request, there is a default template that is automatically
+populated. The pull request should sufficiently summarize all changes.
+As necessary, tests should be added for new features of bugs fixed.</p>
+<p>Before a pull request will be merged, the code should be formatted. We
+use clang-format for this, pinned to version 20.1.0.
+The script <code class="docutils literal notranslate"><span class="pre">scripts/bash/format.sh</span></code> will apply <code class="docutils literal notranslate"><span class="pre">clang-format</span></code>
+to C++ source files in the repository as well as <code class="docutils literal notranslate"><span class="pre">ruff</span></code> to python files, if available.
+The script takes three CLI arguments
+that may be useful, <code class="docutils literal notranslate"><span class="pre">CFM</span></code>, which can be set to the path for your
+clang-format binary, <code class="docutils literal notranslate"><span class="pre">PFM</span></code> which can point to <code class="docutils literal notranslate"><span class="pre">ruff</span></code>,
+and <code class="docutils literal notranslate"><span class="pre">VERBOSE</span></code>, which if set to <code class="docutils literal notranslate"><span class="pre">1</span></code> adds useful output. For example:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">CFM</span><span class="o">=</span>clang-format<span class="w"> </span><span class="nv">VERBOSE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>./scripts/bash/format.sh
+</pre></div>
+</div>
+<p>In order for a pull request to merge, we require:</p>
+<ul class="simple">
+<li><p>Provide a thorough summary of changes, especially if they are breaking changes
+or new features.</p></li>
+<li><p>Obey style guidleines (format with <code class="docutils literal notranslate"><span class="pre">clang-format</span></code> and pass the necessary test)</p></li>
+<li><p>Pass the existing test suite</p></li>
+<li><p>Have at least one approval from a Maintainer</p></li>
+<li><p>Update <cite>CHANGELOG.md</cite></p></li>
+<li><p>If applicable:</p>
+<ul>
+<li><p>Write new tests for new features or bugs</p></li>
+<li><p>Include or update documentation in <code class="docutils literal notranslate"><span class="pre">docs/</span></code></p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="test-suite">
+<h2>Test Suite<a class="headerlink" href="#test-suite" title="Permalink to this heading">#</a></h2>
+<p>Several sets of tests are triggered on a pull request: a static format
+check, a docs buld, build on multiple compilers, and a suite of unit and regression tests.
+These are run through github’s CI infrastructure. These tests
+help ensure that modifications to the code do not break existing capabilities
+and ensure a consistent code style.</p>
+<section id="adding-tests">
+<h3>Adding Tests<a class="headerlink" href="#adding-tests" title="Permalink to this heading">#</a></h3>
+<p>There are two primary categories of tests written in <code class="docutils literal notranslate"><span class="pre">athelas</span></code>:
+unit tests and regression tests.</p>
+<section id="unit">
+<h4>Unit<a class="headerlink" href="#unit" title="Permalink to this heading">#</a></h4>
+<p>Unit tests live in <code class="docutils literal notranslate"><span class="pre">test/unit/</span></code>. They are implemented using the
+<a class="reference external" href="https://github.com/catchorg/Catch2">Catch2</a> unit testing framework. They are integrated with <code class="docutils literal notranslate"><span class="pre">cmake</span></code>
+and can be run, when enabled, with <code class="docutils literal notranslate"><span class="pre">ctest</span></code>. <code class="docutils literal notranslate"><span class="pre">Athelas</span></code> must be built
+with unit tests enabled (see <a class="reference internal" href="building.html#build-opts"><span class="std std-ref">Build Options</span></a>.).</p>
+</section>
+<section id="regression">
+<h4>Regression<a class="headerlink" href="#regression" title="Permalink to this heading">#</a></h4>
+<p>Regression tests run existing simulations and test against saved output
+in order to verify sustained capabilities.
+They are implemented in Python in
+<code class="docutils literal notranslate"><span class="pre">test/regression/</span></code>. To run the tests you will need a Python environment with
+at least <code class="docutils literal notranslate"><span class="pre">numpy</span></code> and <code class="docutils literal notranslate"><span class="pre">h5py</span></code>. Tests can be ran manually as, e.g.,</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>run_regression_tests.py<span class="w"> </span>--test<span class="w"> </span>test_marshak<span class="w"> </span>-e<span class="w"> </span>../../build/athelas
+</pre></div>
+</div>
+<p>This will use an existing build of <code class="docutils literal notranslate"><span class="pre">athelas</span></code> located in <code class="docutils literal notranslate"><span class="pre">build/athelas</span></code>.
+Without the <code class="docutils literal notranslate"><span class="pre">-e</span></code> option the runner will build <code class="docutils literal notranslate"><span class="pre">Athelas</span></code> locally.
+Each script <code class="docutils literal notranslate"><span class="pre">test_problem.py</span></code> has a correspodning “gold file” <code class="docutils literal notranslate"><span class="pre">problem.gold</span></code>.
+The gold files contain the gold standard data that the output of the regression test
+is compared against. To generate new gold data, for example if a change is implemented
+that changes the behavior of a test (not erroneously) or a new test is created, run the test
+script with the <code class="docutils literal notranslate"><span class="pre">--upgold</span></code> option. This will create or update the corresponding <code class="docutils literal notranslate"><span class="pre">.gold</span></code> file.
+To add a new test:</p>
+<ol class="arabic simple">
+<li><p>Create a new test script.</p>
+<ul class="simple">
+<li><p>Copy an existing test module, e.g., <code class="docutils literal notranslate"><span class="pre">test_sod.py</span></code></p></li>
+<li><p>Set the <code class="docutils literal notranslate"><span class="pre">variables</span></code> list to contain the quantities to test against</p></li>
+<li><p>Optionally, change the <code class="docutils literal notranslate"><span class="pre">compression_factor</span></code> to avoid overly large gold files.</p></li>
+</ul>
+</li>
+<li><p>Run the script with the <code class="docutils literal notranslate"><span class="pre">--upgold</span></code> option</p></li>
+<li><p>Commit the test script and gold file</p></li>
+<li><p>Update the CI to include the new test (<code class="docutils literal notranslate"><span class="pre">athelas/.github/workflows/regression_testing.yml</span></code>)</p></li>
+</ol>
+</section>
+</section>
+</section>
+<section id="expectations-for-code-review">
+<h2>Expectations for code review<a class="headerlink" href="#expectations-for-code-review" title="Permalink to this heading">#</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Much of what follows is adapted from <a class="reference external" href="https://lanl.github.io/singularity-eos">singularity-eos</a>.</p>
+</div>
+<section id="from-the-perspective-of-the-contributor">
+<h3>From the perspective of the contributor<a class="headerlink" href="#from-the-perspective-of-the-contributor" title="Permalink to this heading">#</a></h3>
+<p>Code review is an integral part of the development process
+for <code class="docutils literal notranslate"><span class="pre">athelas</span></code>. You can expect at least one, perhaps many,
+core developers to read your code and offer suggestions.
+You should treat this much like scientific or academic peer review.
+You should listen to suggestions but also feel entitled to push back
+if you believe the suggestions or comments are incorrect or
+are requesting too much effort.</p>
+<p>Reviewers may offer conflicting advice, if this is the case, it’s an
+opportunity to open a discussion and communally arrive at a good
+approach. You should feel empowered to argue for which of the
+solutions you prefer or to suggest a compromise. If you
+don’t feel strongly, that’s fine too, but it’s best to say so to keep
+the lines of communication open.</p>
+<p>Big contributions may be difficult to review in one piece and you may
+be requested to split your pull request into two or more separate
+contributions. You may also receive many “nitpicky” comments about
+code style or structure. These comments help keep a broad codebase
+with many contributors uniform in style and maintainable with
+consistent expectations accross the code base. While there is no
+formal style guide for now, the regular contributors have a sense for
+the broad style of the project. You should take these stylistic and
+“nitpicky” suggestions seriously, but you should also feel free to
+push back.</p>
+<p>As with any creative endeavor, we put a lot of ourselves into our
+code. It can be painful to receive criticism on your contribution and
+easy to take it personally. While you should resist the urge to take
+offense, it is also partly code reviewer’s responsiblity to create a
+constructive environment, as discussed below.</p>
+</section>
+<section id="expectations-of-code-reviewers">
+<h3>Expectations of code reviewers<a class="headerlink" href="#expectations-of-code-reviewers" title="Permalink to this heading">#</a></h3>
+<p>A good code review builds a contribution up, rather than tearing it
+down. Here are a few rules to keep code reviews constructive and
+congenial:</p>
+<ul class="simple">
+<li><p>You should take the time needed to review a contribution and offer
+meaningful advice. Unless a contribution is very small, limit
+the times you simply click “approve” with a “looks good to me.”</p></li>
+<li><p>You should keep your comments constructive. For example, rather than
+saying “this pattern is bad,” try saying “at this point, you may
+want to try this other pattern.”</p></li>
+<li><p>Avoid language that can be misconstrued, even if it’s common
+notation in the commnunity. For example, avoid phrases like “code
+smell.”</p></li>
+<li><p>Explain why you make a suggestion. In addition to saying “try X
+instead of Y” explain why you like pattern X more than pattern Y.</p></li>
+<li><p>A contributor may push back on your suggestion. Be open to the
+possibility that you’re either asking too much or are incorrect in
+this instance. Code review is an opportunity for everyone to learn.</p></li>
+<li><p>Don’t just highlight what you don’t like. Also highlight the parts
+of the pull request you do like and thank the contributor for their
+effort.</p></li>
+</ul>
+</section>
+<section id="general-principle-for-everyone">
+<h3>General principle for everyone<a class="headerlink" href="#general-principle-for-everyone" title="Permalink to this heading">#</a></h3>
+<p>It’s hard to convey tone in text correspondance. Try to read what
+others write favorably and try to write in such a way that your tone
+can’t be mis-interpreted as malicious.</p>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="building.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Building</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="sphinx-doc.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">How to Use Sphinx for Writing Docs</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pull-request-protocol">Pull request protocol</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#test-suite">Test Suite</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-tests">Adding Tests</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#unit">Unit</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#regression">Regression</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#expectations-for-code-review">Expectations for code review</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#from-the-perspective-of-the-contributor">From the perspective of the contributor</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#expectations-of-code-reviewers">Expectations of code reviewers</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#general-principle-for-everyone">General principle for everyone</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Brandon L. Barker
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
