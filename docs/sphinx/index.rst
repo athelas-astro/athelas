@@ -15,6 +15,10 @@ Key Features
 * Saha ionization with feedback into the equation of state
 * Shared memory parallelism with `Kokkos`_
 
+.. image:: _static/logo.png
+   :align: center
+   :width: 300px
+
 .. _Athelas: https://github.com/athelas-astro/athelas
 .. _Kokkos: github.com/kokkos/kokkos
 

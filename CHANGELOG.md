@@ -50,3 +50,6 @@
 - [PR 140](https://github.com/athelas-astro/athelas/pull/140) Move to nodal DG formulation; changed output format.
 - [PR 136](https://github.com/athelas-astro/athelas/pull/136) New HDF5 structure breaks python scripts
 - [PR 132](https://github.com/athelas-astro/athelas/pull/132) Added interfaces into nodal grid: changed hdf5 io.
+
+### Misc
+- [PR 151](https://github.com/athelas-astro/athelas/pull/151) Add logo to docs.
