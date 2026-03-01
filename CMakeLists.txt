@@ -48,7 +48,7 @@ set(CMAKE_CXX_EXTENSIONS False)
 set(CMAKE_FIND_FRAMEWORK NEVER)
 set(CMAKE_FIND_APPBUNDLE NEVER)
 
-project( athelas VERSION 25.10 LANGUAGES CXX )
+project( athelas VERSION 26.03 LANGUAGES CXX )
 enable_language(CXX)
 
 # for tracking git hash
