@@ -591,7 +591,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
                 radiation::rad_energy(uAF(i, q + 1, vars::aux::Tgas)) *
                 uCF(i, q, vars::cons::SpecificVolume);
             uCF(i, q, vars::cons::RadFlux) =
-                0 * uCF(i, q, vars::cons::SpecificVolume) *
+                uCF(i, q, vars::cons::SpecificVolume) *
                 utilities::LINTERP(radius_view(idx), radius_view(idx + 1),
                                    luminosity_view(idx),
                                    luminosity_view(idx + 1), rq) /

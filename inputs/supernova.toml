@@ -1,12 +1,12 @@
 [problem]
 problem = "supernova"
-t_end = 0.2
+t_end = 1.0
 nlim = -1
 geometry = "spherical"
 restart = false
 xl = 100.0
 xr = 7.0e5
-cfl = 0.75
+cfl = 0.25
 nx = 512
 grid_type = "logarithmic"
 
@@ -28,13 +28,13 @@ heating = false
 engine = true
 
 [time]
-integrator = "EX_SSPRK22"
+#integrator = "IMEX_SSPRK11"
 #integrator = "IMEX_SSPRK22_DIRK" # bad
 #integrator = "IMEX_ARK32_ESDIRK"
-#integrator = "IMEX_PDARS_ESDIRK"
+integrator = "IMEX_PDARS_ESDIRK"
 
 [basis]
-nnodes = 2
+nnodes = 1
 
 [engine.thermal]
 enabled = true
@@ -57,13 +57,16 @@ solver = "linear"
 bc_i = "reflecting"
 bc_o = "outflow"
 [bc.radiation]
-bc_i = "outflow"
+bc_i = "reflecting"
 bc_o = "outflow"
 
 [output]
-ncycle_out = 1000
+ncycle_out = 100
+#dt_fixed = 1.0e-15
 dt_hdf5 = 200.0
-dt_init_frac = 1.01
+dt_init = 1.0e-18
+#dt_init = 1.0e-22
+dt_init_frac = 1.001
 
 [output.history]
 fn = "supernova.hst"

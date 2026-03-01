@@ -30,7 +30,6 @@ void print_simulation_parameters(GridStructure &grid, ProblemIn *pin) {
   const int nX = grid.n_elements();
   const int nNodes = grid.n_nodes();
   // NOTE: If I properly support more bases again, adjust here.
-  const std::string basis_name = "Legendre";
   const bool rad_enabled = pin->param()->get<bool>("physics.rad_active");
   const bool gravity_enabled =
       pin->param()->get<bool>("physics.gravity_active");
@@ -40,6 +39,8 @@ void print_simulation_parameters(GridStructure &grid, ProblemIn *pin) {
       pin->param()->get<bool>("physics.ionization_enabled");
   const bool heating_enabled =
       pin->param()->get<bool>("physics.heating.active");
+  const bool engine_enabled =
+      pin->param()->get<bool>("physics.engine.enabled");
 
   std::println("# --- General --- ");
   std::println("# Problem Name    : {}",
@@ -61,18 +62,18 @@ void print_simulation_parameters(GridStructure &grid, ProblemIn *pin) {
   std::println("# Composition    : {}", comps_enabled);
   std::println("# Ionization     : {}", ionization_enabled);
   std::println("# Heating        : {}", heating_enabled);
+  std::println("# Engine         : {}", engine_enabled);
   std::println("# EOS            : {}",
                pin->param()->get<std::string>("eos.type"));
   std::println("");
 
   std::println("# --- Discretization Parameters --- ");
-  std::println("# Basis          : {}", basis_name);
+  std::println("# Spatial Order  : {}", pin->param()->get<int>("basis.nnodes"));
   std::println("# Integrator     : {}",
                pin->param()->get<std::string>("time.integrator_string"));
   std::println("");
 
   std::println("# --- Fluid Parameters --- ");
-  std::println("# Spatial Order  : {}", pin->param()->get<int>("basis.nnodes"));
   std::println("# Inner BC       : {}",
                pin->param()->get<std::string>("fluid.bc.i"));
   std::println("# Outer BC       : {}",
@@ -118,7 +119,7 @@ void print_simulation_parameters(GridStructure &grid, ProblemIn *pin) {
 
   if (gravity_enabled) {
     std::println("# --- Gravity Parameters --- ");
-    std::println("# Modal           : {}",
+    std::println("# Model           : {}",
                  pin->param()->get<std::string>("gravity.modelstring"));
     std::println("");
   }

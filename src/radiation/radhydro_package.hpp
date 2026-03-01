@@ -888,8 +888,8 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T uaf,
     const double J22 = 1.0 - dt_a_ii * dsvdv;
 
     // Get Row Scales
-    const double r1 = std::max({std::abs(J11), std::abs(J12), 1e-14});
-    const double r2 = std::max({std::abs(J21), std::abs(J22), 1e-14});
+    const double r1 = 1.0;//std::max({std::abs(J11), std::abs(J12), 1e-14});
+    const double r2 = 1.0;//std::max({std::abs(J21), std::abs(J22), 1e-14});
 
     // Scale rows (Balance the equations)
     const double a1 = J11 / r1;
@@ -917,7 +917,7 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T uaf,
     double sie_trial = e_trial - 0.5 * v_trial * v_trial;
 
     // merit function: residual norm
-    const double F0 = f_e * f_e + f_v * f_v;
+    const double F0 = rhs1 * rhs1 + rhs2 * rhs2;
 
     for (int ls = 0; ls < max_linesearch; ++ls) {
       e_trial = e + lam * delta_e;
@@ -939,7 +939,7 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T uaf,
       const auto [se_t, sv_t] = compute_rad_sources(trial_in, lambda.ptr());
       const double fe_t = e_trial - e_star - dt_a_ii * se_t;
       const double fv_t = v_trial - vstar - dt_a_ii * sv_t;
-      const double F_trial = fe_t * fe_t + fv_t * fv_t;
+      const double F_trial = fe_t * fe_t / (r1 * r1) + fv_t * fv_t / (r2 * r2);
 
       // 3. Classic Armoji line search criteria
       if (F_trial < (1.0 - 2.0 * alpha * lam) * F0) {
@@ -954,7 +954,7 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T uaf,
           lam * (std::abs(delta_e) / (std::abs(e) + 1e-14) +
                  std::abs(delta_v) / (std::abs(v) + 1e-14));
 
-      if (rel_update < 1e-14) {
+      if (rel_update < 1e-12) {
         // Update is too small to change the floats; further backtracking is
         // useless.
         break;
