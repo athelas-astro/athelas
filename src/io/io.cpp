@@ -39,8 +39,7 @@ void print_simulation_parameters(GridStructure &grid, ProblemIn *pin) {
       pin->param()->get<bool>("physics.ionization_enabled");
   const bool heating_enabled =
       pin->param()->get<bool>("physics.heating.active");
-  const bool engine_enabled =
-      pin->param()->get<bool>("physics.engine.enabled");
+  const bool engine_enabled = pin->param()->get<bool>("physics.engine.enabled");
 
   std::println("# --- General --- ");
   std::println("# Problem Name    : {}",

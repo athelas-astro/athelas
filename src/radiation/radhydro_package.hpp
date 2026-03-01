@@ -888,8 +888,8 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T uaf,
     const double J22 = 1.0 - dt_a_ii * dsvdv;
 
     // Get Row Scales
-    const double r1 = 1.0;//std::max({std::abs(J11), std::abs(J12), 1e-14});
-    const double r2 = 1.0;//std::max({std::abs(J21), std::abs(J22), 1e-14});
+    const double r1 = 1.0; // std::max({std::abs(J11), std::abs(J12), 1e-14});
+    const double r2 = 1.0; // std::max({std::abs(J21), std::abs(J22), 1e-14});
 
     // Scale rows (Balance the equations)
     const double a1 = J11 / r1;
