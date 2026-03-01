@@ -46,8 +46,8 @@ class Field:
   def __init__(self, name: str, dataset: h5py.Dataset, meta: dict):
     self.name = name
     self.dataset = dataset
-    self.nvars = int(meta["nvars"])
-    self.rank = int(meta["rank"])
+    self.nvars = int(meta["nvars"][0])
+    self.rank = int(meta["rank"][0])
     self.policy = meta["policy"]
     self.description = meta["description"]
 
@@ -109,9 +109,9 @@ class Athelas:
     # ----------------------
     # Simulation info
     # ----------------------
-    self.time = float(f["info/time"][()])
-    self.n_stages = int(f["info/n_stages"][()])
-    self.cycle = int(f["info/cycle"][()])
+    self.time = float(f["info/time"][0])
+    self.n_stages = int(f["info/n_stages"][0])
+    self.cycle = int(f["info/cycle"][0])
 
     self.params = read_hdf5_group(f["params"])
     self.geometry = self.params["problem.geometry"]
@@ -158,8 +158,9 @@ class Athelas:
     # ----------------------
     for varname in f["metadata/variables"]:
       vgrp = f["metadata/variables"][varname]
-      index = int(vgrp["index"][()])
-      field_name = vgrp["location"][()].astype(str)[0]
+      index = int(vgrp["index"][0])
+      field_name = vgrp["location"][0]
+      field_name = field_name.decode("utf-8")
 
       if field_name not in self.fields.keys():
         continue
