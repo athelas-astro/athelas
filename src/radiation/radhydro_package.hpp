@@ -423,22 +423,31 @@ template <OpacityType Opac>
 KOKKOS_FUNCTION auto dkappa_dT(const Opacity &opac, const double rho,
                                const double T, const double X, const double Z)
     -> double {
-  constexpr double h_rel = 1e-4;
-  const double h = T * h_rel;
+  // Use a log-space perturbation since the table is uniform in logT
+  // 1e-4 is ~0.01% of a decade,
+  constexpr double h_log = 1e-4;
+  const double logT = std::log10(T);
+  const double T_plus = std::pow(10.0, logT + h_log);
 
-  // Simple forward difference on the table
-  double k_plus;
-  double k_base;
+  double k_plus = 0.0;
+  double k_base = 0.0;
+
   if constexpr (Opac == OpacityType::Planck) {
-    k_plus = opac.planck_mean(rho, T + h, X, Z, nullptr);
+    k_plus = opac.planck_mean(rho, T_plus, X, Z, nullptr);
     k_base = opac.planck_mean(rho, T, X, Z, nullptr);
-  }
-  if constexpr (Opac == OpacityType::Rosseland) {
-    k_plus = opac.rosseland_mean(rho, T + h, X, Z, nullptr);
+  } else if constexpr (Opac == OpacityType::Rosseland) {
+    k_plus = opac.rosseland_mean(rho, T_plus, X, Z, nullptr);
     k_base = opac.rosseland_mean(rho, T, X, Z, nullptr);
   }
 
-  return (k_plus - k_base) / h;
+  // 1. Compute the slope in log-log or linear-log space: d(kappa)/d(log10T)
+  const double dk_dlogT = (k_plus - k_base) / h_log;
+
+  // 2. d(kappa)/dT = d(kappa)/d(log10T) * d(log10T)/dT
+  // d(log10T)/dT = 1 / (T * ln(10))
+  constexpr double inv_ln10 = 1.0 / std::numbers::log10e;
+
+  return dk_dlogT * (inv_ln10 / T);
 }
 
 KOKKOS_INLINE_FUNCTION
