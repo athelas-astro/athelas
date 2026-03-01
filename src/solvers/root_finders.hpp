@@ -862,9 +862,9 @@ class RegulaFalsiAlgorithm {
 
     T fa = 0.0;
     T fb = 0.0;
-    refine_bracket(target, guess, a, b, fa, fb, std::forward<Args>(args)...);
-    // fa = target(a, std::forward<Args>(args)...);
-    // fb = target(b, std::forward<Args>(args)...);
+    // refine_bracket(target, guess, a, b, fa, fb, std::forward<Args>(args)...);
+    fa = target(a, std::forward<Args>(args)...);
+    fb = target(b, std::forward<Args>(args)...);
 
     if (fa == 0) {
       return a;
@@ -877,6 +877,8 @@ class RegulaFalsiAlgorithm {
     if (!check_bracket(fa, fb)) {
       // Bracket doesn't bracket a root, return guess
       std::println("root not bracketed!!");
+      std::println("a b fa fb {:.5e} {:.5e} {:.5e} {:.5e}", a, b, fa, fb);
+      throw_athelas_error(":(");
       return guess;
     }
 

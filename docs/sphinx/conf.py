@@ -9,7 +9,7 @@
 project = "Athelas"
 copyright = ""
 author = "Brandon L. Barker" # TODO: extend
-release = "v25.10"
+release = "v26.03"
 
 # -- General configuration ---------------------------------------------------
 

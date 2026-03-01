@@ -474,7 +474,6 @@ void Driver::post_step_work() {
             const double sie = emt - 0.5 * vel * vel;
             eos::EOSLambda lambda;
             lambda.data[1] = ye(i, q + 1);
-            lambda.data[6] = e_ion_corr(i, q + 1);
             const double emin = eos::min_sie(eos, rho, lambda.ptr());
             if (sie <= emin) {
               double sie_fix = 1.1 * emin;

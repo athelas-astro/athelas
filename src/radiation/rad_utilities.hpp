@@ -1,20 +1,3 @@
-/**
- * @file rad_utilities.hpp
- * --------------
- *
- * @author Brandon L. Barker
- * @brief Functions for radiation evolution.
- *
- * @details Key functions for radiation udates:
- *          - flux_factor
- *          - flux_rad
- *          - radiation_four_force
- *          - source_rad
- *          - Compute_Closure
- *          - lambda_hll
- *          - numerical_flux_hll_rad
- */
-
 #pragma once
 
 #include <tuple>
@@ -92,18 +75,12 @@ radiation_four_force(const double D, const double V, const double T,
   constexpr static double c = constants::c_cgs;
 
   const double b = V / c;
-  const double term1 = E - (a * T * T * T * T);
+  const double at4 = a * T * T * T * T;
+  const double term1 = E - at4;
   const double Fc = F / c;
 
-  // O(b^2) ala Fuksman
-  /*
-  const double kappa = kappa_r;
-  const double G0 = D * kappa * ( term1 - b * Fc - b * b * E - b * b * Pr );
-  const double G  = D * kappa * ( b * ( term1 - 2.0 * b * Fc ) + ( Fc - b * E -
-  b * Pr ) );
-  */
-
   // Krumholz et al. 2007 O(b^2)
+  /*
   const double G0 =
       D * (kappa_p * term1 + (kappa_r - 2.0 * kappa_p) * b * Fc +
            0.5 * (2.0 * (kappa_p - kappa_r) * E + kappa_p * term1) * b * b +
@@ -112,14 +89,12 @@ radiation_four_force(const double D, const double V, const double T,
   const double G =
       D * (kappa_r * Fc + kappa_p * term1 * b - kappa_r * b * (E + Pr) +
            0.5 * kappa_r * Fc * b * b + 2.0 * (kappa_r - kappa_p) * b * b * Fc);
+  */
 
   // ala Skinner & Ostriker, simpler.
-  /*
-  const double kappa = kappa_r;
-  const double G0 = D * kappa * ( term1 - b * Fc );
-  const double G  = D * kappa * ( Fc - b * E + b * Pr );
-  */
-  return {G0, G};
+  const double cG0 = D * (c * kappa_p * term1 - kappa_r * b * F);
+  const double G = D * (kappa_r * Fc - kappa_p * at4 * b - kappa_r * Pr * b);
+  return {cG0, G};
 }
 
 /**

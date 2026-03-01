@@ -588,7 +588,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
             const int idx =
                 utilities::find_closest_cell(radius_view, rq, n_zones_prog);
             uCF(i, q, vars::cons::RadEnergy) =
-                radiation::rad_energy(uAF(i, q, vars::aux::Tgas)) *
+                radiation::rad_energy(uAF(i, q + 1, vars::aux::Tgas)) *
                 uCF(i, q, vars::cons::SpecificVolume);
             uCF(i, q, vars::cons::RadFlux) =
                 uCF(i, q, vars::cons::SpecificVolume) *
