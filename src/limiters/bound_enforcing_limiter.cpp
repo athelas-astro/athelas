@@ -155,8 +155,6 @@ void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
         if constexpr (Ionization == IonizationPhysics::Active) {
           // Cell-centered approximations
           lambda_avg.data[1] = cell_average(ye, sqrt_gm, weights, widths(i), i);
-          lambda_avg.data[6] =
-              cell_average(e_ion_corr, sqrt_gm, weights, widths(i), i);
         }
         const double e_min_avg = min_sie(eos, 1.0 / tau_avg, lambda_avg.ptr());
 
@@ -173,7 +171,6 @@ void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
           eos::EOSLambda lambda_q;
           if constexpr (Ionization == IonizationPhysics::Active) {
             lambda_q.data[1] = ye(i, q);
-            lambda_q.data[6] = e_ion_corr(i, q);
           }
 
           const double e_min_q = min_sie(eos, rho_q, lambda_q.ptr());

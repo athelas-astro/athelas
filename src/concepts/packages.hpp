@@ -32,7 +32,9 @@ concept ImplicitPackage =
     requires(T &pkg, const StageData &stage_data, StageData &stage_data_derived,
              AthelasArray3D<double> lhs, AthelasArray3D<double> dU,
              const GridStructure &grid, const TimeStepInfo &dt_info) {
-      { pkg.update_implicit(stage_data, grid, dt_info) } -> std::same_as<void>;
+      {
+        pkg.update_implicit(stage_data, dU, grid, dt_info)
+      } -> std::same_as<void>;
       { pkg.apply_delta(lhs, dt_info) } -> std::same_as<void>;
       { pkg.zero_delta() } -> std::same_as<void>;
       {
@@ -49,9 +51,8 @@ concept IMEXPackage =
              AthelasArray3D<double> lhs, AthelasArray3D<double> dU,
              const GridStructure &grid, const TimeStepInfo &dt_info) {
       { pkg.update_explicit(stage_data, grid, dt_info) } -> std::same_as<void>;
-      { pkg.update_implicit(stage_data, grid, dt_info) } -> std::same_as<void>;
       {
-        pkg.update_implicit_iterative(stage_data, dU, grid, dt_info)
+        pkg.update_implicit(stage_data, dU, grid, dt_info)
       } -> std::same_as<void>;
       { pkg.apply_delta(lhs, dt_info) } -> std::same_as<void>;
       { pkg.zero_delta() } -> std::same_as<void>;
@@ -79,9 +80,9 @@ constexpr bool has_explicit_update_v =
 
 template <typename T>
 constexpr bool has_implicit_update_v =
-    requires(T &pkg, const StageData &stage_data, const GridStructure &grid,
-             const TimeStepInfo &dt_info) {
-      pkg.update_implicit(stage_data, grid, dt_info);
+    requires(T &pkg, const StageData &stage_data, AthelasArray3D<double> lhs,
+             const GridStructure &grid, const TimeStepInfo &dt_info) {
+      pkg.update_implicit(stage_data, lhs, grid, dt_info);
     };
 
 } // namespace athelas

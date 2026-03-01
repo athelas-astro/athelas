@@ -24,7 +24,7 @@ void OperatorSplitStepper::step(PackageManager *pkgs, MeshState &mesh_state,
   pkgs->update_explicit(sd0, grid, dt_info);
 
   // TODO(astrobarker): need to think about what goes into this for opsplit.
-  // pkgs->update_implicit_iterative(state, U, grid, dt_info);
+  pkgs->update_implicit(sd0, U, grid, dt_info);
   pkgs->apply_delta(U, dt_info);
   pkgs->zero_delta();
 }

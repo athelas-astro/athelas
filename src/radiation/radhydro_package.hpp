@@ -14,6 +14,7 @@
 
 namespace athelas::radiation {
 
+/*
 struct RadHydroSolverIonizationContent {
   AthelasArray2D<double> number_density;
   AthelasArray2D<double> ye;
@@ -23,6 +24,18 @@ struct RadHydroSolverIonizationContent {
   AthelasArray2D<double> sigma3;
   AthelasArray2D<double> e_ion_corr;
   AthelasArray3D<double> bulk;
+};
+*/
+struct RadHydroSolverIonizationContent {
+  double number_density{};
+  double ye{};
+  double ybar{};
+  double sigma1{};
+  double sigma2{};
+  double sigma3{};
+  double e_ion_corr{};
+  double X{};
+  double Z{};
 };
 
 using bc::BoundaryConditions;
@@ -35,12 +48,8 @@ class RadHydroPackage {
 
   void update_explicit(const StageData &stage_data, const GridStructure &grid,
                        const TimeStepInfo &dt_info) const;
-  void update_implicit(const StageData &stage_data, const GridStructure &grid,
-                       const TimeStepInfo &dt_info) const;
-  void update_implicit_iterative(const StageData &stage_data,
-                                 AthelasArray3D<double> R,
-                                 const GridStructure &grid,
-                                 const TimeStepInfo &dt_info);
+  void update_implicit(const StageData &stage_data, AthelasArray3D<double> R,
+                       const GridStructure &grid, const TimeStepInfo &dt_info);
 
   void apply_delta(AthelasArray3D<double> lhs,
                    const TimeStepInfo &dt_info) const;
@@ -93,7 +102,7 @@ class RadHydroPackage {
 
 KOKKOS_FUNCTION
 template <IonizationPhysics Ionization, typename T>
-auto compute_increment_radhydro_source_nodal(
+auto compute_increment_radhydro_source(
     T uCRH, AthelasArray3D<double> uaf, AthelasArray3D<double> phi_fluid,
     AthelasArray3D<double> phi_rad, AthelasArray2D<double> inv_mkk_fluid,
     AthelasArray2D<double> inv_mkk_rad, const eos::EOS &eos,
@@ -106,11 +115,8 @@ auto compute_increment_radhydro_source_nodal(
   constexpr static double c2 = c * c;
 
   const double qp1 = q + 1;
-
   const double dr_i = dx(i);
 
-  // Set up views
-  // These are only allocated when Ionization == Active
   auto number_density = content.number_density;
   auto ye = content.ye;
   auto ybar = content.ybar;
@@ -118,18 +124,13 @@ auto compute_increment_radhydro_source_nodal(
   auto sigma2 = content.sigma2;
   auto sigma3 = content.sigma3;
   auto e_ion_corr = content.e_ion_corr;
-  auto bulk = content.bulk;
+  auto X = content.X;
+  auto Z = content.Z;
 
-  double local_sum_e_r = 0.0; // radiation energy source
-  double local_sum_m_r = 0.0; // radiation momentum (flux) source
-  double local_sum_e_g = 0.0; // gas energy source
-  double local_sum_m_g = 0.0; // gas momentum (velocity) source
   eos::EOSLambda lambda;
   const double wq = weights(q);
   const double wq_sqrtgm = wq * sqrt_gm(i, qp1);
 
-  // Note: basis evaluations are awkward here.
-  // must be sure to use the correct basis functions.
   const double tau = uCRH[vars::cons::SpecificVolume];
   const double rho = 1.0 / tau;
   const double vel = uCRH[vars::cons::Velocity];
@@ -140,22 +141,15 @@ auto compute_increment_radhydro_source_nodal(
   const double P_r = compute_closure(E_r, F_r);
 
   // Should I move these into a lambda?
-  static const int x_idx = 0;
-  static const int z_idx = 2;
-  double X = 0.0;
-  double Z = 0.0;
   if constexpr (Ionization == IonizationPhysics::Active) {
-    lambda.data[0] = number_density(i, qp1);
-    lambda.data[1] = ye(i, qp1);
-    lambda.data[2] = ybar(i, qp1);
-    lambda.data[3] = sigma1(i, qp1);
-    lambda.data[4] = sigma2(i, qp1);
-    lambda.data[5] = sigma3(i, qp1);
-    lambda.data[6] = e_ion_corr(i, qp1);
+    lambda.data[0] = number_density;
+    lambda.data[1] = ye;
+    lambda.data[2] = ybar;
+    lambda.data[3] = sigma1;
+    lambda.data[4] = sigma2;
+    lambda.data[5] = sigma3;
+    lambda.data[6] = e_ion_corr;
     lambda.data[7] = uaf(i, qp1, vars::aux::Tgas);
-
-    X = bulk(i, qp1, x_idx);
-    Z = bulk(i, qp1, z_idx);
   }
 
   const double t_g =
@@ -166,125 +160,20 @@ auto compute_increment_radhydro_source_nodal(
   const double kappa_p = opac.planck_mean(rho, t_g, X, Z, lambda.ptr());
 
   // 4 force
-  const auto [G0, G] =
+  const auto [cG0, G] =
       radiation_four_force(rho, vel, t_g, kappa_r, kappa_p, E_r, F_r, P_r);
 
-  const double source_e_r = -c * G0;
-  const double source_m_r = -c2 * G;
-  const double source_e_g = c * G0;
-  const double source_m_g = G;
-
-  local_sum_e_r += wq_sqrtgm * source_e_r;
-  local_sum_m_r += wq_sqrtgm * source_m_r;
-  local_sum_e_g += wq_sqrtgm * source_e_g;
-  local_sum_m_g += wq_sqrtgm * source_m_g;
+  const double source_e_r = -cG0 * wq_sqrtgm;
+  const double source_m_r = -c2 * G * wq_sqrtgm;
+  const double source_e_g = cG0 * wq_sqrtgm;
+  const double source_m_g = G * wq_sqrtgm;
 
   // \Delta x / M_kk
   const double dx_o_mkk_fluid = dr_i * inv_mkk_fluid(i, q);
   const double dx_o_mkk_rad = dr_i * inv_mkk_rad(i, q);
 
-  return {local_sum_m_g * dx_o_mkk_fluid, local_sum_e_g * dx_o_mkk_fluid,
-          local_sum_e_r * dx_o_mkk_rad, local_sum_m_r * dx_o_mkk_rad};
-}
-
-// This is duplicate of above but used differently, in the root finder
-// The code needs some refactoring in order to get rid of this version.
-KOKKOS_FUNCTION
-template <IonizationPhysics Ionization>
-auto compute_increment_radhydro_source(
-    AthelasArray2D<double> uCRH, const int k, AthelasArray3D<double> uaf,
-    AthelasArray3D<double> phi_fluid, AthelasArray3D<double> phi_rad,
-    AthelasArray2D<double> inv_mkk_fluid, AthelasArray2D<double> inv_mkk_rad,
-    const eos::EOS &eos, const Opacity &opac, AthelasArray1D<double> dx,
-    AthelasArray1D<double> weights,
-    const RadHydroSolverIonizationContent &content, const int i)
-    -> std::tuple<double, double, double, double> {
-  using basis::basis_eval;
-  constexpr static double c = constants::c_cgs;
-  constexpr static double c2 = c * c;
-
-  static const int nNodes = static_cast<int>(weights.size());
-  const double dr_i = dx(i);
-
-  // Set up views
-  // These are only allocated when Ionization == Active
-  auto number_density = content.number_density;
-  auto ye = content.ye;
-  auto ybar = content.ybar;
-  auto sigma1 = content.sigma1;
-  auto sigma2 = content.sigma2;
-  auto sigma3 = content.sigma3;
-  auto e_ion_corr = content.e_ion_corr;
-  auto bulk = content.bulk;
-
-  double local_sum_e_r = 0.0; // radiation energy source
-  double local_sum_m_r = 0.0; // radiation momentum (flux) source
-  double local_sum_e_g = 0.0; // gas energy source
-  double local_sum_m_g = 0.0; // gas momentum (velocity) source
-  eos::EOSLambda lambda;
-  for (int q = 0; q < nNodes; ++q) {
-    const int qp1 = q + 1;
-    const double wq = weights(q);
-    const double phi_rad_kq = phi_rad(i, qp1, k);
-    const double phi_fluid_kq = phi_fluid(i, qp1, k);
-
-    // Note: basis evaluations are awkward here.
-    // must be sure to use the correct basis functions.
-    const double tau =
-        basis_eval(phi_fluid, uCRH, i, vars::cons::SpecificVolume, qp1);
-    const double rho = 1.0 / tau;
-    const double vel =
-        basis_eval(phi_fluid, uCRH, i, vars::cons::Velocity, qp1);
-    const double em_t = basis_eval(phi_fluid, uCRH, i, vars::cons::Energy, qp1);
-
-    // Should I move these into a lambda?
-    static const int x_idx = 0;
-    static const int z_idx = 2;
-    double X = 0.0;
-    double Z = 0.0;
-    if constexpr (Ionization == IonizationPhysics::Active) {
-      lambda.data[0] = number_density(i, q);
-      lambda.data[1] = ye(i, q);
-      lambda.data[2] = ybar(i, q);
-      lambda.data[3] = sigma1(i, q);
-      lambda.data[4] = sigma2(i, q);
-      lambda.data[5] = sigma3(i, q);
-      lambda.data[6] = e_ion_corr(i, q);
-      lambda.data[7] = uaf(i, q, vars::aux::Tgas);
-
-      X = bulk(i, qp1, x_idx);
-      Z = bulk(i, qp1, z_idx);
-    }
-    const double t_g = eos::temperature_from_density_sie(
-        eos, rho, em_t - 0.5 * vel * vel, lambda.ptr());
-
-    const double kappa_r = opac.rosseland_mean(rho, t_g, X, Z, lambda.ptr());
-    const double kappa_p = opac.planck_mean(rho, t_g, X, Z, lambda.ptr());
-
-    const double E_r = basis_eval(phi_rad, uCRH, i, vars::cons::RadEnergy, qp1);
-    const double F_r = basis_eval(phi_rad, uCRH, i, vars::cons::RadFlux, qp1);
-    const double P_r = compute_closure(E_r, F_r);
-
-    // 4 force
-    const auto [G0, G] =
-        radiation_four_force(rho, vel, t_g, kappa_r, kappa_p, E_r, F_r, P_r);
-
-    const double source_e_r = -c * G0;
-    const double source_m_r = -c2 * G;
-    const double source_e_g = c * G0;
-    const double source_m_g = G;
-
-    local_sum_e_r += wq * phi_rad_kq * source_e_r;
-    local_sum_m_r += wq * phi_rad_kq * source_m_r;
-    local_sum_e_g += wq * phi_fluid_kq * source_e_g;
-    local_sum_m_g += wq * phi_fluid_kq * source_m_g;
-  }
-  // \Delta x / M_kk
-  const double dx_o_mkk_fluid = dr_i * inv_mkk_fluid(i, k);
-  const double dx_o_mkk_rad = dr_i * inv_mkk_rad(i, k);
-
-  return {local_sum_m_g * dx_o_mkk_fluid, local_sum_e_g * dx_o_mkk_fluid,
-          local_sum_e_r * dx_o_mkk_rad, local_sum_m_r * dx_o_mkk_rad};
+  return {source_m_g * dx_o_mkk_fluid, source_e_g * dx_o_mkk_fluid,
+          source_e_r * dx_o_mkk_rad, source_m_r * dx_o_mkk_rad};
 }
 
 /**
@@ -294,16 +183,27 @@ auto compute_increment_radhydro_source(
  */
 template <IonizationPhysics Ionization, typename T, typename G,
           typename... Args>
-KOKKOS_INLINE_FUNCTION void fixed_point_radhydro(T R, double dt_a_ii, G scratch,
+KOKKOS_INLINE_FUNCTION void fixed_point_radhydro(T R, double dt_a_ii,
+                                                 double emin, G scratch,
                                                  G scratch_nm1, Args... args) {
   static_assert(T::rank == 1, "fixed_point_radhydro expects rank-1 views.");
   static constexpr int nvars = 5;
 
   auto target = [&](G u) {
-    const auto [s_1, s_2, s_3, s_4] =
-        compute_increment_radhydro_source_nodal<Ionization>(u, args...);
-    return std::make_tuple(R(1) + dt_a_ii * s_1, R(2) + dt_a_ii * s_2,
-                           R(3) + dt_a_ii * s_3, R(4) + dt_a_ii * s_4);
+    const auto [s1, s2, s3, s4] =
+        compute_increment_radhydro_source<Ionization>(u, args...);
+
+    const double omega = 1.0;
+    const double g1 = R(1) + dt_a_ii * s1;
+    const double g2 = R(2) + dt_a_ii * s2;
+    const double g3 = R(3) + dt_a_ii * s3;
+    const double g4 = R(4) + dt_a_ii * s4;
+
+    return std::make_tuple((1.0 - omega) * u[vars::cons::Velocity] + omega * g1,
+                           (1.0 - omega) * u[vars::cons::Energy] + omega * g2,
+                           (1.0 - omega) * u[vars::cons::RadEnergy] +
+                               omega * g3,
+                           (1.0 - omega) * u[vars::cons::RadFlux] + omega * g4);
   };
 
   for (int v = 0; v < nvars; ++v) {
@@ -322,11 +222,36 @@ KOKKOS_INLINE_FUNCTION void fixed_point_radhydro(T R, double dt_a_ii, G scratch,
   bool converged = false;
   while (n <= root_finders::MAX_ITERS && !converged) {
     const auto [xkp1_1, xkp1_2, xkp1_3, xkp1_4] = target(scratch);
-    scratch[vars::cons::Velocity] = xkp1_1; // fluid vel
-    scratch[vars::cons::Energy] = xkp1_2; // fluid energy
-    scratch[vars::cons::RadEnergy] = xkp1_3; // rad energy
-    scratch[vars::cons::RadFlux] = xkp1_4; // rad flux
-                                           //
+
+    double du1 = xkp1_1 - scratch[vars::cons::Velocity];
+    double du2 = xkp1_2 - scratch[vars::cons::Energy];
+    double du3 = xkp1_3 - scratch[vars::cons::RadEnergy];
+    double du4 = xkp1_4 - scratch[vars::cons::RadFlux];
+
+    double lam = 1.0;
+    double v_trial = scratch[vars::cons::Velocity] + du1;
+    double e_trial =
+        scratch[vars::cons::Energy] + du2 - 0.5 * v_trial * v_trial;
+    double er_trial = scratch[vars::cons::RadEnergy] + du3;
+
+    while (er_trial < 0.0 ||
+           std::abs(scratch[4] + du4) > constants::c_cgs * scratch[3] ||
+           e_trial <= emin) {
+      lam *= 0.5;
+      du1 = lam * (xkp1_1 - scratch[vars::cons::Velocity]);
+      du2 = lam * (xkp1_2 - scratch[vars::cons::Energy]);
+      du3 = lam * (xkp1_3 - scratch[vars::cons::RadEnergy]);
+      du4 = lam * (xkp1_4 - scratch[vars::cons::RadFlux]);
+      v_trial = scratch[vars::cons::Velocity] + du1;
+      e_trial = scratch[vars::cons::Energy] + du2 - 0.5 * v_trial * v_trial;
+      er_trial = scratch[vars::cons::RadEnergy] + du3;
+    }
+
+    scratch[vars::cons::Velocity] += du1; // fluid vel
+    scratch[vars::cons::Energy] += du2; // fluid energy
+    scratch[vars::cons::RadEnergy] += du3; // rad energy
+    scratch[vars::cons::RadFlux] += du4; // rad flux
+
     converged = convergence_checker.check_convergence(scratch, scratch_nm1);
 
     // --- update ---
@@ -338,51 +263,50 @@ KOKKOS_INLINE_FUNCTION void fixed_point_radhydro(T R, double dt_a_ii, G scratch,
   } // while not converged
 }
 
-template <IonizationPhysics Ionization, typename T, typename... Args>
+template <IonizationPhysics Ionization, typename T, typename G,
+          typename... Args>
 KOKKOS_INLINE_FUNCTION void
-fixed_point_radhydro_nodal(T R, double dt_a_ii, T scratch_n, T scratch_nm1,
-                           T scratch, Args... args) {
+fixed_point_radhydro_nodal(T R, double dt_a_ii, double emin, G scratch,
+                           G scratch_nm1, Args... args) {
   using root_finders::alpha_aa, root_finders::residual;
   // static_assert(T::rank == 2, "fixed_point_radhydro expects rank-2 views.");
   constexpr static int nvars = 5;
 
-  auto target = [&](T u) {
+  auto target = [&](G u) {
     const auto [s1, s2, s3, s4] =
-        compute_increment_radhydro_source_nodal<Ionization>(u, args...);
+        compute_increment_radhydro_source<Ionization>(u, args...);
 
-    const double omega = 1.0e-11;
+    const double omega = 1.0;
     const double g1 = R(1) + dt_a_ii * s1;
     const double g2 = R(2) + dt_a_ii * s2;
     const double g3 = R(3) + dt_a_ii * s3;
     const double g4 = R(4) + dt_a_ii * s4;
 
-    return std::make_tuple((1.0 - omega) * u(vars::cons::Velocity) + omega * g1,
-                           (1.0 - omega) * u(vars::cons::Energy) + omega * g2,
-                           (1.0 - omega) * u(vars::cons::RadEnergy) +
+    return std::make_tuple((1.0 - omega) * u[vars::cons::Velocity] + omega * g1,
+                           (1.0 - omega) * u[vars::cons::Energy] + omega * g2,
+                           (1.0 - omega) * u[vars::cons::RadEnergy] +
                                omega * g3,
-                           (1.0 - omega) * u(vars::cons::RadFlux) + omega * g4);
+                           (1.0 - omega) * u[vars::cons::RadFlux] + omega * g4);
   };
 
   for (int v = 0; v < nvars; ++v) {
-    scratch_n(v) = scratch(v);
+    scratch_nm1[v] = scratch[v];
   }
 
   // --- first fixed point iteration ---
-  const double beta = 0.001;
-  const auto [xnp1_1_k, xnp1_2_k, xnp1_3_k, xnp1_4_k] = target(scratch_n);
-  scratch(vars::cons::Velocity) =
-      (1.0 - beta) * scratch(vars::cons::Velocity) + beta * xnp1_1_k;
-  scratch(vars::cons::Energy) =
-      (1.0 - beta) * scratch(vars::cons::Energy) + beta * xnp1_2_k;
-  scratch(vars::cons::RadEnergy) =
-      (1.0 - beta) * scratch(vars::cons::RadEnergy) + beta * xnp1_3_k;
-  scratch(vars::cons::RadFlux) =
-      (1.0 - beta) * scratch(vars::cons::RadFlux) + beta * xnp1_4_k;
+  const double beta = 0.1;
+  const auto [xnp1_1_k, xnp1_2_k, xnp1_3_k, xnp1_4_k] = target(scratch);
 
-  for (int v = 1; v < nvars; ++v) {
-    scratch_nm1(v) = scratch_n(v);
-    scratch_n(v) = scratch(v);
-  }
+  double du1 = (1.0 - beta) * scratch[vars::cons::Velocity] + beta * xnp1_1_k -
+               scratch[vars::cons::Velocity];
+  double du2 = (1.0 - beta) * scratch[vars::cons::Energy] + beta * xnp1_2_k -
+               scratch[vars::cons::Energy];
+  double du3 = -du2;
+  double du4 = -constants::c_cgs * constants::c_cgs * du1;
+  scratch[vars::cons::Velocity] += du1;
+  scratch[vars::cons::Energy] += du2;
+  scratch[vars::cons::RadEnergy] += du3;
+  scratch[vars::cons::RadFlux] += du4;
 
   // Set up physical scales based on your problem
   PhysicalScales scales{};
@@ -391,14 +315,17 @@ fixed_point_radhydro_nodal(T R, double dt_a_ii, T scratch_n, T scratch_nm1,
   scales.rad_energy_scale = 1e12; // Typical radiation energy density
   scales.rad_flux_scale = 1e20; // Typical radiation flux
 
-  static RadHydroConvergence<T> convergence_checker(
+  static RadHydroConvergence<G> convergence_checker(
       scales, root_finders::ABSTOL, root_finders::RELTOL, 1);
 
-  bool converged =
-      convergence_checker.check_convergence(scratch_n, scratch_nm1);
+  bool converged = convergence_checker.check_convergence(scratch, scratch_nm1);
 
   if (converged) {
     return;
+  }
+
+  for (int v = 1; v < nvars; ++v) {
+    scratch_nm1[v] = scratch[v];
   }
 
   double r_1_n = 0.0;
@@ -410,27 +337,23 @@ fixed_point_radhydro_nodal(T R, double dt_a_ii, T scratch_n, T scratch_nm1,
   double r_3_nm1 = 0.0;
   double r_4_nm1 = 0.0;
 
-  double s_1_nm1 = scratch_nm1(1);
-  double s_2_nm1 = scratch_nm1(2);
-  double s_3_nm1 = scratch_nm1(3);
-  double s_4_nm1 = scratch_nm1(4);
+  double s_1_nm1 = scratch_nm1[1];
+  double s_2_nm1 = scratch_nm1[2];
 
   unsigned int n = 1;
   while (n < root_finders::MAX_ITERS && !converged) {
-    // TODO(astrobarker): we can cut down on evals.
-    auto [s_1_n, s_2_n, s_3_n, s_4_n] = target(scratch_n);
-    // const auto [s_1_nm1, s_2_nm1, s_3_nm1, s_4_nm1] = target(scratch_nm1, k);
-    // // don't repeat
+    auto [s_1_n, s_2_n, s_3_n, s_4_n] = target(scratch);
 
     // residuals
-    r_1_n = residual(s_1_n, scratch_n(vars::cons::Velocity));
-    r_2_n = residual(s_2_n, scratch_n(vars::cons::Energy));
-    r_3_n = residual(s_3_n, scratch_n(vars::cons::RadEnergy));
-    r_4_n = residual(s_4_n, scratch_n(vars::cons::RadFlux));
+    r_1_n = residual(s_1_n, scratch[vars::cons::Velocity]);
+    r_2_n = residual(s_2_n, scratch[vars::cons::Energy]);
+    r_3_n = residual(s_3_n, scratch[vars::cons::RadEnergy]);
+    r_4_n = residual(s_4_n, scratch[vars::cons::RadFlux]);
     const auto dr_1 = r_1_n - r_1_nm1;
     const auto dr_2 = r_2_n - r_2_nm1;
     const auto dr_3 = r_3_n - r_3_nm1;
     const auto dr_4 = r_4_n - r_4_nm1;
+
     // Anderson acceleration alpha
     double num = r_1_n * dr_1 + r_2_n * dr_2 + r_3_n * dr_3 + r_4_n * dr_4;
 
@@ -439,15 +362,40 @@ fixed_point_radhydro_nodal(T R, double dt_a_ii, T scratch_n, T scratch_nm1,
 
     // Anderson acceleration update
 
-    scratch(vars::cons::Velocity) = alpha * s_1_nm1 + (1.0 - alpha) * s_1_n;
-    scratch(vars::cons::Energy) = alpha * s_2_nm1 + (1.0 - alpha) * s_2_n;
-    scratch(vars::cons::RadEnergy) = alpha * s_3_nm1 + (1.0 - alpha) * s_3_n;
-    scratch(vars::cons::RadFlux) = alpha * s_4_nm1 + (1.0 - alpha) * s_4_n;
+    double s1 = alpha * s_1_nm1 + (1.0 - alpha) * s_1_n;
+    double s2 = alpha * s_2_nm1 + (1.0 - alpha) * s_2_n;
+    double du1 = s1 - scratch[vars::cons::Velocity];
+    double du2 = s2 - scratch[vars::cons::Energy];
+    double du3 = -du2;
+    double du4 = -constants::c_cgs * constants::c_cgs * du1;
+
+    double lam = 1.0;
+    double v_trial = scratch[vars::cons::Velocity] + du1;
+    double e_trial =
+        scratch[vars::cons::Energy] + du2 - 0.5 * v_trial * v_trial;
+    double er_trial = scratch[vars::cons::RadEnergy] + du3;
+    while (er_trial < 0.0 ||
+           std::abs(scratch[4] + du4) > constants::c_cgs * er_trial ||
+           e_trial <= emin) {
+      lam *= 0.5;
+      du1 = lam * (s1 - scratch[vars::cons::Velocity]);
+      du2 = lam * (s2 - scratch[vars::cons::Energy]);
+      du3 = -du2;
+      du4 = -constants::c_cgs * constants::c_cgs * du1;
+      v_trial = scratch[vars::cons::Velocity] + du1;
+      e_trial = scratch[vars::cons::Energy] + du2 - 0.5 * v_trial * v_trial;
+      er_trial = scratch[vars::cons::RadEnergy] + du3;
+    }
+    scratch[vars::cons::Velocity] += du1;
+    scratch[vars::cons::Energy] += du2;
+    scratch[vars::cons::RadEnergy] += du3;
+    scratch[vars::cons::RadFlux] += du4;
+
+    converged = convergence_checker.check_convergence(scratch, scratch_nm1);
 
     // --- update ---
     for (int v = 1; v < nvars; ++v) {
-      scratch_nm1(v) = scratch_n(v);
-      scratch_n(v) = scratch(v);
+      scratch_nm1[v] = scratch[v];
     }
 
     r_1_nm1 = r_1_n;
@@ -457,113 +405,571 @@ fixed_point_radhydro_nodal(T R, double dt_a_ii, T scratch_n, T scratch_nm1,
 
     s_1_nm1 = s_1_n;
     s_2_nm1 = s_2_n;
-    s_3_nm1 = s_3_n;
-    s_4_nm1 = s_4_n;
-
-    converged = convergence_checker.check_convergence(scratch_n, scratch_nm1);
 
     ++n;
   } // while not converged
 }
 
-template <typename T, typename... Args>
-KOKKOS_INLINE_FUNCTION void fixed_point_radhydro_aa(T R, double dt_a_ii,
-                                                    T scratch_n, T scratch_nm1,
-                                                    T scratch, Args... args) {
-  using root_finders::alpha_aa, root_finders::residual;
-  static_assert(T::rank == 2, "fixed_point_radhydro expects rank-2 views.");
-  constexpr static int nvars = 5;
+struct RadSourceInputs {
+  double rho, e, v;
+  double etot, m_tot; // conserved, fixed -- derive Er, Fr internally
+  double X, Z;
+  double dt_a_ii, dg_term;
+  const eos::EOS *eos;
+  const Opacity *opac;
+};
 
-  const int num_modes = scratch_n.extent(0);
+template <OpacityType Opac>
+KOKKOS_FUNCTION auto dkappa_dT(const Opacity &opac, const double rho,
+                               const double T, const double X, const double Z)
+    -> double {
+  constexpr double h_rel = 1e-4;
+  const double h = T * h_rel;
 
-  auto target = [&](T u, const int k) {
-    const auto [s_1_k, s_2_k, s_3_k, s_4_k] =
-        compute_increment_radhydro_source(u, k, args...);
-    return std::make_tuple(R(k, 1) + dt_a_ii * s_1_k, R(k, 2) + dt_a_ii * s_2_k,
-                           R(k, 3) + dt_a_ii * s_3_k,
-                           R(k, 4) + dt_a_ii * s_4_k);
-  };
-
-  // --- first fixed point iteration ---
-  for (int k = 0; k < num_modes; ++k) {
-    const auto [xnp1_1_k, xnp1_2_k, xnp1_3_k, xnp1_4_k] = target(scratch_n, k);
-    scratch(k, vars::cons::Velocity) = xnp1_1_k;
-    scratch(k, vars::cons::Energy) = xnp1_2_k;
-    scratch(k, vars::cons::RadEnergy) = xnp1_3_k;
-    scratch(k, vars::cons::RadFlux) = xnp1_4_k;
+  // Simple forward difference on the table
+  double k_plus;
+  double k_base;
+  if constexpr (Opac == OpacityType::Planck) {
+    k_plus = opac.planck_mean(rho, T + h, X, Z, nullptr);
+    k_base = opac.planck_mean(rho, T, X, Z, nullptr);
   }
-  for (int k = 0; k < num_modes; ++k) {
-    for (int v = 1; v < nvars; ++v) {
-      scratch_nm1(k, v) = scratch_n(k, v);
-      scratch_n(k, v) = scratch(k, v);
+  if constexpr (Opac == OpacityType::Rosseland) {
+    k_plus = opac.rosseland_mean(rho, T + h, X, Z, nullptr);
+    k_base = opac.rosseland_mean(rho, T, X, Z, nullptr);
+  }
+
+  return (k_plus - k_base) / h;
+}
+
+KOKKOS_INLINE_FUNCTION
+auto compute_rad_sources(const RadSourceInputs &in, double *lambda)
+    -> std::tuple<double, double> {
+  constexpr double c = constants::c_cgs;
+  constexpr double inv_c = 1.0 / c;
+  constexpr double c2 = c * c;
+  const double Er = (in.etot - in.e) * in.rho;
+  const double Fr = c2 * (in.m_tot - in.v) * in.rho;
+
+  const double temperature = eos::temperature_from_density_sie(
+      *in.eos, in.rho, in.e - 0.5 * in.v * in.v, lambda);
+
+  const double at3 = constants::a * temperature * temperature * temperature;
+  const double at4 = at3 * temperature;
+
+  const double kappa_p =
+      in.opac->planck_mean(in.rho, temperature, in.X, in.Z, lambda);
+  const double kappa_r =
+      in.opac->rosseland_mean(in.rho, temperature, in.X, in.Z, lambda);
+
+  const double Pr = compute_closure(Er, Fr);
+
+  const double se = in.rho *
+                    (-c * kappa_p * (at4 - Er) - kappa_r * in.v * Fr * inv_c) *
+                    in.dg_term;
+  const double sv =
+      in.rho * inv_c *
+      (kappa_r * Fr - kappa_p * in.v * at4 - kappa_r * in.v * Pr) * in.dg_term;
+  return {se, sv};
+}
+
+template <DiffScheme Scheme = DiffScheme::Forward>
+KOKKOS_INLINE_FUNCTION auto finite_diff_source(const RadSourceInputs &in,
+                                               double *lambda)
+    -> std::tuple<double, double, double, double> {
+  constexpr double h_base = (Scheme == DiffScheme::Central) ? 1.0e-6 : 1.0e-8;
+  constexpr double tol = 1.0e-14;
+
+  const double etot = in.etot;
+
+  double dsede;
+  double dsedv;
+  double dsvde;
+  double dsvdv;
+
+  if constexpr (Scheme == DiffScheme::Forward) {
+    // --- Forward / Backward Scheme ---
+    // In the forward scheme we check that e + h < etot.
+    // If we cross that bounds we switch to a backwards difference.
+    const auto [se0, sv0] = compute_rad_sources(in, lambda);
+
+    // Energy
+    {
+      const double h_e = h_base * std::abs(in.e) + tol;
+      const double side = (in.e + h_e > etot) ? -1.0 : 1.0;
+
+      auto in_p = in;
+      in_p.e += side * h_e;
+      const auto [sep, svp] = compute_rad_sources(in_p, lambda);
+
+      dsede = (sep - se0) / (side * h_e);
+      dsvde = (svp - sv0) / (side * h_e);
+    }
+    // Velocity
+    {
+      const double h_v = 100.0 * h_base * std::abs(in.v) + tol;
+      auto in_p = in;
+      in_p.v += h_v;
+      const auto [sep, svp] = compute_rad_sources(in_p, lambda);
+
+      dsedv = (sep - se0) / h_v;
+      dsvdv = (svp - sv0) / h_v;
+    }
+
+  } else {
+    // --- Central Difference ---
+    // Energy
+    {
+      const double h_e = h_base * std::abs(in.e) + tol;
+      auto in_p = in;
+      auto in_m = in;
+
+      in_p.e += h_e;
+      in_m.e -= h_e;
+
+      const auto [sep, svp] = compute_rad_sources(in_p, lambda);
+      const auto [sem, svm] = compute_rad_sources(in_m, lambda);
+
+      const double inv_2h = 0.5 / h_e;
+      dsede = (sep - sem) * inv_2h;
+      dsvde = (svp - svm) * inv_2h;
+    }
+
+    // Velocity
+    {
+      const double h_v = h_base * std::abs(in.v) + tol;
+      auto in_p = in;
+      auto in_m = in;
+
+      in_p.v += h_v;
+      in_m.v -= h_v;
+
+      const auto [sep, svp] = compute_rad_sources(in_p, lambda);
+      const auto [sem, svm] = compute_rad_sources(in_m, lambda);
+
+      const double inv_2h = 0.5 / h_v;
+      dsedv = (sep - sem) * inv_2h;
+      dsvdv = (svp - svm) * inv_2h;
     }
   }
 
-  // Set up physical scales based on your problem
-  PhysicalScales scales{};
-  scales.velocity_scale = 1e7; // Typical velocity (cm/s)
-  scales.energy_scale = 1e12; // Typical energy density
-  scales.rad_energy_scale = 1e12; // Typical radiation energy density
-  scales.rad_flux_scale = 1e20; // Typical radiation flux
+  return {dsede, dsedv, dsvde, dsvdv};
+}
 
-  static RadHydroConvergence<T> convergence_checker(
-      scales, root_finders::ABSTOL, root_finders::RELTOL, num_modes);
+template <IonizationPhysics Ionization, typename T, typename G>
+KOKKOS_INLINE_FUNCTION void
+newton_radhydro_fd(const double dt_a_ii, const double emin, T ustar, T uaf,
+                   const RadHydroSolverIonizationContent &content, G &scratch,
+                   const eos::EOS &eos, const Opacity &opac,
+                   eos::EOSLambda lambda, const double dg_term) {
+  constexpr double c = constants::c_cgs;
+  constexpr double c2 = c * c;
+  constexpr double inv_c2 = 1.0 / c2;
 
-  bool converged =
-      convergence_checker.check_convergence(scratch_n, scratch_nm1);
+  // line search params
+  constexpr double alpha = 1.0e-4;
+  constexpr int max_linesearch = 16;
 
-  if (converged) {
-    return;
-  }
+  const double vstar = ustar(vars::cons::Velocity);
+  const double rho = 1.0 / ustar(vars::cons::SpecificVolume);
+  const double e_star = ustar(vars::cons::Energy);
+  const double er_star = ustar(vars::cons::RadEnergy);
+  const double fr_star = ustar(vars::cons::RadFlux);
+  const double etot = e_star + er_star;
+  const double m_tot = vstar + fr_star * inv_c2; // "total specific momentum"
+  const double vscale = std::sqrt(2.0 * etot);
 
-  unsigned int n = 1;
-  while (n <= root_finders::MAX_ITERS && !converged) {
-    for (int k = 0; k < num_modes; ++k) {
-      const auto [s_1_n, s_2_n, s_3_n, s_4_n] = target(scratch_n, k);
-      const auto [s_1_nm1, s_2_nm1, s_3_nm1, s_4_nm1] = target(scratch_nm1, k);
+  const auto number_density = content.number_density;
+  const auto ye = content.ye;
+  const auto ybar = content.ybar;
+  const auto sigma1 = content.sigma1;
+  const auto sigma2 = content.sigma2;
+  const auto sigma3 = content.sigma3;
+  const auto e_ion_corr = content.e_ion_corr;
+  const auto X = content.X;
+  const auto Z = content.Z;
 
-      // residuals
-      const auto r_1_n = residual(s_1_n, scratch_n(k, vars::cons::Velocity));
-      const auto r_2_n = residual(s_2_n, scratch_n(k, vars::cons::Energy));
-      const auto r_3_n = residual(s_3_n, scratch_n(k, vars::cons::RadEnergy));
-      const auto r_4_n = residual(s_4_n, scratch_n(k, vars::cons::RadFlux));
-      const auto r_1_nm1 =
-          residual(s_1_nm1, scratch_nm1(k, vars::cons::Velocity));
-      const auto r_2_nm1 =
-          residual(s_2_nm1, scratch_nm1(k, vars::cons::Energy));
-      const auto r_3_nm1 =
-          residual(s_3_nm1, scratch_nm1(k, vars::cons::RadEnergy));
-      const auto r_4_nm1 =
-          residual(s_4_nm1, scratch_nm1(k, vars::cons::RadFlux));
+  // Initial values
+  double e = e_star;
+  double v = vstar;
 
-      // Anderson acceleration alpha
-      const auto a_1 = alpha_aa(r_1_n, r_1_nm1);
-      const auto a_2 = alpha_aa(r_2_n, r_2_nm1);
-      const auto a_3 = alpha_aa(r_3_n, r_3_nm1);
-      const auto a_4 = alpha_aa(r_4_n, r_4_nm1);
+  bool converged = false;
+  std::size_t n = 0;
 
-      // Anderson acceleration update
-      const auto xnp1_1_k = a_1 * s_1_nm1 + (1.0 - a_1) * s_1_n;
-      const auto xnp1_2_k = a_2 * s_2_nm1 + (1.0 - a_2) * s_2_n;
-      const auto xnp1_3_k = a_3 * s_3_nm1 + (1.0 - a_3) * s_3_n;
-      const auto xnp1_4_k = a_4 * s_4_nm1 + (1.0 - a_4) * s_4_n;
+  RadSourceInputs src_in;
+  src_in.rho = rho;
+  src_in.etot = etot;
+  src_in.m_tot = m_tot;
+  src_in.X = X;
+  src_in.Z = Z;
+  src_in.dg_term = dg_term;
+  src_in.eos = &eos;
+  src_in.opac = &opac;
+  while (n < root_finders::MAX_ITERS && !converged) {
+    // Update dependent eos / opacity quantities
+    if constexpr (Ionization == IonizationPhysics::Active) {
+      lambda.data[0] = number_density;
+      lambda.data[1] = ye;
+      lambda.data[2] = ybar;
+      lambda.data[3] = sigma1;
+      lambda.data[4] = sigma2;
+      lambda.data[5] = sigma3;
+      lambda.data[6] = e_ion_corr;
+      lambda.data[7] = uaf(vars::aux::Tgas);
+    }
 
-      scratch(k, vars::cons::Velocity) = xnp1_1_k; // fluid vel
-      scratch(k, vars::cons::Energy) = xnp1_2_k; // fluid energy
-      scratch(k, vars::cons::RadEnergy) = xnp1_3_k; // rad energy
-      scratch(k, vars::cons::RadFlux) = xnp1_4_k; // rad flux
+    // Build inputs struct for source evaluation
+    src_in.e = e;
+    src_in.v = v;
 
-      // --- update ---
-      for (int v = 1; v < nvars; ++v) {
-        scratch_nm1(k, v) = scratch_n(k, v);
-        scratch_n(k, v) = scratch(k, v);
+    // Sources and residuals
+    const auto [se, sv] = compute_rad_sources(src_in, lambda.ptr());
+    const double f_e = e - e_star - dt_a_ii * se;
+    const double f_v = v - vstar - dt_a_ii * sv;
+
+    // Jacobian via finite differences
+    const auto [dsede, dsedv, dsvde, dsvdv] =
+        finite_diff_source<DiffScheme::Forward>(src_in, lambda.ptr());
+
+    const double J11 = 1.0 - dt_a_ii * dsede;
+    const double J12 = -dt_a_ii * dsedv;
+    const double J21 = -dt_a_ii * dsvde;
+    const double J22 = 1.0 - dt_a_ii * dsvdv;
+
+    // 1. Get Row Scales
+    const double r1 = std::max({std::abs(J11), std::abs(J12), 1e-14});
+    const double r2 = std::max({std::abs(J21), std::abs(J22), 1e-14});
+
+    // 2. Scale rows (Balance the equations)
+    const double a1 = J11 / r1;
+    const double b1 = J12 / r1;
+    const double c1 = J21 / r2;
+    const double d1 = J22 / r2;
+
+    const double rhs1 = f_e / r1;
+    const double rhs2 = f_v / r2;
+
+    // 3. Solve the balanced system
+    const double det = a1 * d1 - b1 * c1;
+    const double inv_det = 1.0 / det;
+
+    const double delta_e = -(d1 * rhs1 - b1 * rhs2) * inv_det;
+    const double delta_v = -(a1 * rhs2 - c1 * rhs1) * inv_det;
+
+    // Line search
+    double lam = 1.0;
+    double v_trial = v + lam * delta_v;
+    double e_trial = e + lam * delta_e;
+    double Er_trial = etot - e_trial;
+    double Fr_trial = c2 * (m_tot - v_trial);
+    double sie_trial = e_trial - 0.5 * v_trial * v_trial;
+
+    // merit function: residual norm
+    const double F0 = f_e * f_e + f_v * f_v;
+
+    for (int ls = 0; ls < max_linesearch; ++ls) {
+      e_trial = e + lam * delta_e;
+      v_trial = v + lam * delta_v;
+      Er_trial = etot - e_trial;
+      Fr_trial = c2 * (m_tot - v_trial);
+      sie_trial = e_trial - 0.5 * v_trial * v_trial;
+
+      // realizability first
+      if (std::abs(Fr_trial) >= c * Er_trial || Er_trial <= 0.0 ||
+          sie_trial <= emin) {
+        lam *= 0.5;
+        continue;
       }
-    }
 
-    converged = convergence_checker.check_convergence(scratch_n, scratch_nm1);
+      RadSourceInputs trial_in = src_in;
+      trial_in.e = e_trial;
+      trial_in.v = v_trial;
+      const auto [se_t, sv_t] = compute_rad_sources(trial_in, lambda.ptr());
+      const double fe_t = e_trial - e_star - dt_a_ii * se_t;
+      const double fv_t = v_trial - vstar - dt_a_ii * sv_t;
+      const double F_trial = fe_t * fe_t + fv_t * fv_t;
+
+      // 3. Classic Armoji line search criteria
+      if (F_trial < (1.0 - 2.0 * alpha * lam) * F0) {
+        break;
+      }
+
+      // 4. Stagnation Check: If we are already deep in the noise floor,
+      // and the line search is failing, the Jacobian is likely inaccurate.
+      // We check if the update is becoming smaller than machine precision
+      // relative to the variables.
+      const double rel_update =
+          lam * (std::abs(delta_e) / (std::abs(e) + 1e-14) +
+                 std::abs(delta_v) / (std::abs(v) + 1e-14));
+
+      if (rel_update < 1e-14) {
+        // Update is too small to change the floats; further backtracking is
+        // useless.
+        break;
+      }
+
+      lam *= 0.5;
+    }
+    e += lam * delta_e;
+    v += lam * delta_v;
+
+    const bool energy_converged = (std::abs(f_e) <= 1.0e-8 * etot);
+    const bool momentum_converged = (std::abs(f_v) <= 1.0e-8 * vscale);
+    converged = energy_converged && momentum_converged;
 
     ++n;
   } // while not converged
+
+  // Update conserved variables
+  scratch[vars::cons::Velocity] = v;
+  scratch[vars::cons::Energy] = std::max(e, emin);
+  scratch[vars::cons::RadEnergy] = etot - std::max(e, emin);
+  scratch[vars::cons::RadFlux] = c2 * (m_tot - v);
+}
+
+template <IonizationPhysics Ionization, typename T, typename G>
+KOKKOS_INLINE_FUNCTION void
+newton_radhydro(const double dt_a_ii, const double emin, T ustar, T uaf,
+                const RadHydroSolverIonizationContent &content, G &scratch,
+                const eos::EOS &eos, const Opacity &opac, eos::EOSLambda lambda,
+                const double dg_term) {
+  constexpr double c = constants::c_cgs;
+  constexpr double inv_c = 1.0 / c;
+  constexpr double c2 = c * c;
+  constexpr double inv_c2 = 1.0 / c2;
+
+  // line search params
+  constexpr double alpha = 1.0e-4;
+  constexpr int max_linesearch = 22;
+
+  const double vstar = ustar(vars::cons::Velocity);
+  const double rho = 1.0 / ustar(vars::cons::SpecificVolume);
+  const double c_rho = constants::c_cgs * rho;
+  const double e_star = ustar(vars::cons::Energy);
+  const double er_star = ustar(vars::cons::RadEnergy);
+  const double fr_star = ustar(vars::cons::RadFlux);
+  const double etot = e_star + er_star;
+  const double m_tot = vstar + fr_star * inv_c2; // "total specific momentum"
+  const double vscale = std::sqrt(2.0 * etot);
+
+  auto number_density = content.number_density;
+  auto ye = content.ye;
+  auto ybar = content.ybar;
+  auto sigma1 = content.sigma1;
+  auto sigma2 = content.sigma2;
+  auto sigma3 = content.sigma3;
+  auto e_ion_corr = content.e_ion_corr;
+  auto X = content.X;
+  auto Z = content.Z;
+
+  // Initial values
+  double e = e_star;
+  double v = vstar;
+
+  RadSourceInputs src_in;
+  src_in.rho = rho;
+  src_in.etot = etot;
+  src_in.m_tot = m_tot;
+  src_in.X = X;
+  src_in.Z = Z;
+  src_in.dg_term = dg_term;
+  src_in.eos = &eos;
+  src_in.opac = &opac;
+
+  bool converged = false;
+  std::size_t n = 0;
+
+  while (n < root_finders::MAX_ITERS && !converged) {
+    // Reconstruct radiation variables from conservation
+    const double Er = (etot - e);
+    const double Fr = c2 * (m_tot - v);
+
+    src_in.e = e;
+    src_in.v = v;
+
+    // Update dependent eos / opacity quantities
+    if constexpr (Ionization == IonizationPhysics::Active) {
+      lambda.data[0] = number_density;
+      lambda.data[1] = ye;
+      lambda.data[2] = ybar;
+      lambda.data[3] = sigma1;
+      lambda.data[4] = sigma2;
+      lambda.data[5] = sigma3;
+      lambda.data[6] = e_ion_corr;
+      lambda.data[7] = uaf(vars::aux::Tgas);
+    }
+
+    const double temperature = eos::temperature_from_density_sie(
+        eos, rho, e - 0.5 * v * v, lambda.ptr());
+    uaf(vars::aux::Tgas) = temperature;
+    const double cv =
+        eos::cv_from_density_temperature(eos, rho, temperature, lambda.ptr());
+    const double inv_cv = 1.0 / cv;
+
+    const double at3 = constants::a * temperature * temperature * temperature;
+    const double at4 = at3 * temperature;
+
+    const double kappa_p =
+        opac.planck_mean(rho, temperature, X, Z, lambda.ptr());
+    const double kappa_r =
+        opac.rosseland_mean(rho, temperature, X, Z, lambda.ptr());
+
+    const double Pr = compute_closure(rho * Er, rho * Fr);
+    const double f = flux_factor(Er, Fr);
+    const double chi = eddington_factor(f);
+    const double chi_prime = eddington_factor_prime(f);
+
+    // Finite difference for opacity derivatives
+    const double dkappa_p_dT =
+        dkappa_dT<OpacityType::Planck>(opac, rho, temperature, X, Z);
+    const double dkappa_r_dT =
+        dkappa_dT<OpacityType::Rosseland>(opac, rho, temperature, X, Z);
+
+    // Sources for energy (se) and velocity (sv)
+    // se = c G^0 = -c rho kappa_p (aT^4 - Er) - rho kappa_r Fr v/c
+    // sv = rho kappa_r Fr / c - rho kappa_p a T^4 v / c - rho kappa_r Pr v / c;
+    const double se =
+        rho *
+        (-c * kappa_p * (at4 - rho * Er) - kappa_r * v * (Fr * rho) * inv_c) *
+        dg_term;
+    const double sv =
+        rho * inv_c *
+        (kappa_r * (Fr * rho) - kappa_p * v * at4 - kappa_r * v * Pr) * dg_term;
+
+    // Residuals
+    const double f_e = e - e_star - dt_a_ii * se;
+    const double f_v = v - vstar - dt_a_ii * sv;
+
+    // Form various derivatives
+    const double v2 = v * v;
+
+    const double dsede =
+        c_rho * inv_cv *
+            (-4.0 * at3 * kappa_p - at4 * dkappa_p_dT + rho * Er * dkappa_p_dT -
+             v * rho * Fr * inv_c2 * dkappa_r_dT) *
+            dg_term -
+        c * rho * rho * kappa_p * dg_term;
+    const double dsedv =
+        (c_rho * inv_cv *
+             (v * at4 * dkappa_p_dT + 4.0 * at3 * v * kappa_p -
+              v * (rho * Er) * dkappa_p_dT +
+              (rho * Fr) * v2 * inv_c2 * dkappa_r_dT) -
+         (rho * kappa_r * (rho * Fr) * inv_c) + (rho * rho * kappa_r * v * c)) *
+        dg_term;
+
+    const double dprde = rho * (-chi + f * chi_prime);
+    const double dprdv = -c_rho * chi_prime;
+    const double dsvde =
+        (rho * inv_c * inv_cv *
+             ((rho * Fr) * dkappa_r_dT - at4 * v * dkappa_p_dT -
+              4.0 * at3 * kappa_p * v - v * Pr * dkappa_r_dT) -
+         (rho * v * kappa_r * inv_c * dprde)) *
+        dg_term;
+
+    const double dsvdv =
+        (rho * inv_c * inv_cv *
+             (-v * (rho * Fr) * dkappa_r_dT + at4 * v2 * dkappa_p_dT +
+              4.0 * at3 * v2 * kappa_p + Pr * v2 * dkappa_r_dT) -
+         (c * rho * rho * kappa_r) - (rho * at4 * kappa_p * inv_c) -
+         (rho * kappa_r * Pr * inv_c) - (rho * kappa_r * v * dprdv * inv_c)) *
+        dg_term;
+
+    const double J11 = 1.0 - dt_a_ii * dsede;
+    const double J12 = -dt_a_ii * dsedv;
+    const double J21 = -dt_a_ii * dsvde;
+    const double J22 = 1.0 - dt_a_ii * dsvdv;
+
+    // Get Row Scales
+    const double r1 = std::max({std::abs(J11), std::abs(J12), 1e-14});
+    const double r2 = std::max({std::abs(J21), std::abs(J22), 1e-14});
+
+    // Scale rows (Balance the equations)
+    const double a1 = J11 / r1;
+    const double b1 = J12 / r1;
+    const double c1 = J21 / r2;
+    const double d1 = J22 / r2;
+
+    const double rhs1 = f_e / r1;
+    const double rhs2 = f_v / r2;
+
+    // Solve the balanced system
+    const double det = a1 * d1 - b1 * c1;
+
+    const double inv_det = 1.0 / det;
+
+    const double delta_e = -(d1 * rhs1 - b1 * rhs2) * inv_det;
+    const double delta_v = -(a1 * rhs2 - c1 * rhs1) * inv_det;
+
+    // Line search
+    double lam = 1.0;
+    double v_trial = v + lam * delta_v;
+    double e_trial = e + lam * delta_e;
+    double Er_trial = etot - e_trial;
+    double Fr_trial = c2 * (m_tot - v_trial);
+    double sie_trial = e_trial - 0.5 * v_trial * v_trial;
+
+    // merit function: residual norm
+    const double F0 = f_e * f_e + f_v * f_v;
+
+    for (int ls = 0; ls < max_linesearch; ++ls) {
+      e_trial = e + lam * delta_e;
+      v_trial = v + lam * delta_v;
+      Er_trial = etot - e_trial;
+      Fr_trial = c2 * (m_tot - v_trial);
+      sie_trial = e_trial - 0.5 * v_trial * v_trial;
+
+      // realizability first
+      if (std::abs(Fr_trial) >= c * Er_trial || Er_trial <= 0.0 ||
+          sie_trial <= emin) {
+        lam *= 0.5;
+        continue;
+      }
+
+      RadSourceInputs trial_in = src_in;
+      trial_in.e = e_trial;
+      trial_in.v = v_trial;
+      const auto [se_t, sv_t] = compute_rad_sources(trial_in, lambda.ptr());
+      const double fe_t = e_trial - e_star - dt_a_ii * se_t;
+      const double fv_t = v_trial - vstar - dt_a_ii * sv_t;
+      const double F_trial = fe_t * fe_t + fv_t * fv_t;
+
+      // 3. Classic Armoji line search criteria
+      if (F_trial < (1.0 - 2.0 * alpha * lam) * F0) {
+        break;
+      }
+
+      // 4. Stagnation Check: If we are already deep in the noise floor,
+      // and the line search is failing, the Jacobian is likely inaccurate.
+      // We check if the update is becoming smaller than machine precision
+      // relative to the variables.
+      const double rel_update =
+          lam * (std::abs(delta_e) / (std::abs(e) + 1e-14) +
+                 std::abs(delta_v) / (std::abs(v) + 1e-14));
+
+      if (rel_update < 1e-14) {
+        // Update is too small to change the floats; further backtracking is
+        // useless.
+        break;
+      }
+
+      lam *= 0.5;
+    }
+    e += lam * delta_e;
+    v += lam * delta_v;
+
+    const bool energy_converged = (std::abs(f_e) <= 1.0e-8 * etot) ||
+                                  (std::abs(delta_e) <= 1.0e-12 * etot);
+    const bool momentum_converged = (std::abs(f_v) <= 1.0e-8 * vscale) ||
+                                    (std::abs(delta_v) <= 1.0e-12 * vscale);
+    converged = energy_converged && momentum_converged;
+
+    ++n;
+  }
+
+  // Update conserved variables
+  scratch[vars::cons::Velocity] = v;
+  scratch[vars::cons::Energy] = e;
+  scratch[vars::cons::RadEnergy] = etot - e;
+  scratch[vars::cons::RadFlux] = c2 * (m_tot - v);
 }
 
 } // namespace athelas::radiation

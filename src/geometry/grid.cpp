@@ -393,14 +393,19 @@ void GridStructure::update_grid(const AthelasArray1D<double> SData) {
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Update (1)", DevExecSpace(), ilo,
-      ihi + 0, KOKKOS_CLASS_LAMBDA(const int i) {
+      ihi + 1, KOKKOS_CLASS_LAMBDA(const int i) {
         x_l_(i) = SData(i);
-        widths_(i) = SData(i + 1) - SData(i);
         centers_(i) = 0.5 * (SData(i + 1) + SData(i));
       });
 
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Update (2)", DevExecSpace(), ilo,
+      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Update (2)", DevExecSpace(), ilo, ihi,
+      KOKKOS_CLASS_LAMBDA(const int i) {
+        widths_(i) = SData(i + 1) - SData(i);
+      });
+
+  athelas::par_for(
+      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Update (3)", DevExecSpace(), ilo,
       ihi + 1, KOKKOS_CLASS_LAMBDA(const int i) {
         grid_(i, 0) = x_l_(i);
         for (int q = 1; q <= nNodes_; q++) {

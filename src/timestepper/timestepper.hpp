@@ -235,9 +235,6 @@ class TimeStepper {
             u(i, q, v) = SumVar_U_(i, q, v);
           });
 
-      // NOTE: The limiting strategies in this function will fail if
-      // the pkg does not have access to a rad_basis and fluid_basis
-      // limiting madness
       apply_slope_limiter(sl_hydro, u, grid_s_[iS], fluid_basis, eos);
       apply_slope_limiter(sl_rad, u, grid_s_[iS], rad_basis, eos);
       bel::apply_bound_enforcing_limiter(stage_data, grid_s_[iS]);
@@ -259,8 +256,7 @@ class TimeStepper {
       // Need a fill derived?
       // pkgs->fill_derived(stage_data, grid_s_[iS], dt_info);
       if (dt_info.dt_coef != 0.0) {
-        pkgs->update_implicit_iterative(stage_data, SumVar_U_, grid_s_[iS],
-                                        dt_info);
+        pkgs->update_implicit(stage_data, SumVar_U_, grid_s_[iS], dt_info);
       }
 
       apply_slope_limiter(sl_hydro, u, grid_s_[iS], fluid_basis, eos);
@@ -271,7 +267,6 @@ class TimeStepper {
       dt_info.stage = iS;
       pkgs->fill_derived(stage_data, grid_s_[iS], dt_info);
       pkgs->update_explicit(stage_data, grid_s_[iS], dt_info);
-      pkgs->update_implicit(stage_data, grid_s_[iS], dt_info);
     } // end outer loop
 
     for (int iS = 0; iS < nStages_; ++iS) {

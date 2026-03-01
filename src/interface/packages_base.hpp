@@ -46,25 +46,15 @@ class PackageWrapper {
     }
   }
 
-  // Implicit update
-  void update_implicit(const StageData &stage_data, const GridStructure &grid,
-                       const TimeStepInfo &dt_info) {
-    if (package_->has_implicit()) {
-      package_->update_implicit(stage_data, grid, dt_info);
-    }
-  }
-
   /**
    * @brief Iterative solve of implicit physics
    * Solves:
    * u^i = R^i + dt a_ii S(u^i)
    **/
-  void update_implicit_iterative(const StageData &stage_data,
-                                 AthelasArray3D<double> dU,
-                                 const GridStructure &grid,
-                                 const TimeStepInfo &dt_info) {
+  void update_implicit(const StageData &stage_data, AthelasArray3D<double> dU,
+                       const GridStructure &grid, const TimeStepInfo &dt_info) {
     if (package_->has_implicit()) {
-      package_->update_implicit_iterative(stage_data, dU, grid, dt_info);
+      package_->update_implicit(stage_data, dU, grid, dt_info);
     }
   }
 
@@ -116,12 +106,9 @@ class PackageWrapper {
     virtual ~PackageConcept() = default;
     virtual void update_explicit(const StageData &, const GridStructure &,
                                  const TimeStepInfo &) = 0;
-    virtual void update_implicit(const StageData &, const GridStructure &,
+    virtual void update_implicit(const StageData &, AthelasArray3D<double>,
+                                 const GridStructure &,
                                  const TimeStepInfo &) = 0;
-    virtual void update_implicit_iterative(const StageData &,
-                                           AthelasArray3D<double>,
-                                           const GridStructure &,
-                                           const TimeStepInfo &) = 0;
     virtual void apply_delta(AthelasArray3D<double>,
                              const TimeStepInfo &) const = 0;
     virtual void zero_delta() const noexcept = 0;
@@ -153,19 +140,11 @@ class PackageWrapper {
       }
     }
 
-    void update_implicit(const StageData &stage_data, const GridStructure &grid,
+    void update_implicit(const StageData &stage_data, AthelasArray3D<double> dU,
+                         const GridStructure &grid,
                          const TimeStepInfo &dt_info) override {
       if constexpr (has_implicit_update_v<T>) {
-        package_.update_implicit(stage_data, grid, dt_info);
-      }
-    }
-
-    void update_implicit_iterative(const StageData &stage_data,
-                                   AthelasArray3D<double> dU,
-                                   const GridStructure &grid,
-                                   const TimeStepInfo &dt_info) override {
-      if constexpr (has_implicit_update_v<T>) {
-        package_.update_implicit_iterative(stage_data, dU, grid, dt_info);
+        package_.update_implicit(stage_data, dU, grid, dt_info);
       }
     }
 
@@ -238,22 +217,11 @@ class PackageManager {
     }
   }
 
-  void update_implicit(const StageData &stage_data, const GridStructure &grid,
-                       const TimeStepInfo &dt_info) {
+  void update_implicit(const StageData &stage_data, AthelasArray3D<double> dU,
+                       const GridStructure &grid, const TimeStepInfo &dt_info) {
     for (auto *pkg : implicit_packages_) {
       if (pkg->is_active()) {
-        pkg->update_implicit(stage_data, grid, dt_info);
-      }
-    }
-  }
-
-  void update_implicit_iterative(const StageData &stage_data,
-                                 AthelasArray3D<double> dU,
-                                 const GridStructure &grid,
-                                 const TimeStepInfo &dt_info) {
-    for (auto *pkg : implicit_packages_) {
-      if (pkg->is_active()) {
-        pkg->update_implicit_iterative(stage_data, dU, grid, dt_info);
+        pkg->update_implicit(stage_data, dU, grid, dt_info);
       }
     }
   }

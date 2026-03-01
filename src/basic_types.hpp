@@ -74,6 +74,10 @@ enum class GravityModel { Constant, Spherical };
 
 enum class IonizationPhysics { Active, Inactive };
 
+enum class DiffScheme { Forward, Central };
+
+enum class OpacityType { Planck, Rosseland };
+
 template <typename T>
 using Dictionary = std::unordered_map<std::string, T>;
 
