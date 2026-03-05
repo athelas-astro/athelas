@@ -166,11 +166,12 @@ void saha_solve_linear(AthelasArray1D<double> ionization_states, const int Z,
 
   using root_finders::RootFinder, root_finders::NewtonAlgorithm,
       root_finders::NewtonAlgorithmBundled, root_finders::AANewtonAlgorithm,
+      root_finders::AANewtonAlgorithmBundled,
       root_finders::RegulaFalsiAlgorithm, root_finders::FixedPointAlgorithm,
       root_finders::RelativeError, root_finders::AbsoluteError;
   // Set up static root finder for Saha ionization
   // TODO(astrobarker): make tolerances runtime
-  static RootFinder<double, NewtonAlgorithmBundled<double>, AbsoluteError>
+  static RootFinder<double, AANewtonAlgorithmBundled<double>, AbsoluteError>
       solver({.abs_tol = 1.0e-10, .rel_tol = 1.0e-10, .max_iterations = 32});
   static constexpr double ZBARTOL = 1.0e-15;
   static constexpr double ZBARTOLINV = 1.0e15;
@@ -425,7 +426,6 @@ template <eos::EOSInversion Inversion, SahaSolver SolverType>
 auto temperature_residual(const double temperature, const double rho,
                           const eos::EOS &eos,
                           const CoupledSolverContent &content) -> double {
-
   auto ucf = content.ucf;
   auto uaf = content.uaf;
 
@@ -571,31 +571,30 @@ auto temperature_residual(const double temperature, const double rho,
 
   if constexpr (Inversion == eos::EOSInversion::Pressure) {
     const double inv_dfdt =
-        1.0 / eos::Paczynski::dp_dt(temperature, rho, lambda);
+        1.0 /eos::Paczynski::dp_dt(temperature, rho, lambda);
     const double f =
         pressure_from_density_temperature(eos, rho, temperature, lambda) -
         content.target_var;
     return temperature - inv_dfdt * f;
   } else { // sie inversion
     const double inv_dfdt =
-        1.0 / eos::Paczynski::dsie_dt(temperature, rho, lambda);
-    const double f =
-        sie_from_density_temperature(eos, rho, temperature, lambda) -
-        content.target_var;
+       1.0 / eos::Paczynski::dsie_dt(temperature, rho, lambda);
+    const double sie =
+        sie_from_density_temperature(eos, rho, temperature, lambda);
+    const double f = sie - content.target_var;
 
     // We're going to do a line search to keep the temperature above 500 K
     // Saha gets upset if it gets too cold.
     // I don't expect we will actually evolve this cold, but if we do,
     // we'll need to consider it here.
+    constexpr double min_temp = 900.0; // K
     double lam = 1.0;
-    double trial = temperature - inv_dfdt * f;
-    if (trial > 500.0) {
+    double trial = temperature - lam * inv_dfdt * f;
+    if (trial > 1000.0) {
       return trial;
     }
-    while (trial <= 500.0) {
-      lam *= 0.9;
-      trial = temperature - lam * inv_dfdt * f;
-    }
+    lam = std::min(1.0, 0.65 * (temperature - min_temp)/(inv_dfdt * f));
+    trial = temperature - lam * inv_dfdt * f;
     return trial;
   }
 }
@@ -653,7 +652,7 @@ void compute_temperature_with_saha(StageData &stage_data,
   auto prefix_sum_pots = atomic_data->sum_pots();
 
   static root_finders::RootFinder<double, AAFixedPointAlgorithm<double>> solver(
-      {.abs_tol = 1.0e-8, .rel_tol = 1.0e-8, .max_iterations = 64});
+      {.abs_tol = 1.0e-8, .rel_tol = 1.0e-8, .max_iterations = 16});
 
   auto phi = basis.phi();
   // Allocate scratch space
@@ -718,10 +717,17 @@ void compute_temperature_with_saha(StageData &stage_data,
                                            q,
                                            target_var};
 
+        const double a = 500.0;//std::max(500.0, temperature_guess / 10.0); // K
+        const double b = 1.0e11;// std::min(1.0e11, temperature_guess * 10.0); // K
         const double res =
             solver.solve(temperature_residual<Inversion, SolverType>,
-                         temperature_guess, rho, eos, content);
+                         a, b, temperature_guess, rho, eos, content);
+        //std::println("saha i q oldt newt {} {} {:.5e} {:.5e}", i, q, uaf(i, q, vars::aux::Tgas), res);
+        //std::println("sie eion {:.5e} {:.5e}", target_var, e_ion_corr(i, q));
         uaf(i, q, vars::aux::Tgas) = res;
+//          if (i == 256) {
+//                  std::println("saha: i q T eioncorr {} {} {:.5e} {:.5e}", i, q, res, e_ion_corr(i, q));
+//      }
       });
 }
 

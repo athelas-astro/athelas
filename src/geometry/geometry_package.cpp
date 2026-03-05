@@ -14,7 +14,7 @@ GeometryPackage::GeometryPackage(const ProblemIn *pin, const int n_stages,
                                  const bool active)
     : active_(active) {
   const int nx = pin->param()->get<int>("problem.nx");
-  bool rad_active = pin->param()->get<bool>("physics.rad_active");
+  bool rad_active = pin->param()->get<bool>("physics.radiation.enabled");
   int nvars_geom = 1; // sources velocity
   if (rad_active) {
     nvars_geom++;
@@ -50,7 +50,7 @@ void GeometryPackage::update_explicit(const StageData &stage_data,
             (2.0 * w(q) * P * r(i, q + 1) * dr(i)) * inv_mkk(i, q);
       });
 
-  const bool rad_active = stage_data.radiation_enabled();
+  const bool rad_active = stage_data.enabled("radiation");
   if (rad_active) {
     athelas::par_for(
         DEFAULT_LOOP_PATTERN, "Geometry::Explicit", DevExecSpace(), ib.s, ib.e,

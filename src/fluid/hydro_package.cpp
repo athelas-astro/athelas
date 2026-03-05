@@ -51,7 +51,7 @@ void HydroPackage::update_explicit(const StageData &stage_data,
 
   // --- Apply BC ---
   bc::fill_ghost_zones<3>(ucf, &grid, bcs_, {0, 2});
-  if (stage_data.composition_enabled()) {
+  if (stage_data.enabled("composition")) {
     static const IndexRange vb_comps(
         std::make_pair(NUM_VARS_, stage_data.nvars("u_cf") - 1));
     bc::fill_ghost_zones_composition(ucf, vb_comps);
@@ -274,14 +274,14 @@ void HydroPackage::fill_derived(StageData &stage_data,
 
   const int nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Entire>());
-  static const bool ionization_enabled = stage_data.ionization_enabled();
+  static const bool ionization_enabled = stage_data.enabled("ionization");
 
   const auto &basis = stage_data.fluid_basis();
 
   // --- Apply BC ---
   bc::fill_ghost_zones<3>(uCF, &grid, bcs_, {0, 2});
 
-  if (stage_data.composition_enabled()) {
+  if (stage_data.enabled("composition")) {
     // composition boundary condition
     static const IndexRange vb_comps(
         std::make_pair(NUM_VARS_, stage_data.nvars("u_cf") - 1));

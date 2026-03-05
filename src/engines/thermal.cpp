@@ -76,10 +76,10 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
   } else {
     // integrate total energy on the mesh
     const bool gravity_active =
-        pin->param()->get<bool>("physics.gravity_active");
+        pin->param()->get<bool>("physics.gravity.enabled");
     const int grav_active = gravity_active ? 1 : 0;
     const int radiation_active =
-        static_cast<int>(pin->param()->get<bool>("physics.rad_active"));
+        static_cast<int>(pin->param()->get<bool>("physics.radiation.enabled"));
     const auto &basis = stage_data.fluid_basis();
     auto phi = basis.phi();
     auto ucf = stage_data.get_field("u_cf");

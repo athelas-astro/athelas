@@ -247,13 +247,14 @@ inline auto total_rad_momentum(const MeshState &mesh_state,
   return output;
 }
 
-// This total_energy is matter and radiation
+// This total_energy is all sources
+// NOTE: Pattern is somewhat suboptimal
 inline auto total_energy(const MeshState &mesh_state, const GridStructure &grid)
     -> double {
   using basis::basis_eval;
   const auto &nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  auto dr = grid.widths();
+  auto dm = grid.mass();
   auto sqrt_gm = grid.sqrt_gm();
   auto weights = grid.weights();
 
@@ -268,18 +269,20 @@ inline auto total_energy(const MeshState &mesh_state, const GridStructure &grid)
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum += ((u(i, q, vars::cons::Energy) /
-                         u(i, q, vars::cons::SpecificVolume)) +
+          local_sum += (u(i, q, vars::cons::Energy) +
                         u(i, q, vars::cons::RadEnergy)) *
-                       sqrt_gm(i, q + 1) * weights(q);
+                        weights(q);
         }
-        lsum += local_sum * dr(i);
+        lsum += local_sum * dm(i);
       },
       Kokkos::Sum<double>(output));
 
   if (grid.do_geometry()) {
     output *= constants::FOURPI;
   }
+
+  const bool radiation_enabled = mesh_state.enabled("radiation");
+  const bool gravity_enabled = mesh_state.enabled("gravity");
   return output;
 }
 

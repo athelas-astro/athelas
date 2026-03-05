@@ -36,7 +36,7 @@ void HydrostaticEquilibrium::solve(MeshState &mesh_state, GridStructure *grid,
   const double vel = 0.0;
   const double energy = 0.0;
   double lambda[8];
-  if (mesh_state.ionization_enabled()) {
+  if (mesh_state.enabled("ionization")) {
     atom::paczynski_terms(sd0, 1, 0, lambda);
   }
   const auto &eos = mesh_state.eos();

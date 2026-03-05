@@ -17,7 +17,7 @@ namespace athelas {
 void one_zone_ionization_init(MeshState &mesh_state, GridStructure *grid,
                               ProblemIn *pin) {
   const bool ionization_active =
-      pin->param()->get<bool>("physics.ionization_enabled");
+      pin->param()->get<bool>("physics.ionization.enabled");
   const int saha_ncomps =
       pin->param()->get<int>("ionization.ncomps"); // for ionization
   const auto ncomps =

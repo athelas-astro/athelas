@@ -165,25 +165,25 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   if (!rad) {
     throw_athelas_error("Missing or invalid 'radiation' in [physics] block.");
   }
-  params_->add("physics.rad_active", rad.value());
+  params_->add("physics.radiation.enabled", rad.value());
 
   std::optional<bool> grav = config_["physics"]["gravity"].value<bool>();
   if (!grav) {
     throw_athelas_error("Missing or invalid 'gravity' in [physics] block.");
   }
-  params_->add("physics.gravity_active", grav.value());
+  params_->add("physics.gravity.enabled", grav.value());
 
   std::optional<bool> comps = config_["physics"]["composition"].value<bool>();
   if (!comps) {
     throw_athelas_error("Missing or invalid 'composition' in [physics] block.");
   }
-  params_->add("physics.composition_enabled", comps.value());
+  params_->add("physics.composition.enabled", comps.value());
 
   std::optional<bool> ion = config_["physics"]["ionization"].value<bool>();
   if (!ion) {
     throw_athelas_error("Missing or invalid 'ionization' in [physics] block.");
   }
-  params_->add("physics.ionization_enabled", ion.value());
+  params_->add("physics.ionization.enabled", ion.value());
 
   std::optional<bool> engine = config_["physics"]["engine"].value<bool>();
   if (!engine) {

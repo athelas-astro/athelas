@@ -9,14 +9,8 @@ using atom::IonizationState;
 
 // --- StageData ---
 
-[[nodiscard]] auto StageData::ionization_enabled() const noexcept -> bool {
-  return parent_->ionization_enabled();
-}
-[[nodiscard]] auto StageData::composition_enabled() const noexcept -> bool {
-  return parent_->composition_enabled();
-}
-[[nodiscard]] auto StageData::radiation_enabled() const noexcept -> bool {
-  return parent_->radiation_enabled();
+[[nodiscard]] auto StageData::enabled(const std::string &physics) const -> bool {
+  return parent_->enabled(physics);
 }
 
 auto StageData::get_field(const std::string &name) const
@@ -76,24 +70,30 @@ MeshState::MeshState(const ProblemIn *const pin, const int nstages)
     : params_(std::make_unique<Params>()), nstages_(nstages) {
 
   const bool composition_enabled =
-      pin->param()->get<bool>("physics.composition_enabled");
+      pin->param()->get<bool>("physics.composition.enabled");
   const bool ionization_enabled =
-      pin->param()->get<bool>("physics.ionization_enabled");
+      pin->param()->get<bool>("physics.ionization.enabled");
+  const bool gravity_enabled =
+      pin->param()->get<bool>("physics.gravity.enabled");
+  const bool thermal_engine_enabled =
+      pin->param()->get<bool>("physics.engine.thermal.enabled");
   // NOTE: This will need to be extended when mixing is added.
   const bool composition_evolved =
       pin->param()->get<bool>("physics.heating.nickel.enabled");
   const bool nickel_evolved =
       pin->param()->get<bool>("physics.heating.nickel.enabled");
-  const bool rad_enabled = pin->param()->get<bool>("physics.rad_active");
+  const bool rad_enabled = pin->param()->get<bool>("physics.radiation.enabled");
   const int nnodes = pin->param()->get<int>("basis.nnodes");
 
   params_->add("nnodes", nnodes);
   params_->add("n_stages", nstages);
-  params_->add("composition_enabled", composition_enabled);
-  params_->add("ionization_enabled", ionization_enabled);
+  params_->add("composition.enabled", composition_enabled);
+  params_->add("gravity.enabled", gravity_enabled);
+  params_->add("ionization.enabled", ionization_enabled);
   params_->add("composition_evolved", composition_evolved);
   params_->add("nickel_evolved", nickel_evolved);
-  params_->add("radiation_enabled", rad_enabled);
+  params_->add("radiation.enabled", rad_enabled);
+  params_->add("engine.thermal.enabled", thermal_engine_enabled);
 
   // microphysics
   eos_ = std::make_unique<eos::EOS>(eos::initialize_eos(pin));

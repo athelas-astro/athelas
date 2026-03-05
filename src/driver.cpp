@@ -27,7 +27,7 @@ using io::write_output, io::print_simulation_parameters;
 
 auto Driver::execute() -> int {
   static const auto nx = pin_->param()->get<int>("problem.nx");
-  static const bool rad_active = pin_->param()->get<bool>("physics.rad_active");
+  static const bool rad_active = pin_->param()->get<bool>("physics.radiation.enabled");
 
   // --- Timer ---
   Kokkos::Timer timer_zone_cycles;
@@ -141,9 +141,9 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   // For nodal DG, u_cf is (ix, node, var); for modal, (ix, mode, var)
   const auto cfl =
       compute_cfl(pin_->param()->get<double>("problem.cfl"), nnodes);
-  const bool rad_active = pin->param()->get<bool>("physics.rad_active");
+  const bool rad_active = pin->param()->get<bool>("physics.radiation.enabled");
   const bool comps_active =
-      pin->param()->get<bool>("physics.composition_enabled");
+      pin->param()->get<bool>("physics.composition.enabled");
 
   // --- Set up mesh state ---
   // First set up the conserved fields.
@@ -199,7 +199,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
     grid_.compute_mass(cons);
 
     auto nx = grid_.n_elements();
-    const bool rad_active = pin_->param()->get<bool>("physics.rad_active");
+    const bool rad_active = pin_->param()->get<bool>("physics.radiation.enabled");
     auto fluid_basis = std::make_unique<NodalBasis>(prims, &grid_, nnodes, nx);
     mesh_state_.setup_fluid_basis(std::move(fluid_basis));
     if (rad_active) {
@@ -213,7 +213,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   // We may need to do this before packages are constructed.
   post_init_work();
 
-  const bool gravity_active = pin->param()->get<bool>("physics.gravity_active");
+  const bool gravity_active = pin->param()->get<bool>("physics.gravity.enabled");
   const bool ni_heating_active =
       pin->param()->get<bool>("physics.heating.nickel.enabled");
   const bool geometry =
@@ -353,8 +353,8 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
 void Driver::post_init_work() {
   auto sd0 = mesh_state_(0);
   auto cons = sd0.get_field("u_cf");
-  const bool comps_active = mesh_state_.composition_enabled();
-  const bool ionization_active = mesh_state_.ionization_enabled();
+  const bool comps_active = mesh_state_.enabled("composition");
+  const bool ionization_active = mesh_state_.enabled("ionization");
 
   static const IndexRange ib(grid_.domain<Domain::Interior>());
 
@@ -446,7 +446,7 @@ void Driver::post_step_work() {
       thermal_engine_active = false;
     }
   }
-  const bool ionization_enabled = mesh_state_.ionization_enabled();
+  const bool ionization_enabled = mesh_state_.enabled("ionization");
   if (ionization_enabled) {
     static const IndexRange ib(grid_.domain<Domain::Interior>());
     static const IndexRange qb(grid_.n_nodes());
@@ -487,7 +487,7 @@ void Driver::post_step_work() {
 
 #ifdef ATHELAS_DEBUG
   auto sd0 = mesh_state_(0);
-  const bool rad_active = pin_->param()->get<bool>("physics.rad_active");
+  const bool rad_active = pin_->param()->get<bool>("physics.radiation.enabled");
   try {
     check_state(sd0, grid_.get_ihi(), rad_active);
   } catch (const AthelasError &e) {
