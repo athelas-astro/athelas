@@ -121,6 +121,7 @@ class TimeStepper {
       bel::apply_bound_enforcing_limiter(stage_data, grid_s_[iS]);
 
       dt_info.stage = iS;
+      dt_info.t = t + integrator_.explicit_tableau.c_i(iS) * dt;
       pkgs->fill_derived(stage_data, grid_s_[iS], dt_info);
       pkgs->update_explicit(stage_data, grid_s_[iS], dt_info);
     } // end outer loop
