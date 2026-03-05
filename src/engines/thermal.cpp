@@ -117,16 +117,11 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
       DEFAULT_FLAT_LOOP_PATTERN, "ThermalEngine :: b integral", DevExecSpace(),
       1, mend_idx_,
       KOKKOS_CLASS_LAMBDA(const int i, double &lb) {
-        /*
           for (int q = 0; q < nnodes; ++q) {
           double dm = FOURPI * mcell(i);
             lb +=
                 std::exp(-a_coeff_ * menc(i, q)) * dm;
-                //std::exp(-a_coeff_ * menc(i, q)) * (menc(i + 1, q) - menc(i,
-          q));
           }
-          */
-        lb += std::exp(-a_coeff_ * menc(i, 0)) * (menc(i + 1, 0) - menc(i, 0));
       },
       Kokkos::Sum<double>(b_int));
   b_int_ = b_int;

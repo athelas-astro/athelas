@@ -506,8 +506,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
   // basis representation. Imagine a first order element: the interface values
   // on the element must equal the cell center value. This must be enforced
   // via the basis before the interface values are used. It needs to be done
-  // before the first fill derived call. This could be a good candidate for a
-  // post_init kernel..
+  // before the first fill derived call.
   const auto &basis = mesh_state.fluid_basis();
   auto phi = basis.phi();
   athelas::par_for(

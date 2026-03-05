@@ -4,6 +4,21 @@
 ## Staged
 ---
 
+### Added (new features/APIs/variables/...)
+
+### Changed (changing behavior/API/variables/...)
+
+### Fixed (not changing behavior/API/variables/...)
+- [PR 154](https://github.com/athelas-astro/athelas/pull/154) Fix to thermal engine calibration.
+
+### Infrastructure (organization/...)
+
+### Removed (removing behavior/API/variables/...)
+
+### Incompatibilities (i.e. breaking changes)
+
+### Misc
+
 ## Release 26.03
 Date: 2026-03-01
 
