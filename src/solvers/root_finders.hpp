@@ -619,7 +619,7 @@ class AANewtonAlgorithmBundled {
     T x = x0;
 
     // Jumpstart the AA algorithm with 1 iteration of the base algorithm
-    const auto [f, fp] = eval(x, std::forward<args>(args)...);
+    const auto [f, fp] = eval(x, std::forward<Args>(args)...);
     T h = f / fp;
     T x_new = x - h;
     // Must check convergence before moving on.
@@ -629,7 +629,7 @@ class AANewtonAlgorithmBundled {
     T x_prev = x0;
     x = x_new;
     for (int i = 1; i <= config.max_iterations; ++i) {
-      const auto [f, fp] = eval(x, std::forward<args>(args)...);
+      const auto [f, fp] = eval(x, std::forward<Args>(args)...);
       const T h_new = f / fp;
       const T gamma = alpha_aa(h_new, h);
 
