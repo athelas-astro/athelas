@@ -30,13 +30,13 @@ void print_simulation_parameters(GridStructure &grid, ProblemIn *pin) {
   const int nX = grid.n_elements();
   const int nNodes = grid.n_nodes();
   // NOTE: If I properly support more bases again, adjust here.
-  const bool rad_enabled = pin->param()->get<bool>("physics.rad_active");
+  const bool rad_enabled = pin->param()->get<bool>("physics.radiation.enabled");
   const bool gravity_enabled =
-      pin->param()->get<bool>("physics.gravity_active");
+      pin->param()->get<bool>("physics.gravity.enabled");
   const bool comps_enabled =
-      pin->param()->get<bool>("physics.composition_enabled");
+      pin->param()->get<bool>("physics.composition.enabled");
   const bool ionization_enabled =
-      pin->param()->get<bool>("physics.ionization_enabled");
+      pin->param()->get<bool>("physics.ionization.enabled");
   const bool heating_enabled =
       pin->param()->get<bool>("physics.heating.active");
   const bool engine_enabled = pin->param()->get<bool>("physics.engine.enabled");
@@ -354,7 +354,7 @@ void write_output(const MeshState &mesh_state, GridStructure &mesh,
   writer.create_group("/metadata");
   writer.create_group("/info");
   writer.create_group("/basis");
-  if (mesh_state.radiation_enabled()) {
+  if (mesh_state.enabled("radiation")) {
     writer.create_group("/basis/radiation");
   }
 
@@ -379,7 +379,7 @@ void write_output(const MeshState &mesh_state, GridStructure &mesh,
   writer.write_view(dphi_fluid, "/basis/dphi");
   writer.write_view(mesh.nodes(), "/basis/nodes");
   writer.write_view(mesh.weights(), "/basis/weights");
-  if (mesh_state.radiation_enabled()) {
+  if (mesh_state.enabled("radiation")) {
     const auto &basis = mesh_state.rad_basis();
     auto phi = basis.phi();
     auto dphi = basis.dphi();
@@ -387,7 +387,7 @@ void write_output(const MeshState &mesh_state, GridStructure &mesh,
     writer.write_view(dphi, "/basis/radiation/dphi");
   }
 
-  if (mesh_state.composition_enabled()) {
+  if (mesh_state.enabled("composition")) {
     const auto *const comps = mesh_state(0).comps();
     auto number_density = comps->number_density();
     auto ye = comps->ye();
@@ -407,7 +407,7 @@ void write_output(const MeshState &mesh_state, GridStructure &mesh,
     writer.write_view(ne, "composition/ne");
   }
 
-  if (mesh_state.ionization_enabled()) {
+  if (mesh_state.enabled("ionization")) {
     auto *const ionization_state = mesh_state(0).ionization_state();
     auto ybar = ionization_state->ybar();
     auto ionization_fractions = ionization_state->ionization_fractions();

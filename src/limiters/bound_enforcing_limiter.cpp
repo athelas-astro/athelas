@@ -220,7 +220,7 @@ void apply_bound_enforcing_limiter(StageData &stage_data,
                                    const GridStructure &grid) {
   if (stage_data.fluid_basis().order() > 1) {
     limit_density(stage_data, grid);
-    if (stage_data.ionization_enabled()) {
+    if (stage_data.enabled("ionization")) {
       limit_internal_energy<IonizationPhysics::Active>(stage_data, grid);
     } else {
       limit_internal_energy<IonizationPhysics::Inactive>(stage_data, grid);

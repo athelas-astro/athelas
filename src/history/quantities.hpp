@@ -81,7 +81,7 @@ inline auto total_fluid_energy(const MeshState &mesh_state,
   if (grid.do_geometry()) {
     output *= constants::FOURPI;
   }
-  return output; //+ total_gravitational_energy(mesh_state, grid);
+  return output;
 }
 
 inline auto total_fluid_momentum(const MeshState &mesh_state,
@@ -188,8 +188,7 @@ inline auto total_rad_energy(const MeshState &mesh_state,
   using basis::basis_eval;
   const auto &nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
-  auto dr = grid.widths();
-  auto sqrt_gm = grid.sqrt_gm();
+  auto dm = grid.widths();
   auto weights = grid.weights();
 
   auto u = mesh_state(0).get_field("u_cf");
@@ -201,10 +200,9 @@ inline auto total_rad_energy(const MeshState &mesh_state,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum +=
-              u(i, q, vars::cons::RadEnergy) * sqrt_gm(i, q + 1) * weights(q);
+          local_sum += u(i, q, vars::cons::RadEnergy) * weights(q);
         }
-        lsum += local_sum * dr(i);
+        lsum += local_sum * dm(i);
       },
       Kokkos::Sum<double>(output));
 
@@ -214,7 +212,6 @@ inline auto total_rad_energy(const MeshState &mesh_state,
   return output;
 }
 
-// TODO(astrobarker): confirm
 inline auto total_rad_momentum(const MeshState &mesh_state,
                                const GridStructure &grid) -> double {
   using basis::basis_eval;
@@ -244,77 +241,36 @@ inline auto total_rad_momentum(const MeshState &mesh_state,
   if (grid.do_geometry()) {
     output *= constants::FOURPI;
   }
-  return output;
+  return output / (constants::c_cgs * constants::c_cgs);
 }
 
-// This total_energy is matter and radiation
+// This total_energy is all sources
+// NOTE: Pattern is somewhat suboptimal
 inline auto total_energy(const MeshState &mesh_state, const GridStructure &grid)
     -> double {
-  using basis::basis_eval;
-  const auto &nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  auto dr = grid.widths();
-  auto sqrt_gm = grid.sqrt_gm();
-  auto weights = grid.weights();
+  // Probably could be optimized, but it is history..
+  double output = total_fluid_energy(mesh_state, grid);
 
-  auto phi_fluid = mesh_state.fluid_basis().phi();
-  auto phi_rad = mesh_state.rad_basis().phi();
-  auto u = mesh_state(0).get_field("u_cf");
+  const bool radiation_enabled = mesh_state.enabled("radiation");
+  if (radiation_enabled) {
+    output += total_rad_energy(mesh_state, grid);
+  }
 
-  double output = 0.0;
-  athelas::par_reduce(
-      DEFAULT_FLAT_LOOP_PATTERN, "History :: TotalEnergy", DevExecSpace(), ib.s,
-      ib.e,
-      KOKKOS_LAMBDA(const int i, double &lsum) {
-        double local_sum = 0.0;
-        for (int q = 0; q < nNodes; ++q) {
-          local_sum += ((u(i, q, vars::cons::Energy) /
-                         u(i, q, vars::cons::SpecificVolume)) +
-                        u(i, q, vars::cons::RadEnergy)) *
-                       sqrt_gm(i, q + 1) * weights(q);
-        }
-        lsum += local_sum * dr(i);
-      },
-      Kokkos::Sum<double>(output));
-
-  if (grid.do_geometry()) {
-    output *= constants::FOURPI;
+  const bool gravity_enabled = mesh_state.enabled("gravity");
+  if (gravity_enabled) {
+    output += total_gravitational_energy(mesh_state, grid);
   }
   return output;
 }
 
-// This total_energy is matter and radiation
 inline auto total_momentum(const MeshState &mesh_state,
                            const GridStructure &grid) -> double {
-  using basis::basis_eval;
-  const auto &nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  auto dr = grid.widths();
-  auto sqrt_gm = grid.sqrt_gm();
-  auto weights = grid.weights();
+  double output = total_fluid_momentum(mesh_state, grid);
 
-  auto phi_fluid = mesh_state.fluid_basis().phi();
-  auto phi_rad = mesh_state.rad_basis().phi();
-  auto u = mesh_state(0).get_field("u_cf");
-
-  double output = 0.0;
-  athelas::par_reduce(
-      DEFAULT_FLAT_LOOP_PATTERN, "History :: TotalMomentum", DevExecSpace(),
-      ib.s, ib.e,
-      KOKKOS_LAMBDA(const int i, double &lsum) {
-        double local_sum = 0.0;
-        for (int q = 0; q < nNodes; ++q) {
-          local_sum += ((u(i, q, vars::cons::Velocity) /
-                         u(i, q, vars::cons::SpecificVolume)) +
-                        u(i, q, vars::cons::RadFlux)) *
-                       sqrt_gm(i, q + 1) * weights(q);
-        }
-        lsum += local_sum * dr(i);
-      },
-      Kokkos::Sum<double>(output));
-
-  if (grid.do_geometry()) {
-    output *= constants::FOURPI;
+  // Probably could be optimized, but it is history..
+  const bool radiation_enabled = mesh_state.enabled("radiation");
+  if (radiation_enabled) {
+    output += total_rad_momentum(mesh_state, grid);
   }
   return output;
 }

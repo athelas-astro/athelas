@@ -13,7 +13,7 @@ namespace athelas {
  **/
 void ni_decay_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   const bool composition_active =
-      pin->param()->get<bool>("physics.composition_enabled");
+      pin->param()->get<bool>("physics.composition.enabled");
   const bool ni_decay_active =
       pin->param()->get<bool>("physics.heating.nickel.enabled");
   const auto ncomps = 3; // Ni, Co, Fe

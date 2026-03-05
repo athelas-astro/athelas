@@ -51,11 +51,11 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
   // Perform a number of sanity checks
   athelas_requires(pin->param()->get<std::string>("eos.type") == "paczynski",
                    "Problem 'supernoa' requires Paczynski eos!");
-  athelas_requires(pin->param()->get<bool>("physics.composition_enabled"),
+  athelas_requires(pin->param()->get<bool>("physics.composition.enabled"),
                    "Problem 'supernova' requires composition enabled!");
-  athelas_requires(pin->param()->get<bool>("physics.ionization_enabled"),
+  athelas_requires(pin->param()->get<bool>("physics.ionization.enabled"),
                    "Problem 'supernova' requires ionization enabled!");
-  athelas_requires(pin->param()->get<bool>("physics.gravity_active"),
+  athelas_requires(pin->param()->get<bool>("physics.gravity.enabled"),
                    "Problem 'supernova' requires gravity enabled!");
   athelas_requires(pin->param()->get<std::string>("problem.geometry") ==
                        "spherical",
@@ -71,7 +71,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
       pin->param()->get<double>("problem.params.ni_mass", 0.0);
   const auto ni_injection_bndry =
       pin->param()->get<double>("problem.params.ni_boundary", 0.0);
-  const auto rad_enabled = pin->param()->get<bool>("physics.rad_active");
+  const auto rad_enabled = pin->param()->get<bool>("physics.radiation.enabled");
 
   // sanity checks
   athelas_requires(ni_injection_mass >= 0.0 && ni_injection_bndry >= 0.0,

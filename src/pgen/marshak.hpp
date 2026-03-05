@@ -24,7 +24,7 @@ void marshak_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "marshak",
                    "Marshak requires marshak eos!");
 
-  const bool rad_active = pin->param()->get<bool>("physics.rad_active");
+  const bool rad_active = pin->param()->get<bool>("physics.radiation.enabled");
   athelas_requires(rad_active, "Marshak requires radiation enabled!");
 
   auto uCF = mesh_state(0).get_field("u_cf");

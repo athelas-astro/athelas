@@ -78,7 +78,7 @@ void RadHydroPackage::update_implicit(const StageData &stage_data,
   static const IndexRange ib(grid.domain<Domain::Interior>());
   static const IndexRange qb(grid.n_nodes());
 
-  static const bool ionization_enabled = stage_data.ionization_enabled();
+  static const bool ionization_enabled = stage_data.enabled("ionization");
 
   auto ucf = stage_data.get_field("u_cf");
   auto uaf = stage_data.get_field("u_af");
@@ -455,7 +455,7 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
 
   const int nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Entire>());
-  static const bool ionization_enabled = stage_data.ionization_enabled();
+  static const bool ionization_enabled = stage_data.enabled("ionization");
 
   auto phi_fluid = fluid_basis.phi();
 
@@ -463,7 +463,7 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
   bc::fill_ghost_zones<2>(uCF, &grid, bcs_, {3, 4});
   bc::fill_ghost_zones<3>(uCF, &grid, bcs_, {0, 2});
 
-  if (stage_data.composition_enabled()) {
+  if (stage_data.enabled("composition")) {
     static constexpr int nvars = 5; // non-comps
     // composition boundary condition
     static const IndexRange vb_comps(

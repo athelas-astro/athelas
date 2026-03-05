@@ -112,9 +112,7 @@ class StageData {
   [[nodiscard]] auto ionization_state() const -> atom::IonizationState *;
   [[nodiscard]] auto nvars(const std::string &field) const -> int;
 
-  [[nodiscard]] auto ionization_enabled() const noexcept -> bool;
-  [[nodiscard]] auto composition_enabled() const noexcept -> bool;
-  [[nodiscard]] auto radiation_enabled() const noexcept -> bool;
+  [[nodiscard]] auto enabled(const std::string &physics) const -> bool;
   [[nodiscard]] auto stage() const noexcept -> int { return stage_; }
   [[nodiscard]] auto mass_fractions(const std::string &field_name) const
       -> AthelasArray3D<double>;
@@ -170,16 +168,8 @@ class MeshState {
   [[nodiscard]] auto n_stages() const noexcept -> int { return nstages_; }
 
   // --- Feature Flags ---
-  [[nodiscard]] auto composition_enabled() const noexcept -> bool {
-    return comps_ != nullptr;
-  }
-
-  [[nodiscard]] auto ionization_enabled() const noexcept -> bool {
-    return ionization_state_ != nullptr;
-  }
-
-  [[nodiscard]] auto radiation_enabled() const noexcept -> bool {
-    return params_->get<bool>("radiation_enabled");
+  [[nodiscard]] auto enabled(const std::string &physics) const -> bool {
+    return params_->get<bool>(physics + ".enabled");
   }
 
   [[nodiscard]] auto composition_evolved() const noexcept -> bool {

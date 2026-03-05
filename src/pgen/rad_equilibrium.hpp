@@ -13,7 +13,7 @@ namespace athelas {
  **/
 void rad_equilibrium_init(MeshState &mesh_state, GridStructure *grid,
                           ProblemIn *pin) {
-  const bool rad_active = pin->param()->get<bool>("physics.rad_active");
+  const bool rad_active = pin->param()->get<bool>("physics.radiation.enabled");
   athelas_requires(rad_active,
                    "Radiation equilibriation requires radiation enabled!");
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",

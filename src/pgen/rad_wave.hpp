@@ -15,7 +15,7 @@ void rad_wave_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
                    const eos::EOS *eos,
                    basis::ModalBasis * /*fluid_basis = nullptr*/,
                    basis::ModalBasis * /*radiation_basis = nullptr*/) {
-  const bool rad_active = pin->param()->get<bool>("physics.rad_active");
+  const bool rad_active = pin->param()->get<bool>("physics.radiation.enabled");
   athelas_requires(rad_active, "Radiation wave requires radiation enabled!");
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Radiation wave requires ideal gas eos!");
