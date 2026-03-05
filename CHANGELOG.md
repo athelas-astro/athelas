@@ -5,8 +5,11 @@
 ---
 
 ### Added (new features/APIs/variables/...)
+- [PR 156](https://github.com/athelas-astro/athelas/pull/156) Add `enabled(const std::string &physics)` to `state`.
+- [PR 156](https://github.com/athelas-astro/athelas/pull/156) Number history columns.
 
 ### Changed (changing behavior/API/variables/...)
+- [PR 156](https://github.com/athelas-astro/athelas/pull/156) Clean up total energy and momentum history.
 
 ### Fixed (not changing behavior/API/variables/...)
 - [PR 155](https://github.com/athelas-astro/athelas/pull/155) Add radiation energy to thermal engine calibration.
