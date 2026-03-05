@@ -9,6 +9,7 @@
 ### Changed (changing behavior/API/variables/...)
 
 ### Fixed (not changing behavior/API/variables/...)
+- [PR 155](https://github.com/athelas-astro/athelas/pull/155) Add radiation energy to thermal engine calibration.
 - [PR 154](https://github.com/athelas-astro/athelas/pull/154) Fix to thermal engine calibration.
 
 ### Infrastructure (organization/...)
