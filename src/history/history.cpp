@@ -46,9 +46,11 @@ void HistoryOutput::write(const MeshState &mesh_state,
   // weird restarts. This is where to change that. Just write the header
   // in the constructor and as we add_quantity.
   if (!header_written_) {
-    file_ << "# Time [s]";
+    file_ << "# 0 Time [s]";
+    int i = 1;
     for (const auto &name : quantity_names_) {
-      file_ << " " << name;
+      file_ << " " << std::to_string(i) << " " << name;
+      ++i;
     }
     header_written_ = true;
   }

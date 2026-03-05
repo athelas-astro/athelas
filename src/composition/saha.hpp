@@ -571,14 +571,14 @@ auto temperature_residual(const double temperature, const double rho,
 
   if constexpr (Inversion == eos::EOSInversion::Pressure) {
     const double inv_dfdt =
-        1.0 /eos::Paczynski::dp_dt(temperature, rho, lambda);
+        1.0 / eos::Paczynski::dp_dt(temperature, rho, lambda);
     const double f =
         pressure_from_density_temperature(eos, rho, temperature, lambda) -
         content.target_var;
     return temperature - inv_dfdt * f;
   } else { // sie inversion
     const double inv_dfdt =
-       1.0 / eos::Paczynski::dsie_dt(temperature, rho, lambda);
+        1.0 / eos::Paczynski::dsie_dt(temperature, rho, lambda);
     const double sie =
         sie_from_density_temperature(eos, rho, temperature, lambda);
     const double f = sie - content.target_var;
@@ -593,7 +593,7 @@ auto temperature_residual(const double temperature, const double rho,
     if (trial > 1000.0) {
       return trial;
     }
-    lam = std::min(1.0, 0.65 * (temperature - min_temp)/(inv_dfdt * f));
+    lam = std::min(1.0, 0.65 * (temperature - min_temp) / (inv_dfdt * f));
     trial = temperature - lam * inv_dfdt * f;
     return trial;
   }
@@ -717,17 +717,10 @@ void compute_temperature_with_saha(StageData &stage_data,
                                            q,
                                            target_var};
 
-        const double a = 500.0;//std::max(500.0, temperature_guess / 10.0); // K
-        const double b = 1.0e11;// std::min(1.0e11, temperature_guess * 10.0); // K
         const double res =
             solver.solve(temperature_residual<Inversion, SolverType>,
-                         a, b, temperature_guess, rho, eos, content);
-        //std::println("saha i q oldt newt {} {} {:.5e} {:.5e}", i, q, uaf(i, q, vars::aux::Tgas), res);
-        //std::println("sie eion {:.5e} {:.5e}", target_var, e_ion_corr(i, q));
+                         temperature_guess, rho, eos, content);
         uaf(i, q, vars::aux::Tgas) = res;
-//          if (i == 256) {
-//                  std::println("saha: i q T eioncorr {} {} {:.5e} {:.5e}", i, q, res, e_ion_corr(i, q));
-//      }
       });
 }
 

@@ -9,7 +9,8 @@ using atom::IonizationState;
 
 // --- StageData ---
 
-[[nodiscard]] auto StageData::enabled(const std::string &physics) const -> bool {
+[[nodiscard]] auto StageData::enabled(const std::string &physics) const
+    -> bool {
   return parent_->enabled(physics);
 }
 

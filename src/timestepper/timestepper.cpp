@@ -41,7 +41,8 @@ TimeStepper::TimeStepper(const ProblemIn *pin, GridStructure *grid)
 [[nodiscard]] auto TimeStepper::nvars_evolved(const ProblemIn *pin) noexcept
     -> int {
   static const int base = 3;
-  static const bool rad_enabled = pin->param()->get<bool>("physics.radiation.enabled");
+  static const bool rad_enabled =
+      pin->param()->get<bool>("physics.radiation.enabled");
   static const bool composition_enabled =
       pin->param()->get<bool>("physics.composition.enabled");
 

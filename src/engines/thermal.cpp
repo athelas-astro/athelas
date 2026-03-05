@@ -91,10 +91,12 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
         1, nx, 0, nnodes - 1,
         KOKKOS_CLASS_LAMBDA(const int i, const int q, double &lenergy) {
           const double e_fluid = ucf(i, q, vars::cons::Energy);
-          const double e_rad = radiation_active * ucf(i, q, vars::cons::RadEnergy);
+          const double e_rad =
+              radiation_active * ucf(i, q, vars::cons::RadEnergy);
           const double e_grav =
               grav_active * constants::G_GRAV * menc(i, q) / r(i, q + 1);
-          lenergy += (e_fluid + e_rad - e_grav) * weights(q) * mcell(i) * FOURPI;
+          lenergy +=
+              (e_fluid + e_rad - e_grav) * weights(q) * mcell(i) * FOURPI;
         },
         Kokkos::Sum<double>(total_energy));
     energy_dep_ = energy_target_ - total_energy;
@@ -120,11 +122,10 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
       DEFAULT_FLAT_LOOP_PATTERN, "ThermalEngine :: b integral", DevExecSpace(),
       1, mend_idx_,
       KOKKOS_CLASS_LAMBDA(const int i, double &lb) {
-          for (int q = 0; q < nnodes; ++q) {
+        for (int q = 0; q < nnodes; ++q) {
           double dm = FOURPI * mcell(i);
-            lb +=
-                std::exp(-a_coeff_ * menc(i, q)) * dm;
-          }
+          lb += std::exp(-a_coeff_ * menc(i, q)) * dm;
+        }
       },
       Kokkos::Sum<double>(b_int));
   b_int_ = b_int;
