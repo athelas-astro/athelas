@@ -119,7 +119,7 @@ void print_simulation_parameters(GridStructure &grid, ProblemIn *pin) {
   if (gravity_enabled) {
     std::println("# --- Gravity Parameters --- ");
     std::println("# Model           : {}",
-                 pin->param()->get<std::string>("gravity.modelstring"));
+                 pin->param()->get<std::string>("gravity.model"));
     std::println("");
   }
 

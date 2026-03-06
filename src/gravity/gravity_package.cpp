@@ -19,13 +19,22 @@ namespace athelas::gravity {
 
 using basis::NodalBasis;
 
-GravityPackage::GravityPackage(const ProblemIn *pin, GravityModel model,
+GravityPackage::GravityPackage(const ProblemIn *pin, const std::string &model,
                                const double gval, const double cfl,
                                const int n_stages, const bool active)
-    : active_(active), model_(model), gval_(gval), cfl_(cfl),
+    : active_(active), gval_(gval), cfl_(cfl),
       delta_("gravity delta", n_stages,
              pin->param()->get<int>("problem.nx") + 2,
-             pin->param()->get<int>("basis.nnodes"), 2) {}
+             pin->param()->get<int>("basis.nnodes"), 2) {
+  if (model == "constant") {
+    model_ = GravityModel::Constant;
+  } else if (model == "spherical") {
+    model_ = GravityModel::Spherical;
+  } else {
+    throw_athelas_error("Bad gravity model in GRavityPackage constructor. How "
+                        "did this happen?");
+  }
+}
 
 void GravityPackage::update_explicit(const StageData &stage_data,
                                      const GridStructure &grid,
