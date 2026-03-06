@@ -23,7 +23,7 @@ using bc::BoundaryConditions;
 
 class GravityPackage {
  public:
-  GravityPackage(const ProblemIn *pin, GravityModel model, double gval,
+  GravityPackage(const ProblemIn *pin, const std::string &model, double gval,
                  double cfl, int n_stages, bool active = true);
 
   void update_explicit(const StageData &stage_data, const GridStructure &grid,

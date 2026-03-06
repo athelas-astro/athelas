@@ -20,8 +20,8 @@ using BasisFuncType = double(int, double, double);
 
 class ModalBasis {
  public:
-  ModalBasis(poly_basis basis, AthelasArray3D<double> uCF, GridStructure *grid,
-             int pOrder, int nN, int nElements, bool density_weight);
+  ModalBasis(AthelasArray3D<double> uCF, GridStructure *grid, int pOrder,
+             int nN, int nElements, bool density_weight);
   static auto taylor(int order, double eta, double eta_c) -> double;
   static auto d_taylor(int order, double eta, double eta_c) -> double;
   auto ortho(int order, int ix, int i_eta, double eta, double eta_c,

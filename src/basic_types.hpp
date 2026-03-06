@@ -68,8 +68,6 @@ struct TimeStepInfo {
   int stage;
 };
 
-enum class poly_basis { legendre, taylor };
-
 enum class GravityModel { Constant, Spherical };
 
 enum class IonizationPhysics { Active, Inactive };

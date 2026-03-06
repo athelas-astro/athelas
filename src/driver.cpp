@@ -243,13 +243,13 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   if (gravity_active) {
     if (!pin->param()->get<bool>("physics.gravity.split")) {
       manager_->add_package(
-          GravityPackage{pin, pin->param()->get<GravityModel>("gravity.model"),
+          GravityPackage{pin, pin->param()->get<std::string>("gravity.model"),
                          pin->param()->get<double>("gravity.gval"), cfl,
                          n_stages, pkg_active});
     } else {
       split = true;
       split_manager_->add_package(
-          GravityPackage{pin, pin->param()->get<GravityModel>("gravity.model"),
+          GravityPackage{pin, pin->param()->get<std::string>("gravity.model"),
                          pin->param()->get<double>("gravity.gval"), cfl,
                          n_stages, pkg_active});
     }

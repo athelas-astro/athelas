@@ -509,12 +509,8 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
     const double gval = config_["gravity"]["gval"].value_or(1.0);
     params_->add("gravity.gval", gval); // Always present
     const std::string gmodel = config_["gravity"]["model"].value_or("constant");
-    params_->add("gravity.modelstring", gmodel);
-    params_->add("gravity.model", (utilities::to_lower(gmodel) == "spherical")
-                                      ? GravityModel::Spherical
-                                      : GravityModel::Constant);
-    if (params_->get<GravityModel>("gravity.model") == GravityModel::Constant &&
-        gval <= 0.0) {
+    params_->add("gravity.model", gmodel);
+    if (gmodel == "constant" && gval <= 0.0) {
       throw_athelas_error(
           "Constant gravitational potential requested but g <= 0.0!");
     }
