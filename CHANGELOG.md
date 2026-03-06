@@ -9,6 +9,7 @@
 - [PR 156](https://github.com/athelas-astro/athelas/pull/156) Number history columns.
 
 ### Changed (changing behavior/API/variables/...)
+- [PR 157](https://github.com/athelas-astro/athelas/pull/157) Don't store enums in pin `params`.
 - [PR 156](https://github.com/athelas-astro/athelas/pull/156) Clean up total energy and momentum history.
 
 ### Fixed (not changing behavior/API/variables/...)
@@ -18,6 +19,7 @@
 ### Infrastructure (organization/...)
 
 ### Removed (removing behavior/API/variables/...)
+- [PR 157](https://github.com/athelas-astro/athelas/pull/157) Removed `poly_basis` enum.
 
 ### Incompatibilities (i.e. breaking changes)
 
