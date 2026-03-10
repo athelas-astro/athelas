@@ -55,3 +55,8 @@ todo_include_todos = True
 
 # baseurl for sitemap
 html_baseurl = "https://athelas-astro.github.io/athelas"
+html_sidebars = {
+    '**': [
+        'versioning.html',
+    ],
+}

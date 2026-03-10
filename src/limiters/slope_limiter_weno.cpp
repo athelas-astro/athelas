@@ -42,6 +42,8 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U,
   }
 
   static const IndexRange ib(grid.domain<Domain::Interior>());
+  static constexpr int ilo = 1;
+  static const int &ihi = grid.get_ihi();
 
   const auto nvars = nvars_;
 
@@ -50,33 +52,37 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U,
     detect_troubled_cells(U, D_, grid, basis, vb_);
   }
 
-  /* map to characteristic vars */
+  // --- Map to modal basis ---
+  basis.nodal_to_modal(u_k_, U, vb_);
+
+  // TODO(astrobarker): this is repeated code: clean up somehow
+  // --- map to characteristic vars ---
   if (characteristic_) {
     athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: WENO :: ToCharacteristic",
-        DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
+        DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: Minmod :: ToCharacteristic",
+        DevExecSpace(), ilo, ihi, KOKKOS_CLASS_LAMBDA(const int i) {
           // --- Characteristic Limiting Matrices ---
           // Note: using cell averages
-          for (int v = 0; v < nvars; v++) {
-            mult_(i, v) = U(i, CellAverage, v);
+          for (int v = 0; v < nvars; ++v) {
+            mult_(i, v) = u_k_(i, CellAverage, v);
           }
 
           auto R_i = Kokkos::subview(R_, i, Kokkos::ALL, Kokkos::ALL);
           auto R_inv_i = Kokkos::subview(R_inv_, i, Kokkos::ALL, Kokkos::ALL);
           auto U_c_T_i = Kokkos::subview(U_c_T_, i, Kokkos::ALL);
           auto w_c_T_i = Kokkos::subview(w_c_T_, i, Kokkos::ALL);
-          auto mult_i = Kokkos::subview(mult_, i, Kokkos::ALL);
-          compute_characteristic_decomposition(mult_i, R_i, R_inv_i, eos);
-          for (int k = 0; k < order_; k++) {
+          auto Mult_i = Kokkos::subview(mult_, i, Kokkos::ALL);
+          compute_characteristic_decomposition(Mult_i, R_i, R_inv_i, eos);
+          for (int k = 0; k <= 1; ++k) {
             // store w_.. = invR @ U_..
-            for (int v = 0; v < nvars; v++) {
-              U_c_T_i(v) = U(i, k, v);
+            for (int v = 0; v < nvars; ++v) {
+              U_c_T_i(v) = u_k_(i, k, v);
               w_c_T_i(v) = 0.0;
             }
-            MAT_MUL<3>(1.0, R_inv_i, U_c_T_i, 1.0, w_c_T_i);
+            MAT_MUL<3>(1.0, R_inv_i, U_c_T_i, 0.0, w_c_T_i);
 
-            for (int v = 0; v < nvars; v++) {
-              U(i, k, v) = w_c_T_i(v);
+            for (int v = 0; v < nvars; ++v) {
+              u_k_(i, k, v) = w_c_T_i(v);
             } // end loop vars
           } // end loop k
         }); // par i
@@ -96,22 +102,22 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U,
                 modified_polynomial_, i, Kokkos::ALL, Kokkos::ALL);
 
             // modify polynomials
-            modify_polynomial(U, modified_polynomial_i, gamma_i_, gamma_l_,
-                              gamma_r_, i, v);
+            modify_polynomial(u_k_, modified_polynomial_i, dr(i), dr(i - 1),
+                              dr(i + 1), gamma_i_, gamma_l_, gamma_r_, i, v);
 
-            const double beta_l = smoothness_indicator(
-                U, modified_polynomial_i, grid, basis, i, 0, v); // i - 1
-            const double beta_i = smoothness_indicator(
-                U, modified_polynomial_i, grid, basis, i, 1, v); // i
-            const double beta_r = smoothness_indicator(
-                U, modified_polynomial_i, grid, basis, i, 2, v); // i + 1
-            const double tau = weno_tau(beta_l, beta_i, beta_r, weno_r_);
+            const double beta_l = smoothness_indicator(modified_polynomial_i,
+                                                       grid, 0, v); // i - 1
+            const double beta_i =
+                smoothness_indicator(modified_polynomial_i, grid, 1, v); // i
+            const double beta_r = smoothness_indicator(modified_polynomial_i,
+                                                       grid, 2, v); // i + 1
+            const double tau = weno_tau(beta_l, beta_i, beta_r);
 
             // nonlinear weights w
-            const double dx_i = 0.1 * dr(i);
-            double w_l = non_linear_weight(gamma_l_, beta_l, tau, dx_i);
-            double w_i = non_linear_weight(gamma_i_, beta_i, tau, dx_i);
-            double w_r = non_linear_weight(gamma_r_, beta_r, tau, dx_i);
+            const double eps = 1.0e-6;
+            double w_l = non_linear_weight(gamma_l_, beta_l, tau, weno_p_, eps);
+            double w_i = non_linear_weight(gamma_i_, beta_i, tau, weno_p_, eps);
+            double w_r = non_linear_weight(gamma_r_, beta_r, tau, weno_p_, eps);
 
             const double sum_w = w_l + w_i + w_r;
             w_l /= sum_w;
@@ -120,12 +126,12 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U,
 
             // update solution via WENO
             for (int k = 1; k < order_; k++) {
-              U(i, k, v) = w_l * modified_polynomial_i(0, k) +
-                           w_i * modified_polynomial_i(1, k) +
-                           w_r * modified_polynomial_i(2, k);
+              u_k_(i, k, v) = w_l * modified_polynomial_i(0, k) +
+                              w_i * modified_polynomial_i(1, k) +
+                              w_r * modified_polynomial_i(2, k);
             }
 
-            /* Note we have limited this cell */
+            // Note we have limited this cell //
             limited_cell_(i) = 1;
 
           } // end loop v
@@ -135,26 +141,32 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U,
   /* Map back to conserved variables */
   if (characteristic_) {
     athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: WENO :: FromCharacteristic",
-        DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
+        DEFAULT_FLAT_LOOP_PATTERN,
+        "SlopeLimiter :: Minmod :: FromCharacteristic", DevExecSpace(), ilo,
+        ihi, KOKKOS_CLASS_LAMBDA(const int i) {
           // --- Characteristic Limiting Matrices ---
-          auto R_i = Kokkos::subview(R_, Kokkos::ALL, i, Kokkos::ALL);
+          auto R_i = Kokkos::subview(R_, i, Kokkos::ALL, Kokkos::ALL);
           auto U_c_T_i = Kokkos::subview(U_c_T_, i, Kokkos::ALL);
           auto w_c_T_i = Kokkos::subview(w_c_T_, i, Kokkos::ALL);
-          for (int k = 0; k < order_; k++) {
-            // store w_.. = invR @ U_..
-            for (int v = 0; v < nvars; v++) {
-              U_c_T_i(v) = U(i, k, v);
+          for (int k = 0; k < 2; ++k) {
+            // store U.. = R @ w..
+            for (int v = 0; v < nvars; ++v) {
+              U_c_T_i(v) = u_k_(i, k, v);
               w_c_T_i(v) = 0.0;
             }
-            MAT_MUL<3>(1.0, R_i, U_c_T_i, 1.0, w_c_T_i);
+            MAT_MUL<3>(1.0, R_i, U_c_T_i, 0.0, w_c_T_i);
 
-            for (int v = 0; v < nvars; v++) {
-              U(i, k, v) = w_c_T_i(v);
+            for (int v = 0; v < nvars; ++v) {
+              u_k_(i, k, v) = w_c_T_i(v);
             } // end loop vars
           } // end loop k
         }); // par_for i
   } // end map from characteristics
+
+  // conservative_correction(u_k_, U, grid, nvars);
+
+  // --- Project back onto nodal basis ---
+  basis.modal_to_nodal(U, u_k_, vb_);
 } // end apply slope limiter
 
 // LimitedCell accessor

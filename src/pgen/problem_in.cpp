@@ -267,12 +267,12 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
       throw_athelas_error(
           " ! Initialization Error: Linear WENO weights must sum to unity.");
     }
-    const double weno_r = config_["fluid"]["limiter"]["weno_r"].value_or(2.0);
-    if (weno_r <= 0.0) {
+    const double weno_p = config_["fluid"]["limiter"]["weno_p"].value_or(2.0);
+    if (weno_p <= 0.0) {
       throw_athelas_error(
-          "[fluid] block: WENO limiter weno_r must be positive!");
+          "[fluid] block: WENO limiter weno_p must be positive!");
     }
-    params_->add("fluid.limiter.weno_r", weno_r);
+    params_->add("fluid.limiter.weno_p", weno_p);
   }
 
   // tci
@@ -411,13 +411,13 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
         throw_athelas_error(
             " ! Initialization Error: Linear WENO weights must sum to unity.");
       }
-      const double weno_r =
-          config_["radiation"]["limiter"]["weno_r"].value_or(2.0);
-      if (weno_r <= 0.0) {
+      const double weno_p =
+          config_["radiation"]["limiter"]["weno_p"].value_or(2.0);
+      if (weno_p <= 0.0) {
         throw_athelas_error(
-            "[radiation] block: WENO limiter weno_r must be positive!");
+            "[radiation] block: WENO limiter weno_p must be positive!");
       }
-      params_->add("radiation.limiter.weno_r", weno_r);
+      params_->add("radiation.limiter.weno_p", weno_p);
     }
 
     // tci

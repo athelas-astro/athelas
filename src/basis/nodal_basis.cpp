@@ -363,4 +363,87 @@ void NodalBasis::fill_guard_cells(const GridStructure *grid) {
   Kokkos::deep_copy(mass_matrix_, mass_h);
 }
 
+auto d_legendre_n3(const int n, const int q, const double x) -> double {
+  if (q > n || q < 0) {
+    return 0.0;
+  }
+
+  // Start by finding the constant q-th derivative of P_q
+  double p_prev = 1.0;
+  for (int i = 1; i <= q; ++i) {
+    p_prev *= (2.0 * i - 1.0); // This is (2q-1)!!
+  }
+
+  if (n == q) {
+    return p_prev;
+  }
+
+  // Next is the derivative of P_{q+1}
+  // P_{q+1}^(q) = (2q+1) * x * P_q^(q)
+  double p_curr = (2.0 * q + 1.0) * x * p_prev;
+
+  if (n == q + 1) {
+    return p_curr;
+  }
+
+  // Use the three-term recurrence for derivatives
+  for (int i = q + 2; i <= n; ++i) {
+    double p_next =
+        ((2.0 * i - 1.0) * x * p_curr - (i + q - 1.0) * p_prev) / (i - q);
+    p_prev = p_curr;
+    p_curr = p_next;
+  }
+
+  return p_curr;
+}
+
+auto d_legendre_n2(const int n, const int q, const double x) -> double {
+  if (q > n || q < 0) {
+    return 0.0;
+  }
+
+  // Base case: q-th derivative of P_q is a constant
+  // Constant value: (2q)! / (2^q * q!) = (2q-1)!!
+  double dfact = 1.0;
+  for (int i = 1; i <= q; ++i) {
+    dfact *= (q + i) * 0.5;
+  }
+
+  if (n == q) {
+    return dfact;
+  }
+
+  // Use the Three-Term Recurrence for Jacobi Polynomials P_m^(alpha, beta)
+  // Here m = n - q, and alpha = beta = q
+  const int alpha = q;
+  const double a_plus_b = 2.0 * q;
+
+  double p_prev = dfact; // This is J_0
+  // J_1 = 0.5 * (alpha - beta + (alpha + beta + 2) * x) * J_0
+  double p_curr = 0.5 * (a_plus_b + 2.0) * x * p_prev;
+
+  if (n == q + 1) {
+    return p_curr;
+  }
+
+  for (int m = 1; m < (n - q); ++m) {
+    const auto m_d = static_cast<double>(m);
+
+    // Coefficients for the Jacobi recurrence J_{m+1}
+    const double a1 =
+        2.0 * (m_d + 1.0) * (m_d + a_plus_b + 1.0) * (2.0 * m_d + a_plus_b);
+    const double a3 = (2.0 * m_d + a_plus_b) * (2.0 * m_d + a_plus_b + 1.0) *
+                      (2.0 * m_d + a_plus_b + 2.0);
+    const double a4 =
+        2.0 * (m_d + alpha) * (m_d + alpha) * (2.0 * m_d + a_plus_b + 2.0);
+
+    const double p_next = (a3 * x * p_curr - a4 * p_prev) / a1;
+
+    p_prev = p_curr;
+    p_curr = p_next;
+  }
+
+  return p_curr;
+}
+
 } // namespace athelas::basis
