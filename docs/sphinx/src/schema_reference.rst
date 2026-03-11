@@ -19,7 +19,7 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
    * - ``nnodes``
      - double
      - —
-     - Yes
+     - No
      - Number of DG nodes per cell.
 
 
@@ -38,26 +38,26 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
-   * - ``bc_o``
-     - string
-     - —
-     - Yes
-     - Outer fluid boundary condition. Options: 'reflecting', 'outflow', 'dirichlet', 'periodic'.
    * - ``bc_i``
      - string
      - —
-     - Yes
+     - No
      - Inner fluid boundary condition. Options: 'reflecting', 'outflow', 'dirichlet', 'periodic'.
-   * - ``dirichlet_values_i``
-     - array
-     - —
-     - When ``bc.fluid.bc_i`` = ``dirichlet``
-     - Dirichlet state values at inner boundary.
    * - ``dirichlet_values_o``
      - array
      - —
-     - When ``bc.fluid.bc_o`` = ``dirichlet``
+     - No
      - Dirichlet state values at outer boundary.
+   * - ``dirichlet_values_i``
+     - array
+     - —
+     - No
+     - Dirichlet state values at inner boundary.
+   * - ``bc_o``
+     - string
+     - —
+     - No
+     - Outer fluid boundary condition. Options: 'reflecting', 'outflow', 'dirichlet', 'periodic'.
 
 
 ``radiation``
@@ -72,26 +72,26 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
-   * - ``bc_o``
-     - string
-     - —
-     - When ``physics.radiation`` is true
-     - Outer radiation boundary condition. Options: 'reflecting', 'outflow', 'dirichlet'.
    * - ``bc_i``
      - string
      - —
-     - When ``physics.radiation`` is true
+     - No
      - Inner radiation boundary condition. Options: 'reflecting', 'outflow', 'marshak', 'dirichlet'.
-   * - ``dirichlet_values_i``
-     - array
-     - —
-     - When ``bc.radiation.bc_i`` = ``dirichlet``
-     - Dirichlet state values at inner boundary.
    * - ``dirichlet_values_o``
      - array
      - —
-     - When ``bc.radiation.bc_o`` = ``dirichlet``
+     - No
      - Dirichlet state values at outer boundary.
+   * - ``dirichlet_values_i``
+     - array
+     - —
+     - No
+     - Dirichlet state values at inner boundary.
+   * - ``bc_o``
+     - string
+     - —
+     - No
+     - Outer radiation boundary condition. Options: 'reflecting', 'outflow', 'dirichlet'.
 
 
 ``config.composition``
@@ -109,7 +109,7 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
    * - ``ncomps``
      - int
      - —
-     - When ``physics.composition`` is true
+     - No
      - Number of composition species.
 
 
@@ -131,33 +131,33 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
    * - ``mend``
      - double
      - —
-     - When ``physics.engine`` is true
+     - No
      - Mass coordinate of injection upper boundary in Msun. Must be > 0.
-   * - ``mode``
-     - string
-     - —
-     - When ``physics.engine`` is true
-     - Injection mode. Options: 'direct', 'asymptotic'.
-   * - ``energy``
-     - double
-     - —
-     - When ``physics.engine`` is true
-     - Total injected energy in erg.
-   * - ``enabled``
-     - bool
-     - —
-     - When ``physics.engine`` is true
-     - Enable thermal energy injection engine.
    * - ``tend``
      - double
      - —
-     - When ``physics.engine`` is true
+     - No
      - End time for energy injection. Must be > 0.
+   * - ``energy``
+     - double
+     - —
+     - No
+     - Total injected energy in erg.
    * - ``operator_split``
      - bool
      - ``false``
      - No
      - Apply engine as operator-split source.
+   * - ``enabled``
+     - bool
+     - —
+     - No
+     - Enable thermal energy injection engine.
+   * - ``mode``
+     - string
+     - —
+     - No
+     - Injection mode. Options: 'direct', 'asymptotic'.
 
 
 ``config.eos``
@@ -172,26 +172,26 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
-   * - ``type``
-     - string
+   * - ``n``
+     - double
      - —
-     - Yes
-     - Equation of state type. Options:. 'ideal', 'paczynski', 'marshak', 'polytropic'.
+     - No
+     - Polytropic index n. Required for polytropic EOS.
+   * - ``k``
+     - double
+     - —
+     - No
+     - Polytropic constant K. Required for polytropic EOS.
    * - ``gamma``
      - double
      - ``1.4``
      - No
      - Adiabatic index. Default: 1.4.
-   * - ``n``
-     - double
+   * - ``type``
+     - string
      - —
-     - When ``eos.type`` = ``polytropic``
-     - Polytropic index n. Required for polytropic EOS.
-   * - ``k``
-     - double
-     - —
-     - When ``eos.type`` = ``polytropic``
-     - Polytropic constant K. Required for polytropic EOS.
+     - No
+     - Equation of state type. Options:. 'ideal', 'paczynski', 'marshak', 'polytropic'.
 
 
 ``config.fluid``
@@ -209,11 +209,11 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
-   * - ``type``
-     - string
-     - ``minmod``
+   * - ``characteristic``
+     - bool
+     - ``false``
      - No
-     - Limiter type. Options: 'minmod', 'weno [experimental]'.
+     - Enable characteristic limiting.
    * - ``b_tvd``
      - double
      - ``1.0``
@@ -222,28 +222,23 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
    * - ``tci_val``
      - double
      - —
-     - When ``fluid.limiter.tci_opt`` is true
+     - No
      - Troubled-cell indicator threshold.
-   * - ``weno_r``
-     - double
-     - ``2.0``
-     - No
-     - WENO smoothness exponent. Must be > 0.
-   * - ``gamma_i``
-     - double
-     - —
-     - When ``fluid.limiter.type`` = ``weno``
-     - WENO central weight. Required for WENO limiter.
-   * - ``do_limiter``
-     - bool
-     - ``true``
-     - No
-     - Enable slope limiter for fluid.
    * - ``m_tvb``
      - double
      - ``0.0``
      - No
      - TVB parameter M. Used with minmod limiter.
+   * - ``type``
+     - string
+     - ``minmod``
+     - No
+     - Limiter type. Options: 'minmod', 'weno [experimental]'.
+   * - ``gamma_i``
+     - double
+     - —
+     - No
+     - WENO central weight. Required for WENO limiter.
    * - ``gamma_l``
      - double
      - —
@@ -254,11 +249,16 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - —
      - No
      - WENO right weight. Inferred from gamma_i if omitted.
-   * - ``characteristic``
+   * - ``do_limiter``
      - bool
-     - ``false``
+     - ``true``
      - No
-     - Enable characteristic limiting.
+     - Enable slope limiter for fluid.
+   * - ``weno_r``
+     - double
+     - ``2.0``
+     - No
+     - WENO smoothness exponent. Must be > 0.
    * - ``tci_opt``
      - bool
      - ``false``
@@ -278,16 +278,16 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
-   * - ``gval``
-     - double
-     - ``1.0``
-     - No
-     - Gravitational acceleration (constant model). Must be > 0.
    * - ``model``
      - string
-     - ``constant``
+     - —
      - No
      - Gravity model. Options: 'constant', 'spherical'.
+   * - ``gval``
+     - double
+     - —
+     - No
+     - Gravitational acceleration (constant model). Must be > 0.
    * - ``operator_split``
      - bool
      - ``false``
@@ -310,16 +310,16 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
-   * - ``enabled``
-     - bool
-     - —
-     - When ``physics.heating`` is true
-     - Enable Ni56 decay heating.
    * - ``model``
      - string
      - —
-     - When ``physics.heating`` is true
+     - No
      - Nickel heating model. Options. 'jeffery' and 'full_trapping'.
+   * - ``enabled``
+     - bool
+     - —
+     - No
+     - Enable Ni56 decay heating.
    * - ``operator_split``
      - bool
      - ``false``
@@ -344,21 +344,21 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - ``linear``
      - No
      - Saha solver mode. Options: 'linear', 'log'.
+   * - ``ncomps``
+     - int
+     - —
+     - No
+     - Number of species for Saha solver.
    * - ``fn_ionization``
      - string
      - —
-     - When ``physics.ionization`` is true
+     - No
      - Path to ionization atomic data file.
    * - ``fn_degeneracy``
      - string
      - —
-     - When ``physics.ionization`` is true
+     - No
      - Path to degeneracy factors atomic data file.
-   * - ``ncomps``
-     - int
-     - —
-     - When ``physics.ionization`` is true
-     - Number of species for Saha solver.
 
 
 ``config.opacity``
@@ -373,46 +373,46 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
-   * - ``type``
-     - string
-     - —
-     - When ``physics.radiation`` is true
-     - Opacity model. Options: 'tabular', 'constant', 'powerlaw'.
    * - ``kP``
      - double
      - —
-     - When ``opacity.type`` = ``constant``
+     - No
      - Planck mean opacity (cm^2/g). Required for constant and powerlaw.
+   * - ``filename``
+     - string
+     - —
+     - No
+     - Path to tabular opacity HDF5 file.
+   * - ``t_exp``
+     - double
+     - —
+     - No
+     - Temperature exponent for powerlaw opacity.
+   * - ``type``
+     - string
+     - —
+     - No
+     - Opacity model. Options: 'tabular', 'constant', 'powerlaw'.
    * - ``kR_offset``
      - double
      - ``0.0``
      - No
      - Rosseland opacity additive offset. Powerlaw only.
-   * - ``t_exp``
-     - double
-     - —
-     - When ``opacity.type`` = ``powerlaw``
-     - Temperature exponent for powerlaw opacity.
-   * - ``kR``
-     - double
-     - —
-     - When ``opacity.type`` = ``constant``
-     - Rosseland mean opacity (cm^2/g). Required for constant and powerlaw.
-   * - ``rho_exp``
-     - double
-     - —
-     - When ``opacity.type`` = ``powerlaw``
-     - Density exponent for powerlaw opacity.
-   * - ``filename``
-     - string
-     - —
-     - When ``opacity.type`` = ``tabular``
-     - Path to tabular opacity HDF5 file.
    * - ``kP_offset``
      - double
      - ``0.0``
      - No
      - Planck opacity additive offset. Powerlaw only.
+   * - ``rho_exp``
+     - double
+     - —
+     - No
+     - Density exponent for powerlaw opacity.
+   * - ``kR``
+     - double
+     - —
+     - No
+     - Rosseland mean opacity (cm^2/g). Required for constant and powerlaw.
 
 
 ``floors``
@@ -427,41 +427,41 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
-   * - ``type``
-     - string
-     - ``core_envelope``
-     - No
-     - Opacity floor model. Options: 'core_envelope', 'constant'.
-   * - ``env_planck``
-     - double
-     - ``0.01``
-     - No
-     - Envelope Planck floor. Used with core_envelope model.
-   * - ``planck``
-     - double
-     - ``0.001``
-     - No
-     - Planck floor value. Used with constant floor model.
-   * - ``core_rosseland``
-     - double
-     - ``0.24``
-     - No
-     - Core Rosseland floor. Used with core_envelope model.
-   * - ``env_rosseland``
-     - double
-     - ``0.01``
-     - No
-     - Envelope Rosseland floor. Used with core_envelope model.
    * - ``rosseland``
      - double
      - ``0.001``
      - No
      - Rosseland floor value. Used with constant floor model.
+   * - ``planck``
+     - double
+     - ``0.001``
+     - No
+     - Planck floor value. Used with constant floor model.
+   * - ``env_planck``
+     - double
+     - ``0.01``
+     - No
+     - Envelope Planck floor. Used with core_envelope model.
+   * - ``env_rosseland``
+     - double
+     - ``0.01``
+     - No
+     - Envelope Rosseland floor. Used with core_envelope model.
+   * - ``core_rosseland``
+     - double
+     - ``0.24``
+     - No
+     - Core Rosseland floor. Used with core_envelope model.
    * - ``core_planck``
      - double
      - ``0.24``
      - No
      - Core Planck floor. Used with core_envelope model.
+   * - ``type``
+     - string
+     - ``core_envelope``
+     - No
+     - Opacity floor model. Options: 'core_envelope', 'constant'.
 
 
 ``config.output``
@@ -476,11 +476,11 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
-   * - ``dt_init_frac``
+   * - ``dt_init``
      - double
-     - ``1.05``
+     - ``1.000000e-16``
      - No
-     - Initial timestep growth factor. Must be > 1.
+     - Initial timestep. Must be > 0.
    * - ``dt_hdf5``
      - double
      - —
@@ -491,16 +491,16 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - —
      - No
      - Fixed timestep override. Optional.
-   * - ``dt_init``
-     - double
-     - ``1.000000e-16``
-     - No
-     - Initial timestep. Must be > 0.
    * - ``ncycle_out``
      - double
-     - ``1``
+     - ``100``
      - No
      - Number of cycles between stdout output.
+   * - ``dt_init_frac``
+     - double
+     - ``1.05``
+     - No
+     - Initial timestep growth factor. Must be > 1.
 
 
 ``history``
@@ -515,16 +515,16 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
-   * - ``dt``
-     - double
-     - —
-     - No
-     - Time interval between history writes. Default: dt_hdf5 / 10.
    * - ``fn``
      - string
      - ``athelas.hst``
      - No
      - History output filename.
+   * - ``dt``
+     - double
+     - —
+     - No
+     - Time interval between history writes. Default: dt_hdf5 / 10.
 
 
 ``config.physics``
@@ -539,31 +539,31 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
-   * - ``radiation``
-     - bool
-     - ``false``
-     - No
-     - Enable radiation transport.
-   * - ``heating``
-     - bool
-     - ``false``
-     - No
-     - Enable nuclear heating sources.
-   * - ``gravity``
-     - bool
-     - ``false``
-     - No
-     - Enable gravitational source terms.
-   * - ``composition``
-     - bool
-     - ``false``
-     - No
-     - Enable multi-species composition.
    * - ``engine``
      - bool
      - ``false``
      - No
      - Enable energy injection engine.
+   * - ``radiation``
+     - bool
+     - ``false``
+     - No
+     - Enable radiation transport.
+   * - ``composition``
+     - bool
+     - ``false``
+     - No
+     - Enable multi-species composition.
+   * - ``gravity``
+     - bool
+     - ``false``
+     - No
+     - Enable gravitational source terms.
+   * - ``heating``
+     - bool
+     - ``false``
+     - No
+     - Enable nuclear heating sources.
    * - ``ionization``
      - bool
      - ``false``
@@ -583,51 +583,51 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
-   * - ``params``
-     - table
-     - —
-     - No
-     - Problem-specific parameters. Validated by the problem generator.
-   * - ``name``
-     - string
-     - —
-     - Yes
-     - Unique identifier for this simulation problem.
-   * - ``geometry``
-     - string
-     - —
-     - Yes
-     - Domain geometry. Options: 'planar', 'spherical'.
-   * - ``xr``
-     - double
-     - —
-     - Yes
-     - Right boundary of the domain. Must be > xl.
-   * - ``nx``
-     - double
-     - —
-     - Yes
-     - Number of grid cells. Must be > 0.
-   * - ``grid_type``
-     - string
-     - —
-     - Yes
-     - Grid spacing type. Options: 'uniform', 'logarithmic'.
-   * - ``cfl``
-     - double
-     - —
-     - Yes
-     - CFL double for timestep control. Must be > 0.
-   * - ``t_end``
-     - double
-     - —
-     - Yes
-     - End time of the simulation.
    * - ``xl``
      - double
      - —
-     - Yes
+     - No
      - Left boundary of the domain.
+   * - ``name``
+     - string
+     - —
+     - No
+     - Unique identifier for this simulation problem.
+   * - ``xr``
+     - double
+     - —
+     - No
+     - Right boundary of the domain. Must be > xl.
+   * - ``geometry``
+     - string
+     - —
+     - No
+     - Domain geometry. Options: 'planar', 'spherical'.
+   * - ``cfl``
+     - double
+     - —
+     - No
+     - CFL double for timestep control. Must be > 0.
+   * - ``params``
+     - —
+     - —
+     - No
+     - Problem-specific parameters. Validated by the problem generator.
+   * - ``grid_type``
+     - string
+     - —
+     - No
+     - Grid spacing type. Options: 'uniform', 'logarithmic'.
+   * - ``t_end``
+     - double
+     - —
+     - No
+     - End time of the simulation.
+   * - ``nx``
+     - double
+     - —
+     - No
+     - Number of grid cells. Must be > 0.
    * - ``nlim``
      - double
      - ``-1``
@@ -650,11 +650,11 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
-   * - ``type``
-     - string
-     - ``minmod``
+   * - ``characteristic``
+     - bool
+     - ``false``
      - No
-     - Limiter type. Options: 'minmod', 'weno'.
+     - Enable characteristic limiting. Currently unsupported for radiation.
    * - ``b_tvd``
      - double
      - ``1.0``
@@ -663,28 +663,23 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
    * - ``tci_val``
      - double
      - —
-     - When ``radiation.limiter.tci_opt`` is true
+     - No
      - Troubled-cell indicator threshold.
-   * - ``weno_r``
-     - double
-     - ``2.0``
-     - No
-     - WENO smoothness exponent. Must be > 0.
-   * - ``gamma_i``
-     - double
-     - —
-     - When ``radiation.limiter.type`` = ``weno``
-     - WENO central weight. Required for WENO limiter.
-   * - ``do_limiter``
-     - bool
-     - ``true``
-     - No
-     - Enable slope limiter for radiation.
    * - ``m_tvb``
      - double
      - ``0.0``
      - No
      - TVB parameter M. Used with minmod limiter.
+   * - ``type``
+     - string
+     - ``minmod``
+     - No
+     - Limiter type. Options: 'minmod', 'weno'.
+   * - ``gamma_i``
+     - double
+     - —
+     - No
+     - WENO central weight. Required for WENO limiter.
    * - ``gamma_l``
      - double
      - —
@@ -695,11 +690,16 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - —
      - No
      - WENO right weight. Inferred from gamma_i if omitted.
-   * - ``characteristic``
+   * - ``do_limiter``
      - bool
-     - ``false``
+     - ``true``
      - No
-     - Enable characteristic limiting. Currently unsupported for radiation.
+     - Enable slope limiter for radiation.
+   * - ``weno_r``
+     - double
+     - ``2.0``
+     - No
+     - WENO smoothness exponent. Must be > 0.
    * - ``tci_opt``
      - bool
      - ``false``
@@ -722,6 +722,6 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
    * - ``integrator``
      - string
      - —
-     - Yes
+     - No
      - Time integration method. E.g. 'IMEX_SSPRK11', 'IMEX_ARK32_ESDIRK'.
 
