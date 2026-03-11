@@ -50,7 +50,7 @@ jobs:
 
     - name: Install Python dependencies in venv
       run: |
-        uv pip install numpy h5py astropy matplotlib scipy
+        uv pip install -e scripts/python/athelas_tools
         
     - name: Set reusable strings
       id: strings
