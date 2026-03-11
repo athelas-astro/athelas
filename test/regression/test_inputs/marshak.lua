@@ -41,7 +41,7 @@ config.bc = {
   radiation = {
     bc_i = "marshak",
     bc_o = "outflow",
-    dirichlet_values_i = { 1.111306e+12, 0.0 },
+    dirichlet_values_i = { 1.1113063385e+12, 0.0 },
   },
 }
 
