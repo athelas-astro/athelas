@@ -1,18 +1,19 @@
 /**
- * @file problem_in.cpp
+ * @file problem_in.hpp
  * --------------
  *
  * @brief Class for loading input deck
  *
- * @details Loads input deck in TOML format.
- *          See: https://github.com/marzer/tomlplusplus
+ * @details Loads input deck in Lua format via sol2.
+ *          See: https://github.com/ThePhD/sol2
  */
 
 #pragma once
 
 #include <iostream>
 
-#include "toml.hpp"
+#define SOL_ALL_SAFETIES_ON 1
+#include "sol/sol.hpp"
 
 #include "interface/params.hpp"
 #include "utils/error.hpp"
@@ -28,7 +29,8 @@ class ProblemIn {
   [[nodiscard]] auto param() const -> Params *;
 
  private:
-  toml::table config_;
+  sol::state lua_;
+  sol::table config_;
   // params obj
   std::unique_ptr<Params> params_;
 };
@@ -36,22 +38,23 @@ class ProblemIn {
 // TODO(astrobarker) move into class
 auto check_bc(std::string bc) -> bool;
 
-template <typename T, typename G>
-void read_toml_array(T toml_array, G &out_array) {
-  long unsigned int index = 0;
-  for (const auto &element : *toml_array) {
-    if (index < out_array.size()) {
-      if (auto elem = element.as_floating_point()) {
-        out_array[index] = static_cast<double>(*elem);
-      } else {
-        std::cerr << "Type mismatch at index " << index << "\n";
-        throw_athelas_error(" ! Error reading dirichlet boundary conditions.");
-      }
-      index++;
-    } else {
-      std::cerr << "TOML array is larger than C++ array." << "\n";
+template <typename G>
+void read_lua_array(const sol::table &tbl, G &out_array) {
+  const std::size_t expected = out_array.size();
+  if (tbl.size() != expected) {
+    std::cerr << "Lua array size " << tbl.size()
+              << " does not match expected size " << expected << "\n";
+    throw_athelas_error(" ! Error reading dirichlet boundary conditions.");
+  }
+  for (std::size_t i = 0; i < expected; ++i) {
+    // Lua arrays are 1-indexed
+    sol::optional<double> val = tbl[i + 1];
+    if (!val) {
+      std::cerr << "Type mismatch or nil at Lua array index " << (i + 1)
+                << "\n";
       throw_athelas_error(" ! Error reading dirichlet boundary conditions.");
     }
+    out_array[i] = *val;
   }
 }
 

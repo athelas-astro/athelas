@@ -31,7 +31,7 @@ GridStructure::GridStructure(const ProblemIn *pin)
       nNodes_(pin->param()->get<int>("basis.nnodes")), mSize_(nElements_ + 2),
       xL_(pin->param()->get<double>("problem.xl")),
       xR_(pin->param()->get<double>("problem.xr")),
-      geometry_(pin->param()->get<Geometry>("problem.geometry_model")),
+      geometry_(pin->param()->get<std::string>("problem.geometry")),
       grid_type_(pin->param()->get<std::string>("problem.grid_type")),
       nodes_("Nodes", nNodes_), weights_("weights_", nNodes_),
       centers_("Centers", mSize_), widths_("widths_", mSize_),
@@ -73,7 +73,7 @@ auto GridStructure::get_x_r() const noexcept -> double { return xR_; }
 
 // Accessor for SqrtGm
 auto GridStructure::get_sqrt_gm(const double X) const -> double {
-  if (geometry_ == Geometry::Spherical) [[likely]] {
+  if (geometry_ == "spherical") [[likely]] {
     return X * X;
   }
   return 1.0;
@@ -98,7 +98,7 @@ auto GridStructure::get_ihi() const noexcept -> int { return nElements_; }
 // Return true if in spherical symmetry
 KOKKOS_FUNCTION
 auto GridStructure::do_geometry() const noexcept -> bool {
-  return geometry_ == Geometry::Spherical;
+  return geometry_ == "spherical";
 }
 
 // grid creation logic

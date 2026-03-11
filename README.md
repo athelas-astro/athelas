@@ -28,7 +28,7 @@ cmake --build . # or make -j
 ```
 
 # Running
-To run `athelas` simply execute `./athelas -i ../inputs/sod.toml`, for instance.
+To run `athelas` simply execute `./athelas -i ../inputs/sod.lua`, for instance.
 
 # Tests
 Regression tests live in `test/regression`. To run all test, run 
@@ -40,8 +40,9 @@ avoid rebuilding each test. To run a specific test, run
 # Kokkos
 We use [Kokkos](https://github.com/kokkos) for shared memory parallelism. 
 
-# TOML++
-We use [toml++](https://github.com/marzer/tomlplusplus) for parsing input files in the `.toml` format.
+# Sol
+We use [Sol](https://sol2.readthedocs.io/en/latest/index.html) for parsing input configuration
+using the Lua language. This means that Lua is required for running `Athelas`.
 
 # Code Style
 
@@ -68,5 +69,6 @@ which will automatically symlink the hook into `.git/hooks`.
 # Dependencies
 * Eigen (submodule)
 * Kokkos (submodule)
-* TOML++ (submodule)
+* Sol (submodule)
+* Lua
 * HDF5

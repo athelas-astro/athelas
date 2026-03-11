@@ -2,6 +2,7 @@
 
 : ${CFM:=clang-format}
 : ${PFM:=ruff}
+: ${LFM:=stylua}
 : ${VERBOSE:=0}
 
 if ! command -v ${CFM} &> /dev/null; then
@@ -46,4 +47,23 @@ for f in $(git grep --untracked -ail res -- :/*.py); do
     fi
     ${PFM} format ${f}
 done
+
+# format lua files
+if ! command -v ${LFM} &> /dev/null; then
+    >&2 echo "[format.sh] Error: No stylua found! Looked for ${LFM}"
+    exit 1
+else
+    LFM=$(command -v ${LFM})
+    echo "[format.sh] stylua found: ${LFM}"
+    echo "[format.sh] stylua version: $(${LFM} --version)"
+fi
+
+echo "[format.sh] Formatting Lua files..."
+for f in $(git ls-files '*.lua'); do
+    if [ ${VERBOSE} -ge 1 ]; then
+        echo ${f}
+    fi
+    ${LFM} ${f}
+done
+
 echo "[format.sh] ...Done"

@@ -1,0 +1,31 @@
+[project]
+name = "athelas-tools"
+version = "26.03"
+description = "Python tooling for the Athelas radiation hydrodynamics code."
+readme = "README.md"
+authors = [
+    { name = "Brandon Barker", email = "bbarker.py@protonmail.ch" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "astropy>=7.2.0",
+    "h5py>=3.16.0",
+    "lupa>=2.6",
+    "matplotlib>=3.10.8",
+    "numpy>=2.4.3",
+    "ruff>=0.15.5",
+    "scipy>=1.17.1",
+    "textual-dev>=1.8.0",
+    "ty>=0.0.21",
+]
+
+[project.scripts]
+athelas-schema-explorer = "athelas_tools.config_explorer:main"
+athelas-schema-to-docs  = "athelas_tools.schema_to_docs:main"
+athelas-snap            = "athelas_tools.snap:main"
+athelas-movie           = "athelas_tools.movie:main"
+todui           = "athelas_tools.todui:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

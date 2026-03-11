@@ -92,7 +92,7 @@ class GridStructure {
   double xL_;
   double xR_;
 
-  Geometry geometry_;
+  std::string geometry_;
   std::string grid_type_; // uniform or logarithmic
 
   AthelasArray1D<double> nodes_;

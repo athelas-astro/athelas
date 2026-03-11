@@ -5,6 +5,7 @@
 ---
 
 ### Added (new features/APIs/variables/...)
+- [PR 161](https://github.com/athelas-astro/athelas/pull/161) Input configuration with Lua+Sol2
 - [PR 156](https://github.com/athelas-astro/athelas/pull/156) Add `enabled(const std::string &physics)` to `state`.
 - [PR 156](https://github.com/athelas-astro/athelas/pull/156) Number history columns.
 
@@ -20,6 +21,7 @@
 ### Infrastructure (organization/...)
 
 ### Removed (removing behavior/API/variables/...)
+- [PR 161](https://github.com/athelas-astro/athelas/pull/161) Removed tomlplusplus
 - [PR 157](https://github.com/athelas-astro/athelas/pull/157) Removed `poly_basis` enum.
 
 ### Incompatibilities (i.e. breaking changes)
