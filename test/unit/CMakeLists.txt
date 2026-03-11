@@ -37,6 +37,8 @@ target_link_libraries( unit_tests
   PRIVATE
     Eigen3::Eigen
     Catch2::Catch2
+    sol2::sol2
+    ${LUA_LIBRARIES}
     kokkos
 )
 
