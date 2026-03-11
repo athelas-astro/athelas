@@ -90,7 +90,7 @@ Run ``Athelas`` from the ``build`` directory as
 
 .. code:: bash
 
-   ./athelas -i path/to/input/file.toml
+   ./athelas -i path/to/input/file.lua
 
 The input files are in ``athelas/inputs/*``. 
 
@@ -100,24 +100,24 @@ Dependencies
 Submodules
 ~~~~~~~~~~
 
--  `tomlplusplus`_ is a C++ file parser for toml file format. 
-   Used for input decks and data.
+-  `Sol`_ is a C++ convenient C++ Lua binding.
 
 - `eigen`_ is a C++ linear algebra library.
 
 -  ``Kokkos`` provides performance portable shared-memory parallelism.
    It allows our loops to be CUDA, OpenMP, or something else. 
 
-.. _tomlplusplus: https://github.com/marzer/tomlplusplus 
+.. _Sol: https://sol2.readthedocs.io/en/latest/index.html
 .. _eigen: https://github.com/PX4/eigen
 
 External (Required)
 ~~~~~~~~~~~~~~~~~~~
 
 -  ``cmake`` for building
+-  ``Lua`` for input configuration
 -  ``hdf5`` for output
 
 Optional
 ~~~~~~~~
 
--  ``python3`` for visualization
+-  ``python3`` for reading output data.
