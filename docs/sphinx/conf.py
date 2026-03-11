@@ -7,7 +7,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "Athelas"
-copyright = ""
+copyright = "2025-2026, Brandon L. Barker"
 author = "Brandon L. Barker" # TODO: extend
 release = "v26.03"
 

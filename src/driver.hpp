@@ -29,7 +29,7 @@ class Driver {
   explicit Driver(std::shared_ptr<ProblemIn> pin) // NOLINT
       : pin_(pin), manager_(std::make_unique<PackageManager>()),
         split_manager_(std::make_unique<PackageManager>()),
-        restart_(pin->param()->get<bool>("problem.restart")),
+        restart_(false),
         bcs_(std::make_unique<BoundaryConditions>(
             bc::make_boundary_conditions(pin.get()))),
         time_(0.0), dt_(pin_->param()->get<double>("output.dt_init")),

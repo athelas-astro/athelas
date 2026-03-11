@@ -43,7 +43,7 @@ void print_simulation_parameters(GridStructure &grid, ProblemIn *pin) {
 
   std::println("# --- General --- ");
   std::println("# Problem Name    : {}",
-               pin->param()->get<std::string>("problem.problem"));
+               pin->param()->get<std::string>("problem.name"));
   std::println("# CFL             : {}",
                pin->param()->get<double>("problem.cfl"));
   std::println("");
@@ -499,7 +499,7 @@ void write_output(const MeshState &mesh_state, GridStructure &grid,
   static constexpr int max_digits = 6;
   const auto &output_dir = pin->param()->get_ref<std::string>("output.dir");
   const auto &problem_name =
-      pin->param()->get_ref<std::string>("problem.problem");
+      pin->param()->get_ref<std::string>("problem.name");
   std::string filename =
       generate_filename(problem_name, output_dir, i_write, max_digits);
 

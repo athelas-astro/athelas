@@ -124,6 +124,7 @@ set( ATHELAS_SOURCES
   "src/composition/compdata.cpp"
   "src/composition/composition.cpp"
   "src/pgen/problem_in.cpp"
+  "src/pgen/lua_validator.cpp"
   #  "src/basis/polynomial_basis.cpp"
   "src/basis/nodal_basis.cpp"
   "src/bc/boundary_conditions.cpp"
@@ -292,8 +293,18 @@ configure_file(
   @ONLY
 )
 
+
 # Eigen
 add_subdirectory(external/spiner)
+
+# Lua, sol2
+find_package(Lua 5.3 REQUIRED)
+include_directories(${LUA_INCLUDE_DIR})
+add_subdirectory(external/sol2)
+
+# embed Lua schema into binary
+file(READ "${CMAKE_SOURCE_DIR}/inputs/schema.lua" ATHELAS_SCHEMA_LUA_CONTENT)
+configure_file(lua_schema.hpp.in lua_schema.hpp @ONLY)
 
 # Eigen
 add_subdirectory(external/eigen)
@@ -342,6 +353,8 @@ target_link_libraries(athelas PRIVATE
     kokkos
     spiner::spiner
     Eigen3::Eigen
+    sol2::sol2
+    ${LUA_LIBRARIES}
     git_version
     OpenMP::OpenMP_CXX
     ${HDF5_C_LIBRARIES}

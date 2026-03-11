@@ -1,0 +1,3 @@
+inline constexpr const char* ATHELAS_SCHEMA_LUA = R"lua(
+@ATHELAS_SCHEMA_LUA_CONTENT@
+)lua";

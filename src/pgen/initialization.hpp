@@ -44,7 +44,7 @@ void initialize_fields(MeshState &mesh_state, GridStructure *grid,
                        ProblemIn *pin) {
   std::print("# Running problem generator... ");
 
-  const auto problem_name = pin->param()->get<std::string>("problem.problem");
+  const auto problem_name = pin->param()->get<std::string>("problem.name");
 
   // This is clunky and not elegant but it works.
   if (problem_name == "supernova") {
