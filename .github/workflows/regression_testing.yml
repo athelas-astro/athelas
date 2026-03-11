@@ -29,6 +29,7 @@ jobs:
         # Set gcc-14 as the default gcc
         sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 140
         sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 140
+        sudo apt-get install -y liblua5.4-dev
 
     
     - name: Set up Python with uv
