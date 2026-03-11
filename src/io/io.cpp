@@ -498,8 +498,7 @@ void write_output(const MeshState &mesh_state, GridStructure &grid,
   // Generate filename
   static constexpr int max_digits = 6;
   const auto &output_dir = pin->param()->get_ref<std::string>("output.dir");
-  const auto &problem_name =
-      pin->param()->get_ref<std::string>("problem.name");
+  const auto &problem_name = pin->param()->get_ref<std::string>("problem.name");
   std::string filename =
       generate_filename(problem_name, output_dir, i_write, max_digits);
 

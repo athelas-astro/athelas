@@ -46,7 +46,6 @@ auto Validator::subtree_requires(sol::table schema, sol::table root) -> bool {
       continue;
     }
 
-
     if (is_leaf(node)) {
       if (node["required"].valid()) {
         if (required_dep(node["required"], root)) {

@@ -7,24 +7,21 @@
 namespace athelas {
 
 class Validator {
-public:
+ public:
   explicit Validator(sol::table schema);
 
   // Validate config in-place (defaults inserted)
   void validate(sol::table config);
 
-private:
+ private:
   sol::table schema_;
 
-  void validate_table(
-      sol::table config,
-      sol::table schema,
-      sol::table root,
-      const std::string& prefix);
+  void validate_table(sol::table config, sol::table schema, sol::table root,
+                      const std::string &prefix);
 
   auto is_leaf(sol::table node) -> bool;
 
-  auto get_path(sol::table root, const std::string& path) -> sol::object;
+  auto get_path(sol::table root, const std::string &path) -> sol::object;
 
   auto required_dep(sol::object rule, sol::table root) -> bool;
 

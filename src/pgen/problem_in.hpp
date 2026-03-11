@@ -50,7 +50,8 @@ void read_lua_array(const sol::table &tbl, G &out_array) {
     // Lua arrays are 1-indexed
     sol::optional<double> val = tbl[i + 1];
     if (!val) {
-      std::cerr << "Type mismatch or nil at Lua array index " << (i + 1) << "\n";
+      std::cerr << "Type mismatch or nil at Lua array index " << (i + 1)
+                << "\n";
       throw_athelas_error(" ! Error reading dirichlet boundary conditions.");
     }
     out_array[i] = *val;

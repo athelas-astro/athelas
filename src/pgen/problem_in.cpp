@@ -1,9 +1,9 @@
 #include "pgen/problem_in.hpp"
+#include "lua_schema.hpp"
 #include "pgen/lua_validator.hpp"
 #include "timestepper/tableau.hpp"
 #include "utils/error.hpp"
 #include "utils/utilities.hpp"
-#include "lua_schema.hpp"
 
 namespace athelas {
 
@@ -88,8 +88,8 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   sol::table pparams = *pparams_block;
 
   for (auto &[key_obj, val_obj] : pparams) {
-    const std::string key      = key_obj.as<std::string>();
-    const std::string out_key  = "problem.params." + key;
+    const std::string key = key_obj.as<std::string>();
+    const std::string out_key = "problem.params." + key;
 
     // Check int before double: in Lua 5.3+ integers and floats are distinct
     // subtypes. sol2 exposes this — is<int>() is true only for integer-valued
@@ -159,7 +159,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   sol::table fluid_limiter_block = fluid["limiter"];
   // Use an empty table as a safe stand-in when the block is absent so all
   // get_or calls below simply return their defaults.
-//  sol::table fluid_lim = fluid_limiter_block.value_or(lua_.create_table());
+  //  sol::table fluid_lim = fluid_limiter_block.value_or(lua_.create_table());
 
   const bool limit_fluid = fluid_limiter_block.get_or("do_limiter", true);
   params_->add("fluid.limiter.enabled", limit_fluid);
@@ -221,7 +221,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   params_->add("fluid.limiter.characteristic", fluid_characteristic);
 
   // --- fluid bc ---
-  sol::optional<sol::table> bc_block      = config_["bc"];
+  sol::optional<sol::table> bc_block = config_["bc"];
   sol::optional<sol::table> fluid_bc_block =
       bc_block ? sol::optional<sol::table>((*bc_block)["fluid"]) : sol::nullopt;
 
@@ -243,8 +243,9 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
 
   if (fluid_bc_i == "dirichlet") {
     sol::optional<sol::table> arr =
-        fluid_bc_block ? sol::optional<sol::table>((*fluid_bc_block)["dirichlet_values_i"])
-                       : sol::nullopt;
+        fluid_bc_block
+            ? sol::optional<sol::table>((*fluid_bc_block)["dirichlet_values_i"])
+            : sol::nullopt;
     if (!arr) {
       throw_athelas_error(" ! Initialization Error: Failed to read fluid "
                           "dirichlet_values_i as array.");
@@ -254,8 +255,9 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
 
   if (fluid_bc_o == "dirichlet") {
     sol::optional<sol::table> arr =
-        fluid_bc_block ? sol::optional<sol::table>((*fluid_bc_block)["dirichlet_values_o"])
-                       : sol::nullopt;
+        fluid_bc_block
+            ? sol::optional<sol::table>((*fluid_bc_block)["dirichlet_values_o"])
+            : sol::nullopt;
     if (!arr) {
       throw_athelas_error(" ! Initialization Error: Failed to read fluid "
                           "dirichlet_values_o as array.");
@@ -280,8 +282,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
     }
 
     sol::optional<sol::table> rad_limiter_block = radiation["limiter"];
-    sol::table rad_lim =
-        rad_limiter_block.value_or(lua_.create_table());
+    sol::table rad_lim = rad_limiter_block.value_or(lua_.create_table());
 
     const bool limit_rad = rad_lim.get_or("do_limiter", true);
     params_->add("radiation.limiter.enabled", limit_rad);
@@ -369,8 +370,9 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
 
     if (rad_bc_i == "dirichlet" || rad_bc_i == "marshak") {
       sol::optional<sol::table> arr =
-          rad_bc_block ? sol::optional<sol::table>((*rad_bc_block)["dirichlet_values_i"])
-                       : sol::nullopt;
+          rad_bc_block
+              ? sol::optional<sol::table>((*rad_bc_block)["dirichlet_values_i"])
+              : sol::nullopt;
       if (!arr) {
         throw_athelas_error(" ! Initialization Error: Failed to read radiation "
                             "dirichlet_values_i as array.");
@@ -380,8 +382,9 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
 
     if (rad_bc_o == "dirichlet") {
       sol::optional<sol::table> arr =
-          rad_bc_block ? sol::optional<sol::table>((*rad_bc_block)["dirichlet_values_o"])
-                       : sol::nullopt;
+          rad_bc_block
+              ? sol::optional<sol::table>((*rad_bc_block)["dirichlet_values_o"])
+              : sol::nullopt;
       if (!arr) {
         throw_athelas_error(" ! Initialization Error: Failed to read radiation "
                             "dirichlet_values_o as array.");
@@ -415,12 +418,12 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   // ---------- composition ----------
   // ---------------------------------
   sol::optional<sol::table> comp_block = config_["composition"];
-    sol::optional<int> ncomps = (*comp_block)["ncomps"];
-    if (!ncomps && *comps) {
-      throw_athelas_error(
-          "Composition enabled but no ncomps in composition block!");
-    }
-    params_->add("composition.ncomps", ncomps.value_or(0));
+  sol::optional<int> ncomps = (*comp_block)["ncomps"];
+  if (!ncomps && *comps) {
+    throw_athelas_error(
+        "Composition enabled but no ncomps in composition block!");
+  }
+  params_->add("composition.ncomps", ncomps.value_or(0));
 
   // --------------------------------
   // ---------- ionization ----------
@@ -428,9 +431,9 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   sol::optional<sol::table> ion_block = config_["ionization"];
   if (*ion) {
     sol::table ionization = *ion_block;
-    sol::optional<std::string> fn_ion  = ionization["fn_ionization"];
-    sol::optional<std::string> fn_deg  = ionization["fn_degeneracy"];
-    sol::optional<int>         saha_ncomps = ionization["ncomps"];
+    sol::optional<std::string> fn_ion = ionization["fn_ionization"];
+    sol::optional<std::string> fn_deg = ionization["fn_degeneracy"];
+    sol::optional<int> saha_ncomps = ionization["ncomps"];
     sol::optional<std::string> saha_solver = ionization["solver"];
 
     if (!fn_ion || !fn_deg) {
@@ -438,11 +441,11 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
                           "atomic data (fn_ionization and fn_degeneracy). "
                           "Defaults are in athelas/data/");
     }
-      const std::string solver_lc = utilities::to_lower(*saha_solver);
-      if (solver_lc != "linear" && solver_lc != "log") {
-        throw_athelas_error(
-            "[ionization.solver] must be either 'linear' or 'log'!");
-      }
+    const std::string solver_lc = utilities::to_lower(*saha_solver);
+    if (solver_lc != "linear" && solver_lc != "log") {
+      throw_athelas_error(
+          "[ionization.solver] must be either 'linear' or 'log'!");
+    }
     params_->add("ionization.fn_ionization", *fn_ion);
     params_->add("ionization.fn_degeneracy", *fn_deg);
     params_->add("ionization.ncomps", *saha_ncomps);
@@ -531,19 +534,18 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   sol::optional<sol::table> out_block = config_["output"];
   sol::table output = *out_block;
 
-  const int    ncycle_out   = output.get_or("ncycle_out", 1);
-  const double dt_hdf5      = output.get_or("dt_hdf5", tf.value_or(1.0) / 100.0);
+  const int ncycle_out = output.get_or("ncycle_out", 1);
+  const double dt_hdf5 = output.get_or("dt_hdf5", tf.value_or(1.0) / 100.0);
   const double dt_init_frac = output.get_or("dt_init_frac", 1.05);
-  const double dt_init      = output.get_or("dt_init", 1.0e-16);
+  const double dt_init = output.get_or("dt_init", 1.0e-16);
 
   sol::optional<sol::table> hist_block = output["history"];
-  const bool   history_enabled = hist_block.has_value();
-  const std::string hist_fn    = hist_block
-      ? hist_block->get_or<std::string>("fn", "athelas.hst")
-      : "athelas.hst";
-  const double hist_dt = hist_block
-      ? hist_block->get_or("dt", dt_hdf5 / 10.0)
-      : dt_hdf5 / 10.0;
+  const bool history_enabled = hist_block.has_value();
+  const std::string hist_fn =
+      hist_block ? hist_block->get_or<std::string>("fn", "athelas.hst")
+                 : "athelas.hst";
+  const double hist_dt =
+      hist_block ? hist_block->get_or("dt", dt_hdf5 / 10.0) : dt_hdf5 / 10.0;
 
   sol::optional<double> fixed_dt = output["dt_fixed"];
 
@@ -559,13 +561,13 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   if (hist_dt <= 0.0) {
     throw_athelas_error("hist_dt must be strictly > 0.0\n");
   }
-  params_->add("output.ncycle_out",     ncycle_out);
-  params_->add("output.dt_hdf5",        dt_hdf5);
-  params_->add("output.dt_init_frac",   dt_init_frac);
-  params_->add("output.dt_init",        dt_init);
+  params_->add("output.ncycle_out", ncycle_out);
+  params_->add("output.dt_hdf5", dt_hdf5);
+  params_->add("output.dt_init_frac", dt_init_frac);
+  params_->add("output.dt_init", dt_init);
   params_->add("output.history_enabled", history_enabled);
-  params_->add("output.hist_fn",        hist_fn);
-  params_->add("output.hist_dt",        hist_dt);
+  params_->add("output.hist_fn", hist_fn);
+  params_->add("output.hist_dt", hist_dt);
   if (fixed_dt) {
     params_->add("output.dt_fixed", *fixed_dt);
   }
@@ -575,10 +577,9 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   // --------------------------
   sol::optional<sol::table> time_block = config_["time"];
   sol::optional<std::string> integrator = (*time_block)["integrator"];
-    const MethodID method_id =
-        string_to_id(utilities::to_lower(*integrator));
-    params_->add("time.integrator",        method_id);
-    params_->add("time.integrator_string", *integrator); // for IO
+  const MethodID method_id = string_to_id(utilities::to_lower(*integrator));
+  params_->add("time.integrator", method_id);
+  params_->add("time.integrator_string", *integrator); // for IO
 
   // -------------------------
   // ---------- eos ----------
@@ -587,13 +588,14 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   sol::table eos = *eos_block;
 
   sol::optional<std::string> eos_type = eos["type"];
-  params_->add("eos.type",  *eos_type);
+  params_->add("eos.type", *eos_type);
   params_->add("eos.gamma", eos.get_or("gamma", 1.4));
   if (*eos_type == "polytropic") {
     sol::optional<double> eos_k = eos["k"];
     sol::optional<double> eos_n = eos["n"];
     if (!eos_k || !eos_n) {
-      throw_athelas_error("Polytropic EOS requires 'k' and 'n' in [eos] block!");
+      throw_athelas_error(
+          "Polytropic EOS requires 'k' and 'n' in [eos] block!");
     }
     params_->add("eos.k", *eos_k);
     params_->add("eos.n", *eos_n);
@@ -612,7 +614,8 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
     if (*opac_type == "tabular") {
       sol::optional<std::string> fn = opacity["filename"];
       if (!fn) {
-        throw_athelas_error("Tabular opacity requires 'filename' in [opacity] block!");
+        throw_athelas_error(
+            "Tabular opacity requires 'filename' in [opacity] block!");
       }
       params_->add("opacity.filename", *fn);
     } else if (*opac_type == "constant") {
@@ -625,20 +628,20 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
       params_->add("opacity.kR", *kr);
       params_->add("opacity.kP", *kp);
     } else if (*opac_type == "powerlaw") {
-      sol::optional<double> kr        = opacity["kR"];
-      sol::optional<double> kp        = opacity["kP"];
-      sol::optional<double> rho_exp   = opacity["rho_exp"];
-      sol::optional<double> t_exp     = opacity["t_exp"];
+      sol::optional<double> kr = opacity["kR"];
+      sol::optional<double> kp = opacity["kP"];
+      sol::optional<double> rho_exp = opacity["rho_exp"];
+      sol::optional<double> t_exp = opacity["t_exp"];
       sol::optional<double> kp_offset = opacity["kP_offset"];
       sol::optional<double> kr_offset = opacity["kR_offset"];
       if (!kr || !kp || !rho_exp || !t_exp) {
         throw_athelas_error("Powerlaw opacity must specify kR, kP, rho_exp, "
                             "and t_exp!");
       }
-      params_->add("opacity.kR",        *kr);
-      params_->add("opacity.kP",        *kp);
-      params_->add("opacity.rho_exp",   *rho_exp);
-      params_->add("opacity.t_exp",     *t_exp);
+      params_->add("opacity.kR", *kr);
+      params_->add("opacity.kP", *kp);
+      params_->add("opacity.rho_exp", *rho_exp);
+      params_->add("opacity.t_exp", *t_exp);
       params_->add("opacity.kR_offset", kr_offset.value_or(0.0));
       params_->add("opacity.kP_offset", kp_offset.value_or(0.0));
     }
@@ -655,23 +658,23 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
           "[opacity.floors.type] must be 'core_envelope' or 'constant'!");
     }
     if (floor_type == "core_envelope") {
-      const double core_planck     = floors.get_or("core_planck",     0.24);
-      const double core_rosseland  = floors.get_or("core_rosseland",  0.24);
-      const double env_planck      = floors.get_or("env_planck",      0.01);
-      const double env_rosseland   = floors.get_or("env_rosseland",   0.01);
+      const double core_planck = floors.get_or("core_planck", 0.24);
+      const double core_rosseland = floors.get_or("core_rosseland", 0.24);
+      const double env_planck = floors.get_or("env_planck", 0.01);
+      const double env_rosseland = floors.get_or("env_rosseland", 0.01);
       if ((core_planck < env_planck) || (core_rosseland < env_rosseland)) {
         throw_athelas_error("In the `core_envelope` floor model the core floor "
                             "must be higher than the envelope floor!");
       }
-      params_->add("opacity.floors.core_planck",    core_planck);
+      params_->add("opacity.floors.core_planck", core_planck);
       params_->add("opacity.floors.core_rosseland", core_rosseland);
-      params_->add("opacity.floors.env_planck",     env_planck);
-      params_->add("opacity.floors.env_rosseland",  env_rosseland);
+      params_->add("opacity.floors.env_planck", env_planck);
+      params_->add("opacity.floors.env_rosseland", env_rosseland);
     }
     if (floor_type == "constant") {
-      const double planck     = floors.get_or("planck",     1.0e-3);
-      const double rosseland  = floors.get_or("rosseland",  1.0e-3);
-      params_->add("opacity.floors.planck",    planck);
+      const double planck = floors.get_or("planck", 1.0e-3);
+      const double rosseland = floors.get_or("rosseland", 1.0e-3);
+      params_->add("opacity.floors.planck", planck);
       params_->add("opacity.floors.rosseland", rosseland);
     }
   } // opacity block
