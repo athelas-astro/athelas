@@ -18,7 +18,7 @@ class NickelTest(AthelasRegressionTest):
     run_dir = "run_nickel"
 
     # Use absolute paths for input and gold files to ensure they can be found
-    infile = os.path.join(regression_dir, "test_inputs", "ni_decay.toml")
+    infile = os.path.join(regression_dir, "test_inputs", "ni_decay.lua")
     goldfile = os.path.join(regression_dir, "goldfiles", "nickel.gold")
 
     # If executable_path is provided, use it directly

@@ -18,7 +18,7 @@ class NohShockTubeTest(AthelasRegressionTest):
     run_dir = "run_noh"
 
     # Use absolute paths for input and gold files to ensure they can be found
-    infile = os.path.join(regression_dir, "test_inputs", "noh.toml")
+    infile = os.path.join(regression_dir, "test_inputs", "noh.lua")
     goldfile = os.path.join(regression_dir, "goldfiles", "noh.gold")
 
     # If executable_path is provided, use it directly

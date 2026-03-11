@@ -18,7 +18,7 @@ class EjectaCSMTest(AthelasRegressionTest):
     run_dir = "run_ejecta_csm"
 
     # Use absolute paths for input and gold files to ensure they can be found
-    infile = os.path.join(regression_dir, "test_inputs", "ejecta_csm.toml")
+    infile = os.path.join(regression_dir, "test_inputs", "ejecta_csm.lua")
     goldfile = os.path.join(regression_dir, "goldfiles", "ejecta_csm.gold")
 
     # If executable_path is provided, use it directly

@@ -7,7 +7,7 @@ from scipy.integrate import odeint
 import matplotlib.pyplot as plt
 import numpy as np
 
-from athelas import Athelas
+from athelas_tools.athelas import Athelas
 
 
 class ThermalEquilibrium:

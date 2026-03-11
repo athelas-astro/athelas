@@ -18,7 +18,7 @@ class MarshakTest(AthelasRegressionTest):
     run_dir = "run_marshak"
 
     # Use absolute paths for input and gold files to ensure they can be found
-    infile = os.path.join(regression_dir, "test_inputs", "marshak.toml")
+    infile = os.path.join(regression_dir, "test_inputs", "marshak.lua")
     goldfile = os.path.join(regression_dir, "goldfiles", "marshak.gold")
 
     # If executable_path is provided, use it directly

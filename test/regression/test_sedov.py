@@ -18,7 +18,7 @@ class SedovBlastWaveTest(AthelasRegressionTest):
     run_dir = "run_sedov"
 
     # Use absolute paths for input and gold files to ensure they can be found
-    infile = os.path.join(regression_dir, "test_inputs", "sedov.toml")
+    infile = os.path.join(regression_dir, "test_inputs", "sedov.lua")
     goldfile = os.path.join(regression_dir, "goldfiles", "sedov.gold")
 
     # If executable_path is provided, use it directly

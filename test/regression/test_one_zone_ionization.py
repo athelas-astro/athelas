@@ -21,7 +21,7 @@ class OneZoneIonizationTest(AthelasRegressionTest):
 
     # Use absolute paths for input and gold files to ensure they can be found
     infile = os.path.join(
-      regression_dir, "test_inputs", "one_zone_ionization.toml"
+      regression_dir, "test_inputs", "one_zone_ionization.lua"
     )
     goldfile = os.path.join(
       regression_dir, "goldfiles", "one_zone_ionization.gold"
