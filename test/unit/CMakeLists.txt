@@ -28,6 +28,7 @@ add_executable( unit_tests
   ../../src/pgen/problem_in.cpp
   ../../src/interface/params.cpp
   test_parser.cpp
+  test_legendre.cpp
   test_paczynski.cpp
   test_root_finders.cpp
   )

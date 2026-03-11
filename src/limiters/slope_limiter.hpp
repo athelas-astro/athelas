@@ -33,18 +33,17 @@ class WENO : public SlopeLimiterBase<WENO> {
   WENO() = default;
   WENO(const bool enabled, const GridStructure *grid, IndexRange &vb,
        const int order, const double gamma_i, const double gamma_l,
-       const double gamma_r, const double weno_r, const bool characteristic,
+       const double gamma_r, const double weno_p, const bool characteristic,
        const bool tci_opt, const double tci_val)
       : do_limiter_(enabled), order_(order), nvars_(vb.size()),
         gamma_i_(gamma_i), gamma_l_(gamma_l), gamma_r_(gamma_r),
-        weno_r_(weno_r), characteristic_(characteristic), tci_opt_(tci_opt),
+        weno_p_(weno_p), characteristic_(characteristic), tci_opt_(tci_opt),
         tci_val_(tci_val), vb_(vb),
         modified_polynomial_("modified_polynomial", grid->n_elements() + 2,
                              nvars_, order),
         u_k_("modal coefficients", grid->n_elements() + 2, order, vb.size()),
         D_("TCI", grid->n_elements() + 2),
         limited_cell_("LimitedCell", grid->n_elements() + 2) {
-    throw_athelas_error("The WENO slope limiter is not currently working!");
     if (characteristic) {
       R_ = AthelasArray3D<double>("R Matrix", grid->n_elements() + 2, nvars_,
                                   nvars_);
@@ -68,7 +67,7 @@ class WENO : public SlopeLimiterBase<WENO> {
   double gamma_i_{};
   double gamma_l_{};
   double gamma_r_{};
-  double weno_r_{};
+  double weno_p_{};
   bool characteristic_{};
   bool tci_opt_{};
   double tci_val_{};

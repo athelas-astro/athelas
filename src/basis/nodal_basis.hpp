@@ -184,4 +184,7 @@ KOKKOS_FUNCTION auto basis_eval(AthelasArray3D<double> phi,
   }
 }
 
+auto d_legendre_n2(int n, int q, double x) -> double;
+auto d_legendre_n3(const int n, const int q, const double x) -> double;
+
 } // namespace athelas::basis

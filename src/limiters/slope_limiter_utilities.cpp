@@ -40,7 +40,7 @@ auto initialize_slope_limiter(const std::string field,
                pin->param()->get<double>(field + ".limiter.gamma_i"),
                pin->param()->get<double>(field + ".limiter.gamma_l"),
                pin->param()->get<double>(field + ".limiter.gamma_r"),
-               pin->param()->get<double>(field + ".limiter.weno_r"),
+               pin->param()->get<double>(field + ".limiter.weno_p"),
                pin->param()->get<bool>(field + ".limiter.characteristic"),
                pin->param()->get<bool>(field + ".limiter.tci_enabled"),
                pin->param()->get<double>(field + ".limiter.tci_val"));
@@ -196,34 +196,41 @@ void detect_troubled_cells(AthelasArray3D<double> U, AthelasArray1D<double> D,
  * H. Zhu et al 2020, simple and high-order
  * compact WENO RKDG slope limiter
  **/
+KOKKOS_FUNCTION
 void modify_polynomial(AthelasArray3D<double> U,
                        AthelasArray2D<double> modified_polynomial,
+                       const double dr, const double dr_m, const double dr_p,
                        const double gamma_i, const double gamma_l,
-                       const double gamma_r, const int ix, const int q) {
-  const double Ubar_i = U(ix, vars::modes::CellAverage, q);
-  const double fac = 1.0;
-  const int order = U.extent(1);
+                       const double gamma_r, const int ix, const int v) {
+  const double Ubar_i = U(ix, vars::modes::CellAverage, v);
+  const int order = static_cast<int>(U.extent(1)); // change when we p-refine
 
-  const double modified_p_slope_mag =
-      fac *
-      std::min({U(ix - 1, vars::modes::Slope, q), U(ix, vars::modes::Slope, q),
-                U(ix + 1, vars::modes::Slope, q)});
-  const int sign_l = utilities::SGN(U(ix - 1, vars::modes::Slope, q));
-  const int sign_r = utilities::SGN(U(ix + 1, vars::modes::Slope, q));
+  modified_polynomial(0, vars::modes::CellAverage) = Ubar_i;
+  modified_polynomial(2, vars::modes::CellAverage) = Ubar_i;
 
-  modified_polynomial(0, 0) = Ubar_i;
-  modified_polynomial(2, 0) = Ubar_i;
-  modified_polynomial(0, 1) = sign_l * modified_p_slope_mag;
-  modified_polynomial(2, 1) = sign_r * modified_p_slope_mag;
+  const double c_i = U(ix, vars::modes::CellAverage, v); // target cell avg
+  const double c_p = U(ix + 1, vars::modes::CellAverage, v); // cell i + 1 avg
+  const double c_m = U(ix - 1, vars::modes::CellAverage, v); // cell i - 1 avg
+
+  // Form the neighbor slopes. We have to be mindful of the element
+  // widths as they are not uniform.
+  const double s_p = (c_p - c_i) / (0.5 * (dr + dr_p));
+  const double s_m = (c_i - c_m) / (0.5 * (dr + dr_m));
+  modified_polynomial(0, vars::modes::Slope) = (0.5 * dr) * s_m;
+  modified_polynomial(2, vars::modes::Slope) = (0.5 * dr) * s_p;
+
+  //  std::println("i s_modpolyL s_modpolyR s_target {} {:.5e} {:.5e} {:.5e}",
+  //  ix, modified_polynomial(0, 1), modified_polynomial(2, 1), U(ix, 1, v));
 
   for (int k = 2; k < order; k++) {
     modified_polynomial(0, k) = 0.0;
     modified_polynomial(2, k) = 0.0;
   }
 
+  //  modified_polynomial(1, 0) = Ubar_i;
   for (int k = 0; k < order; k++) {
     modified_polynomial(1, k) =
-        U(ix, k, 1) / gamma_i -
+        U(ix, k, v) / gamma_i -
         (gamma_l / gamma_i) * modified_polynomial(0, k) -
         (gamma_r / gamma_i) * modified_polynomial(2, k);
   }
@@ -231,46 +238,64 @@ void modify_polynomial(AthelasArray3D<double> U,
 
 // WENO smoothness indicator beta
 // TODO(astrobarker): pass in views remove accessors
-auto smoothness_indicator(AthelasArray3D<double> U,
-                          AthelasArray2D<double> modified_polynomial,
-                          const GridStructure &grid, const NodalBasis &basis,
-                          const int ix, const int i, const int /*q*/)
-    -> double {
-  const int k = static_cast<int>(U.extent(1));
+KOKKOS_FUNCTION
+auto smoothness_indicator(AthelasArray2D<double> modified_polynomial,
+                          const GridStructure &grid, const int poly_idx,
+                          const int /*q*/) -> double {
+  const int num_modes = static_cast<int>(modified_polynomial.extent(1));
 
   auto dr = grid.widths();
   auto weights = grid.weights();
+  auto nodes = grid.nodes();
   auto r = grid.nodal_grid();
 
-  double beta = 0.0; // output var
-  for (int s = 1; s < k; s++) { // loop over modes
-    // integrate mode on cell
-    double local_sum = 0.0;
-    for (int q = 0; q < k; q++) {
-      /*
-      const auto X = r(ix, q + 1);
-      local_sum += weights(q) *
-                   std::pow(modified_polynomial(s, i) *
-                                ModalBasis::d_legendre_n(k, s, X),
-                            2.0) *
-                   std::pow(dr(ix), 2.0 * s);
-      */
+  double beta = 0.0;
+
+  const int poly_order = num_modes - 1; // Assuming k_max-1
+
+  // 1. Loop over derivative orders k = 1 to poly_order
+  for (int k = 1; k <= poly_order; ++k) {
+    double integral_k = 0.0;
+
+    // 2. Perform quadrature over the reference element [-1, 1]
+    // Using 'q' as the node/quadrature index as requested
+    for (int q = 0; q < num_modes; ++q) {
+      const double xi = nodes(q);
+      const double w = weights(q);
+
+      // 3. Sum the k-th derivatives of ALL modes at this quadrature point xi
+      double total_dk_dxi = 0.0;
+      for (int m = k; m <= poly_order; ++m) {
+        total_dk_dxi +=
+            modified_polynomial(poly_idx, m) * basis::d_legendre_n3(m, k, xi);
+      }
+
+      // Accumulate (d^k u / dxi^k)^2 * weight
+      integral_k += w * (total_dk_dxi * total_dk_dxi);
     }
-    beta += local_sum;
+
+    // 4. Apply the scale-free transformation factor: 2^(2k-1)
+    // This accounts for (d/dx = 2/dx * d/dxi) and the (dx)^(2k-1) kernel.
+    const double scaling = std::pow(2.0, 2 * k - 1);
+    beta += scaling * integral_k;
   }
+
   return beta;
 }
 
 auto non_linear_weight(const double gamma, const double beta, const double tau,
-                       const double eps) -> double {
-  return gamma * (1.0 + tau / (eps + beta));
+                       const double weno_p, const double eps) -> double {
+  // return gamma * (1.0 + std::pow((tau / (eps + beta)), weno_p));
+  return gamma / (std::pow(eps + beta, weno_p));
 }
 
 // weno-z tau variable
-auto weno_tau(const double beta_l, const double beta_i, const double beta_r,
-              const double weno_r) -> double {
-  return std::pow((std::abs(beta_i - beta_l) + std::abs(beta_i - beta_r)) / 2.0,
-                  weno_r);
+KOKKOS_FUNCTION
+auto weno_tau(const double beta_l, const double beta_i, const double beta_r)
+    -> double {
+  return (std::abs(beta_i - beta_l) + std::abs(beta_i - beta_r)) / 2.0;
+  // return (std::abs(beta_l - beta_r) + std::abs(beta_i - beta_l) +
+  // std::abs(beta_i - beta_r)) / 3.0;
 }
 
 } // namespace athelas

@@ -139,20 +139,19 @@ auto cell_average(AthelasArray2D<double> U, AthelasArray2D<double> sqrt_gm,
   return avg / vol;
 }
 
+KOKKOS_FUNCTION
 void modify_polynomial(AthelasArray3D<double> U,
-                       AthelasArray2D<double> modified_polynomial,
-                       double gamma_i, double gamma_l, double gamma_r, int ix,
-                       int q);
+                       AthelasArray2D<double> modified_polynomial, double dr,
+                       double dr_m, double dr_p, double gamma_i, double gamma_l,
+                       double gamma_r, int ix, int v);
 
-auto smoothness_indicator(AthelasArray3D<double> U,
-                          AthelasArray2D<double> modified_polynomial,
-                          const GridStructure &grid,
-                          const basis::NodalBasis &basis, int ix, int i,
-                          int iCQ) -> double;
-
-auto non_linear_weight(double gamma, double beta, double tau, double eps)
+KOKKOS_FUNCTION
+auto smoothness_indicator(AthelasArray2D<double> modified_polynomial,
+                          const GridStructure &grid, int poly_idx, int v)
     -> double;
 
-auto weno_tau(double beta_l, double beta_i, double beta_r, double weno_r)
-    -> double;
+auto non_linear_weight(double gamma, double beta, double tau, double weno_p,
+                       double eps) -> double;
+
+auto weno_tau(double beta_l, double beta_i, double beta_r) -> double;
 } // namespace athelas
