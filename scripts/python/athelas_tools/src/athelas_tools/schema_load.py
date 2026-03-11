@@ -6,7 +6,6 @@ Shared schema loading logic for schema_to_docs.py and schema_explorer.py.
 Requires: lupa  (uv add lupa)
 """
 
-import sys
 from pathlib import Path
 
 import lupa
