@@ -25,6 +25,7 @@ add_executable( unit_tests
   ../../src/basis/nodal_basis.cpp
   ../../src/geometry/grid.cpp
   ../../src/timestepper/tableau.cpp
+  ../../src/pgen/lua_validator.cpp
   ../../src/pgen/problem_in.cpp
   ../../src/interface/params.cpp
   test_parser.cpp
