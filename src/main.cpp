@@ -36,7 +36,7 @@ auto parse_input_file(std::span<char *> args)
   return std::unexpected("No input file passed! Use -i <path>");
 }
 */
-auto parse_input_file(std::span<char *> args)
+auto parse_input_options(std::span<char *> args)
     -> std::expected<CommandLineOptions, std::string> {
   CommandLineOptions opts;
   bool has_input = false;
@@ -71,7 +71,21 @@ auto parse_input_file(std::span<char *> args)
 } // namespace
 
 auto main(int argc, char **argv) -> int {
-  auto input_result = parse_input_file({argv, static_cast<std::size_t>(argc)});
+  // handle parsing of -h / --help separately
+  if (std::strcmp(argv[1],"-h") == 0 || std::strcmp(argv[1], "--help") == 0) {
+    std::println("# Usage: ./athelas [-h] [-i /path/to/input.lua] [-o output_dir]");
+    std::println("Options:");
+    std::println("  -h, --help                Show this help message and exit");
+    std::println("  -i, --input <path>        Path to the input .lua script (Required)");
+    std::println("  -o, --output <dir>        Directory where output files will be saved (Default: ./)");
+
+    std::println("Examples:");
+    std::println("  ./athelas -i ../inputs/sod.lua");
+    std::println("  ./athelas -i ../inputs/supernova.lua -o run/output");
+    return AthelasExitCodes::SUCCESS;
+  }
+
+  auto input_result = parse_input_options({argv, static_cast<std::size_t>(argc)});
   if (!input_result) {
     std::println(std::cerr, "Error: {}", input_result.error());
     return AthelasExitCodes::FAILURE;
