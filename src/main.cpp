@@ -72,7 +72,8 @@ auto parse_input_options(std::span<char *> args)
 
 auto main(int argc, char **argv) -> int {
   // handle parsing of -h / --help separately
-  if (std::strcmp(argv[1], "-h") == 0 || std::strcmp(argv[1], "--help") == 0) {
+  if (argc == 1 || std::strcmp(argv[1], "-h") == 0 ||
+      std::strcmp(argv[1], "--help") == 0) {
     std::println(
         "# Usage: ./athelas [-h] [-i /path/to/input.lua] [-o output_dir]");
     std::println("Options:");
