@@ -72,12 +72,15 @@ auto parse_input_options(std::span<char *> args)
 
 auto main(int argc, char **argv) -> int {
   // handle parsing of -h / --help separately
-  if (std::strcmp(argv[1],"-h") == 0 || std::strcmp(argv[1], "--help") == 0) {
-    std::println("# Usage: ./athelas [-h] [-i /path/to/input.lua] [-o output_dir]");
+  if (std::strcmp(argv[1], "-h") == 0 || std::strcmp(argv[1], "--help") == 0) {
+    std::println(
+        "# Usage: ./athelas [-h] [-i /path/to/input.lua] [-o output_dir]");
     std::println("Options:");
     std::println("  -h, --help                Show this help message and exit");
-    std::println("  -i, --input <path>        Path to the input .lua script (Required)");
-    std::println("  -o, --output <dir>        Directory where output files will be saved (Default: ./)");
+    std::println(
+        "  -i, --input <path>        Path to the input .lua script (Required)");
+    std::println("  -o, --output <dir>        Directory where output files "
+                 "will be saved (Default: ./)");
 
     std::println("Examples:");
     std::println("  ./athelas -i ../inputs/sod.lua");
@@ -85,7 +88,8 @@ auto main(int argc, char **argv) -> int {
     return AthelasExitCodes::SUCCESS;
   }
 
-  auto input_result = parse_input_options({argv, static_cast<std::size_t>(argc)});
+  auto input_result =
+      parse_input_options({argv, static_cast<std::size_t>(argc)});
   if (!input_result) {
     std::println(std::cerr, "Error: {}", input_result.error());
     return AthelasExitCodes::FAILURE;
