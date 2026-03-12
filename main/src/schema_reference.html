@@ -1,0 +1,1446 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Input Deck Reference &#8212; Athelas v26.03 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=7fc59cab" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=e738c134"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'src/schema_reference';</script>
+    <link rel="canonical" href="https://athelas-astro.github.io/athelas/src/schema_reference.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="How to Use Sphinx for Writing Docs" href="sphinx-doc.html" />
+    <link rel="prev" title="Saha Ionization Model" href="saha.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    <span class="fa fa-book"> Other Versions</span>
+    v: main
+    <span class="fa fa-caret-down"></span>
+  </span>
+  <div class="rst-other-versions">
+    <dl>
+      <dt>Tags</dt>
+      <dd><a href="../../v26.03/index.html">v26.03</a></dd>
+    </dl>
+    <dl>
+      <dt>Branches</dt>
+      <dd><a href="schema_reference.html">main</a></dd>
+      <dd><a href="../../blb/help/src/schema_reference.html">blb/help</a></dd>
+    </dl>
+  </div>
+</div></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/src/schema_reference.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Input Deck Reference</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-basis"><code class="docutils literal notranslate"><span class="pre">config.basis</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-bc"><code class="docutils literal notranslate"><span class="pre">config.bc</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#fluid"><code class="docutils literal notranslate"><span class="pre">fluid</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#radiation"><code class="docutils literal notranslate"><span class="pre">radiation</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-composition"><code class="docutils literal notranslate"><span class="pre">config.composition</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-engine"><code class="docutils literal notranslate"><span class="pre">config.engine</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#thermal"><code class="docutils literal notranslate"><span class="pre">thermal</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-eos"><code class="docutils literal notranslate"><span class="pre">config.eos</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-fluid"><code class="docutils literal notranslate"><span class="pre">config.fluid</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#limiter"><code class="docutils literal notranslate"><span class="pre">limiter</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-gravity"><code class="docutils literal notranslate"><span class="pre">config.gravity</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-heating"><code class="docutils literal notranslate"><span class="pre">config.heating</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nickel"><code class="docutils literal notranslate"><span class="pre">nickel</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-ionization"><code class="docutils literal notranslate"><span class="pre">config.ionization</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-opacity"><code class="docutils literal notranslate"><span class="pre">config.opacity</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#floors"><code class="docutils literal notranslate"><span class="pre">floors</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-output"><code class="docutils literal notranslate"><span class="pre">config.output</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#history"><code class="docutils literal notranslate"><span class="pre">history</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-physics"><code class="docutils literal notranslate"><span class="pre">config.physics</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-problem"><code class="docutils literal notranslate"><span class="pre">config.problem</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-radiation"><code class="docutils literal notranslate"><span class="pre">config.radiation</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1"><code class="docutils literal notranslate"><span class="pre">limiter</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-time"><code class="docutils literal notranslate"><span class="pre">config.time</span></code></a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="input-deck-reference">
+<h1>Input Deck Reference<a class="headerlink" href="#input-deck-reference" title="Link to this heading">#</a></h1>
+<p>Auto-generated from <code class="docutils literal notranslate"><span class="pre">schema.lua</span></code>. Each table below documents one section of the <code class="docutils literal notranslate"><span class="pre">config</span></code> table.</p>
+<section id="config-basis">
+<h2><code class="docutils literal notranslate"><span class="pre">config.basis</span></code><a class="headerlink" href="#config-basis" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 10.0%" />
+<col style="width: 8.0%" />
+<col style="width: 12.0%" />
+<col style="width: 20.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Required</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nnodes</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Number of DG nodes per cell.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="config-bc">
+<h2><code class="docutils literal notranslate"><span class="pre">config.bc</span></code><a class="headerlink" href="#config-bc" title="Link to this heading">#</a></h2>
+<section id="fluid">
+<h3><code class="docutils literal notranslate"><span class="pre">fluid</span></code><a class="headerlink" href="#fluid" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 10.0%" />
+<col style="width: 8.0%" />
+<col style="width: 12.0%" />
+<col style="width: 20.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Required</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">bc_i</span></code></p></td>
+<td><p>string</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Inner fluid boundary condition. Options: ‘reflecting’, ‘outflow’, ‘dirichlet’, ‘periodic’.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dirichlet_values_o</span></code></p></td>
+<td><p>array</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Dirichlet state values at outer boundary.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dirichlet_values_i</span></code></p></td>
+<td><p>array</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Dirichlet state values at inner boundary.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">bc_o</span></code></p></td>
+<td><p>string</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Outer fluid boundary condition. Options: ‘reflecting’, ‘outflow’, ‘dirichlet’, ‘periodic’.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="radiation">
+<h3><code class="docutils literal notranslate"><span class="pre">radiation</span></code><a class="headerlink" href="#radiation" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 10.0%" />
+<col style="width: 8.0%" />
+<col style="width: 12.0%" />
+<col style="width: 20.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Required</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">bc_i</span></code></p></td>
+<td><p>string</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Inner radiation boundary condition. Options: ‘reflecting’, ‘outflow’, ‘marshak’, ‘dirichlet’.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dirichlet_values_o</span></code></p></td>
+<td><p>array</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Dirichlet state values at outer boundary.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dirichlet_values_i</span></code></p></td>
+<td><p>array</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Dirichlet state values at inner boundary.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">bc_o</span></code></p></td>
+<td><p>string</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Outer radiation boundary condition. Options: ‘reflecting’, ‘outflow’, ‘dirichlet’.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="config-composition">
+<h2><code class="docutils literal notranslate"><span class="pre">config.composition</span></code><a class="headerlink" href="#config-composition" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 10.0%" />
+<col style="width: 8.0%" />
+<col style="width: 12.0%" />
+<col style="width: 20.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Required</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ncomps</span></code></p></td>
+<td><p>int</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Number of composition species.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="config-engine">
+<h2><code class="docutils literal notranslate"><span class="pre">config.engine</span></code><a class="headerlink" href="#config-engine" title="Link to this heading">#</a></h2>
+<section id="thermal">
+<h3><code class="docutils literal notranslate"><span class="pre">thermal</span></code><a class="headerlink" href="#thermal" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 10.0%" />
+<col style="width: 8.0%" />
+<col style="width: 12.0%" />
+<col style="width: 20.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Required</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mend</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Mass coordinate of injection upper boundary in Msun. Must be &gt; 0.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">tend</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>End time for energy injection. Must be &gt; 0.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">energy</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Total injected energy in erg.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">operator_split</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Apply engine as operator-split source.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">enabled</span></code></p></td>
+<td><p>bool</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Enable thermal energy injection engine.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mode</span></code></p></td>
+<td><p>string</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Injection mode. Options: ‘direct’, ‘asymptotic’.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="config-eos">
+<h2><code class="docutils literal notranslate"><span class="pre">config.eos</span></code><a class="headerlink" href="#config-eos" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 10.0%" />
+<col style="width: 8.0%" />
+<col style="width: 12.0%" />
+<col style="width: 20.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Required</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">n</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Polytropic index n. Required for polytropic EOS.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">k</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Polytropic constant K. Required for polytropic EOS.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">gamma</span></code></p></td>
+<td><p>double</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1.4</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Adiabatic index. Default: 1.4.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">type</span></code></p></td>
+<td><p>string</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Equation of state type. Options:. ‘ideal’, ‘paczynski’, ‘marshak’, ‘polytropic’.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="config-fluid">
+<h2><code class="docutils literal notranslate"><span class="pre">config.fluid</span></code><a class="headerlink" href="#config-fluid" title="Link to this heading">#</a></h2>
+<section id="limiter">
+<h3><code class="docutils literal notranslate"><span class="pre">limiter</span></code><a class="headerlink" href="#limiter" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 10.0%" />
+<col style="width: 8.0%" />
+<col style="width: 12.0%" />
+<col style="width: 20.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Required</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">characteristic</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Enable characteristic limiting.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">b_tvd</span></code></p></td>
+<td><p>double</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1.0</span></code></p></td>
+<td><p>No</p></td>
+<td><p>TVD parameter b. Used with minmod limiter.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tci_val</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Troubled-cell indicator threshold.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">m_tvb</span></code></p></td>
+<td><p>double</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.0</span></code></p></td>
+<td><p>No</p></td>
+<td><p>TVB parameter M. Used with minmod limiter.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">type</span></code></p></td>
+<td><p>string</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">minmod</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Limiter type. Options: ‘minmod’, ‘weno [experimental]’.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gamma_i</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>WENO central weight. Required for WENO limiter.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">gamma_l</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>WENO left weight. Inferred from gamma_i if omitted.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gamma_r</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>WENO right weight. Inferred from gamma_i if omitted.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">do_limiter</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Enable slope limiter for fluid.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">weno_r</span></code></p></td>
+<td><p>double</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">2.0</span></code></p></td>
+<td><p>No</p></td>
+<td><p>WENO smoothness exponent. Must be &gt; 0.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tci_opt</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Enable troubled-cell indicator.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="config-gravity">
+<h2><code class="docutils literal notranslate"><span class="pre">config.gravity</span></code><a class="headerlink" href="#config-gravity" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 10.0%" />
+<col style="width: 8.0%" />
+<col style="width: 12.0%" />
+<col style="width: 20.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Required</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">model</span></code></p></td>
+<td><p>string</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Gravity model. Options: ‘constant’, ‘spherical’.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gval</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Gravitational acceleration (constant model). Must be &gt; 0.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">operator_split</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Apply gravity as an operator-split source.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="config-heating">
+<h2><code class="docutils literal notranslate"><span class="pre">config.heating</span></code><a class="headerlink" href="#config-heating" title="Link to this heading">#</a></h2>
+<section id="nickel">
+<h3><code class="docutils literal notranslate"><span class="pre">nickel</span></code><a class="headerlink" href="#nickel" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 10.0%" />
+<col style="width: 8.0%" />
+<col style="width: 12.0%" />
+<col style="width: 20.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Required</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">model</span></code></p></td>
+<td><p>string</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Nickel heating model. Options. ‘jeffery’ and ‘full_trapping’.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">enabled</span></code></p></td>
+<td><p>bool</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Enable Ni56 decay heating.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">operator_split</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Apply nickel heating as operator-split source.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="config-ionization">
+<h2><code class="docutils literal notranslate"><span class="pre">config.ionization</span></code><a class="headerlink" href="#config-ionization" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 10.0%" />
+<col style="width: 8.0%" />
+<col style="width: 12.0%" />
+<col style="width: 20.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Required</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">solver</span></code></p></td>
+<td><p>string</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">linear</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Saha solver mode. Options: ‘linear’, ‘log’.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ncomps</span></code></p></td>
+<td><p>int</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Number of species for Saha solver.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">fn_ionization</span></code></p></td>
+<td><p>string</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Path to ionization atomic data file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">fn_degeneracy</span></code></p></td>
+<td><p>string</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Path to degeneracy factors atomic data file.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="config-opacity">
+<h2><code class="docutils literal notranslate"><span class="pre">config.opacity</span></code><a class="headerlink" href="#config-opacity" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 10.0%" />
+<col style="width: 8.0%" />
+<col style="width: 12.0%" />
+<col style="width: 20.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Required</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">kP</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Planck mean opacity (cm^2/g). Required for constant and powerlaw.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">filename</span></code></p></td>
+<td><p>string</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Path to tabular opacity HDF5 file.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">t_exp</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Temperature exponent for powerlaw opacity.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">type</span></code></p></td>
+<td><p>string</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Opacity model. Options: ‘tabular’, ‘constant’, ‘powerlaw’.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">kR_offset</span></code></p></td>
+<td><p>double</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.0</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Rosseland opacity additive offset. Powerlaw only.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">kP_offset</span></code></p></td>
+<td><p>double</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.0</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Planck opacity additive offset. Powerlaw only.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rho_exp</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Density exponent for powerlaw opacity.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">kR</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Rosseland mean opacity (cm^2/g). Required for constant and powerlaw.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<section id="floors">
+<h3><code class="docutils literal notranslate"><span class="pre">floors</span></code><a class="headerlink" href="#floors" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 10.0%" />
+<col style="width: 8.0%" />
+<col style="width: 12.0%" />
+<col style="width: 20.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Required</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rosseland</span></code></p></td>
+<td><p>double</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.001</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Rosseland floor value. Used with constant floor model.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">planck</span></code></p></td>
+<td><p>double</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.001</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Planck floor value. Used with constant floor model.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">env_planck</span></code></p></td>
+<td><p>double</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.01</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Envelope Planck floor. Used with core_envelope model.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">env_rosseland</span></code></p></td>
+<td><p>double</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.01</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Envelope Rosseland floor. Used with core_envelope model.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">core_rosseland</span></code></p></td>
+<td><p>double</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.24</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Core Rosseland floor. Used with core_envelope model.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">core_planck</span></code></p></td>
+<td><p>double</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.24</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Core Planck floor. Used with core_envelope model.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">type</span></code></p></td>
+<td><p>string</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">core_envelope</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Opacity floor model. Options: ‘core_envelope’, ‘constant’.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="config-output">
+<h2><code class="docutils literal notranslate"><span class="pre">config.output</span></code><a class="headerlink" href="#config-output" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 10.0%" />
+<col style="width: 8.0%" />
+<col style="width: 12.0%" />
+<col style="width: 20.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Required</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dt_init</span></code></p></td>
+<td><p>double</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1.000000e-16</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Initial timestep. Must be &gt; 0.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dt_hdf5</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Time interval between HDF5 outputs. Default: t_end / 100.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dt_fixed</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Fixed timestep override. Optional.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ncycle_out</span></code></p></td>
+<td><p>double</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">100</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Number of cycles between stdout output.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dt_init_frac</span></code></p></td>
+<td><p>double</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1.05</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Initial timestep growth factor. Must be &gt; 1.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<section id="history">
+<h3><code class="docutils literal notranslate"><span class="pre">history</span></code><a class="headerlink" href="#history" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 10.0%" />
+<col style="width: 8.0%" />
+<col style="width: 12.0%" />
+<col style="width: 20.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Required</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">fn</span></code></p></td>
+<td><p>string</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">athelas.hst</span></code></p></td>
+<td><p>No</p></td>
+<td><p>History output filename.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dt</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Time interval between history writes. Default: dt_hdf5 / 10.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="config-physics">
+<h2><code class="docutils literal notranslate"><span class="pre">config.physics</span></code><a class="headerlink" href="#config-physics" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 10.0%" />
+<col style="width: 8.0%" />
+<col style="width: 12.0%" />
+<col style="width: 20.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Required</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">engine</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Enable energy injection engine.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">radiation</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Enable radiation transport.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">composition</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Enable multi-species composition.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gravity</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Enable gravitational source terms.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">heating</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Enable nuclear heating sources.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ionization</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Enable Saha ionization. Requires composition = true.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="config-problem">
+<h2><code class="docutils literal notranslate"><span class="pre">config.problem</span></code><a class="headerlink" href="#config-problem" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 10.0%" />
+<col style="width: 8.0%" />
+<col style="width: 12.0%" />
+<col style="width: 20.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Required</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">xl</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Left boundary of the domain.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">name</span></code></p></td>
+<td><p>string</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Unique identifier for this simulation problem.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">xr</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Right boundary of the domain. Must be &gt; xl.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">geometry</span></code></p></td>
+<td><p>string</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Domain geometry. Options: ‘planar’, ‘spherical’.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cfl</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>CFL double for timestep control. Must be &gt; 0.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">params</span></code></p></td>
+<td><p>—</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Problem-specific parameters. Validated by the problem generator.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">grid_type</span></code></p></td>
+<td><p>string</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Grid spacing type. Options: ‘uniform’, ‘logarithmic’.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">t_end</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>End time of the simulation.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nx</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Number of grid cells. Must be &gt; 0.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nlim</span></code></p></td>
+<td><p>double</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">-1</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Maximum double of cycles. -1 for unlimited.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="config-radiation">
+<h2><code class="docutils literal notranslate"><span class="pre">config.radiation</span></code><a class="headerlink" href="#config-radiation" title="Link to this heading">#</a></h2>
+<section id="id1">
+<h3><code class="docutils literal notranslate"><span class="pre">limiter</span></code><a class="headerlink" href="#id1" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 10.0%" />
+<col style="width: 8.0%" />
+<col style="width: 12.0%" />
+<col style="width: 20.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Required</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">characteristic</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Enable characteristic limiting. Currently unsupported for radiation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">b_tvd</span></code></p></td>
+<td><p>double</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1.0</span></code></p></td>
+<td><p>No</p></td>
+<td><p>TVD parameter b. Used with minmod limiter.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tci_val</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Troubled-cell indicator threshold.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">m_tvb</span></code></p></td>
+<td><p>double</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.0</span></code></p></td>
+<td><p>No</p></td>
+<td><p>TVB parameter M. Used with minmod limiter.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">type</span></code></p></td>
+<td><p>string</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">minmod</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Limiter type. Options: ‘minmod’, ‘weno’.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gamma_i</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>WENO central weight. Required for WENO limiter.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">gamma_l</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>WENO left weight. Inferred from gamma_i if omitted.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gamma_r</span></code></p></td>
+<td><p>double</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>WENO right weight. Inferred from gamma_i if omitted.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">do_limiter</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Enable slope limiter for radiation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">weno_r</span></code></p></td>
+<td><p>double</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">2.0</span></code></p></td>
+<td><p>No</p></td>
+<td><p>WENO smoothness exponent. Must be &gt; 0.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tci_opt</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>No</p></td>
+<td><p>Enable troubled-cell indicator.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="config-time">
+<h2><code class="docutils literal notranslate"><span class="pre">config.time</span></code><a class="headerlink" href="#config-time" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 10.0%" />
+<col style="width: 8.0%" />
+<col style="width: 12.0%" />
+<col style="width: 20.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Required</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">integrator</span></code></p></td>
+<td><p>string</p></td>
+<td><p>—</p></td>
+<td><p>No</p></td>
+<td><p>Time integration method. E.g. ‘IMEX_SSPRK11’, ‘IMEX_ARK32_ESDIRK’.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="saha.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Saha Ionization Model</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="sphinx-doc.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">How to Use Sphinx for Writing Docs</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-basis"><code class="docutils literal notranslate"><span class="pre">config.basis</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-bc"><code class="docutils literal notranslate"><span class="pre">config.bc</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#fluid"><code class="docutils literal notranslate"><span class="pre">fluid</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#radiation"><code class="docutils literal notranslate"><span class="pre">radiation</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-composition"><code class="docutils literal notranslate"><span class="pre">config.composition</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-engine"><code class="docutils literal notranslate"><span class="pre">config.engine</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#thermal"><code class="docutils literal notranslate"><span class="pre">thermal</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-eos"><code class="docutils literal notranslate"><span class="pre">config.eos</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-fluid"><code class="docutils literal notranslate"><span class="pre">config.fluid</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#limiter"><code class="docutils literal notranslate"><span class="pre">limiter</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-gravity"><code class="docutils literal notranslate"><span class="pre">config.gravity</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-heating"><code class="docutils literal notranslate"><span class="pre">config.heating</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nickel"><code class="docutils literal notranslate"><span class="pre">nickel</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-ionization"><code class="docutils literal notranslate"><span class="pre">config.ionization</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-opacity"><code class="docutils literal notranslate"><span class="pre">config.opacity</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#floors"><code class="docutils literal notranslate"><span class="pre">floors</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-output"><code class="docutils literal notranslate"><span class="pre">config.output</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#history"><code class="docutils literal notranslate"><span class="pre">history</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-physics"><code class="docutils literal notranslate"><span class="pre">config.physics</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-problem"><code class="docutils literal notranslate"><span class="pre">config.problem</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-radiation"><code class="docutils literal notranslate"><span class="pre">config.radiation</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1"><code class="docutils literal notranslate"><span class="pre">limiter</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-time"><code class="docutils literal notranslate"><span class="pre">config.time</span></code></a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Brandon L. Barker
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025-2026, Brandon L. Barker.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
