@@ -5,6 +5,7 @@
 ---
 
 ### Added (new features/APIs/variables/...)
+- [PR 162](https://github.com/athelas-astro/athelas/pull/162) Add `-h` CLI arg.
 - [PR 161](https://github.com/athelas-astro/athelas/pull/161) Input configuration with Lua+Sol2
 - [PR 156](https://github.com/athelas-astro/athelas/pull/156) Add `enabled(const std::string &physics)` to `state`.
 - [PR 156](https://github.com/athelas-astro/athelas/pull/156) Number history columns.
