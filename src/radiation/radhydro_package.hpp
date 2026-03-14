@@ -14,18 +14,6 @@
 
 namespace athelas::radiation {
 
-/*
-struct RadHydroSolverIonizationContent {
-  AthelasArray2D<double> number_density;
-  AthelasArray2D<double> ye;
-  AthelasArray2D<double> ybar;
-  AthelasArray2D<double> sigma1;
-  AthelasArray2D<double> sigma2;
-  AthelasArray2D<double> sigma3;
-  AthelasArray2D<double> e_ion_corr;
-  AthelasArray3D<double> bulk;
-};
-*/
 struct RadHydroSolverIonizationContent {
   double number_density{};
   double ye{};
@@ -38,7 +26,66 @@ struct RadHydroSolverIonizationContent {
   double Z{};
 };
 
+void radiation_source_implicit(const StageData &stage_data, AthelasArray3D<double> R,
+                     AthelasArray4D<double> delta,
+                     const GridStructure &grid, const TimeStepInfo &dt_info);
+
 using bc::BoundaryConditions;
+
+class ImplicitRadiationMomentsPackage {
+ public:
+  ImplicitRadiationMomentsPackage(const ProblemIn * /*pin*/, int n_stages, int nq,
+                  BoundaryConditions *bcs, double cfl, int nx,
+                  bool active = true);
+
+  void update_implicit(const StageData &stage_data, AthelasArray3D<double> R,
+                       const GridStructure &grid, const TimeStepInfo &dt_info);
+
+  void apply_delta(AthelasArray3D<double> lhs,
+                   const TimeStepInfo &dt_info) const;
+
+  void zero_delta() const noexcept;
+
+  [[nodiscard]] auto min_timestep(const StageData & /*stage_data*/,
+                                  const GridStructure &grid,
+                                  const TimeStepInfo & /*dt_info*/) const
+      -> double;
+
+  [[nodiscard]] auto name() const noexcept -> std::string_view;
+
+  [[nodiscard]] auto is_active() const noexcept -> bool;
+
+  void fill_derived(StageData &stage_data, const GridStructure &grid,
+                    const TimeStepInfo &dt_info) const;
+
+  void set_active(bool active);
+
+  [[nodiscard]] auto get_flux_u(int stage, int i) const -> double;
+
+  [[nodiscard]] static constexpr auto num_vars() noexcept -> int {
+    return NUM_VARS_;
+  }
+
+ private:
+  bool active_;
+
+  int nx_;
+  double cfl_;
+
+  BoundaryConditions *bcs_;
+
+  // package storage
+  AthelasArray2D<double> dFlux_num_; // stores Riemann solutions
+  AthelasArray2D<double> u_f_l_; // left faces
+  AthelasArray2D<double> u_f_r_; // right faces
+
+  AthelasArray4D<double> delta_; // rhs delta
+
+  // constants
+  static constexpr int NUM_VARS_ = 2;
+};
+
+// ----------------------------------------------------------------------------
 
 class RadHydroPackage {
  public:

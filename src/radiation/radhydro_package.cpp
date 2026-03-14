@@ -18,6 +18,324 @@ using basis::NodalBasis, basis::basis_eval;
 using eos::EOS;
 using fluid::numerical_flux_gudonov_positivity;
 
+void radiation_source_implicit(const StageData &stage_data,
+                                      AthelasArray3D<double> R,
+                                      AthelasArray4D<double> delta,
+                                      const GridStructure &grid,
+                                      const TimeStepInfo &dt_info) {
+  // TODO(astrobarker) handle separate fluid and rad orders
+  const auto &rad_basis = stage_data.rad_basis();
+  const auto &fluid_basis = stage_data.fluid_basis();
+  static const IndexRange ib(grid.domain<Domain::Interior>());
+  static const IndexRange qb(grid.n_nodes());
+
+  static const bool ionization_enabled = stage_data.enabled("ionization");
+
+  auto ucf = stage_data.get_field("u_cf");
+  auto uaf = stage_data.get_field("u_af");
+
+  const auto &eos = stage_data.eos();
+  const auto &opac = stage_data.opac();
+
+  auto phi_rad = rad_basis.phi();
+  auto phi_fluid = fluid_basis.phi();
+  auto inv_mkk = fluid_basis.inv_mass_matrix();
+  auto inv_mkk_rad = rad_basis.inv_mass_matrix();
+  auto dr = grid.widths();
+  auto weights = grid.weights();
+  auto sqrt_gm = grid.sqrt_gm();
+
+  constexpr int NUM_VARS = 5;
+  if (ionization_enabled) {
+    const auto *const ionization_state = stage_data.ionization_state();
+    const auto *const comps = stage_data.comps();
+    auto number_density = comps->number_density();
+    auto ye = comps->ye();
+    auto ybar = ionization_state->ybar();
+    auto sigma1 = ionization_state->sigma1();
+    auto sigma2 = ionization_state->sigma2();
+    auto sigma3 = ionization_state->sigma3();
+    auto e_ion_corr = ionization_state->e_ion_corr();
+    auto bulk = stage_data.get_field("bulk_composition");
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN, "RadHydro :: Implicit", DevExecSpace(), ib.s,
+        ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
+          const auto ucf_i = Kokkos::subview(ucf, i, q, Kokkos::ALL);
+          const auto uaf_i = Kokkos::subview(uaf, i, q, Kokkos::ALL);
+          const auto Ustar_i = Kokkos::subview(R, i, q, Kokkos::ALL);
+          const RadHydroSolverIonizationContent content{
+              .number_density = number_density(i, q + 1),
+              .ye = ye(i, q + 1),
+              .ybar = ybar(i, q + 1),
+              .sigma1 = sigma1(i, q + 1),
+              .sigma2 = sigma2(i, q + 1),
+              .sigma3 = sigma3(i, q + 1),
+              .e_ion_corr = e_ion_corr(i, q + 1),
+              .X = bulk(i, q + 1, 0),
+              .Z = bulk(i, q + 1, 2)};
+
+          Kokkos::Array<double, NUM_VARS> scratch_sol;
+
+          // set radhydro vars
+          for (int v = 0; v < NUM_VARS; ++v) {
+            scratch_sol[v] = Ustar_i(v);
+          }
+
+          const double rho = 1.0 / ucf_i(vars::cons::SpecificVolume);
+          eos::EOSLambda lambda;
+          lambda.data[0] = content.number_density;
+          lambda.data[1] = content.ye;
+          lambda.data[2] = content.ybar;
+          lambda.data[3] = content.sigma1;
+          lambda.data[4] = content.sigma2;
+          lambda.data[5] = content.sigma3;
+          lambda.data[6] = content.e_ion_corr;
+          lambda.data[7] = uaf_i(vars::aux::Tgas);
+          const double emin = min_sie(eos, rho, lambda.ptr());
+          const double dg_term =
+              weights(q) * sqrt_gm(i, q + 1) * dr(i) * inv_mkk(i, q);
+
+          newton_radhydro<IonizationPhysics::Active>(
+              dt_info.dt_coef, emin, Ustar_i, uaf_i, content, scratch_sol, eos,
+              opac, lambda, dg_term);
+
+          for (int v = 1; v < NUM_VARS; ++v) {
+            ucf(i, q, v) = scratch_sol[v];
+            delta(dt_info.stage, i, q, v) =
+                (ucf_i(v) - Ustar_i(v)) / dt_info.dt_coef;
+          }
+        });
+  } else {
+    const RadHydroSolverIonizationContent content;
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Implicit", DevExecSpace(), ib.s,
+        ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
+          const auto ucf_i = Kokkos::subview(ucf, i, q, Kokkos::ALL);
+          const auto uaf_i = Kokkos::subview(uaf, i, q, Kokkos::ALL);
+          const auto Ustar_i = Kokkos::subview(R, i, q, Kokkos::ALL);
+
+          Kokkos::Array<double, NUM_VARS> scratch_sol;
+
+          // set radhydro vars
+          for (int v = 0; v < NUM_VARS; ++v) {
+            scratch_sol[v] = Ustar_i(v);
+          }
+
+          const double rho = 1.0 / ucf_i(vars::cons::SpecificVolume);
+          eos::EOSLambda lambda;
+          const double emin = min_sie(eos, rho, lambda.ptr());
+          const double inv_mqq = inv_mkk(i, q);
+          const double dr_i = dr(i);
+          const double dg_term =
+              weights(q) * sqrt_gm(i, q + 1) * dr_i * inv_mqq;
+
+          newton_radhydro<IonizationPhysics::Inactive>(
+              dt_info.dt_coef, emin, Ustar_i, uaf_i, content, scratch_sol, eos,
+              opac, lambda, dg_term);
+
+          for (int v = 1; v < NUM_VARS; ++v) {
+            ucf(i, q, v) = scratch_sol[v];
+            delta(dt_info.stage, i, q, v) =
+                (ucf_i(v) - Ustar_i(v)) / dt_info.dt_coef;
+          }
+        });
+  }
+}
+
+/**
+ * @brief IMEX Radiation hydrodynamics
+ * Joint radiation hydrodynamics package doing hyperbolic terms explicitly 
+ * and sources implicitly. This is likely not used for production as 
+ * the explicit treatment of the hyperbolic radiation flux divergence 
+ * has an overly restrictive timestep restriction.
+ */
+ImplicitRadiationMomentsPackage::ImplicitRadiationMomentsPackage(const ProblemIn *pin, int n_stages, int nq,
+                                 BoundaryConditions *bcs, double cfl, int nx,
+                                 bool active)
+    : active_(active), cfl_(cfl), bcs_(bcs),
+      dFlux_num_("hydro::dFlux_num_", nx + 2 + 1, 5),
+      u_f_l_("hydro::u_f_l_", nx + 2, 5), u_f_r_("hydro::u_f_r_", nx + 2, 5),
+      delta_("implicit radhydro delta implicit", n_stages, nx + 2, nq, 5) {
+}
+
+void ImplicitRadiationMomentsPackage::update_implicit(const StageData &stage_data,
+                                      AthelasArray3D<double> R,
+                                      const GridStructure &grid,
+                                      const TimeStepInfo &dt_info) {
+  /*
+  // TODO(astrobarker) handle separate fluid and rad orders
+  const auto &rad_basis = stage_data.rad_basis();
+  const auto &fluid_basis = stage_data.fluid_basis();
+  static const IndexRange ib(grid.domain<Domain::Interior>());
+  static const IndexRange qb(grid.n_nodes());
+
+  static const bool ionization_enabled = stage_data.enabled("ionization");
+
+  auto ucf = stage_data.get_field("u_cf");
+  auto uaf = stage_data.get_field("u_af");
+
+  const auto &eos = stage_data.eos();
+  const auto &opac = stage_data.opac();
+
+  auto phi_rad = rad_basis.phi();
+  auto phi_fluid = fluid_basis.phi();
+  auto inv_mkk = fluid_basis.inv_mass_matrix();
+  auto inv_mkk_rad = rad_basis.inv_mass_matrix();
+  auto dr = grid.widths();
+  auto weights = grid.weights();
+  auto sqrt_gm = grid.sqrt_gm();
+  */
+
+  // compute radiation-matter coupling sources implicitly with Newton-Raphson.
+  radiation_source_implicit(stage_data, R, delta_, grid, dt_info);
+
+} // update_implicit
+
+/**
+ * @brief apply rad hydro package delta
+ */
+void ImplicitRadiationMomentsPackage::apply_delta(AthelasArray3D<double> lhs,
+                                  const TimeStepInfo &dt_info) const {
+  static const int nx = static_cast<int>(lhs.extent(0));
+  static const int nq = static_cast<int>(lhs.extent(1));
+  static const IndexRange ib(std::make_pair(1, nx - 2));
+  static const IndexRange qb(nq);
+  static const IndexRange vb(NUM_VARS_);
+
+  const int stage = dt_info.stage;
+
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "RadHydro :: Apply delta", DevExecSpace(), ib.s,
+      ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+        for (int v = vb.s; v <= vb.e; ++v) {
+          //lhs(i, q, v) += dt_info.dt_coef * delta_(stage, i, q, v);
+          lhs(i, q, v) += dt_info.dt_coef_implicit * delta_(stage, i, q, v);
+        }
+      });
+}
+
+/**
+ * @brief zero delta field
+ */
+void ImplicitRadiationMomentsPackage::zero_delta() const noexcept {
+  static const IndexRange sb(static_cast<int>(delta_.extent(0)));
+  static const IndexRange ib(static_cast<int>(delta_.extent(1)));
+  static const IndexRange qb(static_cast<int>(delta_.extent(2)));
+  static const IndexRange vb(static_cast<int>(delta_.extent(3)));
+
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "RadHydro :: Zero delta", DevExecSpace(), sb.s,
+      sb.e, ib.s, ib.e, qb.s, qb.e,
+      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int q) {
+        for (int v = vb.s; v <= vb.e; ++v) {
+          delta_(s, i, q, v) = 0.0;
+        }
+      });
+
+  // We store the last stage source in the state = 0 slot.
+  // That is, G(U^0) <- G(U^n).
+  // In an ESDIRK tableau we reuse this for the first stage.
+  const int ns = sb.e;
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "RadHydro :: Zero delta", DevExecSpace(), ib.s,
+      ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+        for (int v = vb.s; v <= vb.e; ++v) {
+          delta_(0, i, q, v) = delta_(ns, i, q, v);
+        }
+      });
+}
+
+/**
+ * @brief implicit radiation moments timestep restriction
+ **/
+auto ImplicitRadiationMomentsPackage::min_timestep(const StageData & /*stage_data*/,
+                                   const GridStructure &grid,
+                                   const TimeStepInfo & /*dt_info*/) const
+    -> double {
+  static constexpr double MAX_DT = std::numeric_limits<double>::max();
+  static constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
+
+  static const IndexRange ib(grid.domain<Domain::Interior>());
+
+  const auto dr = grid.widths();
+
+  double dt_out = 0.0;
+  athelas::par_reduce(
+      DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: timestep restriction",
+      DevExecSpace(), ib.s, ib.e,
+      KOKKOS_CLASS_LAMBDA(const int i, double &lmin) {
+        lmin = MAX_DT;
+      },
+      Kokkos::Min<double>(dt_out));
+
+  dt_out = std::max(cfl_ * dt_out, MIN_DT);
+  dt_out = std::min(dt_out, MAX_DT);
+
+  return dt_out;
+}
+
+/**
+ * @brief fill RadHydro derived quantities
+ *
+ * TODO(astrobarker): extend
+ * TODO(astrobarker): The if-wrapped kernels are not so nice.
+ * It would be nice to write an inner, templated on IonzationPhysics
+ * function that deals with this. Has less duplicated code.
+ */
+void ImplicitRadiationMomentsPackage::fill_derived(StageData &stage_data,
+                                   const GridStructure &grid,
+                                   const TimeStepInfo & /*dt_info*/) const {
+  auto ucf = stage_data.get_field("u_cf");
+  auto upf = stage_data.get_field("u_pf");
+  auto uaf = stage_data.get_field("u_af");
+
+  const auto &fluid_basis = stage_data.fluid_basis();
+
+  const int nNodes = grid.n_nodes();
+  static const IndexRange ib(grid.domain<Domain::Entire>());
+
+  auto phi = fluid_basis.phi();
+
+  // --- Apply BC ---
+  bc::fill_ghost_zones<2>(ucf, &grid, bcs_, {3, 4});
+
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: fill derived", DevExecSpace(),
+        ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
+          for (int q = 0; q < nNodes + 2; ++q) {
+            const double rho =
+                1.0 / basis_eval(phi, ucf, i, vars::cons::SpecificVolume, q);
+            
+            const double e_rad =
+                basis_eval(phi, ucf, i, vars::cons::RadEnergy, q) * rho;
+            const double flux_rad =
+                basis_eval(phi, ucf, i, vars::cons::RadFlux, q) * rho;
+
+            // const double flux_fact = flux_factor(e_rad, f_rad);
+
+          }
+        });
+}
+
+[[nodiscard]] auto ImplicitRadiationMomentsPackage::name() const noexcept -> std::string_view {
+  return "ImplicitRadiationMoments";
+}
+
+[[nodiscard]] auto ImplicitRadiationMomentsPackage::is_active() const noexcept -> bool {
+  return active_;
+}
+
+void ImplicitRadiationMomentsPackage::set_active(const bool active) { active_ = active; }
+
+// ----------------------------------------------------------------------------
+
+/**
+ * @brief IMEX Radiation hydrodynamics
+ * Joint radiation hydrodynamics package doing hyperbolic terms explicitly 
+ * and sources implicitly. This is likely not used for production as 
+ * the explicit treatment of the hyperbolic radiation flux divergence 
+ * has an overly restrictive timestep restriction.
+ */
 RadHydroPackage::RadHydroPackage(const ProblemIn *pin, int n_stages, int nq,
                                  BoundaryConditions *bcs, double cfl, int nx,
                                  bool active)
@@ -72,122 +390,8 @@ void RadHydroPackage::update_implicit(const StageData &stage_data,
                                       AthelasArray3D<double> R,
                                       const GridStructure &grid,
                                       const TimeStepInfo &dt_info) {
-  // TODO(astrobarker) handle separate fluid and rad orders
-  const auto &rad_basis = stage_data.rad_basis();
-  const auto &fluid_basis = stage_data.fluid_basis();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  static const IndexRange qb(grid.n_nodes());
-
-  static const bool ionization_enabled = stage_data.enabled("ionization");
-
-  auto ucf = stage_data.get_field("u_cf");
-  auto uaf = stage_data.get_field("u_af");
-
-  const auto &eos = stage_data.eos();
-  const auto &opac = stage_data.opac();
-
-  auto phi_rad = rad_basis.phi();
-  auto phi_fluid = fluid_basis.phi();
-  auto inv_mkk = fluid_basis.inv_mass_matrix();
-  auto inv_mkk_rad = rad_basis.inv_mass_matrix();
-  auto dr = grid.widths();
-  auto weights = grid.weights();
-  auto sqrt_gm = grid.sqrt_gm();
-
-  if (ionization_enabled) {
-    const auto *const ionization_state = stage_data.ionization_state();
-    const auto *const comps = stage_data.comps();
-    auto number_density = comps->number_density();
-    auto ye = comps->ye();
-    auto ybar = ionization_state->ybar();
-    auto sigma1 = ionization_state->sigma1();
-    auto sigma2 = ionization_state->sigma2();
-    auto sigma3 = ionization_state->sigma3();
-    auto e_ion_corr = ionization_state->e_ion_corr();
-    auto bulk = stage_data.get_field("bulk_composition");
-    athelas::par_for(
-        DEFAULT_LOOP_PATTERN, "RadHydro :: Implicit", DevExecSpace(), ib.s,
-        ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-          const auto ucf_i = Kokkos::subview(ucf, i, q, Kokkos::ALL);
-          const auto uaf_i = Kokkos::subview(uaf, i, q, Kokkos::ALL);
-          const auto Ustar_i = Kokkos::subview(R, i, q, Kokkos::ALL);
-          const RadHydroSolverIonizationContent content{
-              .number_density = number_density(i, q + 1),
-              .ye = ye(i, q + 1),
-              .ybar = ybar(i, q + 1),
-              .sigma1 = sigma1(i, q + 1),
-              .sigma2 = sigma2(i, q + 1),
-              .sigma3 = sigma3(i, q + 1),
-              .e_ion_corr = e_ion_corr(i, q + 1),
-              .X = bulk(i, q + 1, 0),
-              .Z = bulk(i, q + 1, 2)};
-
-          Kokkos::Array<double, NUM_VARS_> scratch_sol;
-
-          // set radhydro vars
-          for (int v = 0; v < NUM_VARS_; ++v) {
-            scratch_sol[v] = Ustar_i(v);
-          }
-
-          const double rho = 1.0 / ucf_i(vars::cons::SpecificVolume);
-          eos::EOSLambda lambda;
-          lambda.data[0] = content.number_density;
-          lambda.data[1] = content.ye;
-          lambda.data[2] = content.ybar;
-          lambda.data[3] = content.sigma1;
-          lambda.data[4] = content.sigma2;
-          lambda.data[5] = content.sigma3;
-          lambda.data[6] = content.e_ion_corr;
-          lambda.data[7] = uaf_i(vars::aux::Tgas);
-          const double emin = min_sie(eos, rho, lambda.ptr());
-          const double dg_term =
-              weights(q) * sqrt_gm(i, q + 1) * dr(i) * inv_mkk(i, q);
-
-          newton_radhydro<IonizationPhysics::Active>(
-              dt_info.dt_coef, emin, Ustar_i, uaf_i, content, scratch_sol, eos,
-              opac, lambda, dg_term);
-
-          for (int v = 1; v < NUM_VARS_; ++v) {
-            ucf(i, q, v) = scratch_sol[v];
-            delta_im_(dt_info.stage, i, q, v) =
-                (ucf_i(v) - Ustar_i(v)) / dt_info.dt_coef;
-          }
-        });
-  } else {
-    const RadHydroSolverIonizationContent content;
-    athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Implicit", DevExecSpace(), ib.s,
-        ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-          const auto ucf_i = Kokkos::subview(ucf, i, q, Kokkos::ALL);
-          const auto uaf_i = Kokkos::subview(uaf, i, q, Kokkos::ALL);
-          const auto Ustar_i = Kokkos::subview(R, i, q, Kokkos::ALL);
-
-          Kokkos::Array<double, NUM_VARS_> scratch_sol;
-
-          // set radhydro vars
-          for (int v = 0; v < NUM_VARS_; ++v) {
-            scratch_sol[v] = Ustar_i(v);
-          }
-
-          const double rho = 1.0 / ucf_i(vars::cons::SpecificVolume);
-          eos::EOSLambda lambda;
-          const double emin = min_sie(eos, rho, lambda.ptr());
-          const double inv_mqq = inv_mkk(i, q);
-          const double dr_i = dr(i);
-          const double dg_term =
-              weights(q) * sqrt_gm(i, q + 1) * dr_i * inv_mqq;
-
-          newton_radhydro<IonizationPhysics::Inactive>(
-              dt_info.dt_coef, emin, Ustar_i, uaf_i, content, scratch_sol, eos,
-              opac, lambda, dg_term);
-
-          for (int v = 1; v < NUM_VARS_; ++v) {
-            ucf(i, q, v) = scratch_sol[v];
-            delta_im_(dt_info.stage, i, q, v) =
-                (ucf_i(v) - Ustar_i(v)) / dt_info.dt_coef;
-          }
-        });
-  }
+  // compute radiation-matter coupling sources implicitly with Newton-Raphson.
+  radiation_source_implicit(stage_data, R, delta_im_, grid, dt_info);
 } // update_implicit
 
 /**
