@@ -31,9 +31,9 @@ auto flux_factor(const double E, const double F) -> double {
  * @brief return std::tuple containing advective radiation flux
  */
 KOKKOS_INLINE_FUNCTION
-auto flux_rad(const double E, const double F, const double P, const double V)
+auto flux_rad(const double E, const double F, const double P, const double V, const double c_hat)
     -> std::tuple<double, double> {
-  return {F - E * V, constants::c_cgs * constants::c_cgs * P - F * V};
+  return {F - E * V, constants::c_cgs * c_hat * P - F * V};
 }
 
 KOKKOS_INLINE_FUNCTION

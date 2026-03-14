@@ -72,6 +72,9 @@ void RadHydroPackage::update_implicit(const StageData &stage_data,
                                       AthelasArray3D<double> R,
                                       const GridStructure &grid,
                                       const TimeStepInfo &dt_info) {
+  const auto &params = stage_data.params();
+  const auto c_hat = params.get<double>("radiation.rsla.c_hat");
+
   // TODO(astrobarker) handle separate fluid and rad orders
   const auto &rad_basis = stage_data.rad_basis();
   const auto &fluid_basis = stage_data.fluid_basis();
@@ -144,7 +147,7 @@ void RadHydroPackage::update_implicit(const StageData &stage_data,
               weights(q) * sqrt_gm(i, q + 1) * dr(i) * inv_mkk(i, q);
 
           newton_radhydro<IonizationPhysics::Active>(
-              dt_info.dt_coef, emin, Ustar_i, uaf_i, content, scratch_sol, eos,
+              dt_info.dt_coef, c_hat, emin, Ustar_i, uaf_i, content, scratch_sol, eos,
               opac, lambda, dg_term);
 
           for (int v = 1; v < NUM_VARS_; ++v) {
@@ -178,7 +181,7 @@ void RadHydroPackage::update_implicit(const StageData &stage_data,
               weights(q) * sqrt_gm(i, q + 1) * dr_i * inv_mqq;
 
           newton_radhydro<IonizationPhysics::Inactive>(
-              dt_info.dt_coef, emin, Ustar_i, uaf_i, content, scratch_sol, eos,
+              dt_info.dt_coef, c_hat, emin, Ustar_i, uaf_i, content, scratch_sol, eos,
               opac, lambda, dg_term);
 
           for (int v = 1; v < NUM_VARS_; ++v) {
@@ -249,6 +252,9 @@ void RadHydroPackage::zero_delta() const noexcept {
 void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
                                           const GridStructure &grid,
                                           const int stage) const {
+  const auto &params = stage_data.params();
+  const auto c_hat = params.get<double>("radiation.rsla.c_hat");
+
   auto ucf = stage_data.get_field("u_cf");
   auto uaf = stage_data.get_field("u_af");
 
@@ -288,6 +294,8 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
       });
 
   // --- Calc numerical flux at all faces ---
+  static constexpr double c = constants::c_cgs;
+  const double c_hat_o_c = c_hat / constants::c_cgs;
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Numerical fluxes", DevExecSpace(),
       ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
@@ -309,7 +317,6 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
         const double Prad_R = compute_closure(E_R, F_R);
 
         // --- Numerical Fluxes ---
-        static constexpr double c2 = constants::c_cgs * constants::c_cgs;
 
         // Riemann Problem
         // auto [flux_u, flux_p] = numerical_flux_gudonov( u_f_l_(i,  1 ),
@@ -329,9 +336,9 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
 
         const double alpha = rad_wavespeed(E_L, E_R, F_L, F_R, vstar);
         const double flux_e =
-            llf_flux(F_R - vstar * E_R, F_L - vstar * E_L, E_R, E_L, alpha);
+            llf_flux(c_hat_o_c * F_R - vstar * E_R, c_hat_o_c * F_L - vstar * E_L, E_R, E_L, alpha);
         const double flux_f =
-            llf_flux(c2 * Prad_R - vstar * F_R, c2 * Prad_L - vstar * F_L, F_R,
+            llf_flux(c * c_hat * Prad_R - vstar * F_R, c * c_hat * Prad_L - vstar * F_L, F_R,
                      F_L, alpha);
 
         dFlux_num_(i, vars::cons::SpecificVolume) = -flux_u;
@@ -383,7 +390,7 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
             const double p_rad = compute_closure(e_rad, f_rad);
             const auto [flux1, flux2, flux3] =
                 athelas::fluid::flux_fluid(vel, pressure);
-            const auto [flux_e, flux_f] = flux_rad(e_rad, f_rad, p_rad, vstar);
+            const auto [flux_e, flux_f] = flux_rad(e_rad, f_rad, p_rad, vstar, c_hat);
             const double w_dphi_sqrtgm =
                 weights(q) * dphi_fluid(i, qp1, p) * sqrt_gm(i, qp1);
             local_sum1 += w_dphi_sqrtgm * flux1;
@@ -405,7 +412,7 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
 /**
  * @brief explicit radiation hydrodynamic timestep restriction
  **/
-auto RadHydroPackage::min_timestep(const StageData & /*stage_data*/,
+auto RadHydroPackage::min_timestep(const StageData & stage_data,
                                    const GridStructure &grid,
                                    const TimeStepInfo & /*dt_info*/) const
     -> double {
@@ -414,15 +421,18 @@ auto RadHydroPackage::min_timestep(const StageData & /*stage_data*/,
 
   static const IndexRange ib(grid.domain<Domain::Interior>());
 
+  const auto &params = stage_data.params();
+  const auto c_hat = params.get<double>("radiation.rsla.c_hat");
+
   const auto dr = grid.widths();
 
   double dt_out = 0.0;
+  const double eigval = c_hat;
   athelas::par_reduce(
       DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: timestep restriction",
       DevExecSpace(), ib.s, ib.e,
       KOKKOS_CLASS_LAMBDA(const int i, double &lmin) {
-        static constexpr double eigval = constants::c_cgs;
-        const double dt_old = dr(i) / eigval;
+        const double dt_old = std::numbers::sqrt3 * dr(i) / eigval;
 
         lmin = std::min(dt_old, lmin);
       },

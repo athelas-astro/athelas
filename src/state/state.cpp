@@ -25,6 +25,10 @@ auto StageData::get_field(const std::string &name) const
   return parent_->get_field<AthelasArray3D<double>>(name);
 }
 
+[[nodiscard]] auto StageData::params() const -> const Params & {
+  return parent_->params();
+}
+
 auto StageData::get_var(const std::string &field, const std::string &var_name,
                         const int i, const int q) const -> double {
   const int var_idx = parent_->var_index(field, var_name);
@@ -95,6 +99,7 @@ MeshState::MeshState(const ProblemIn *const pin, const int nstages)
   params_->add("nickel_evolved", nickel_evolved);
   params_->add("radiation.enabled", rad_enabled);
   params_->add("engine.thermal.enabled", thermal_engine_enabled);
+  params_->add("radiation.rsla.c_hat", pin->param()->get<double>("radiation.rsla.c_hat"));
 
   // microphysics
   eos_ = std::make_unique<eos::EOS>(eos::initialize_eos(pin));
@@ -111,6 +116,10 @@ MeshState::MeshState(const ProblemIn *const pin, const int nstages)
     fields.push_back(name);
   }
   return fields;
+}
+
+[[nodiscard]] auto MeshState::params() const -> const Params & {
+  return *params_;
 }
 
 /**

@@ -59,7 +59,7 @@ class RadHydroPackage {
   void radhydro_divergence(const StageData &stage_data,
                            const GridStructure &grid, int stage) const;
 
-  [[nodiscard]] auto min_timestep(const StageData & /*stage_data*/,
+  [[nodiscard]] auto min_timestep(const StageData &stage_data,
                                   const GridStructure &grid,
                                   const TimeStepInfo & /*dt_info*/) const
       -> double;
@@ -737,7 +737,7 @@ newton_radhydro_fd(const double dt_a_ii, const double emin, T ustar, T uaf,
 
 template <IonizationPhysics Ionization, typename T, typename G>
 KOKKOS_INLINE_FUNCTION void
-newton_radhydro(const double dt_a_ii, const double emin, T ustar, T uaf,
+newton_radhydro(const double dt_a_ii, const double c_hat, const double emin, T ustar, T uaf,
                 const RadHydroSolverIonizationContent &content, G &scratch,
                 const eos::EOS &eos, const Opacity &opac, eos::EOSLambda lambda,
                 const double dg_term) {
@@ -756,8 +756,8 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T uaf,
   const double e_star = ustar(vars::cons::Energy);
   const double er_star = ustar(vars::cons::RadEnergy);
   const double fr_star = ustar(vars::cons::RadFlux);
-  const double etot = e_star + er_star;
-  const double m_tot = vstar + fr_star * inv_c2; // "total specific momentum"
+  const double etot = e_star + (c / c_hat) * er_star;
+  const double m_tot = vstar + fr_star * inv_c / c_hat; // "total specific momentum"
   const double vscale = std::sqrt(2.0 * etot);
 
   auto number_density = content.number_density;

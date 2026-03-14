@@ -114,6 +114,7 @@ class StageData {
 
   [[nodiscard]] auto enabled(const std::string &physics) const -> bool;
   [[nodiscard]] auto stage() const noexcept -> int { return stage_; }
+  [[nodiscard]] auto params() const -> const Params &;
   [[nodiscard]] auto mass_fractions(const std::string &field_name) const
       -> AthelasArray3D<double>;
   [[nodiscard]] auto eos() const -> const eos::EOS &;
@@ -165,6 +166,7 @@ class MeshState {
     return {stage, this};
   }
 
+  [[nodiscard]] auto params() const -> const Params &;
   [[nodiscard]] auto n_stages() const noexcept -> int { return nstages_; }
 
   // --- Feature Flags ---

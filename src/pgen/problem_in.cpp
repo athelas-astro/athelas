@@ -281,6 +281,20 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
           "option from [radiation] block.");
     }
 
+    sol::optional<sol::table> rsla_block = radiation["rsla"];
+    if (*rsla_block) {
+        const bool enabled = rsla_block->get<bool>("enabled");
+        if (enabled) {
+        const double f = rsla_block->get<double>("factor");
+        std::println("factor {}", f);
+        params_->add("radiation.rsla.c_hat", f * constants::c_cgs);
+        } else {
+        params_->add("radiation.rsla.c_hat", constants::c_cgs);
+        }
+    } else {
+        params_->add("radiation.rsla.c_hat", constants::c_cgs);
+    }
+
     sol::optional<sol::table> rad_limiter_block = radiation["limiter"];
     sol::table rad_lim = rad_limiter_block.value_or(lua_.create_table());
 
