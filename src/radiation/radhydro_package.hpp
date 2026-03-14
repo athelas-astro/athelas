@@ -977,8 +977,8 @@ newton_radhydro(const double dt_a_ii, const double c_hat, const double emin, T u
   // Update conserved variables
   scratch[vars::cons::Velocity] = v;
   scratch[vars::cons::Energy] = e;
-  scratch[vars::cons::RadEnergy] = etot - e;
-  scratch[vars::cons::RadFlux] = c2 * (m_tot - v);
+  scratch[vars::cons::RadEnergy] = c_hat * inv_c * (etot - e);
+  scratch[vars::cons::RadFlux] = c * c_hat * (m_tot - v);
 }
 
 } // namespace athelas::radiation
