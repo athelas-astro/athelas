@@ -14,6 +14,8 @@ Key Features
 * Radioactive heating from Nickel and Cobalt decay including gammas and positrons.
 * Saha ionization with feedback into the equation of state
 * Shared memory parallelism with `Kokkos`_
+* A ``thermal engine`` for artificially driving supernovae.
+* A modular ``package`` system that automatically threads new physics into the timestepper.
 
 .. image:: _static/logo.png
    :align: center

@@ -7,7 +7,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "Athelas"
-copyright = "2025-2026, Brandon L. Barker"
+copyright = "2024-2026, Brandon L. Barker"
 author = "Brandon L. Barker" # TODO: extend
 release = "v26.03"
 
@@ -55,8 +55,8 @@ todo_include_todos = True
 
 # baseurl for sitemap
 html_baseurl = "https://athelas-astro.github.io/athelas"
-html_sidebars = {
-    '**': [
-        'versioning.html',
-    ],
-}
+#html_sidebars = {
+#    '**': [
+#        'versioning.html',
+#    ],
+#}
