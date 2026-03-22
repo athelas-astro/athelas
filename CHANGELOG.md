@@ -28,6 +28,7 @@
 ### Incompatibilities (i.e. breaking changes)
 
 ### Misc
+- [PR 163](https://github.com/athelas-astro/athelas/pull/163) Misc docs
 
 ## Release 26.03
 Date: 2026-03-01
