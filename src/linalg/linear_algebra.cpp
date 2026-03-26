@@ -79,9 +79,18 @@ namespace athelas {
 //   ipiv  — workspace [m],       pivot array for gesv
 // ===========================================================================
 void block_thomas_solve(int N, int m, BlockStore A, BlockStore B,
-                        BlockStore C, VecStore d, BlockStore W,
-                        VecStore Y, PivotStore ipiv) {
+                        BlockStore C, VecStore d,
+                        const ThomasScratch &scratch) {
     Kokkos::Profiling::pushRegion("BlockThomas");
+    auto W = scratch.W;
+    auto Y = scratch.Y;
+    auto ipiv = scratch.ipiv;
+
+    auto Bi_lu = scratch.Bi_lu;
+    auto aug   = scratch.aug;
+    auto BN_lu = scratch.BN_lu;
+    auto rhs   = scratch.rhs;
+
     // -------------------------------------------------------------------------
     // Forward sweep
     // -------------------------------------------------------------------------
@@ -96,8 +105,6 @@ void block_thomas_solve(int N, int m, BlockStore A, BlockStore B,
         auto di1 = Kokkos::subview(d, Kokkos::ALL, i + 1);
  
         // Augmented solve:  B(i) * [W(i) | Y(i)] = [C(i) | d(i)]
-        Kokkos::View<Scalar**, Layout, MemSpace> Bi_lu("Bi_lu", m, m);
-        Kokkos::View<Scalar**, Layout, MemSpace> aug("aug",     m, m + 1);
         Kokkos::deep_copy(Bi_lu, Bi);
  
         Kokkos::parallel_for("fill_aug",
@@ -105,10 +112,8 @@ void block_thomas_solve(int N, int m, BlockStore A, BlockStore B,
             KOKKOS_LAMBDA(int r, int c) {
                 aug(r, c) = (c < m) ? Ci(r, c) : di(r);
             });
-        Kokkos::fence();
  
         KokkosLapack::gesv(Bi_lu, aug, ipiv);
-        Kokkos::fence();
  
         Kokkos::parallel_for("unpack_aug",
             Kokkos::MDRangePolicy<ExecSpace, Kokkos::Rank<2>>({0, 0}, {m, m + 1}),
@@ -119,11 +124,9 @@ void block_thomas_solve(int N, int m, BlockStore A, BlockStore B,
                 Yi(r)    = aug(r, c);
                 }
             });
-        Kokkos::fence();
  
         KokkosBlas::gemm("N", "N", Scalar(-1), Ai1, Wi, Scalar(1), Bi1);
         KokkosBlas::gemv("N",      Scalar(-1), Ai1, Yi, Scalar(1), di1);
-        Kokkos::fence();
     }
  
     // -------------------------------------------------------------------------
@@ -133,20 +136,15 @@ void block_thomas_solve(int N, int m, BlockStore A, BlockStore B,
         auto BN = Kokkos::subview(B, Kokkos::ALL, Kokkos::ALL, N - 1);
         auto dN = Kokkos::subview(d, Kokkos::ALL, N - 1);
  
-        Kokkos::View<Scalar**, Layout, MemSpace> BN_lu("BN_lu", m, m);
-        Kokkos::View<Scalar**, Layout, MemSpace> rhs("rhs",     m, 1);
         Kokkos::deep_copy(BN_lu, BN);
  
         Kokkos::parallel_for("wrap_rhs", m,
             KOKKOS_LAMBDA(int r) { rhs(r, 0) = dN(r); });
-        Kokkos::fence();
  
         KokkosLapack::gesv(BN_lu, rhs, ipiv);
-        Kokkos::fence();
  
         Kokkos::parallel_for("unwrap_sol", m,
             KOKKOS_LAMBDA(int r) { dN(r) = rhs(r, 0); });
-        Kokkos::fence();
     }
  
     // -------------------------------------------------------------------------
@@ -160,7 +158,6 @@ void block_thomas_solve(int N, int m, BlockStore A, BlockStore B,
  
         Kokkos::deep_copy(xi, Yi);
         KokkosBlas::gemv("N", Scalar(-1), Wi, xi1, Scalar(1), xi);
-        Kokkos::fence();
     }
     Kokkos::Profiling::popRegion();
 }

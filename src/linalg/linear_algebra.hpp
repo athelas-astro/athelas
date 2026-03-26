@@ -25,9 +25,22 @@ using BlockStore = Kokkos::View<Scalar***, Layout, MemSpace>; // [m, m, N] or [m
 using VecStore   = Kokkos::View<Scalar**,  Layout, MemSpace>; // [m, N] or [m, N-1]
 using PivotStore = Kokkos::View<int*,      Layout, MemSpace>; // [m]
 
+struct ThomasScratch {
+  // Workspaces that persist across solves to avoid allocations.
+  BlockStore W;       // [m, m, N-1]
+  VecStore Y;         // [m, N-1]
+  PivotStore ipiv;    // [m]
+
+  // Per-block solve scratch (reused for each block).
+  Kokkos::View<Scalar**, Layout, MemSpace> Bi_lu; // [m, m]
+  Kokkos::View<Scalar**, Layout, MemSpace> aug;   // [m, m+1]
+  Kokkos::View<Scalar**, Layout, MemSpace> BN_lu; // [m, m]
+  Kokkos::View<Scalar**, Layout, MemSpace> rhs;   // [m, 1]
+};
+
 void block_thomas_solve(int N, int m, BlockStore A, BlockStore B,
-                        BlockStore C, VecStore d, BlockStore W,
-                        VecStore Y, PivotStore ipiv);
+                        BlockStore C, VecStore d,
+                        const ThomasScratch &scratch);
 
 // Fill identity matrix
 template <class T>
