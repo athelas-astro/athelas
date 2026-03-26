@@ -13,3 +13,9 @@
 [submodule "external/sol2"]
 	path = external/sol2
 	url = https://github.com/ThePhD/sol2.git
+[submodule "kokkos-kernels"]
+	path = kokkos-kernels
+	url = https://github.com/kokkos/kokkos-kernels.git
+[submodule "external/kokkos-kernels"]
+	path = external/kokkos-kernels
+	url = https://github.com/kokkos/kokkos-kernels.git

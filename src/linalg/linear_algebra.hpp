@@ -12,8 +12,22 @@
 #include <vector>
 
 #include "Kokkos_Macros.hpp"
+#include <Kokkos_Core.hpp>
 
 namespace athelas {
+
+using Scalar    = double;
+using ExecSpace = Kokkos::DefaultExecutionSpace;
+using MemSpace  = ExecSpace::memory_space;
+
+using Layout     = Kokkos::LayoutLeft;
+using BlockStore = Kokkos::View<Scalar***, Layout, MemSpace>; // [m, m, N] or [m, m, N-1]
+using VecStore   = Kokkos::View<Scalar**,  Layout, MemSpace>; // [m, N] or [m, N-1]
+using PivotStore = Kokkos::View<int*,      Layout, MemSpace>; // [m]
+
+void block_thomas_solve(int N, int m, BlockStore A, BlockStore B,
+                        BlockStore C, VecStore d, BlockStore W,
+                        VecStore Y, PivotStore ipiv);
 
 // Fill identity matrix
 template <class T>
