@@ -20,6 +20,8 @@ Key features:
 * Artificially driven explosions
 * A sophisticated package system to thread new physics into the timestepper
 
+Work in progress [docs](https://athelas-astro.github.io) are available.
+
 # Installation
 `athelas` uses submodules to include dependencies. 
 The best way to get the source is the following 
