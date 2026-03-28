@@ -177,7 +177,6 @@ void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
           const double e_q = E_q - 0.5 * v_q * v_q;
 
           if (e_q <= e_min_q) {
-            // Define nonlinear target function
             auto target = [&](double t) -> auto {
               const double v_t = v_avg + t * (v_q - v_avg);
               const double E_t = etot_avg + t * (E_q - etot_avg);
@@ -187,7 +186,6 @@ void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
             };
 
             // Solve for smallest admissible theta
-            // const double theta_q = backtrace(1.0, 0.0, target);
             const double theta_q = bisection(target);
 
             theta_cell = std::min(theta_cell, theta_q);
@@ -265,20 +263,17 @@ void limit_rad_energy(StageData &stage_data, const GridStructure &grid) {
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit rad energy", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
-        const double tau_avg = cell_average(U, sqrt_gm, weights, widths(i),
-                                            vars::cons::SpecificVolume, i);
         const double E_avg = cell_average(U, sqrt_gm, weights, widths(i),
-                                          vars::cons::RadEnergy, i) /
-                             tau_avg;
+                                          vars::cons::RadEnergy, i);
 
         // --- Compute minimum over cell ---
         double theta = 1.0;
         for (int q = 0; q < order; ++q) {
-          double E_q = U(i, q, vars::cons::RadEnergy) /
-                       U(i, q, vars::cons::SpecificVolume);
+          double E_q = U(i, q, vars::cons::RadEnergy);
 
           // Solve for smallest admissible theta
           if (E_q < EPSILON) {
+          std::println("eavg eq {:.5e} {:.5e}", E_avg, E_q);
             const double theta_q = backtrace(E_avg, E_q, EPSILON);
             theta = std::min(theta, theta_q);
           }
@@ -287,8 +282,7 @@ void limit_rad_energy(StageData &stage_data, const GridStructure &grid) {
         // --- Rescale ---
         if (theta < 1.0) {
           for (int q = 0; q < order; ++q) {
-            const double E_q = U(i, q, vars::cons::RadEnergy) /
-                               U(i, q, vars::cons::SpecificVolume);
+            const double E_q = U(i, q, vars::cons::RadEnergy);
             U(i, q, vars::cons::RadEnergy) = E_avg + theta * (E_q - E_avg);
           }
         }

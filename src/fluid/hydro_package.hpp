@@ -47,8 +47,6 @@ class HydroPackage {
 
   void set_active(bool active);
 
-  [[nodiscard]] auto get_flux_u(int stage, int i) const -> double;
-
   [[nodiscard]] static constexpr auto num_vars() noexcept -> int {
     return NUM_VARS_;
   }
@@ -65,7 +63,6 @@ class HydroPackage {
   AthelasArray2D<double> dFlux_num_; // stores Riemann solutions
   AthelasArray2D<double> u_f_l_; // left faces
   AthelasArray2D<double> u_f_r_; // right faces
-  AthelasArray2D<double> flux_u_; // Riemann velocities
 
   AthelasArray4D<double> delta_; // rhs delta [nstages, nx, order, vars]
 

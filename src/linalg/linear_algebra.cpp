@@ -1,164 +1,177 @@
-/**
- * @file linear_algebra.cpp
- * --------------
- *
- * @author Brandon L. Barker
- * @brief Basic linear algebra functions.
- *
- * @details Linear algebra routines for quadrature and limiters.
- *          - tri_sym_diag
- *          - invert_matrix
- */
-
 #include <cstddef>
 #include <vector>
 
 #include <Eigen/Dense>
 #include <Kokkos_Core.hpp>
 
+#include "kokkos_abstraction.hpp"
 #include "linalg/linear_algebra.hpp"
+#include "OpenMP/Kokkos_OpenMP_Parallel_For.hpp"
+#include "kokkos_types.hpp"
+#include "loop_layout.hpp"
 #include "utils/error.hpp"
 
-#include <KokkosLapack_gesv.hpp>
-#include "KokkosBlas.hpp"
+#include <KokkosBatched_LU_Decl.hpp>
+#include <KokkosBatched_Trsm_Decl.hpp>
+#include <KokkosBatched_Gemm_Decl.hpp>
+
 
 namespace athelas {
 
-// =============================================================================
-// Block Thomas Algorithm for Block Tridiagonal Systems
-//
-// Solves the N×N block tridiagonal system:
-//
-//   [ B(:,:,0)  C(:,:,0)                          ] [ x(:,0)   ]   [ d(:,0)   ]
-//   [ A(:,:,1)  B(:,:,1)  C(:,:,1)                ] [ x(:,1)   ]   [ d(:,1)   ]
-//   [           A(:,:,2)  B(:,:,2)  C(:,:,2)      ] [ x(:,2)   ] = [ d(:,2)   ]
-//   [                      ...                    ] [  ...     ]   [  ...     ]
-//   [                     A(:,:,N-1) B(:,:,N-1)   ] [ x(:,N-1) ]   [ d(:,N-1) ]
-//
-// each block is m×m dense; A(:,:,0) and C(:,:,N-1) are unused.
-//
-// Algorithm:
-//   Forward sweep (i = 0 .. N-2):
-//     Solve B(i) * [W(i) | Y(i)] = [C(i) | d(i)]   ← augmented gesv
-//     B(i+1) -= A(i+1) * W(i)                        ← gemm
-//     d(i+1) -= A(i+1) * Y(i)                        ← gemv
-//
-//   Back substitution:
-//     Solve B(N-1) * x(N-1) = d(N-1)                 ← gesv
-//     x(i) = Y(i) - W(i) * x(i+1)  for i = N-2..0   ← gemv
-//
-// =============================================================================
-
-
-
-// ---------------------------------------------------------------------------
-// Storage layout choice: [m, m, N] with LayoutLeft
-//
-// With LayoutLeft the *first* index strides fastest. Storing blocks as
-// [row, col, block_index] means subview(..., ALL, ALL, i) produces a 2D
-// [m×m] view whose strides are (1, m) — i.e. contiguous column-major
-// storage as expected by LAPACK-backed routines.
-//
-// The more intuitive [N, m, m] layout would give non-unit row-stride in
-// the block subview, which can cause issues with gesv depending on the
-// backend. Using [m, m, N] avoids that problem entirely.
-// ---------------------------------------------------------------------------
-
-// ===========================================================================
-// block_thomas_solve
-//
-// Parameters:
-//   N     — number of block rows/columns
-//   m     — block size
-//   A     — lower diagonal blocks [m,m,N-1], A(:,:,0) unused,  read-only
-//   B     — main  diagonal blocks [m,m,N], overwritten during solve
-//   C     — upper diagonal blocks [m,m,N-1], C(:,:,N-1) unused, read-only
-//   d     — RHS [m,N], overwritten with solution x on output
-//   W     — workspace [m,m,N-1], B(i)^{-1} * C(i)
-//   Y     — workspace [m,N-1],   B(i)^{-1} * d(i)
-//   ipiv  — workspace [m],       pivot array for gesv
-// ===========================================================================
-void block_thomas_solve(int N, int m, BlockStore A, BlockStore B,
-                        BlockStore C, VecStore d,
-                        const ThomasScratch &scratch) {
+/** 
+ * @ brief Block Thomas Algorithm for block tridiagonal systems
+ *
+ *  Solves the N×N block tridiagonal system:
+ *
+ *   [ B(0,:,:)  C(0,:,:)                          ] [ x(0,:)   ]   [ d(0,:)   ]
+ *   [ A(1,:,:)  B(1,:,:)  C(1,:,:)                ] [ x(1,:)   ]   [ d(1,:)   ]
+ *   [           A(2,:,:)  B(2,:,:)  C(2,:,:)      ] [ x(2,:)   ] = [ d(2,:)   ]
+ *   [                      ...                    ] [  ...     ]   [  ...     ]
+ *   [                     A(N-1:,:) B(N-1:,:)     ] [ x(N-1,:) ]   [ d(N-1,:) ]
+ *
+ * each block is m×m dense; A(:,:,0) and C(:,:,N-1) are unused.
+ *
+ * Algorithm:
+ *   Forward sweep (i = 0 .. N-2):
+ *     Solve B(i) * [W(i) | Y(i)] = [C(i) | d(i)]
+ *     B(i+1) -= A(i+1) * W(i)
+ *     d(i+1) -= A(i+1) * Y(i)
+ *
+ *   Back substitution:
+ *     Solve B(N-1) * x(N-1) = d(N-1)
+ *     x(i) = Y(i) - W(i) * x(i+1)  for i = N-2..0
+ *
+ *  NOTE: Can I remove Bi_lu and factor into B?
+ */
+void block_thomas_solve(const int N, const int m,
+                        BlockStore A, BlockStore B, BlockStore C,
+                        VecStore d, const ThomasScratch& scratch) {
     Kokkos::Profiling::pushRegion("BlockThomas");
-    auto W = scratch.W;
-    auto Y = scratch.Y;
-    auto ipiv = scratch.ipiv;
 
+    auto W     = scratch.W;
+    auto Y     = scratch.Y;
     auto Bi_lu = scratch.Bi_lu;
-    auto aug   = scratch.aug;
-    auto BN_lu = scratch.BN_lu;
-    auto rhs   = scratch.rhs;
 
-    // -------------------------------------------------------------------------
-    // Forward sweep
-    // -------------------------------------------------------------------------
-    for (int i = 0; i < N - 1; ++i) {
-        auto Bi  = Kokkos::subview(B, Kokkos::ALL, Kokkos::ALL, i);
-        auto Ci  = Kokkos::subview(C, Kokkos::ALL, Kokkos::ALL, i);
-        auto di  = Kokkos::subview(d, Kokkos::ALL, i);
-        auto Wi  = Kokkos::subview(W, Kokkos::ALL, Kokkos::ALL, i);
-        auto Yi  = Kokkos::subview(Y, Kokkos::ALL, i);
-        auto Ai1 = Kokkos::subview(A, Kokkos::ALL, Kokkos::ALL, i);
-        auto Bi1 = Kokkos::subview(B, Kokkos::ALL, Kokkos::ALL, i + 1);
-        auto di1 = Kokkos::subview(d, Kokkos::ALL, i + 1);
- 
-        // Augmented solve:  B(i) * [W(i) | Y(i)] = [C(i) | d(i)]
-        Kokkos::deep_copy(Bi_lu, Bi);
- 
-        Kokkos::parallel_for("fill_aug",
-            Kokkos::MDRangePolicy<ExecSpace, Kokkos::Rank<2>>({0, 0}, {m, m + 1}),
-            KOKKOS_LAMBDA(int r, int c) {
-                aug(r, c) = (c < m) ? Ci(r, c) : di(r);
-            });
- 
-        KokkosLapack::gesv(Bi_lu, aug, ipiv);
- 
-        Kokkos::parallel_for("unpack_aug",
-            Kokkos::MDRangePolicy<ExecSpace, Kokkos::Rank<2>>({0, 0}, {m, m + 1}),
-            KOKKOS_LAMBDA(int r, int c) {
-                if (c < m) {
-                Wi(r, c) = aug(r, c);
-                } else{
-                Yi(r)    = aug(r, c);
+    using LU     = KokkosBatched::SerialLU<
+                       KokkosBatched::Algo::LU::Unblocked>;
+
+    using TrsmLL = KokkosBatched::SerialTrsm<
+                       KokkosBatched::Side::Left,
+                       KokkosBatched::Uplo::Lower,
+                       KokkosBatched::Trans::NoTranspose,
+                       KokkosBatched::Diag::Unit,
+                       KokkosBatched::Algo::Trsm::Unblocked>;
+
+    using TrsmLU = KokkosBatched::SerialTrsm<
+                       KokkosBatched::Side::Left,
+                       KokkosBatched::Uplo::Upper,
+                       KokkosBatched::Trans::NoTranspose,
+                       KokkosBatched::Diag::NonUnit,
+                       KokkosBatched::Algo::Trsm::Unblocked>;
+
+    using Gemm   = KokkosBatched::SerialGemm<
+                       KokkosBatched::Trans::NoTranspose,
+                       KokkosBatched::Trans::NoTranspose,
+                       KokkosBatched::Algo::Gemm::Unblocked>;
+
+    // This is a 0D loop, it simply creates a "parallel" region
+    athelas::par_for(DEFAULT_FLAT_LOOP_PATTERN, "block_thomas",
+        DevExecSpace(), 0, 0,
+        KOKKOS_LAMBDA(int) {
+
+            // Copy m×m matrix src -> dst
+            auto mat_copy = [&](auto src, auto dst) {
+                for (int r = 0; r < m; ++r) {
+                    for (int c = 0; c < m; ++c) {
+                        dst(r, c) = src(r, c);
+                    }
                 }
-            });
- 
-        KokkosBlas::gemm("N", "N", Scalar(-1), Ai1, Wi, Scalar(1), Bi1);
-        KokkosBlas::gemv("N",      Scalar(-1), Ai1, Yi, Scalar(1), di1);
-    }
- 
-    // -------------------------------------------------------------------------
-    // Terminal block solve:  B(N-1) * x(N-1) = d(N-1)
-    // -------------------------------------------------------------------------
-    {
-        auto BN = Kokkos::subview(B, Kokkos::ALL, Kokkos::ALL, N - 1);
-        auto dN = Kokkos::subview(d, Kokkos::ALL, N - 1);
- 
-        Kokkos::deep_copy(BN_lu, BN);
- 
-        Kokkos::parallel_for("wrap_rhs", m,
-            KOKKOS_LAMBDA(int r) { rhs(r, 0) = dN(r); });
- 
-        KokkosLapack::gesv(BN_lu, rhs, ipiv);
- 
-        Kokkos::parallel_for("unwrap_sol", m,
-            KOKKOS_LAMBDA(int r) { dN(r) = rhs(r, 0); });
-    }
- 
-    // -------------------------------------------------------------------------
-    // Back substitution:  x(i) = Y(i) - W(i) * x(i+1)
-    // -------------------------------------------------------------------------
-    for (int i = N - 2; i >= 0; --i) {
-        auto Wi  = Kokkos::subview(W, Kokkos::ALL, Kokkos::ALL, i);
-        auto Yi  = Kokkos::subview(Y, Kokkos::ALL, i);
-        auto xi  = Kokkos::subview(d, Kokkos::ALL, i);
-        auto xi1 = Kokkos::subview(d, Kokkos::ALL, i + 1);
- 
-        Kokkos::deep_copy(xi, Yi);
-        KokkosBlas::gemv("N", Scalar(-1), Wi, xi1, Scalar(1), xi);
-    }
+            };
+
+            // Apply already-factored Bi_lu to a 1D vector in-place.
+            // Forward substitution (unit lower), then back substitution (non-unit upper).
+            auto trsv = [&](auto vec) {
+                for (int r = 0; r < m; ++r) {
+                    for (int k = 0; k < r; ++k) {
+                        vec(r) -= Bi_lu(r, k) * vec(k);
+                    }
+                    // unit diagonal — no division
+                }
+                for (int r = m - 1; r >= 0; --r) {
+                    for (int k = r + 1; k < m; ++k) {
+                        vec(r) -= Bi_lu(r, k) * vec(k);
+                    }
+                    vec(r) /= Bi_lu(r, r);
+                }
+            };
+
+            // out_vec -= mat * rhs_vec
+            auto gemv_sub = [&](auto mat, auto rhs_vec, auto out_vec) {
+                for (int r = 0; r < m; ++r) {
+                    double acc = 0;
+                    for (int k = 0; k < m; ++k) {
+                        acc += mat(r, k) * rhs_vec(k);
+                    }
+                    out_vec(r) -= acc;
+                }
+            };
+
+            // Forward sweep
+            for (int i = 0; i < N - 1; ++i) {
+                auto Bi  = Kokkos::subview(B, i, Kokkos::ALL, Kokkos::ALL);
+                auto Ci  = Kokkos::subview(C, i, Kokkos::ALL, Kokkos::ALL);
+                auto di  = Kokkos::subview(d, i, Kokkos::ALL);
+                auto Ai1 = Kokkos::subview(A, i, Kokkos::ALL, Kokkos::ALL);
+                auto Bi1 = Kokkos::subview(B, i + 1, Kokkos::ALL, Kokkos::ALL);
+                auto di1 = Kokkos::subview(d, i + 1, Kokkos::ALL);
+                auto Wi  = Kokkos::subview(W, i, Kokkos::ALL, Kokkos::ALL);
+                auto Yi  = Kokkos::subview(Y, i,  Kokkos::ALL);
+
+                // Factor B(i) into Bi_lu, leaving B untouched
+                mat_copy(Bi, Bi_lu);
+                LU::invoke(Bi_lu);
+
+                // W(i) = B(i)^{-1} C(i)
+                mat_copy(Ci, Wi);
+                TrsmLL::invoke(1.0, Bi_lu, Wi);
+                TrsmLU::invoke(1.0, Bi_lu, Wi);
+
+                // Y(i) = B(i)^{-1} d(i)
+                for (int r = 0; r < m; ++r) {
+                        Yi(r) = di(r);
+                }
+                trsv(Yi);
+
+                // B(i+1) -= A(i+1) * W(i)
+                Gemm::invoke(-1.0, Ai1, Wi, 1.0, Bi1);
+
+                // d(i+1) -= A(i+1) * Y(i)
+                gemv_sub(Ai1, Yi, di1);
+            }
+
+            // Terminal solve: B(N-1) * x(N-1) = d(N-1)
+            auto BN = Kokkos::subview(B, N - 1, Kokkos::ALL, Kokkos::ALL);
+            auto dN = Kokkos::subview(d, N - 1, Kokkos::ALL);
+
+            mat_copy(BN, Bi_lu);
+            LU::invoke(Bi_lu);
+            trsv(dN);  // dN overwritten with x(N-1)
+
+            // Back substitution: x(i) = Y(i) - W(i) * x(i+1)
+            // Solution written into d in-place.
+            for (int i = N - 2; i >= 0; --i) {
+                auto Wi  = Kokkos::subview(W, i, Kokkos::ALL, Kokkos::ALL);
+                auto Yi  = Kokkos::subview(Y, i, Kokkos::ALL);
+                auto xi  = Kokkos::subview(d, i, Kokkos::ALL);
+                auto xi1 = Kokkos::subview(d, i + 1, Kokkos::ALL);
+
+                for (int r = 0; r < m; ++r) {
+                  xi(r) = Yi(r);
+                }
+                gemv_sub(Wi, xi1, xi);
+            }
+        });
+
     Kokkos::Profiling::popRegion();
 }
 
@@ -167,7 +180,6 @@ void block_thomas_solve(int N, int m, BlockStore A, BlockStore B,
  */
 void tri_sym_diag(int n, std::vector<double> &d, std::vector<double> &e,
                   std::vector<double> &array) {
-
   assert(n > 0 && "Matrix dim must be > 0");
 
   // trivial

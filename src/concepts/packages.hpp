@@ -42,7 +42,9 @@ concept ImplicitPackage =
       } -> std::convertible_to<double>;
       { pkg.name() } -> std::convertible_to<std::string_view>;
       { pkg.is_active() } -> std::convertible_to<bool>;
-      { pkg.fill_derived(stage_data, grid, dt_info) } -> std::same_as<void>;
+      {
+        pkg.fill_derived(stage_data_derived, grid, dt_info)
+      } -> std::same_as<void>;
     };
 
 template <typename T>

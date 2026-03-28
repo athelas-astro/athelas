@@ -32,13 +32,17 @@ void radiation_source_implicit(const StageData &stage_data, AthelasArray3D<doubl
 
 using bc::BoundaryConditions;
 
+/**
+ * @brief Implicit radiation moments
+ * Used for fully implicit transport
+ */
 class ImplicitRadiationMomentsPackage {
  public:
   ImplicitRadiationMomentsPackage(const ProblemIn * /*pin*/, int n_stages, int nq,
                   BoundaryConditions *bcs, double cfl, int nx,
                   bool active = true);
 
-  void update_implicit(const StageData &stage_data, AthelasArray3D<double> R,
+  void update_implicit(const StageData &stage_data, AthelasArray3D<double> ustar,
                        const GridStructure &grid, const TimeStepInfo &dt_info);
 
   void apply_delta(AthelasArray3D<double> lhs,
@@ -60,8 +64,6 @@ class ImplicitRadiationMomentsPackage {
 
   void set_active(bool active);
 
-  [[nodiscard]] auto get_flux_u(int stage, int i) const -> double;
-
   [[nodiscard]] static constexpr auto num_vars() noexcept -> int {
     return NUM_VARS_;
   }
@@ -75,14 +77,32 @@ class ImplicitRadiationMomentsPackage {
   BoundaryConditions *bcs_;
 
   // package storage
-  AthelasArray2D<double> dFlux_num_; // stores Riemann solutions
   AthelasArray2D<double> u_f_l_; // left faces
   AthelasArray2D<double> u_f_r_; // right faces
 
+  // Block-tridiagonal storage for implicit solver.
+  AthelasArray3D<double> solver_mat_diag_;
+  AthelasArray3D<double> solver_mat_upper_;
+  AthelasArray3D<double> solver_mat_lower_;
+  AthelasArray2D<double> solver_b_; // rhs for implicit solve
+
+  // Workspace for block Thomas solve:
+  AthelasArray3D<double> solver_W_;
+  AthelasArray2D<double> solver_Y_;
+  AthelasArray2D<double> solver_Bi_lu_;
+
+  // Flux Jacobian storage
+  AthelasArray3D<double> A_minus_;
+  AthelasArray3D<double> A_plus_;
+
   AthelasArray4D<double> delta_; // rhs delta
 
+  // storage for old radiation energy density and flux
+  AthelasArray2D<double> e_rad_old_;
+  AthelasArray2D<double> f_rad_old_;
+
   // constants
-  static constexpr int NUM_VARS_ = 2;
+  static constexpr int NUM_VARS_ = 4;
 };
 
 // ----------------------------------------------------------------------------
@@ -120,8 +140,6 @@ class RadHydroPackage {
 
   void set_active(bool active);
 
-  [[nodiscard]] auto get_flux_u(int stage, int i) const -> double;
-
   [[nodiscard]] static constexpr auto num_vars() noexcept -> int {
     return NUM_VARS_;
   }
@@ -138,7 +156,6 @@ class RadHydroPackage {
   AthelasArray2D<double> dFlux_num_; // stores Riemann solutions
   AthelasArray2D<double> u_f_l_; // left faces
   AthelasArray2D<double> u_f_r_; // right faces
-  AthelasArray2D<double> flux_u_; // Riemann velocities
 
   AthelasArray4D<double> delta_; // rhs delta [nstages, nx, order, nvars]
   AthelasArray4D<double> delta_im_; // rhs delta

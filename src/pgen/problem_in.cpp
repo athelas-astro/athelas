@@ -281,6 +281,12 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
           "option from [radiation] block.");
     }
 
+    const std::string discretization_type = rad_block->get<std::string>("discretization");
+    if (discretization_type != "implicit" && discretization_type != "explicit") {
+        throw_athelas_error("radiation.discretization must be 'explicit' or 'implicit'.");
+    }
+    params_->add("radiation.discretization", discretization_type);
+
     sol::optional<sol::table> rad_limiter_block = radiation["limiter"];
     sol::table rad_lim = rad_limiter_block.value_or(lua_.create_table());
 

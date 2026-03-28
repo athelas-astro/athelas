@@ -31,9 +31,8 @@ HydroPackage::HydroPackage(const ProblemIn * /*pin*/, int n_stages, int order,
     : active_(active), nx_(nx), cfl_(cfl), bcs_(bcs),
       dFlux_num_("hydro::dFlux_num_", nx + 2 + 1, 3),
       u_f_l_("hydro::u_f_l_", nx + 2, 3), u_f_r_("hydro::u_f_r_", nx + 2, 3),
-      flux_u_("hydro::flux_u_", n_stages, nx + 2 + 1),
       delta_("hydro :: delta", n_stages, nx_ + 2, order, 3) {
-} // Need long term solution for flux_u_
+}
 
 void HydroPackage::update_explicit(const StageData &stage_data,
                                    const GridStructure &grid,
@@ -78,8 +77,10 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
                                     const GridStructure &grid,
                                     const int stage) const {
   auto ucf = stage_data.get_field("u_cf");
-
   auto uaf = stage_data.get_field("u_af");
+  auto facedata = stage_data.get_field<AthelasArray2D<double>>("facedata");
+
+  static const int idx_vstar = stage_data.var_index("facedata", "vstar");
 
   const auto &basis = stage_data.fluid_basis();
 
@@ -129,15 +130,15 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
             u_f_r_(i, vars::cons::SpecificVolume),
             u_f_l_(i, vars::cons::Velocity), u_f_r_(i, vars::cons::Velocity),
             P_L, P_R, Cs_L, Cs_R);
-        flux_u_(stage, i) = flux_u;
+        facedata(i, idx_vstar) = flux_u;
 
         dFlux_num_(i, vars::cons::SpecificVolume) = -flux_u;
         dFlux_num_(i, vars::cons::Velocity) = flux_p;
         dFlux_num_(i, vars::cons::Energy) = flux_u * flux_p;
       });
 
-  flux_u_(stage, 0) = flux_u_(stage, 1);
-  flux_u_(stage, ib.e + 2) = flux_u_(stage, ib.e + 1);
+  facedata(0, idx_vstar) = facedata(1, idx_vstar);
+  facedata(ib.e + 2, idx_vstar) = facedata(ib.e + 1, idx_vstar);
 
   // --- Surface Term ---
   athelas::par_for(
@@ -205,19 +206,7 @@ void HydroPackage::apply_delta(AthelasArray3D<double> lhs,
  * @brief zero delta field
  */
 void HydroPackage::zero_delta() const noexcept {
-  static const IndexRange sb(static_cast<int>(delta_.extent(0)));
-  static const IndexRange ib(static_cast<int>(delta_.extent(1)));
-  static const IndexRange qb(static_cast<int>(delta_.extent(2)));
-  static const IndexRange vb(static_cast<int>(delta_.extent(3)));
-
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Hydro :: Zero delta", DevExecSpace(), sb.s, sb.e,
-      ib.s, ib.e, qb.s, qb.e,
-      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int q) {
-        for (int v = vb.s; v <= vb.e; ++v) {
-          delta_(s, i, q, v) = 0.0;
-        }
-      });
+  Kokkos::deep_copy(delta_, 0.0);
 }
 
 /**
@@ -268,7 +257,9 @@ auto HydroPackage::min_timestep(const StageData &stage_data,
 void HydroPackage::fill_derived(StageData &stage_data,
                                 const GridStructure &grid,
                                 const TimeStepInfo & /*dt_info*/) const {
-  auto uCF = stage_data.get_field("u_cf");
+  using eos::EOSLambda;
+
+  auto ucf = stage_data.get_field("u_cf");
   auto uPF = stage_data.get_field("u_pf");
   auto uAF = stage_data.get_field("u_af");
 
@@ -279,13 +270,13 @@ void HydroPackage::fill_derived(StageData &stage_data,
   const auto &basis = stage_data.fluid_basis();
 
   // --- Apply BC ---
-  bc::fill_ghost_zones<3>(uCF, &grid, bcs_, {0, 2});
+  bc::fill_ghost_zones<3>(ucf, &grid, bcs_, {0, 2});
 
   if (stage_data.enabled("composition")) {
     // composition boundary condition
     static const IndexRange vb_comps(
         std::make_pair(NUM_VARS_, stage_data.nvars("u_cf") - 1));
-    bc::fill_ghost_zones_composition(uCF, vb_comps);
+    bc::fill_ghost_zones_composition(ucf, vb_comps);
     atom::fill_derived_comps<Domain::Entire>(stage_data, &grid);
   }
 
@@ -311,16 +302,17 @@ void HydroPackage::fill_derived(StageData &stage_data,
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Fill derived :: temperature",
         DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-          double lambda[8];
+          EOSLambda lambda;;
           for (int q = 0; q < nNodes + 2; ++q) {
-            const double rho =
-                1.0 / basis.basis_eval(uCF, i, vars::cons::SpecificVolume, q);
+            const double rho = 1.0 / basis.basis_eval(ucf, i, vars::cons::SpecificVolume, q);
             const double vel =
-                basis.basis_eval(uCF, i, vars::cons::Velocity, q);
-            const double emt = basis.basis_eval(uCF, i, vars::cons::Energy, q);
+                basis.basis_eval(ucf, i, vars::cons::Velocity, q);
+            const double emt = basis.basis_eval(ucf, i, vars::cons::Energy, q);
             const double sie = emt - 0.5 * vel * vel;
             uAF(i, q, vars::aux::Tgas) =
-                temperature_from_density_sie(eos, rho, sie, lambda);
+                temperature_from_density_sie(eos, rho, sie, lambda.ptr());
+            uPF(i, q, vars::prim::Rho) = rho;
+            uPF(i, q, vars::prim::Momentum) = rho * vel;
           }
         });
   }
@@ -341,10 +333,10 @@ void HydroPackage::fill_derived(StageData &stage_data,
         ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
           for (int q = 0; q < nNodes + 2; ++q) {
             const double rho =
-                1.0 / basis.basis_eval(uCF, i, vars::cons::SpecificVolume, q);
+                1.0 / basis.basis_eval(ucf, i, vars::cons::SpecificVolume, q);
             const double vel =
-                basis.basis_eval(uCF, i, vars::cons::Velocity, q);
-            const double emt = basis.basis_eval(uCF, i, vars::cons::Energy, q);
+                basis.basis_eval(ucf, i, vars::cons::Velocity, q);
+            const double emt = basis.basis_eval(ucf, i, vars::cons::Energy, q);
 
             const double momentum = rho * vel;
             const double sie = (emt - 0.5 * vel * vel);
@@ -379,13 +371,11 @@ void HydroPackage::fill_derived(StageData &stage_data,
         DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Fill derived", DevExecSpace(),
         ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
           for (int q = 0; q < nNodes + 2; ++q) {
-            const double rho =
-                1.0 / basis.basis_eval(uCF, i, vars::cons::SpecificVolume, q);
+            const double rho = uPF(i, q, vars::prim::Rho);
             const double vel =
-                basis.basis_eval(uCF, i, vars::cons::Velocity, q);
-            const double emt = basis.basis_eval(uCF, i, vars::cons::Energy, q);
+                basis.basis_eval(ucf, i, vars::cons::Velocity, q);
+            const double emt = basis.basis_eval(ucf, i, vars::cons::Energy, q);
 
-            const double momentum = rho * vel;
             const double sie = (emt - 0.5 * vel * vel);
 
             // This is probably not the cleanest logic, but setups with
@@ -397,8 +387,6 @@ void HydroPackage::fill_derived(StageData &stage_data,
             const double cs = sound_speed_from_density_temperature_pressure(
                 eos, rho, t_gas, pressure, lambda.ptr());
 
-            uPF(i, q, vars::prim::Rho) = rho;
-            uPF(i, q, vars::prim::Momentum) = momentum;
             uPF(i, q, vars::prim::Sie) = sie;
 
             uAF(i, q, vars::aux::Pressure) = pressure;
@@ -417,10 +405,4 @@ void HydroPackage::fill_derived(StageData &stage_data,
 }
 
 void HydroPackage::set_active(const bool active) { active_ = active; }
-
-[[nodiscard]] auto HydroPackage::get_flux_u(const int stage, const int i) const
-    -> double {
-  return flux_u_(stage, i);
-}
-
 } // namespace athelas::fluid

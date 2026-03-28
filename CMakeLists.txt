@@ -55,6 +55,9 @@ enable_language(CXX)
 include("cmake/build_info.cmake")
 CheckGitSetup()
 
+# set defaults for KokkosKernels
+include(cmake/kokkos_kernels_config.cmake)
+
 include(CTest)
 option(ATHELAS_ENABLE_UNIT_TESTS "Enable unit tests" OFF)
 option(ATHELAS_ENABLE_INTEGRATION_TESTS "Enable integration tests" OFF) # Future
@@ -297,6 +300,9 @@ configure_file(
 # Eigen
 add_subdirectory(external/spiner)
 
+# Kokkos kernels
+add_subdirectory(external/kokkos-kernels)
+
 # Lua, sol2
 find_package(Lua 5.3 REQUIRED)
 include_directories(${LUA_INCLUDE_DIR})
@@ -351,6 +357,7 @@ endif()
 target_link_libraries(athelas PRIVATE
         #    libathelas
     kokkos
+    Kokkos::kokkoskernels
     spiner::spiner
     Eigen3::Eigen
     sol2::sol2

@@ -178,7 +178,7 @@ void GridStructure::create_uniform_grid() {
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Create uniform grid", DevExecSpace(),
-      ilo, ihi, KOKKOS_CLASS_LAMBDA(const int i) {
+      ilo - 1, ihi + 1, KOKKOS_CLASS_LAMBDA(const int i) {
         grid_(i, 0) = x_l_(i);
         sqrt_gm_(i, 0) = get_sqrt_gm(x_l_(i));
         for (int q = 1; q < nNodes_ + 1; q++) {

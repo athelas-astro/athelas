@@ -14,6 +14,7 @@
 #include "limiters/slope_limiter.hpp"
 #include "loop_layout.hpp"
 #include "pgen/problem_in.hpp"
+#include "radhydro_package.hpp"
 #include "state/state.hpp"
 #include "thermal.hpp"
 #include "timestepper/timestepper.hpp"
@@ -136,6 +137,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   using gravity::GravityPackage;
   using nickel::NickelHeatingPackage;
   using thermal_engine::ThermalEnginePackage;
+  using radiation::ImplicitRadiationMomentsPackage;
 
   const auto nx = pin_->param()->get<int>("problem.nx");
   const int nnodes = pin_->param()->get<int>("basis.nnodes");
@@ -189,6 +191,9 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
                                nnodes + 2, 3);
   }
 
+  mesh_state_.register_field("facedata", DataPolicy::Staged, "Misc variable face data",
+                  {"vstar"}, nx + 2 + 1, 1);
+
   // auto info = mesh_state_.field_info();
 
   if (!restart_) {
@@ -233,8 +238,17 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   // NOTE: Hydro/RadHydro should be registered first
   const bool pkg_active = true;
   if (rad_active) {
+    const std::string discretization = pin_->param()->get<std::string>("radiation.discretization");
+    if (discretization == "implicit") {
+    manager_->add_package(ImplicitRadiationMomentsPackage{pin, n_stages, nnodes, bcs_.get(),
+                                          cfl, nx, pkg_active});
+    manager_->add_package(
+        HydroPackage{pin, n_stages, nnodes, bcs_.get(), cfl, nx, pkg_active});
+    }
+    if (discretization == "explicit") {
     manager_->add_package(RadHydroPackage{pin, n_stages, nnodes, bcs_.get(),
                                           cfl, nx, pkg_active});
+    }
   } else [[unlikely]] {
     // pure Hydro
     manager_->add_package(
