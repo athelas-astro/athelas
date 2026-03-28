@@ -3,13 +3,22 @@
 <p align="center">1D Lagrangian radiation-hydrodynamics solver written in C++ </p>
 
 [![Build](https://github.com/athelas-astro/athelas/actions/workflows/cmake-multi-platform.yml/badge.svg)](https://github.com/athelas-astro/athelas/actions/workflows/cmake-multi-platform.yml)
-[![Docs](https://github.com/athelas-astro/athelas/actions/workflows/docs.yml/badge.svg)](https://athelas-astro.github.io/athelas)
+[![Docs](https://github.com/athelas-astro/athelas/actions/workflows/docs.yml/badge.svg)](https://athelas-astro.github.io)
 <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPL-blue.svg"></a>
 
 
 `Athelas` solves the 1D Lagrangian equation of non-relativistic radiation hydrodynamics using a discontinuous Galerkin scheme. 
-LTE Saha ionization is included.
-It includes planar geometry and spherical symmetry. Self gravity is included.
+Key features:
+* Two moment radiation transport with fully implicit integration and an IMEX treatment.
+* Lagrangian hydrodynamics
+* LTE Saha ionization
+* A nickel decay network and heating
+* Newtonian self gravity
+* High order, conservative discontinuous Galerkin methods
+* Spherical and flat Cartesian geometries
+* Fully coupled IMEX time integration
+* Artificially driven explosions
+* A sophisticated package system to thread new physics into the timestepper
 
 # Installation
 `athelas` uses submodules to include dependencies. 
