@@ -22,6 +22,7 @@
 ### Infrastructure (organization/...)
 
 ### Removed (removing behavior/API/variables/...)
+- [PR 164](https://github.com/athelas-astro/athelas/pull/164) Migrate docs to https://athelas-astro.github.io
 - [PR 161](https://github.com/athelas-astro/athelas/pull/161) Removed tomlplusplus
 - [PR 157](https://github.com/athelas-astro/athelas/pull/157) Removed `poly_basis` enum.
 
