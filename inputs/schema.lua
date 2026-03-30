@@ -222,6 +222,11 @@ schema.fluid = {
 -- radiation
 -- -------------------------
 schema.radiation = {
+  discretization = {
+    type = "string",
+    required = { when = "physics.radiation", is_true = true },
+    doc = "Spatial discretization of the transport term. Options: 'implicit' or 'explicit'.",
+  },
   limiter = {
     do_limiter = {
       type = "bool",
