@@ -227,6 +227,18 @@ schema.radiation = {
     required = { when = "physics.radiation", is_true = true },
     doc = "Spatial discretization of the transport term. Options: 'implicit' or 'explicit'.",
   },
+  timestep = {
+    max_fractional_change_e = {
+      type = "double",
+      required = { when = "radiation.discretization", equals = "implicit" },
+      doc = "Maximum allowed fractional change in radiation energy. Timestep control for implicit transport.",
+    },
+    max_change_f = {
+      type = "double",
+      required = { when = "radiation.discretization", equals = "implicit" },
+      doc = "Maximum allowed absolute change in radiation reduced flux. Timestep control for implicit transport.",
+    },
+  },
   limiter = {
     do_limiter = {
       type = "bool",

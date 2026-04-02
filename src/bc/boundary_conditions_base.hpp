@@ -14,6 +14,7 @@
 #include <array>
 #include <cassert>
 
+#include "Kokkos_Macros.hpp"
 #include "pgen/problem_in.hpp"
 
 namespace athelas::bc {
@@ -72,13 +73,13 @@ auto get_bc_data(BoundaryConditions *bc)
     -> Kokkos::Array<BoundaryConditionsData<N>, 2>;
 
 template <>
-auto get_bc_data<3>(BoundaryConditions *bc)
+KOKKOS_INLINE_FUNCTION auto get_bc_data<3>(BoundaryConditions *bc)
     -> Kokkos::Array<BoundaryConditionsData<3>, 2> {
   return bc->fluid_bc;
 }
 
 template <>
-auto get_bc_data<2>(BoundaryConditions *bc)
+KOKKOS_INLINE_FUNCTION auto get_bc_data<2>(BoundaryConditions *bc)
     -> Kokkos::Array<BoundaryConditionsData<2>, 2> {
   assert(bc->do_rad && "Need radiation enabled to get radiation bcs!\n");
   return bc->rad_bc;

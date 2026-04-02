@@ -11,6 +11,7 @@
 #include "root_finder_opts.hpp"
 #include "solvers/root_finders.hpp"
 #include "state/state.hpp"
+#include "interface/params.hpp"
 
 namespace athelas::radiation {
 
@@ -100,6 +101,9 @@ class ImplicitRadiationMomentsPackage {
   // storage for old radiation energy density and flux
   AthelasArray2D<double> e_rad_old_;
   AthelasArray2D<double> f_rad_old_;
+
+  // package params
+  Params params_;
 
   // constants
   static constexpr int NUM_VARS_ = 4;

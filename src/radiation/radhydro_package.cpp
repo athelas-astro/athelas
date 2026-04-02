@@ -59,8 +59,8 @@ void radiation_source_implicit(const StageData &stage_data,
     auto e_ion_corr = ionization_state->e_ion_corr();
     auto bulk = stage_data.get_field("bulk_composition");
     athelas::par_for(
-        DEFAULT_LOOP_PATTERN, "Radiation :: Implicit sources", DevExecSpace(), ib.s,
-        ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
+        DEFAULT_LOOP_PATTERN, "Radiation :: Implicit sources", DevExecSpace(),
+        ib.s, ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
           const auto ucf_i = Kokkos::subview(ucf, i, q, Kokkos::ALL);
           const auto uaf_i = Kokkos::subview(uaf, i, q, Kokkos::ALL);
           const auto Ustar_i = Kokkos::subview(R, i, q, Kokkos::ALL);
@@ -109,8 +109,9 @@ void radiation_source_implicit(const StageData &stage_data,
   } else {
     const RadHydroSolverIonizationContent content;
     athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "Radiation :: Implicit sources", DevExecSpace(), ib.s,
-        ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
+        DEFAULT_FLAT_LOOP_PATTERN, "Radiation :: Implicit sources",
+        DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
+        KOKKOS_LAMBDA(const int i, const int q) {
           const auto ucf_i = Kokkos::subview(ucf, i, q, Kokkos::ALL);
           const auto uaf_i = Kokkos::subview(uaf, i, q, Kokkos::ALL);
           const auto Ustar_i = Kokkos::subview(R, i, q, Kokkos::ALL);
@@ -148,14 +149,16 @@ void radiation_source_implicit(const StageData &stage_data,
  * Used for fully implicit transport
  */
 ImplicitRadiationMomentsPackage::ImplicitRadiationMomentsPackage(
-    const ProblemIn * /*pin*/, int n_stages, int nq, BoundaryConditions *bcs,
+    const ProblemIn *pin, int n_stages, int nq, BoundaryConditions *bcs,
     double cfl, int nx, bool active)
     : active_(active), cfl_(cfl), bcs_(bcs),
       u_f_l_("ImplicitMoments::u_f_l_", nx + 2, 3),
       u_f_r_("ImplicitMoments::u_f_r_", nx + 2, 3),
       solver_mat_diag_("ImplicitMoments::solver_mat_diag", nx, 2 * nq, 2 * nq),
-      solver_mat_upper_("ImplicitMoments::solver_mat_upper", nx - 1, 2 * nq, 2 * nq),
-      solver_mat_lower_("ImplicitMoments::solver_mat_lower", nx - 1, 2 * nq, 2 * nq),
+      solver_mat_upper_("ImplicitMoments::solver_mat_upper", nx - 1, 2 * nq,
+                        2 * nq),
+      solver_mat_lower_("ImplicitMoments::solver_mat_lower", nx - 1, 2 * nq,
+                        2 * nq),
       solver_b_("ImplicitMoments::solver_b", nx, 2 * nq),
       solver_W_("ImplicitMoments::solver_W", nx - 1, 2 * nq, 2 * nq),
       solver_Y_("ImplicitMoments::solver_Y", nx - 1, 2 * nq),
@@ -164,11 +167,17 @@ ImplicitRadiationMomentsPackage::ImplicitRadiationMomentsPackage(
       A_plus_("ImplicitMoments::Aminus", nx + 1, 2, 2),
       delta_("implicit radhydro delta implicit", n_stages, nx + 2, nq, 5),
       e_rad_old_("ImplicitMoments::e_rad_old", nx + 2, nq),
-      f_rad_old_("ImplicitMoments::f_rad_old", nx + 2, nq) {}
+      f_rad_old_("ImplicitMoments::f_rad_old", nx + 2, nq) {
+              // Storing package params
+              params_.add<double>("max_fractional_change_e", pin->param()->get<double>("radiation.timestep.max_fractional_change_e"));
+              params_.add<double>("max_change_f", pin->param()->get<double>("radiation.timestep.max_change_f"));
+      }
 
 void ImplicitRadiationMomentsPackage::update_implicit(
     const StageData &stage_data, AthelasArray3D<double> ustar,
     const GridStructure &grid, const TimeStepInfo &dt_info) {
+  using bc::BcType;
+
   const auto &basis = stage_data.fluid_basis();
   const int nNodes = grid.n_nodes();
   static const IndexRange ib(grid.domain<Domain::Interior>());
@@ -268,13 +277,13 @@ void ImplicitRadiationMomentsPackage::update_implicit(
       DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Assemble solver_mat",
       DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
         // Block index for element i
-        const int k = i - ib.s;
+        const int blk = i - ib.s;
 
         // Mass matrix — diagonal block only
         for (int q = 0; q < nNodes; ++q) {
           for (int v = 0; v < 2; ++v) {
             const int row = idx(q, v);
-              solver_mat_diag_(k, row, row) += mkk(i, q);
+            solver_mat_diag_(blk, row, row) += mkk(i, q);
           }
         }
 
@@ -285,11 +294,11 @@ void ImplicitRadiationMomentsPackage::update_implicit(
           for (int v = 0; v < 2; ++v) {
             const int row = idx(q, v);
             for (int p = 0; p < nNodes; ++p) {
-              const Real vp = ucf(i, p, idx_vel);
+              const double vp = ucf(i, p, idx_vel);
               const double taup = ucf(i, p, idx_tau);
               const double f =
                   flux_factor(ucf(i, p, idx_er), ucf(i, p, idx_fr));
-              const Real sp2 = c2 * eddington_factor(f);
+              const double sp2 = c2 * eddington_factor(f);
               for (int w = 0; w < 2; ++w) {
                 const int col = idx(p, w);
 
@@ -300,43 +309,23 @@ void ImplicitRadiationMomentsPackage::update_implicit(
                   A_vw = sp2;
                 }
 
-                solver_mat_diag_(k, row, col) -=
-                     dt_aii * dphi(i, p + 1, q) * weights(p) *
+                solver_mat_diag_(blk, row, col) -=
+                    dt_aii * dphi(i, p + 1, q) * weights(p) *
                     sqrt_gm(i, p + 1) * A_vw / taup;
               }
             }
           }
         }
 
-        auto get_physical_jacobian = [&](auto face_view,
-                                         const int face_idx, const int v, const int w) {
-          const double tau = face_view(face_idx, idx_tau);
-          const double vstar = facedata(face_idx, idx_vstar);
-
-          // face_view(..., 1) is Er, face_view(..., 2) is Fr
-          const double f =
-              flux_factor(face_view(face_idx, 1), face_view(face_idx, 2));
-          const double sp2 = c2 * eddington_factor(f);
-
-          double J_vw = 1.0;
-          if ((v == 0 && w == 0) || (v == 1 && w == 1)) {
-            J_vw = -vstar;
-          } else if (v == 1 && w == 0) {
-            J_vw = sp2;
-          }
-
-          return J_vw / tau;
-        };
-
-        const Real gL = sqrt_gm(i, 0);
-        const Real gR = sqrt_gm(i, nNodes + 1);
+        const double gL = sqrt_gm(i, 0);
+        const double gR = sqrt_gm(i, nNodes + 1);
 
         for (int q = 0; q < nNodes; ++q) {
           for (int p = 0; p < nNodes; ++p) {
-            const Real ellL_q = phi(i, 0, q);
-            const Real ellR_q = phi(i, nNodes + 1, q);
-            const Real ellL_p = phi(i, 0, p);
-            const Real ellR_p = phi(i, nNodes + 1, p);
+            const double ellL_q = phi(i, 0, q);
+            const double ellR_q = phi(i, nNodes + 1, q);
+            const double ellL_p = phi(i, 0, p);
+            const double ellR_p = phi(i, nNodes + 1, p);
 
             for (int v = 0; v < 2; ++v) {
               for (int w = 0; w < 2; ++w) {
@@ -346,38 +335,28 @@ void ImplicitRadiationMomentsPackage::update_implicit(
                 // --- right face ---
                 if (i < ib.e) {
                   // Internal Face: Standard LLF Splitting
-                  const Real ellL_p_nbr = phi(i + 1, 0, p);
+                  const double ellL_p_nbr = phi(i + 1, 0, p);
                   const int ifaceR = i - ib.s + 1;
 
-                      solver_mat_diag_(k, row, col) +=
+                  solver_mat_diag_(blk, row, col) +=
                       dt_aii * ellR_q * gR * A_minus_(ifaceR, v, w) * ellR_p;
 
-                  solver_mat_upper_(k, row, col) += dt_aii * ellR_q * gR *
-                                                    A_plus_(ifaceR, v, w) *
-                                                    ellL_p_nbr;
-                } else {
-                  // Boundary Face: Outflow (n = +1)
-                  const double J_R = get_physical_jacobian(u_f_l_, i + 1, v, w);
-                  solver_mat_diag_(k, row, col) +=
-                      dt_aii * ellR_q * gR * J_R * ellR_p;
+                  solver_mat_upper_(blk, row, col) +=
+                      dt_aii * ellR_q * gR * A_plus_(ifaceR, v, w) * ellL_p_nbr;
                 }
 
                 // --- left face ---
                 if (i > ib.s) {
                   // Internal Face: Standard LLF Splitting
-                  const Real ellR_p_nbr = phi(i - 1, nNodes + 1, p);
-                  const int ifaceL = i  - ib.s;
+                  const double ellR_p_nbr = phi(i - 1, nNodes + 1, p);
+                  const int ifaceL = i - ib.s;
 
-                  solver_mat_diag_(k, row, col) -=
+                  solver_mat_diag_(blk, row, col) -=
                       dt_aii * ellL_q * gL * A_plus_(ifaceL, v, w) * ellL_p;
 
-                  solver_mat_lower_(k - 1, row, col) -=
-                      dt_aii * ellL_q * gL * A_minus_(ifaceL, v, w) * ellR_p_nbr;
-                } else {
-                  // Boundary Face: Outflow (n = -1)
-                  const double J_L = get_physical_jacobian(u_f_r_, i, v, w);
-                  solver_mat_diag_(k, row, col) -=
-                      dt_aii * ellL_q * gL * J_L * ellL_p;
+                  solver_mat_lower_(blk - 1, row, col) -= dt_aii * ellL_q * gL *
+                                                        A_minus_(ifaceL, v, w) *
+                                                        ellR_p_nbr;
                 }
               }
             }
@@ -388,12 +367,95 @@ void ImplicitRadiationMomentsPackage::update_implicit(
         for (int q = 0; q < nNodes; ++q) {
           for (int v = 0; v < 2; ++v) {
             const int dof = idx(q, v);
-            solver_b_(k, dof) = mkk(i, q) * ustar(i, q, v + 3);
+            solver_b_(blk, dof) = mkk(i, q) * ustar(i, q, v + 3);
           }
         }
       });
 
-    static const int nblocks = static_cast<int>(solver_mat_diag_.extent(0));
+  const auto rad_bcs = get_bc_data<2>(bcs_);
+  static const int nblocks = grid.n_elements();
+  static const int i_inner = 1;
+  static const int i_outer = nblocks + 1;
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Assemble solver_mat :: boundaries",
+      DevExecSpace(), 0, 0, KOKKOS_CLASS_LAMBDA(const int) {
+    const double vstar_i = facedata(i_inner, idx_vstar);
+    const double vstar_o = facedata(i_outer, idx_vstar);
+    const double tau_i = u_f_r_(i_inner, 0);
+    const double tau_o = u_f_l_(i_outer, 0);
+    const double f_i = flux_factor(u_f_r_(i_inner, 1), u_f_r_(i_inner, 2));
+    const double f_o = flux_factor(u_f_l_(i_outer, 1), u_f_l_(i_outer, 2));
+    const double sp2_i = c2 * eddington_factor(f_i);
+    const double sp2_o = c2 * eddington_factor(f_o);
+    const double gL_i = sqrt_gm(i_inner, 0);
+    //const double gR_i = sqrt_gm(i_inner, nNodes + 1);
+    //const double gL_o = sqrt_gm(i_outer, 0);
+    const double gR_o = sqrt_gm(i_outer, nNodes + 1);
+
+    // inner boundary
+    int blk = 0;
+    const auto inner_bc = rad_bcs[0];
+    switch (inner_bc.type) {
+
+    case BcType::Outflow:
+      for (int q = 0; q < nNodes; ++q) {
+        for (int p = 0; p < nNodes; ++p) {
+          const double ellL_q = phi(i_inner, 0, q);
+          const double ellL_p = phi(i_inner, 0, p);
+
+          for (int v = 0; v < 2; ++v) {
+            for (int w = 0; w < 2; ++w) {
+              const int row = idx(q, v);
+              const int col = idx(p, w);
+              // This pattern is messy but simple. Form the flux Jacobian 
+              // contribution
+              const double J = ((v == 0 && w == 0) || (v == 1 && w == 1))
+                                   ? -vstar_i
+                               : (v == 1 && w == 0) ? sp2_i
+                                                    : 1.0;
+              solver_mat_diag_(blk, row, col) -=
+                  dt_aii * ellL_q * gL_i * J * ellL_p / tau_i;
+
+            }
+          }
+        }
+      }
+      break;
+    default:
+      break;
+    }
+
+    blk = nblocks - 1;
+    const auto outer_bc = rad_bcs[1];
+    switch (outer_bc.type) {
+
+    case BcType::Outflow:
+      for (int q = 0; q < nNodes; ++q) {
+        for (int p = 0; p < nNodes; ++p) {
+          const double ellR_q = phi(i_outer, nNodes + 1, q);
+          const double ellR_p = phi(i_outer, nNodes + 1, p);
+
+          for (int v = 0; v < 2; ++v) {
+            for (int w = 0; w < 2; ++w) {
+              const int row = idx(q, v);
+              const int col = idx(p, w);
+              // This pattern is messy but simple. Form the flux Jacobian 
+              // contribution
+              const double J = ((v == 0 && w == 0) || (v == 1 && w == 1))
+                                   ? -vstar_o
+                               : (v == 1 && w == 0) ? sp2_o
+                                                    : 1.0;
+              solver_mat_diag_(blk, row, col) +=
+                dt_aii * ellR_q * gR_o * J * ellR_p / tau_o;
+            }
+          }
+        }
+      }
+      break;
+    default:
+      break;
+    }
+    });
 
     athelas::ThomasScratch scratch{
         .W = solver_W_,
@@ -411,14 +473,12 @@ void ImplicitRadiationMomentsPackage::update_implicit(
           for (int q = qb.s; q <= qb.e; ++q) {
             // E (v=0): row 2*q_local
             delta_(dt_info.stage, i, q, 2) +=
-                (solver_b_(blk, 2 * q) -
-                 ustar(i, q, vars::cons::RadEnergy)) /
+                (solver_b_(blk, 2 * q) - ustar(i, q, vars::cons::RadEnergy)) /
                 dt_aii;
 
             // F (v=1): row 2*q_local + 1
             delta_(dt_info.stage, i, q, 3) +=
-                (solver_b_(blk, 2 * q + 1) -
-                 ustar(i, q, vars::cons::RadFlux)) /
+                (solver_b_(blk, 2 * q + 1) - ustar(i, q, vars::cons::RadFlux)) /
                 dt_aii;
           }
         });
@@ -429,52 +489,54 @@ void ImplicitRadiationMomentsPackage::update_implicit(
  */
 void ImplicitRadiationMomentsPackage::apply_delta(
     AthelasArray3D<double> lhs, const TimeStepInfo &dt_info) const {
-  static const int nx = static_cast<int>(lhs.extent(0));
-  static const int nq = static_cast<int>(lhs.extent(1));
-  static const IndexRange ib(std::make_pair(1, nx - 2));
-  static const IndexRange qb(nq);
-  static const IndexRange vb(NUM_VARS_);
+    static const int nx = static_cast<int>(lhs.extent(0));
+    static const int nq = static_cast<int>(lhs.extent(1));
+    static const IndexRange ib(std::make_pair(1, nx - 2));
+    static const IndexRange qb(nq);
+    static const IndexRange vb(NUM_VARS_);
 
-  const int stage = dt_info.stage;
+    const int stage = dt_info.stage;
 
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Apply delta", DevExecSpace(), ib.s,
-      ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-        for (int v = vb.s; v <= vb.e; ++v) {
-          lhs(i, q, v + 1) += dt_info.dt_coef_implicit * delta_(stage, i, q, v);
-        }
-      });
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Apply delta", DevExecSpace(),
+        ib.s, ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+          for (int v = vb.s; v <= vb.e; ++v) {
+            lhs(i, q, v + 1) +=
+                dt_info.dt_coef_implicit * delta_(stage, i, q, v);
+          }
+        });
 }
 
 /**
  * @brief zero delta field
  */
 void ImplicitRadiationMomentsPackage::zero_delta() const noexcept {
-  static const IndexRange sb(static_cast<int>(delta_.extent(0)));
-  static const IndexRange ib(static_cast<int>(delta_.extent(1)));
-  static const IndexRange qb(static_cast<int>(delta_.extent(2)));
-  static const IndexRange vb(static_cast<int>(delta_.extent(3)));
+    static const IndexRange sb(static_cast<int>(delta_.extent(0)));
+    static const IndexRange ib(static_cast<int>(delta_.extent(1)));
+    static const IndexRange qb(static_cast<int>(delta_.extent(2)));
+    static const IndexRange vb(static_cast<int>(delta_.extent(3)));
 
-  // We store the last stage source in the state = 0 slot.
-  // That is, G(U^0) <- G(U^n).
-  // In an ESDIRK tableau we reuse this for the first stage.
-  const int ns = sb.e;
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Store last stage source", DevExecSpace(), ib.s,
-      ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-        for (int v = vb.s; v <= vb.e; ++v) {
-          delta_(0, i, q, v) = delta_(ns, i, q, v);
-        }
-      });
+    // We store the last stage source in the state = 0 slot.
+    // That is, G(U^0) <- G(U^n).
+    // In an ESDIRK tableau we reuse this for the first stage.
+    const int ns = sb.e;
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Store last stage source",
+        DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
+        KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+          for (int v = vb.s; v <= vb.e; ++v) {
+            delta_(0, i, q, v) = delta_(ns, i, q, v);
+          }
+        });
 
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Zero delta", DevExecSpace(), sb.s + 1,
-      sb.e, ib.s, ib.e, qb.s, qb.e,
-      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int q) {
-        for (int v = vb.s; v <= vb.e; ++v) {
-          delta_(s, i, q, v) = 0.0;
-        }
-      });
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Zero delta", DevExecSpace(),
+        sb.s + 1, sb.e, ib.s, ib.e, qb.s, qb.e,
+        KOKKOS_CLASS_LAMBDA(const int s, const int i, const int q) {
+          for (int v = vb.s; v <= vb.e; ++v) {
+            delta_(s, i, q, v) = 0.0;
+          }
+        });
 
 }
 
@@ -484,50 +546,54 @@ void ImplicitRadiationMomentsPackage::zero_delta() const noexcept {
 auto ImplicitRadiationMomentsPackage::min_timestep(
     const StageData &stage_data, const GridStructure &grid,
     const TimeStepInfo &dt_info) const -> double {
-  constexpr double MAX_DT = std::numeric_limits<double>::max();
-  constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
-  constexpr double EPS = 1.0e-10;
+    constexpr double MAX_DT = std::numeric_limits<double>::max();
+    constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
+    constexpr double EPS = 1.0e-10;
 
-  auto ucf = stage_data.get_field("u_cf");
-  static const int idx_er = stage_data.var_index("u_cf", "rad_energy");
-  static const int idx_fr = stage_data.var_index("u_cf", "rad_momentum");
+    auto ucf = stage_data.get_field("u_cf");
+    static const int idx_er = stage_data.var_index("u_cf", "rad_energy");
+    static const int idx_fr = stage_data.var_index("u_cf", "rad_momentum");
 
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  static const IndexRange qb(grid.n_nodes());
+    static const IndexRange ib(grid.domain<Domain::Interior>());
+    static const IndexRange qb(grid.n_nodes());
 
-  const double max_frac_change_e = 0.01;
-  const double max_change_f = 0.1;
-  const double dt_old = dt_info.dt;
+    const auto max_frac_change_e = params_.get<double>("max_fractional_change_e");
+    const auto max_change_f = params_.get<double>("max_change_f");
 
-  double dt_out = 0.0;
-  athelas::par_reduce(
-      DEFAULT_LOOP_PATTERN, "ImplicitMoments :: timestep restriction",
-      DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
-      KOKKOS_CLASS_LAMBDA(const int i, const int q, double &lmin) {
-        const double e_old = e_rad_old_(i, q);
-        const double flux_old = f_rad_old_(i, q);
-        const double f = flux_factor(ucf(i, q, idx_er), ucf(i, q, idx_fr) + EPS);
-        const double f_old = flux_factor(e_old + EPS, flux_old + EPS);
-        const double dt_e = dt_old * max_frac_change_e * (e_old + EPS) / (std::abs(ucf(i, q, idx_er) - e_old) + EPS);
-        const double dt_f = dt_old * max_change_f / (std::abs(f - f_old) + EPS);
-        lmin = std::min({dt_e, dt_f, lmin});
-      },
-      Kokkos::Min<double>(dt_out));
+    const double dt_old = dt_info.dt;
 
-  dt_out = std::max(cfl_ * dt_out, MIN_DT);
-  dt_out = std::min(dt_out, MAX_DT);
+    double dt_out = 0.0;
+    athelas::par_reduce(
+        DEFAULT_LOOP_PATTERN, "ImplicitMoments :: timestep restriction",
+        DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
+        KOKKOS_CLASS_LAMBDA(const int i, const int q, double &lmin) {
+          const double e_old = e_rad_old_(i, q);
+          const double flux_old = f_rad_old_(i, q);
+          const double f =
+              flux_factor(ucf(i, q, idx_er), ucf(i, q, idx_fr) + EPS);
+          const double f_old = flux_factor(e_old + EPS, flux_old + EPS);
+          const double dt_e = dt_old * max_frac_change_e * (e_old + EPS) /
+                              (std::abs(ucf(i, q, idx_er) - e_old) + EPS);
+          const double dt_f =
+              dt_old * max_change_f / (std::abs(f - f_old) + EPS);
+          lmin = std::min({dt_e, dt_f, lmin});
+        },
+        Kokkos::Min<double>(dt_out));
 
-  // Store the current radiation energy and flux for use 
-  // in the next timestep calculation.
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "ImplicitMoments :: cache of radiation vars",
-      DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
-      KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-      e_rad_old_(i, q) = ucf(i, q, idx_er); 
-      f_rad_old_(i, q) = ucf(i, q, idx_fr); 
-      });
+    dt_out = std::max(cfl_ * dt_out, MIN_DT);
+    dt_out = std::min(dt_out, MAX_DT);
 
-  return dt_out;
+    // Store the current radiation energy and flux for use
+    // in the next timestep calculation.
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "ImplicitMoments :: cache of radiation vars",
+        DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
+        KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+          e_rad_old_(i, q) = ucf(i, q, idx_er);
+          f_rad_old_(i, q) = ucf(i, q, idx_fr);
+        });
+
+    return dt_out;
 }
 
 /**
@@ -538,51 +604,51 @@ auto ImplicitRadiationMomentsPackage::min_timestep(
 void ImplicitRadiationMomentsPackage::fill_derived(
     StageData &stage_data, const GridStructure &grid,
     const TimeStepInfo & /*dt_info*/) const {
-  return;
-  // NOTE: When we actually use this, remove the above.
-  auto ucf = stage_data.get_field("u_cf");
-  auto upf = stage_data.get_field("u_pf");
-  auto uaf = stage_data.get_field("u_af");
+    return;
+    // NOTE: When we actually use this, remove the above.
+    auto ucf = stage_data.get_field("u_cf");
+    auto upf = stage_data.get_field("u_pf");
+    auto uaf = stage_data.get_field("u_af");
 
-  const auto &fluid_basis = stage_data.fluid_basis();
+    const auto &fluid_basis = stage_data.fluid_basis();
 
-  const int nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Entire>());
+    const int nNodes = grid.n_nodes();
+    static const IndexRange ib(grid.domain<Domain::Entire>());
 
-  auto phi = fluid_basis.phi();
+    auto phi = fluid_basis.phi();
 
-  // --- Apply BC ---
-  bc::fill_ghost_zones<2>(ucf, &grid, bcs_, {3, 4});
+    // --- Apply BC ---
+    bc::fill_ghost_zones<2>(ucf, &grid, bcs_, {3, 4});
 
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "ImplicitMoments :: fill derived", DevExecSpace(),
-      ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-        for (int q = 0; q < nNodes + 2; ++q) {
-          // const double rho =
-          //     1.0 / basis_eval(phi, ucf, i, vars::cons::SpecificVolume, q);
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "ImplicitMoments :: fill derived",
+        DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
+          for (int q = 0; q < nNodes + 2; ++q) {
+            // const double rho =
+            //     1.0 / basis_eval(phi, ucf, i, vars::cons::SpecificVolume, q);
 
-          // const double e_rad =
-          //     basis_eval(phi, ucf, i, vars::cons::RadEnergy, q) * rho;
-          // const double flux_rad =
-          //     basis_eval(phi, ucf, i, vars::cons::RadFlux, q) * rho;
+            // const double e_rad =
+            //     basis_eval(phi, ucf, i, vars::cons::RadEnergy, q) * rho;
+            // const double flux_rad =
+            //     basis_eval(phi, ucf, i, vars::cons::RadFlux, q) * rho;
 
-          // const double flux_fact = flux_factor(e_rad, f_rad);
-        }
-      });
+            // const double flux_fact = flux_factor(e_rad, f_rad);
+          }
+        });
 }
 
 [[nodiscard]] auto ImplicitRadiationMomentsPackage::name() const noexcept
     -> std::string_view {
-  return "ImplicitRadiationMoments";
+    return "ImplicitRadiationMoments";
 }
 
 [[nodiscard]] auto ImplicitRadiationMomentsPackage::is_active() const noexcept
     -> bool {
-  return active_;
+    return active_;
 }
 
 void ImplicitRadiationMomentsPackage::set_active(const bool active) {
-  active_ = active;
+    active_ = active;
 }
 
 // ----------------------------------------------------------------------------
@@ -606,40 +672,40 @@ RadHydroPackage::RadHydroPackage(const ProblemIn *pin, int n_stages, int nq,
 void RadHydroPackage::update_explicit(const StageData &stage_data,
                                       const GridStructure &grid,
                                       const TimeStepInfo &dt_info) const {
-  // TODO(astrobarker) handle separate fluid and rad orders
-  const auto &basis = stage_data.fluid_basis();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  static const IndexRange qb(grid.n_nodes());
-  static const IndexRange vb(NUM_VARS_);
+    // TODO(astrobarker) handle separate fluid and rad orders
+    const auto &basis = stage_data.fluid_basis();
+    static const IndexRange ib(grid.domain<Domain::Interior>());
+    static const IndexRange qb(grid.n_nodes());
+    static const IndexRange vb(NUM_VARS_);
 
-  const auto stage = dt_info.stage;
-  auto ucf = stage_data.get_field("u_cf");
+    const auto stage = dt_info.stage;
+    auto ucf = stage_data.get_field("u_cf");
 
-  // --- Apply BC ---
-  bc::fill_ghost_zones<2>(ucf, &grid, bcs_, {3, 4});
-  bc::fill_ghost_zones<3>(ucf, &grid, bcs_, {0, 2});
+    // --- Apply BC ---
+    bc::fill_ghost_zones<2>(ucf, &grid, bcs_, {3, 4});
+    bc::fill_ghost_zones<3>(ucf, &grid, bcs_, {0, 2});
 
-  // --- radiation Increment : Divergence ---
-  radhydro_divergence(stage_data, grid, stage);
+    // --- radiation Increment : Divergence ---
+    radhydro_divergence(stage_data, grid, stage);
 
-  // --- Divide update by mass matrix ---
-  auto inv_mqq = basis.inv_mass_matrix();
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "RadHydro :: delta / M_qq", DevExecSpace(), ib.s,
-      ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-        const double inv_mm = inv_mqq(i, q);
-        for (int v = 0; v < NUM_VARS_; ++v) {
-          delta_(stage, i, q, v) *= inv_mm;
-        }
-      });
+    // --- Divide update by mass matrix ---
+    auto inv_mqq = basis.inv_mass_matrix();
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN, "RadHydro :: delta / M_qq", DevExecSpace(), ib.s,
+        ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+          const double inv_mm = inv_mqq(i, q);
+          for (int v = 0; v < NUM_VARS_; ++v) {
+            delta_(stage, i, q, v) *= inv_mm;
+          }
+        });
 } // update_explicit
 
 void RadHydroPackage::update_implicit(const StageData &stage_data,
                                       AthelasArray3D<double> R,
                                       const GridStructure &grid,
                                       const TimeStepInfo &dt_info) {
-  // compute radiation-matter coupling sources implicitly with Newton-Raphson.
-  radiation_source_implicit(stage_data, R, delta_im_, grid, dt_info);
+    // compute radiation-matter coupling sources implicitly with Newton-Raphson.
+    radiation_source_implicit(stage_data, R, delta_im_, grid, dt_info);
 }
 
 /**
@@ -647,55 +713,56 @@ void RadHydroPackage::update_implicit(const StageData &stage_data,
  */
 void RadHydroPackage::apply_delta(AthelasArray3D<double> lhs,
                                   const TimeStepInfo &dt_info) const {
-  static const int nx = static_cast<int>(lhs.extent(0));
-  static const int nq = static_cast<int>(lhs.extent(1));
-  static const IndexRange ib(std::make_pair(1, nx - 2));
-  static const IndexRange qb(nq);
-  static const IndexRange vb(NUM_VARS_);
+    static const int nx = static_cast<int>(lhs.extent(0));
+    static const int nq = static_cast<int>(lhs.extent(1));
+    static const IndexRange ib(std::make_pair(1, nx - 2));
+    static const IndexRange qb(nq);
+    static const IndexRange vb(NUM_VARS_);
 
-  const int stage = dt_info.stage;
+    const int stage = dt_info.stage;
 
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "RadHydro :: Apply delta", DevExecSpace(), ib.s,
-      ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-        for (int v = vb.s; v <= vb.e; ++v) {
-          lhs(i, q, v) += dt_info.dt_coef * delta_(stage, i, q, v);
-        }
-        for (int v = vb.s + 1; v <= vb.e - 1; ++v) {
-          lhs(i, q, v + 1) += dt_info.dt_coef_implicit * delta_im_(stage, i, q, v);
-        }
-      });
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN, "RadHydro :: Apply delta", DevExecSpace(), ib.s,
+        ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+          for (int v = vb.s; v <= vb.e; ++v) {
+            lhs(i, q, v) += dt_info.dt_coef * delta_(stage, i, q, v);
+          }
+          for (int v = vb.s + 1; v <= vb.e - 1; ++v) {
+            lhs(i, q, v + 1) +=
+                dt_info.dt_coef_implicit * delta_im_(stage, i, q, v);
+          }
+        });
 }
 
 /**
  * @brief zero delta field
  */
 void RadHydroPackage::zero_delta() const noexcept {
-  static const IndexRange sb(static_cast<int>(delta_.extent(0)));
-  static const IndexRange ib(static_cast<int>(delta_.extent(1)));
-  static const IndexRange qb(static_cast<int>(delta_.extent(2)));
-  static const IndexRange vb(static_cast<int>(delta_.extent(3)));
+    static const IndexRange sb(static_cast<int>(delta_.extent(0)));
+    static const IndexRange ib(static_cast<int>(delta_.extent(1)));
+    static const IndexRange qb(static_cast<int>(delta_.extent(2)));
+    static const IndexRange vb(static_cast<int>(delta_.extent(3)));
 
-  // We store the last stage source in the state = 0 slot.
-  // That is, G(U^0) <- G(U^n).
-  // In an ESDIRK tableau we reuse this for the first stage.
-  const int ns = sb.e;
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "RadHydro :: Zero delta", DevExecSpace(), ib.s,
-      ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-        for (int v = vb.s; v <= vb.e; ++v) {
-          delta_im_(0, i, q, v) = delta_im_(ns, i, q, v);
-        }
-      });
+    // We store the last stage source in the state = 0 slot.
+    // That is, G(U^0) <- G(U^n).
+    // In an ESDIRK tableau we reuse this for the first stage.
+    const int ns = sb.e;
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN, "RadHydro :: Zero delta", DevExecSpace(), ib.s,
+        ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+          for (int v = vb.s; v <= vb.e; ++v) {
+            delta_im_(0, i, q, v) = delta_im_(ns, i, q, v);
+          }
+        });
 
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "RadHydro :: Zero delta", DevExecSpace(), sb.s + 1,
-      sb.e, ib.s, ib.e, qb.s, qb.e,
-      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int q) {
-        for (int v = vb.s; v <= vb.e; ++v) {
-          delta_(s, i, q, v) = 0.0;
-        }
-      });
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN, "RadHydro :: Zero delta", DevExecSpace(),
+        sb.s + 1, sb.e, ib.s, ib.e, qb.s, qb.e,
+        KOKKOS_CLASS_LAMBDA(const int s, const int i, const int q) {
+          for (int v = vb.s; v <= vb.e; ++v) {
+            delta_(s, i, q, v) = 0.0;
+          }
+        });
 }
 
 // Compute the divergence of the flux term for the update
@@ -703,160 +770,163 @@ void RadHydroPackage::zero_delta() const noexcept {
 void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
                                           const GridStructure &grid,
                                           const int stage) const {
-  auto ucf = stage_data.get_field("u_cf");
-  auto uaf = stage_data.get_field("u_af");
-  auto facedata = stage_data.get_field<AthelasArray2D<double>>("facedata");
+    auto ucf = stage_data.get_field("u_cf");
+    auto uaf = stage_data.get_field("u_af");
+    auto facedata = stage_data.get_field<AthelasArray2D<double>>("facedata");
 
-  static const int idx_vstar = stage_data.var_index("facedata", "vstar");
+    static const int idx_vstar = stage_data.var_index("facedata", "vstar");
 
-  const auto &rad_basis = stage_data.rad_basis();
-  const auto &fluid_basis = stage_data.fluid_basis();
+    const auto &rad_basis = stage_data.rad_basis();
+    const auto &fluid_basis = stage_data.fluid_basis();
 
-  const auto &nNodes = grid.n_nodes();
-  static constexpr int ilo = 1;
-  static const auto &ihi = grid.get_ihi();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  static const IndexRange qb(grid.n_nodes());
-  static const IndexRange vb(NUM_VARS_);
+    const auto &nNodes = grid.n_nodes();
+    static constexpr int ilo = 1;
+    static const auto &ihi = grid.get_ihi();
+    static const IndexRange ib(grid.domain<Domain::Interior>());
+    static const IndexRange qb(grid.n_nodes());
+    static const IndexRange vb(NUM_VARS_);
 
-  auto sqrt_gm = grid.sqrt_gm();
-  auto weights = grid.weights();
+    auto sqrt_gm = grid.sqrt_gm();
+    auto weights = grid.weights();
 
-  auto phi_rad = rad_basis.phi();
-  auto phi_fluid = fluid_basis.phi();
-  auto dphi_rad = rad_basis.dphi();
-  auto dphi_fluid = fluid_basis.dphi();
+    auto phi_rad = rad_basis.phi();
+    auto phi_fluid = fluid_basis.phi();
+    auto dphi_rad = rad_basis.dphi();
+    auto dphi_fluid = fluid_basis.dphi();
 
-  // --- Interpolate Conserved Variable to Interfaces ---
+    // --- Interpolate Conserved Variable to Interfaces ---
 
-  // Left/Right face states
+    // Left/Right face states
 
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Interface states", DevExecSpace(),
-      ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
-        for (int v = 0; v < 3; ++v) {
-          u_f_l_(i, v) = basis_eval<Interface::Right>(phi_fluid, ucf, i - 1, v);
-          u_f_r_(i, v) = basis_eval<Interface::Left>(phi_fluid, ucf, i, v);
-        }
-        for (int v = 3; v < NUM_VARS_; ++v) {
-          u_f_l_(i, v) = basis_eval<Interface::Right>(phi_rad, ucf, i - 1, v);
-          u_f_r_(i, v) = basis_eval<Interface::Left>(phi_rad, ucf, i, v);
-        }
-      });
-
-  // --- Calc numerical flux at all faces ---
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Numerical fluxes", DevExecSpace(),
-      ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
-        const double Pgas_L = uaf(i - 1, nNodes + 1, vars::aux::Pressure);
-        const double Cs_L = uaf(i - 1, nNodes + 1, vars::aux::Cs);
-
-        const double Pgas_R = uaf(i, 0, vars::aux::Pressure);
-        const double Cs_R = uaf(i, 0, vars::aux::Cs);
-
-        const double rhoL = 1.0 / u_f_l_(i, vars::cons::SpecificVolume);
-        const double rhoR = 1.0 / u_f_r_(i, vars::cons::SpecificVolume);
-
-        const double E_L = u_f_l_(i, vars::cons::RadEnergy) * rhoL;
-        const double F_L = u_f_l_(i, vars::cons::RadFlux) * rhoL;
-        const double E_R = u_f_r_(i, vars::cons::RadEnergy) * rhoR;
-        const double F_R = u_f_r_(i, vars::cons::RadFlux) * rhoR;
-
-        const double Prad_L = compute_closure(E_L, F_L);
-        const double Prad_R = compute_closure(E_R, F_R);
-
-        // --- Numerical Fluxes ---
-        static constexpr double c2 = constants::c_cgs * constants::c_cgs;
-
-        // Riemann Problem
-        // auto [flux_u, flux_p] = numerical_flux_gudonov( u_f_l_(i,  1 ),
-        // u_f_r_(i,  1
-        // ), P_L, P_R, lam_L, lam_R);
-        const auto [flux_u, flux_p] = numerical_flux_gudonov_positivity(
-            u_f_l_(i, vars::cons::SpecificVolume),
-            u_f_r_(i, vars::cons::SpecificVolume),
-            u_f_l_(i, vars::cons::Velocity), u_f_r_(i, vars::cons::Velocity),
-            Pgas_L, Pgas_R, Cs_L, Cs_R);
-        facedata(i, idx_vstar) = flux_u;
-
-        const double vstar = flux_u;
-        // auto [flux_e, flux_f] =
-        //    numerical_flux_hll_rad( E_L, E_R, F_L, F_R, Prad_L, Prad_R, vstar
-        //    );
-
-        const double alpha = rad_wavespeed(E_L, E_R, F_L, F_R, vstar);
-        const double flux_e =
-            llf_flux(F_R - vstar * E_R, F_L - vstar * E_L, E_R, E_L, alpha);
-        const double flux_f =
-            llf_flux(c2 * Prad_R - vstar * F_R, c2 * Prad_L - vstar * F_L, F_R,
-                     F_L, alpha);
-
-        dFlux_num_(i, vars::cons::SpecificVolume) = -flux_u;
-        dFlux_num_(i, vars::cons::Velocity) = flux_p;
-        dFlux_num_(i, vars::cons::Energy) = +flux_u * flux_p;
-
-        dFlux_num_(i, vars::cons::RadEnergy) = flux_e;
-        dFlux_num_(i, vars::cons::RadFlux) = flux_f;
-      });
-
-  facedata(ilo - 1, idx_vstar) = facedata(ilo, idx_vstar);
-  facedata(ihi + 2, idx_vstar) = facedata(ihi + 1, idx_vstar);
-
-  // TODO(astrobarker): Is this pattern for the surface term okay?
-  // --- Surface Term ---
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "RadHydro :: Surface term", DevExecSpace(), ib.s,
-      ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-        for (int v = vb.s; v <= vb.e; ++v) {
-          const auto phi_v = (v < 3) ? phi_fluid : phi_rad;
-
-          delta_(stage, i, q, v) -=
-              (+dFlux_num_(i + 1, v) * phi_v(i, nNodes + 1, q) *
-                   sqrt_gm(i, nNodes + 1) -
-               dFlux_num_(i + 0, v) * phi_v(i, 0, q) * sqrt_gm(i, 0));
-        }
-      });
-
-  if (nNodes > 1) [[likely]] {
-    // --- Volume Term ---
-    auto upf = stage_data.get_field("u_pf");
     athelas::par_for(
-        DEFAULT_LOOP_PATTERN, "RadHydro :: Volume term", DevExecSpace(), ib.s,
-        ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int p) {
-          double local_sum1 = 0.0;
-          double local_sum2 = 0.0;
-          double local_sum3 = 0.0;
-          double local_sum_e = 0.0;
-          double local_sum_f = 0.0;
-          const double vstar = facedata(i, idx_vstar);
-          for (int q = 0; q < nNodes; ++q) {
-            const int qp1 = q + 1;
-
-            const double pressure = uaf(i, qp1, vars::aux::Pressure);
-            const double rho = upf(i, q, vars::prim::Rho);
-            const double vel = ucf(i, q, vars::cons::Velocity);
-            const double e_rad = ucf(i, q, vars::cons::RadEnergy) * rho;
-            const double f_rad = ucf(i, q, vars::cons::RadFlux) * rho;
-            const double p_rad = compute_closure(e_rad, f_rad);
-            const auto [flux1, flux2, flux3] =
-                athelas::fluid::flux_fluid(vel, pressure);
-            const auto [flux_e, flux_f] = flux_rad(e_rad, f_rad, p_rad, vstar);
-            const double w_dphi_sqrtgm =
-                weights(q) * dphi_fluid(i, qp1, p) * sqrt_gm(i, qp1);
-            local_sum1 += w_dphi_sqrtgm * flux1;
-            local_sum2 += w_dphi_sqrtgm * flux2;
-            local_sum3 += w_dphi_sqrtgm * flux3;
-            local_sum_e += w_dphi_sqrtgm * flux_e;
-            local_sum_f += w_dphi_sqrtgm * flux_f;
+        DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Interface states",
+        DevExecSpace(), ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
+          for (int v = 0; v < 3; ++v) {
+            u_f_l_(i, v) =
+                basis_eval<Interface::Right>(phi_fluid, ucf, i - 1, v);
+            u_f_r_(i, v) = basis_eval<Interface::Left>(phi_fluid, ucf, i, v);
           }
-
-          delta_(stage, i, p, vars::cons::SpecificVolume) += local_sum1;
-          delta_(stage, i, p, vars::cons::Velocity) += local_sum2;
-          delta_(stage, i, p, vars::cons::Energy) += local_sum3;
-          delta_(stage, i, p, vars::cons::RadEnergy) += local_sum_e;
-          delta_(stage, i, p, vars::cons::RadFlux) += local_sum_f;
+          for (int v = 3; v < NUM_VARS_; ++v) {
+            u_f_l_(i, v) = basis_eval<Interface::Right>(phi_rad, ucf, i - 1, v);
+            u_f_r_(i, v) = basis_eval<Interface::Left>(phi_rad, ucf, i, v);
+          }
         });
-  }
+
+    // --- Calc numerical flux at all faces ---
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Numerical fluxes",
+        DevExecSpace(), ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
+          const double Pgas_L = uaf(i - 1, nNodes + 1, vars::aux::Pressure);
+          const double Cs_L = uaf(i - 1, nNodes + 1, vars::aux::Cs);
+
+          const double Pgas_R = uaf(i, 0, vars::aux::Pressure);
+          const double Cs_R = uaf(i, 0, vars::aux::Cs);
+
+          const double rhoL = 1.0 / u_f_l_(i, vars::cons::SpecificVolume);
+          const double rhoR = 1.0 / u_f_r_(i, vars::cons::SpecificVolume);
+
+          const double E_L = u_f_l_(i, vars::cons::RadEnergy) * rhoL;
+          const double F_L = u_f_l_(i, vars::cons::RadFlux) * rhoL;
+          const double E_R = u_f_r_(i, vars::cons::RadEnergy) * rhoR;
+          const double F_R = u_f_r_(i, vars::cons::RadFlux) * rhoR;
+
+          const double Prad_L = compute_closure(E_L, F_L);
+          const double Prad_R = compute_closure(E_R, F_R);
+
+          // --- Numerical Fluxes ---
+          static constexpr double c2 = constants::c_cgs * constants::c_cgs;
+
+          // Riemann Problem
+          // auto [flux_u, flux_p] = numerical_flux_gudonov( u_f_l_(i,  1 ),
+          // u_f_r_(i,  1
+          // ), P_L, P_R, lam_L, lam_R);
+          const auto [flux_u, flux_p] = numerical_flux_gudonov_positivity(
+              u_f_l_(i, vars::cons::SpecificVolume),
+              u_f_r_(i, vars::cons::SpecificVolume),
+              u_f_l_(i, vars::cons::Velocity), u_f_r_(i, vars::cons::Velocity),
+              Pgas_L, Pgas_R, Cs_L, Cs_R);
+          facedata(i, idx_vstar) = flux_u;
+
+          const double vstar = flux_u;
+          // auto [flux_e, flux_f] =
+          //    numerical_flux_hll_rad( E_L, E_R, F_L, F_R, Prad_L, Prad_R,
+          //    vstar
+          //    );
+
+          const double alpha = rad_wavespeed(E_L, E_R, F_L, F_R, vstar);
+          const double flux_e =
+              llf_flux(F_R - vstar * E_R, F_L - vstar * E_L, E_R, E_L, alpha);
+          const double flux_f =
+              llf_flux(c2 * Prad_R - vstar * F_R, c2 * Prad_L - vstar * F_L,
+                       F_R, F_L, alpha);
+
+          dFlux_num_(i, vars::cons::SpecificVolume) = -flux_u;
+          dFlux_num_(i, vars::cons::Velocity) = flux_p;
+          dFlux_num_(i, vars::cons::Energy) = +flux_u * flux_p;
+
+          dFlux_num_(i, vars::cons::RadEnergy) = flux_e;
+          dFlux_num_(i, vars::cons::RadFlux) = flux_f;
+        });
+
+    facedata(ilo - 1, idx_vstar) = facedata(ilo, idx_vstar);
+    facedata(ihi + 2, idx_vstar) = facedata(ihi + 1, idx_vstar);
+
+    // TODO(astrobarker): Is this pattern for the surface term okay?
+    // --- Surface Term ---
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN, "RadHydro :: Surface term", DevExecSpace(), ib.s,
+        ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+          for (int v = vb.s; v <= vb.e; ++v) {
+            const auto phi_v = (v < 3) ? phi_fluid : phi_rad;
+
+            delta_(stage, i, q, v) -=
+                (+dFlux_num_(i + 1, v) * phi_v(i, nNodes + 1, q) *
+                     sqrt_gm(i, nNodes + 1) -
+                 dFlux_num_(i + 0, v) * phi_v(i, 0, q) * sqrt_gm(i, 0));
+          }
+        });
+
+    if (nNodes > 1) [[likely]] {
+      // --- Volume Term ---
+      auto upf = stage_data.get_field("u_pf");
+      athelas::par_for(
+          DEFAULT_LOOP_PATTERN, "RadHydro :: Volume term", DevExecSpace(), ib.s,
+          ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int p) {
+            double local_sum1 = 0.0;
+            double local_sum2 = 0.0;
+            double local_sum3 = 0.0;
+            double local_sum_e = 0.0;
+            double local_sum_f = 0.0;
+            const double vstar = facedata(i, idx_vstar);
+            for (int q = 0; q < nNodes; ++q) {
+              const int qp1 = q + 1;
+
+              const double pressure = uaf(i, qp1, vars::aux::Pressure);
+              const double rho = upf(i, q, vars::prim::Rho);
+              const double vel = ucf(i, q, vars::cons::Velocity);
+              const double e_rad = ucf(i, q, vars::cons::RadEnergy) * rho;
+              const double f_rad = ucf(i, q, vars::cons::RadFlux) * rho;
+              const double p_rad = compute_closure(e_rad, f_rad);
+              const auto [flux1, flux2, flux3] =
+                  athelas::fluid::flux_fluid(vel, pressure);
+              const auto [flux_e, flux_f] =
+                  flux_rad(e_rad, f_rad, p_rad, vstar);
+              const double w_dphi_sqrtgm =
+                  weights(q) * dphi_fluid(i, qp1, p) * sqrt_gm(i, qp1);
+              local_sum1 += w_dphi_sqrtgm * flux1;
+              local_sum2 += w_dphi_sqrtgm * flux2;
+              local_sum3 += w_dphi_sqrtgm * flux3;
+              local_sum_e += w_dphi_sqrtgm * flux_e;
+              local_sum_f += w_dphi_sqrtgm * flux_f;
+            }
+
+            delta_(stage, i, p, vars::cons::SpecificVolume) += local_sum1;
+            delta_(stage, i, p, vars::cons::Velocity) += local_sum2;
+            delta_(stage, i, p, vars::cons::Energy) += local_sum3;
+            delta_(stage, i, p, vars::cons::RadEnergy) += local_sum_e;
+            delta_(stage, i, p, vars::cons::RadFlux) += local_sum_f;
+          });
+    }
 } // radhydro_divergence
 
 /**
@@ -866,29 +936,29 @@ auto RadHydroPackage::min_timestep(const StageData & /*stage_data*/,
                                    const GridStructure &grid,
                                    const TimeStepInfo & /*dt_info*/) const
     -> double {
-  static constexpr double MAX_DT = std::numeric_limits<double>::max();
-  static constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
+    static constexpr double MAX_DT = std::numeric_limits<double>::max();
+    static constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
 
-  static const IndexRange ib(grid.domain<Domain::Interior>());
+    static const IndexRange ib(grid.domain<Domain::Interior>());
 
-  const auto dr = grid.widths();
+    const auto dr = grid.widths();
 
-  double dt_out = 0.0;
-  athelas::par_reduce(
-      DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: timestep restriction",
-      DevExecSpace(), ib.s, ib.e,
-      KOKKOS_CLASS_LAMBDA(const int i, double &lmin) {
-        static constexpr double eigval = constants::c_cgs;
-        const double dt_old = dr(i) / eigval;
+    double dt_out = 0.0;
+    athelas::par_reduce(
+        DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: timestep restriction",
+        DevExecSpace(), ib.s, ib.e,
+        KOKKOS_CLASS_LAMBDA(const int i, double &lmin) {
+          static constexpr double eigval = constants::c_cgs;
+          const double dt_old = dr(i) / eigval;
 
-        lmin = std::min(dt_old, lmin);
-      },
-      Kokkos::Min<double>(dt_out));
+          lmin = std::min(dt_old, lmin);
+        },
+        Kokkos::Min<double>(dt_out));
 
-  dt_out = std::max(cfl_ * dt_out, MIN_DT);
-  dt_out = std::min(dt_out, MAX_DT);
+    dt_out = std::max(cfl_ * dt_out, MIN_DT);
+    dt_out = std::min(dt_out, MAX_DT);
 
-  return dt_out;
+    return dt_out;
 }
 
 /**
@@ -902,169 +972,172 @@ auto RadHydroPackage::min_timestep(const StageData & /*stage_data*/,
 void RadHydroPackage::fill_derived(StageData &stage_data,
                                    const GridStructure &grid,
                                    const TimeStepInfo &dt_info) const {
-  auto uCF = stage_data.get_field("u_cf");
-  auto uPF = stage_data.get_field("u_pf");
-  auto uAF = stage_data.get_field("u_af");
+    auto uCF = stage_data.get_field("u_cf");
+    auto uPF = stage_data.get_field("u_pf");
+    auto uAF = stage_data.get_field("u_af");
 
-  const auto &fluid_basis = stage_data.fluid_basis();
+    const auto &fluid_basis = stage_data.fluid_basis();
 
-  const auto &eos = stage_data.eos();
+    const auto &eos = stage_data.eos();
 
-  const int nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Entire>());
-  static const bool ionization_enabled = stage_data.enabled("ionization");
+    const int nNodes = grid.n_nodes();
+    static const IndexRange ib(grid.domain<Domain::Entire>());
+    static const bool ionization_enabled = stage_data.enabled("ionization");
 
-  auto phi_fluid = fluid_basis.phi();
+    auto phi_fluid = fluid_basis.phi();
 
-  // --- Apply BC ---
-  bc::fill_ghost_zones<2>(uCF, &grid, bcs_, {3, 4});
-  bc::fill_ghost_zones<3>(uCF, &grid, bcs_, {0, 2});
+    // --- Apply BC ---
+    bc::fill_ghost_zones<2>(uCF, &grid, bcs_, {3, 4});
+    bc::fill_ghost_zones<3>(uCF, &grid, bcs_, {0, 2});
 
-  if (stage_data.enabled("composition")) {
-    static constexpr int nvars = 5; // non-comps
-    // composition boundary condition
-    static const IndexRange vb_comps(
-        std::make_pair(nvars, stage_data.nvars("u_cf") - 1));
-    bc::fill_ghost_zones_composition(uCF, vb_comps);
-    atom::fill_derived_comps<Domain::Entire>(stage_data, &grid);
-  }
-
-  // First we get the temperature from the density and specific internal
-  // energy. The ionization case is involved and so this is all done
-  // separately. In that case the temperature solve is coupled to a Saha solve.
-  if (ionization_enabled) {
-    auto *const ionization_state = stage_data.ionization_state();
-    if (ionization_state->solver() == atom::SahaSolver::Linear) {
-      atom::compute_temperature_with_saha<
-          Domain::Entire, eos::EOSInversion::Sie, atom::SahaSolver::Linear>(
-          stage_data, grid);
+    if (stage_data.enabled("composition")) {
+      static constexpr int nvars = 5; // non-comps
+      // composition boundary condition
+      static const IndexRange vb_comps(
+          std::make_pair(nvars, stage_data.nvars("u_cf") - 1));
+      bc::fill_ghost_zones_composition(uCF, vb_comps);
+      atom::fill_derived_comps<Domain::Entire>(stage_data, &grid);
     }
-    if (ionization_state->solver() == atom::SahaSolver::Log) {
-      atom::compute_temperature_with_saha<
-          Domain::Entire, eos::EOSInversion::Sie, atom::SahaSolver::Log>(
-          stage_data, grid);
+
+    // First we get the temperature from the density and specific internal
+    // energy. The ionization case is involved and so this is all done
+    // separately. In that case the temperature solve is coupled to a Saha
+    // solve.
+    if (ionization_enabled) {
+      auto *const ionization_state = stage_data.ionization_state();
+      if (ionization_state->solver() == atom::SahaSolver::Linear) {
+        atom::compute_temperature_with_saha<
+            Domain::Entire, eos::EOSInversion::Sie, atom::SahaSolver::Linear>(
+            stage_data, grid);
+      }
+      if (ionization_state->solver() == atom::SahaSolver::Log) {
+        atom::compute_temperature_with_saha<
+            Domain::Entire, eos::EOSInversion::Sie, atom::SahaSolver::Log>(
+            stage_data, grid);
+      }
+    } else {
+      athelas::par_for(
+          DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Fill derived :: temperature",
+          DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
+            double lambda[8];
+            for (int q = 0; q < nNodes + 2; ++q) {
+              const double rho =
+                  1.0 /
+                  basis_eval(phi_fluid, uCF, i, vars::cons::SpecificVolume, q);
+              const double vel =
+                  basis_eval(phi_fluid, uCF, i, vars::cons::Velocity, q);
+              const double emt =
+                  basis_eval(phi_fluid, uCF, i, vars::cons::Energy, q);
+              const double sie = emt - 0.5 * vel * vel;
+              uAF(i, q, vars::aux::Tgas) =
+                  temperature_from_density_sie(eos, rho, sie, lambda);
+            }
+          });
     }
-  } else {
-    athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Fill derived :: temperature",
-        DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-          double lambda[8];
-          for (int q = 0; q < nNodes + 2; ++q) {
-            const double rho = 1.0 / basis_eval(phi_fluid, uCF, i,
-                                                vars::cons::SpecificVolume, q);
-            const double vel =
-                basis_eval(phi_fluid, uCF, i, vars::cons::Velocity, q);
-            const double emt =
-                basis_eval(phi_fluid, uCF, i, vars::cons::Energy, q);
-            const double sie = emt - 0.5 * vel * vel;
-            uAF(i, q, vars::aux::Tgas) =
-                temperature_from_density_sie(eos, rho, sie, lambda);
-          }
-        });
-  }
 
-  if (ionization_enabled) {
-    const auto *const comps = stage_data.comps();
-    const auto number_density = comps->number_density();
-    auto ye = comps->ye();
+    if (ionization_enabled) {
+      const auto *const comps = stage_data.comps();
+      const auto number_density = comps->number_density();
+      auto ye = comps->ye();
 
-    const auto *const ionization_state = stage_data.ionization_state();
-    auto ybar = ionization_state->ybar();
-    auto e_ion_corr = ionization_state->e_ion_corr();
-    auto sigma1 = ionization_state->sigma1();
-    auto sigma2 = ionization_state->sigma2();
-    auto sigma3 = ionization_state->sigma3();
-    athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: fill derived", DevExecSpace(),
-        ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-          for (int q = 0; q < nNodes + 2; ++q) {
-            const double tau =
-                basis_eval(phi_fluid, uCF, i, vars::cons::SpecificVolume, q);
-            const double vel =
-                basis_eval(phi_fluid, uCF, i, vars::cons::Velocity, q);
-            const double emt =
-                basis_eval(phi_fluid, uCF, i, vars::cons::Energy, q);
+      const auto *const ionization_state = stage_data.ionization_state();
+      auto ybar = ionization_state->ybar();
+      auto e_ion_corr = ionization_state->e_ion_corr();
+      auto sigma1 = ionization_state->sigma1();
+      auto sigma2 = ionization_state->sigma2();
+      auto sigma3 = ionization_state->sigma3();
+      athelas::par_for(
+          DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: fill derived", DevExecSpace(),
+          ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
+            for (int q = 0; q < nNodes + 2; ++q) {
+              const double tau =
+                  basis_eval(phi_fluid, uCF, i, vars::cons::SpecificVolume, q);
+              const double vel =
+                  basis_eval(phi_fluid, uCF, i, vars::cons::Velocity, q);
+              const double emt =
+                  basis_eval(phi_fluid, uCF, i, vars::cons::Energy, q);
 
-            // const double e_rad = rad_basis_->basis_eval(uCF, i, 3, q + 1);
-            // const double f_rad = rad_basis_->basis_eval(uCF, i, 4, q + 1);
+              // const double e_rad = rad_basis_->basis_eval(uCF, i, 3, q + 1);
+              // const double f_rad = rad_basis_->basis_eval(uCF, i, 4, q + 1);
 
-            // const double flux_fact = flux_factor(e_rad, f_rad);
+              // const double flux_fact = flux_factor(e_rad, f_rad);
 
-            const double rho = 1.0 / tau;
-            const double momentum = rho * vel;
-            const double sie = (emt - 0.5 * vel * vel);
+              const double rho = 1.0 / tau;
+              const double momentum = rho * vel;
+              const double sie = (emt - 0.5 * vel * vel);
 
-            eos::EOSLambda lambda;
-            lambda.data[0] = number_density(i, q);
-            lambda.data[1] = ye(i, q);
-            lambda.data[2] = ybar(i, q);
-            lambda.data[3] = sigma1(i, q);
-            lambda.data[4] = sigma2(i, q);
-            lambda.data[5] = sigma3(i, q);
-            lambda.data[6] = e_ion_corr(i, q);
-            lambda.data[7] = uAF(i, q, vars::aux::Tgas);
+              eos::EOSLambda lambda;
+              lambda.data[0] = number_density(i, q);
+              lambda.data[1] = ye(i, q);
+              lambda.data[2] = ybar(i, q);
+              lambda.data[3] = sigma1(i, q);
+              lambda.data[4] = sigma2(i, q);
+              lambda.data[5] = sigma3(i, q);
+              lambda.data[6] = e_ion_corr(i, q);
+              lambda.data[7] = uAF(i, q, vars::aux::Tgas);
 
-            const double t_gas = uAF(i, q, vars::aux::Tgas);
-            const double pressure = pressure_from_density_temperature(
-                eos, rho, t_gas, lambda.ptr());
-            const double cs = sound_speed_from_density_temperature_pressure(
-                eos, rho, t_gas, pressure, lambda.ptr());
+              const double t_gas = uAF(i, q, vars::aux::Tgas);
+              const double pressure = pressure_from_density_temperature(
+                  eos, rho, t_gas, lambda.ptr());
+              const double cs = sound_speed_from_density_temperature_pressure(
+                  eos, rho, t_gas, pressure, lambda.ptr());
 
-            uPF(i, q, vars::prim::Rho) = rho;
-            uPF(i, q, vars::prim::Momentum) = momentum;
-            uPF(i, q, vars::prim::Sie) = sie;
+              uPF(i, q, vars::prim::Rho) = rho;
+              uPF(i, q, vars::prim::Momentum) = momentum;
+              uPF(i, q, vars::prim::Sie) = sie;
 
-            uAF(i, q, vars::aux::Pressure) = pressure;
-            uAF(i, q, vars::aux::Cs) = cs;
-          }
-        });
-  } else {
-    athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: fill derived", DevExecSpace(),
-        ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-          for (int q = 0; q < nNodes + 2; ++q) {
-            const double tau =
-                basis_eval(phi_fluid, uCF, i, vars::cons::SpecificVolume, q);
-            const double vel =
-                basis_eval(phi_fluid, uCF, i, vars::cons::Velocity, q);
-            const double emt =
-                basis_eval(phi_fluid, uCF, i, vars::cons::Energy, q);
+              uAF(i, q, vars::aux::Pressure) = pressure;
+              uAF(i, q, vars::aux::Cs) = cs;
+            }
+          });
+    } else {
+      athelas::par_for(
+          DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: fill derived", DevExecSpace(),
+          ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
+            for (int q = 0; q < nNodes + 2; ++q) {
+              const double tau =
+                  basis_eval(phi_fluid, uCF, i, vars::cons::SpecificVolume, q);
+              const double vel =
+                  basis_eval(phi_fluid, uCF, i, vars::cons::Velocity, q);
+              const double emt =
+                  basis_eval(phi_fluid, uCF, i, vars::cons::Energy, q);
 
-            // const double e_rad = rad_basis_->basis_eval(uCF, i, 3, q + 1);
-            // const double f_rad = rad_basis_->basis_eval(uCF, i, 4, q + 1);
+              // const double e_rad = rad_basis_->basis_eval(uCF, i, 3, q + 1);
+              // const double f_rad = rad_basis_->basis_eval(uCF, i, 4, q + 1);
 
-            // const double flux_fact = flux_factor(e_rad, f_rad);
+              // const double flux_fact = flux_factor(e_rad, f_rad);
 
-            const double rho = 1.0 / tau;
-            const double momentum = rho * vel;
-            const double sie = (emt - 0.5 * vel * vel);
+              const double rho = 1.0 / tau;
+              const double momentum = rho * vel;
+              const double sie = (emt - 0.5 * vel * vel);
 
-            eos::EOSLambda lambda;
+              eos::EOSLambda lambda;
 
-            const double t_gas = uAF(i, q, vars::aux::Tgas);
-            const double pressure = pressure_from_density_temperature(
-                eos, rho, t_gas, lambda.ptr());
-            const double cs = sound_speed_from_density_temperature_pressure(
-                eos, rho, t_gas, pressure, lambda.ptr());
+              const double t_gas = uAF(i, q, vars::aux::Tgas);
+              const double pressure = pressure_from_density_temperature(
+                  eos, rho, t_gas, lambda.ptr());
+              const double cs = sound_speed_from_density_temperature_pressure(
+                  eos, rho, t_gas, pressure, lambda.ptr());
 
-            uPF(i, q, vars::prim::Rho) = rho;
-            uPF(i, q, vars::prim::Momentum) = momentum;
-            uPF(i, q, vars::prim::Sie) = sie;
+              uPF(i, q, vars::prim::Rho) = rho;
+              uPF(i, q, vars::prim::Momentum) = momentum;
+              uPF(i, q, vars::prim::Sie) = sie;
 
-            uAF(i, q, vars::aux::Pressure) = pressure;
-            uAF(i, q, vars::aux::Cs) = cs;
-          }
-        });
-  }
+              uAF(i, q, vars::aux::Pressure) = pressure;
+              uAF(i, q, vars::aux::Cs) = cs;
+            }
+          });
+    }
 }
 
 [[nodiscard]] auto RadHydroPackage::name() const noexcept -> std::string_view {
-  return "RadHydro";
+    return "RadHydro";
 }
 
 [[nodiscard]] auto RadHydroPackage::is_active() const noexcept -> bool {
-  return active_;
+    return active_;
 }
 
-void RadHydroPackage::set_active(const bool active) { active_ = active; }
+void RadHydroPackage::set_active(const bool active) {
+    active_ = active; }
 } // namespace athelas::radiation
