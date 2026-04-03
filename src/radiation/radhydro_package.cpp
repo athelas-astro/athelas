@@ -12,6 +12,7 @@
 #include "linalg/linear_algebra.hpp"
 #include "loop_layout.hpp"
 #include "pgen/problem_in.hpp"
+#include "rad_utilities.hpp"
 #include "radiation/radhydro_package.hpp"
 
 namespace athelas::radiation {
@@ -245,23 +246,25 @@ void ImplicitRadiationMomentsPackage::update_implicit(
         const double F_R = u_f_r_(i, 2) * rho_R;
 
         const double alpha = rad_wavespeed(E_L, E_R, F_L, F_R, vstar);
-        const double chi_L =
-            eddington_factor(flux_factor(u_f_l_(i, 1), u_f_l_(i, 2)));
-        const double chi_R =
-            eddington_factor(flux_factor(u_f_r_(i, 1), u_f_r_(i, 2)));
+        const double f_l = flux_factor(u_f_l_(i, 1), u_f_l_(i, 2));
+        const double f_r = flux_factor(u_f_r_(i, 1), u_f_r_(i, 2));
+        const double chi_L = eddington_factor(f_l);
+        const double chi_R = eddington_factor(f_r);
+        const double chi_prime_L = eddington_factor_prime(f_l);
+        const double chi_prime_R = eddington_factor_prime(f_r);
 
         // A_minus = d(F_hat)/d(U_local) = 0.5 * (J_local + alpha * I)
         // Scaled by 1/tau because we solve for specific variables
         A_minus_(i - ib.s, 0, 0) = 0.5 * (-vstar + alpha) * rho_L;
-        A_minus_(i - ib.s, 0, 1) = 0.5 * (1.0) * rho_L;
-        A_minus_(i - ib.s, 1, 0) = 0.5 * (c2 * chi_L) * rho_L;
-        A_minus_(i - ib.s, 1, 1) = 0.5 * (-vstar + alpha) * rho_L;
+        A_minus_(i - ib.s, 0, 1) = 0.5 * rho_L;
+        A_minus_(i - ib.s, 1, 0) = 0.5 * (c2 * (chi_L - f_l * chi_prime_L)) * rho_L;
+        A_minus_(i - ib.s, 1, 1) = 0.5 * (chi_prime_L -vstar + alpha) * rho_L;
 
         // A_plus = d(F_hat)/d(U_neighbor) = 0.5 * (J_neighbor - alpha * I)
         A_plus_(i - ib.s, 0, 0) = 0.5 * (-vstar - alpha) * rho_R;
-        A_plus_(i - ib.s, 0, 1) = 0.5 * (1.0) * rho_R;
-        A_plus_(i - ib.s, 1, 0) = 0.5 * (c2 * chi_R) * rho_R;
-        A_plus_(i - ib.s, 1, 1) = 0.5 * (-vstar - alpha) * rho_R;
+        A_plus_(i - ib.s, 0, 1) = 0.5 * rho_R;
+        A_plus_(i - ib.s, 1, 0) = 0.5 * (c2 * (chi_R - f_r * chi_prime_R)) * rho_R;
+        A_plus_(i - ib.s, 1, 1) = 0.5 * (chi_prime_R -vstar - alpha) * rho_R;
       });
 
   Kokkos::deep_copy(solver_mat_diag_, 0.0);
@@ -298,15 +301,19 @@ void ImplicitRadiationMomentsPackage::update_implicit(
               const double taup = ucf(i, p, idx_tau);
               const double f =
                   flux_factor(ucf(i, p, idx_er), ucf(i, p, idx_fr));
-              const double sp2 = c2 * eddington_factor(f);
+              const double chi = eddington_factor(f);
+              const double sp2 = c2 * chi;
+              const double chi_prime = eddington_factor_prime(f);
               for (int w = 0; w < 2; ++w) {
                 const int col = idx(p, w);
 
                 double A_vw = 1.0;
-                if ((v == 0 && w == 0) || (v == 1 && w == 1)) {
+                if (v == 0 && w == 0) { 
                   A_vw = -vp;
+                } else if (v == 1 && w == 1) {
+                        A_vw = c * chi_prime - v;
                 } else if (v == 1 && w == 0) {
-                  A_vw = sp2;
+                  A_vw = sp2 - f * chi_prime;
                 }
 
                 solver_mat_diag_(blk, row, col) -=
@@ -385,8 +392,12 @@ void ImplicitRadiationMomentsPackage::update_implicit(
     const double tau_o = u_f_l_(i_outer, 0);
     const double f_i = flux_factor(u_f_r_(i_inner, 1), u_f_r_(i_inner, 2));
     const double f_o = flux_factor(u_f_l_(i_outer, 1), u_f_l_(i_outer, 2));
-    const double sp2_i = c2 * eddington_factor(f_i);
-    const double sp2_o = c2 * eddington_factor(f_o);
+    const double chi_i = eddington_factor(f_i);
+    const double chi_o = eddington_factor(f_o);
+    const double chi_prime_i = eddington_factor_prime(f_i);
+    const double chi_prime_o = eddington_factor_prime(f_o);
+    const double sp2_i = c2 * chi_i;
+    const double sp2_o = c2 * chi_o;
     const double gL_i = sqrt_gm(i_inner, 0);
     //const double gR_i = sqrt_gm(i_inner, nNodes + 1);
     //const double gL_o = sqrt_gm(i_outer, 0);
@@ -409,10 +420,14 @@ void ImplicitRadiationMomentsPackage::update_implicit(
               const int col = idx(p, w);
               // This pattern is messy but simple. Form the flux Jacobian 
               // contribution
-              const double J = ((v == 0 && w == 0) || (v == 1 && w == 1))
-                                   ? -vstar_i
-                               : (v == 1 && w == 0) ? sp2_i
-                                                    : 1.0;
+                double J = 1.0;
+                if (v == 0 && w == 0) { 
+                  J = -vstar_i;
+                } else if (v == 1 && w == 1) {
+                        J = c * chi_prime_i - vstar_i;
+                } else if (v == 1 && w == 0) {
+                  J = c2 * (chi_i - f_i * chi_prime_i);
+                }
               solver_mat_diag_(blk, row, col) -=
                   dt_aii * ellL_q * gL_i * J * ellL_p / tau_i;
 
@@ -441,10 +456,14 @@ void ImplicitRadiationMomentsPackage::update_implicit(
               const int col = idx(p, w);
               // This pattern is messy but simple. Form the flux Jacobian 
               // contribution
-              const double J = ((v == 0 && w == 0) || (v == 1 && w == 1))
-                                   ? -vstar_o
-                               : (v == 1 && w == 0) ? sp2_o
-                                                    : 1.0;
+                double J = 1.0;
+                if (v == 0 && w == 0) { 
+                  J = -vstar_o;
+                } else if (v == 1 && w == 1) {
+                        J = c * chi_prime_o - vstar_o;
+                } else if (v == 1 && w == 0) {
+                  J = c2 * (chi_o - f_o * chi_prime_o);
+                }
               solver_mat_diag_(blk, row, col) +=
                 dt_aii * ellR_q * gR_o * J * ellR_p / tau_o;
             }
