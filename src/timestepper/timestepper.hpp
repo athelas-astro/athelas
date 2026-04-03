@@ -201,7 +201,7 @@ class TimeStepper {
       auto u = stage_data.get_field("u_cf");
       athelas::par_for(
           DEFAULT_LOOP_PATTERN, "Timestepper :: IMEX :: Reset sumvar",
-          DevExecSpace(), ib.s, ib.e, qb.s, qb.e,// vb.s, vb.e,
+          DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
           KOKKOS_CLASS_LAMBDA(const int i, const int q) {
             for (int v = vb.s; v <= vb.e; ++v) {
             SumVar_U_(i, q, v) = u0(i, q, v);
@@ -236,27 +236,7 @@ class TimeStepper {
       grid_s_[iS].update_grid(x_l_sumvar_j);
 
       // set U_s (stage data)
-      athelas::par_for(
-          DEFAULT_LOOP_PATTERN, "Timestepper :: IMEX :: Update Us",
-          DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
-          KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-            for (int v = vb.s; v <= vb.e; ++v) {
-            u(i, q, v) = SumVar_U_(i, q, v);
-            }
-          });
-
-      apply_slope_limiter(sl_hydro, u, grid_s_[iS], fluid_basis, eos);
-      apply_slope_limiter(sl_rad, u, grid_s_[iS], rad_basis, eos);
-      bel::apply_bound_enforcing_limiter(stage_data, grid_s_[iS]);
-      bel::apply_bound_enforcing_limiter_rad(stage_data, grid_s_[iS]);
-
-      // set U_s (stage data)
-      athelas::par_for(
-          DEFAULT_LOOP_PATTERN, "Timestepper :: IMEX :: Update Us",
-          DevExecSpace(), ib.s, ib.e, qb.s, qb.e, vb.s, vb.e,
-          KOKKOS_CLASS_LAMBDA(const int i, const int q, const int v) {
-            SumVar_U_(i, q, v) = u(i, q, v);
-          });
+      Kokkos::deep_copy(u, SumVar_U_);
 
       // implicit update
       dt_info.stage = iS;

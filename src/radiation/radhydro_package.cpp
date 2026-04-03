@@ -254,7 +254,6 @@ void ImplicitRadiationMomentsPackage::update_implicit(
         const double chi_prime_R = eddington_factor_prime(f_r);
 
         // A_minus = d(F_hat)/d(U_local) = 0.5 * (J_local + alpha * I)
-        // Scaled by 1/tau because we solve for specific variables
         A_minus_(i - ib.s, 0, 0) = 0.5 * (-vstar + alpha) * rho_L;
         A_minus_(i - ib.s, 0, 1) = 0.5 * rho_L;
         A_minus_(i - ib.s, 1, 0) = 0.5 * (c2 * (chi_L - f_l * chi_prime_L)) * rho_L;
@@ -279,10 +278,9 @@ void ImplicitRadiationMomentsPackage::update_implicit(
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Assemble solver_mat",
       DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-        // Block index for element i
         const int blk = i - ib.s;
 
-        // Mass matrix — diagonal block only
+        // Mass matrix - diagonal block only
         for (int q = 0; q < nNodes; ++q) {
           for (int v = 0; v < 2; ++v) {
             const int row = idx(q, v);
@@ -290,7 +288,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
           }
         }
 
-        // Volume term — diagonal block
+        // Volume term - diagonal block
         // K_vol[q*2+v, p*2+w] = [D^T W]_{qp} * A[v,w](x_p)
         // A = rho[[-v, 1], [s^2, -v]] with s^2 = c^2 * chi
         for (int q = 0; q < nNodes; ++q) {
@@ -298,7 +296,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
             const int row = idx(q, v);
             for (int p = 0; p < nNodes; ++p) {
               const double vp = ucf(i, p, idx_vel);
-              const double taup = ucf(i, p, idx_tau);
+              const double rhop = 1.0 / ucf(i, p, idx_tau);
               const double f =
                   flux_factor(ucf(i, p, idx_er), ucf(i, p, idx_fr));
               const double chi = eddington_factor(f);
@@ -311,14 +309,14 @@ void ImplicitRadiationMomentsPackage::update_implicit(
                 if (v == 0 && w == 0) { 
                   A_vw = -vp;
                 } else if (v == 1 && w == 1) {
-                        A_vw = c * chi_prime - v;
+                  A_vw = c * chi_prime - v;
                 } else if (v == 1 && w == 0) {
                   A_vw = sp2 - f * chi_prime;
                 }
 
                 solver_mat_diag_(blk, row, col) -=
                     dt_aii * dphi(i, p + 1, q) * weights(p) *
-                    sqrt_gm(i, p + 1) * A_vw / taup;
+                    sqrt_gm(i, p + 1) * A_vw * rhop;
               }
             }
           }
@@ -341,7 +339,6 @@ void ImplicitRadiationMomentsPackage::update_implicit(
 
                 // --- right face ---
                 if (i < ib.e) {
-                  // Internal Face: Standard LLF Splitting
                   const double ellL_p_nbr = phi(i + 1, 0, p);
                   const int ifaceR = i - ib.s + 1;
 
@@ -354,7 +351,6 @@ void ImplicitRadiationMomentsPackage::update_implicit(
 
                 // --- left face ---
                 if (i > ib.s) {
-                  // Internal Face: Standard LLF Splitting
                   const double ellR_p_nbr = phi(i - 1, nNodes + 1, p);
                   const int ifaceL = i - ib.s;
 
@@ -388,19 +384,15 @@ void ImplicitRadiationMomentsPackage::update_implicit(
       DevExecSpace(), 0, 0, KOKKOS_CLASS_LAMBDA(const int) {
     const double vstar_i = facedata(i_inner, idx_vstar);
     const double vstar_o = facedata(i_outer, idx_vstar);
-    const double tau_i = u_f_r_(i_inner, 0);
-    const double tau_o = u_f_l_(i_outer, 0);
+    const double rho_i = 1.0 / u_f_r_(i_inner, 0);
+    const double rho_o = 1.0 / u_f_l_(i_outer, 0);
     const double f_i = flux_factor(u_f_r_(i_inner, 1), u_f_r_(i_inner, 2));
     const double f_o = flux_factor(u_f_l_(i_outer, 1), u_f_l_(i_outer, 2));
     const double chi_i = eddington_factor(f_i);
     const double chi_o = eddington_factor(f_o);
     const double chi_prime_i = eddington_factor_prime(f_i);
     const double chi_prime_o = eddington_factor_prime(f_o);
-    const double sp2_i = c2 * chi_i;
-    const double sp2_o = c2 * chi_o;
     const double gL_i = sqrt_gm(i_inner, 0);
-    //const double gR_i = sqrt_gm(i_inner, nNodes + 1);
-    //const double gL_o = sqrt_gm(i_outer, 0);
     const double gR_o = sqrt_gm(i_outer, nNodes + 1);
 
     // inner boundary
@@ -429,7 +421,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
                   J = c2 * (chi_i - f_i * chi_prime_i);
                 }
               solver_mat_diag_(blk, row, col) -=
-                  dt_aii * ellL_q * gL_i * J * ellL_p / tau_i;
+                  dt_aii * ellL_q * gL_i * J * ellL_p * rho_i;
 
             }
           }
@@ -465,7 +457,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
                   J = c2 * (chi_o - f_o * chi_prime_o);
                 }
               solver_mat_diag_(blk, row, col) +=
-                dt_aii * ellR_q * gR_o * J * ellR_p / tau_o;
+                dt_aii * ellR_q * gR_o * J * ellR_p * rho_o;
             }
           }
         }

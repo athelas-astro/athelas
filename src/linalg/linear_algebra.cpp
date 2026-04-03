@@ -74,32 +74,33 @@ void block_thomas_solve(const int N, const int m,
                        KokkosBatched::Trans::NoTranspose,
                        KokkosBatched::Algo::Gemm::Unblocked>;
 
+    // Copy mxm matrix src -> dst
+    auto mat_copy = [&](auto src, auto dst) {
+        for (int r = 0; r < m; ++r) {
+            for (int c = 0; c < m; ++c) {
+                dst(r, c) = src(r, c);
+            }
+        }
+    };
+
     // This is a 0D loop, it simply creates a "parallel" region
     athelas::par_for(DEFAULT_FLAT_LOOP_PATTERN, "block_thomas",
         DevExecSpace(), 0, 0,
         KOKKOS_LAMBDA(int) {
 
-            // Copy m×m matrix src -> dst
-            auto mat_copy = [&](auto src, auto dst) {
-                for (int r = 0; r < m; ++r) {
-                    for (int c = 0; c < m; ++c) {
-                        dst(r, c) = src(r, c);
-                    }
-                }
-            };
 
             // Apply already-factored Bi_lu to a 1D vector in-place.
             // Forward substitution (unit lower), then back substitution (non-unit upper).
             auto trsv = [&](auto vec) {
                 for (int r = 0; r < m; ++r) {
                     for (int k = 0; k < r; ++k) {
-                        vec(r) -= Bi_lu(r, k) * vec(k);
+                        vec(r) = Kokkos::fma(-Bi_lu(r, k), vec(k), vec(r));
                     }
-                    // unit diagonal — no division
+                    // unit diagonal - no division
                 }
                 for (int r = m - 1; r >= 0; --r) {
                     for (int k = r + 1; k < m; ++k) {
-                        vec(r) -= Bi_lu(r, k) * vec(k);
+                        vec(r) = Kokkos::fma(-Bi_lu(r, k), vec(k), vec(r));
                     }
                     vec(r) /= Bi_lu(r, r);
                 }
@@ -110,7 +111,7 @@ void block_thomas_solve(const int N, const int m,
                 for (int r = 0; r < m; ++r) {
                     double acc = 0;
                     for (int k = 0; k < m; ++k) {
-                        acc += mat(r, k) * rhs_vec(k);
+                        acc = Kokkos::fma(mat(r, k), rhs_vec(k), acc);
                     }
                     out_vec(r) -= acc;
                 }
