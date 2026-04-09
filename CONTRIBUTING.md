@@ -1,198 +1,243 @@
-# Contributing to Athelas
+# Contributing
 
-Thank you for your interest in contributing to `Athelas`!
-This document provides current guidelines and information for contributors.
-As a general rule, these are not not set in stone but subject to possible change, dicussion, and revision.
+Thank you for your interest in contributing to `Athelas`! This document
+provides current guidelines and information for contributors. As a
+general rule, these are not not set in stone but subject to possible
+change, dicussion, and revision.
 
-## Table of Contents
+## Overview
 
-- [Contributing Code](#contributing-code)
-- [Pull Request Process](#pull-request-process)
-- [Code Style and Formatting](#code-style-and-formatting)
-- [Testing](#testing)
-- [Versioning](#versioning)
-- [Documentation](#documentation)
+To contribute to `athelas`, feel free to submit a pull request or open
+an issue.
 
-## Contributing Code
-
-The general workflow is to create a branch (or fork, as relevant),
-implement the feature there, and open a PR into the main branch.
-Please try to keep PRs small and targeted, as this makes the reviewing process
-simpler, faster, and helps avoid things slipping into the codebase that we otherwise
-might not want.
-
-Even if your PR is not ready you may feel free to open a draft PR marked
-with "[WIP]" in the title. These are not merged until [WIP] is removed and
-can be convenient as GitHub's tests will launch even on the draft PR.
+1.  Create a new fork or branch off of `main` where your changes can be
+    made.
+2.  When ready, create a pull request, describe what you've done and
+    ensure the branch has no conflicts.
+3.  At least one Maintainer will review the PR.
+4.  Once comments/feedback is addressed, the PR will be merged into the
+    main branch and changes will be added to list of changes in the next
+    release.
+5.  At present, Releases (with a git version tag) for the `main` branch
+    of `athelas` will occur at a 6 to 12 month cadence or following
+    implementation of a major enhancement or capability to the code
+    base.
 
 ### Branching Strategy
 
-- Create feature branches from the main development branch
-- To keep things orderly, contributors are encouraged to create branches starting with their username or
-    initials followed by a "/" and ending with a brief description, e.g., `astrobarker/multigroup`.
-- Keep branches focused on a single feature or bugfix
+- Create feature branches from the main development branch.
+- To keep things orderly, contributors are encouraged to create branches
+  starting with their username or initials followed by a "/" and ending
+  with a brief description, e.g., `blb/implicit_transport`.
+- Keep branches focused on a single feature or fix.
+
+Please try to keep PRs small and targeted, as this makes the reviewing
+process simpler, faster, and helps avoid things slipping into the
+codebase that we otherwise might not want.
+
+Even if your PR is not ready you may feel free to open a draft PR marked
+with "\[WIP\]" in the title. These are not merged until \[WIP\] is
+removed and can be convenient as GitHub's tests will launch even on the
+draft PR.
 
 ### Commit Messages
 
 - Use clear, descriptive commit messages
-- Follow conventional commit format when possible:
-  - `feat:` for new features
-  - `fix:` for bug fixes
-  - `docs:` for documentation changes
-  - `test:` for test additions/changes
-  - `refactor:` for code refactoring
-  - `style:` for formatting changes
+- Follow [conventional
+  commit](https://www.conventionalcommits.org/en/v1.0.0/) format when
+  possible:
+  - `feat`: for new features
+  - `fix`: for bug fixes
+  - `docs`: for documentation changes
+  - `test`: for test additions/changes
+  - `refactor`: for code refactoring
+  - `style`: for formatting changes
 
-## Pull Request Process
+## Pull request protocol
 
-All PRs are subject to review by at least one core maintainer.
-PRs must include a thorough description of the implemented feature or fix.
-If this breaks existing APIs or code, this must be noted here.
-For a PR to be merged, the following must:
+> [!NOTE]
+> All code review will be conducted by humans and not by agentic AI.
 
-- obey the style guide (test with CPPLINT) (coming soon)
-- pass the linting test (test with CPPLINT) (coming soon)
-- pass the formatting test (see "Formatting Code" below)
-- pass the existing test suite
-- include tests that cover the new feature (if applicable)
-- include documentation in the `doc/` folder (feature or developer; if applicable)
-- include a brief summary in `CHANGELOG.md`
+When submitting a pull request, there is a default template that is
+automatically populated. The pull request should sufficiently summarize
+all changes. As necessary, tests should be added for new features of
+bugs fixed.
 
-**All code review will be done by humans and will not involve agentic AI.**
+Before a pull request will be merged, the code should be formatted. We
+use clang-format for this, pinned to version 20.1.0. The script
+`scripts/bash/format.sh` will apply `clang-format` to C++ source files
+in the repository as well as `ruff` to python files, if available. The
+script takes three CLI arguments that may be useful, `CFM`, which can be
+set to the path for your clang-format binary, `PFM` which can point to
+`ruff`, and `VERBOSE`, which if set to `1` adds useful output. For
+example:
 
-## Code Style and Formatting
-
-### C++ Code
-
-We use `clang-format` with a specific configuration (`.clang-format`). Key requirements:
-
-- **Column limit:** 80 characters
-- **Indentation:** 2 spaces
-- **Pointer alignment:** Right-aligned (`int *ptr`)
-- **Brace style:** Attach braces to function/class declarations
-- **Include sorting:** Case-sensitive with specific priority rules
-
-In general you should not worry too much about formatting guidelines.
-There exists a script to automatically format code:
-
-**Formatting your code:**
-```bash
-# Format all C++ files
-./scripts/bash/format.sh
-
-# Or format specific files
-clang-format -i src/your_file.cpp
+``` bash
+CFM=clang-format VERBOSE=1 ./scripts/bash/format.sh
 ```
 
-### Python Code
+In order for a pull request to merge, we require:
 
-We use `ruff` for Python formatting and linting. Configuration is in `ruff.toml`:
+- Provide a thorough summary of changes, especially if they are breaking
+  changes or new features.
+- Obey style guidleines (format with `clang-format` and pass the
+  necessary test)
+- Pass the existing test suite
+- Have at least one approval from a Maintainer
+- Update <span class="title-ref">CHANGELOG.md</span>
+- If generative or agentic AI was used, add an appropriate disclosure
+  (see below).
+- If applicable:
+  - Write new tests for new features or bugs
+  - Include or update documentation.
 
-- **Line length:** 80 characters
-- **Indentation:** 2 spaces
-- **Quote style:** Double quotes
+## Test Suite
 
-**Formatting your Python code:**
-```bash
-# Format all Python files
-ruff format .
-
-# Format specific file
-ruff format your_script.py
-
-# Check for linting issues
-ruff check .
-```
-
-### Pre-commit Hooks
-
-We provide pre-commit hooks that automatically format your code before commits.
-Enable them with:
-
-```bash
-./scripts/hooks/install-hooks.sh
-```
-
-The hooks will:
-- Format C++ and Python files using clang-format and ruff
-- Check for trailing whitespace
-- Prevent commits with formatting issues
-
-## Testing
-
-### Test Structure
-
-- **Unit tests:** Located in `test/unit/` (C++ tests using Catch2)
-- **Regression tests:** Located in `test/regression/` (Python-based integration tests)
-
-### Running Tests
-
-**Unit tests:**
-`Athelas` must be built with `-DATHELAS_ENABLE_UNIT_TESTS=On` to build the unit tests.
-```bash
-cd build
-make test
-# or
-ctest
-```
-
-**Regression tests:**
-```bash
-# Run all regression tests
-python test/regression/run_regression_tests.py
-
-# Run with existing executable (faster)
-python test/regression/run_regression_tests.py -e /path/to/athelas/executable
-
-# Run specific test
-python test/regression/run_regression_tests.py --test test_sod -e /path/to/athelas/executable
-```
+Several sets of tests are triggered on a pull request: a static format
+check, a docs buld, build on multiple compilers, and a suite of unit and
+regression tests. These are run through github's CI infrastructure.
+These tests help ensure that modifications to the code do not break
+existing capabilities and ensure a consistent code style.
 
 ### Adding Tests
 
-Please add appropriate tests to the suite for new features.
+There are two primary categories of tests written in `athelas`: unit
+tests and regression tests.
 
+#### Unit
 
-## Versioning
+Unit tests live in `test/unit/`. They are implemented using the
+[Catch2](https://github.com/catchorg/Catch2) unit testing framework.
+They are integrated with `cmake` and can be run, when enabled, with
+`ctest`. `Athelas` must be built with unit tests enabled (see
+`build-opts`.).
 
-We use **CalVer** (Calendar Versioning) with the format `vYY.0M`,
-that is, a short year and a zero-padded month.
+#### Regression
 
-Version tags will be created by maintainers for stable releases.
+Regression tests run existing simulations and test against saved output
+in order to verify sustained capabilities. They are implemented in
+Python in `test/regression/`. To run the tests you will need a Python
+environment with at least `numpy` and `h5py`. Tests can be ran manually
+as, e.g.,
 
-## Documentation
-
-### Code Documentation
-
-- Use Doxygen-style comments for C++ code
-- Document all public APIs
-- Include parameter descriptions and return values
-- Add usage examples for complex functions
-
-**This is an ongoing effort**
-
-### Example C++ Documentation:
-```cpp
-/**
- * @brief Implements an explicit update for a physics package
- * @param state State object
- * @param dU Right hand side delta (populated in this function)
- * @param grid Mesh object
- * @param dt_info Struct ocntianing timestep information
- */
-void update_explicit(const State *const state, AthelasArray3D<double> dU,
-                     const GridStructure &grid,
-                     const TimeStepInfo &dt_info) const;
+``` bash
+python run_regression_tests.py --test test_marshak -e ../../build/athelas
 ```
 
-## Getting Help
+This will use an existing build of `athelas` located in `build/athelas`.
+Without the `-e` option the runner will build `Athelas` locally. Each
+script `test_problem.py` has a correspodning "gold file" `problem.gold`.
+The gold files contain the gold standard data that the output of the
+regression test is compared against. To generate new gold data, for
+example if a change is implemented that changes the behavior of a test
+(not erroneously) or a new test is created, run the test script with the
+`--upgold` option. This will create or update the corresponding `.gold`
+file. To add a new test:
 
-- **Issues:** Use GitHub issues for bug reports and feature requests
-- **Discussions:** Use GitHub discussions for questions and general discussion
-- **Code review:** Ask questions in PR comments
+1.  Create a new test script.
+    - Copy an existing test module, e.g., `test_sod.py`
+    - Set the `variables` list to contain the quantities to test against
+    - Optionally, change the `compression_factor` to avoid overly large
+      gold files.
+2.  Run the script with the `--upgold` option
+3.  Commit the test script and gold file
+4.  Update the CI to include the new test
+    (`athelas/.github/workflows/regression_testing.yml`)
 
-## License
+## Expectations for code review
 
-By contributing to Athelas, you agree that your contributions will be licensed under the same GPL license as the project.
+> [!NOTE]
+> Much of what follows is adapted from
+> [singularity-eos](https://lanl.github.io/singularity-eos).
 
----
+### From the perspective of the contributor
+
+Code review is an integral part of the development process for
+`athelas`. You can expect at least one, perhaps many, core developers to
+read your code and offer suggestions. You should treat this much like
+scientific or academic peer review. You should listen to suggestions but
+also feel entitled to push back if you believe the suggestions or
+comments are incorrect or are requesting too much effort.
+
+Reviewers may offer conflicting advice, if this is the case, it's an
+opportunity to open a discussion and communally arrive at a good
+approach. You should feel empowered to argue for which of the solutions
+you prefer or to suggest a compromise. If you don't feel strongly,
+that's fine too, but it's best to say so to keep the lines of
+communication open.
+
+Big contributions may be difficult to review in one piece and you may be
+requested to split your pull request into two or more separate
+contributions. You may also receive many "nitpicky" comments about code
+style or structure. These comments help keep a broad codebase with many
+contributors uniform in style and maintainable with consistent
+expectations accross the code base. While there is no formal style guide
+for now, the regular contributors have a sense for the broad style of
+the project. You should take these stylistic and "nitpicky" suggestions
+seriously, but you should also feel free to push back.
+
+As with any creative endeavor, we put a lot of ourselves into our code.
+It can be painful to receive criticism on your contribution and easy to
+take it personally. While you should resist the urge to take offense, it
+is also partly code reviewer's responsiblity to create a constructive
+environment, as discussed below.
+
+### Expectations of code reviewers
+
+A good code review is similar to a good review of an academic paper: it
+builds a contribution up, rather than tearing it down. Here are a few
+rules to keep code reviews constructive and congenial:
+
+- You should take the time needed to review a contribution and offer
+  meaningful advice. Unless a contribution is very small, limit the
+  times you simply click "approve" with a "looks good to me."
+- You should keep your comments constructive. For example, rather than
+  saying "this pattern is bad," try saying "at this point, you may want
+  to try this other pattern."
+- Avoid language that can be misconstrued, even if it's common notation
+  in the commnunity. For example, avoid phrases like "code smell."
+- Explain why you make a suggestion. In addition to saying "try X
+  instead of Y" explain why you like pattern X more than pattern Y.
+- A contributor may push back on your suggestion. Be open to the
+  possibility that you're either asking too much or are incorrect in
+  this instance. Code review is an opportunity for everyone to learn.
+- Don't just highlight what you don't like. Also highlight the parts of
+  the pull request you do like and thank the contributor for their
+  effort.
+
+### General principle for everyone
+
+It's hard to convey tone in text correspondance. Try to read what others
+write favorably and try to write in such a way that your tone can't be
+mis-interpreted as malicious.
+
+## AI Policy
+
+`Athelas` strives to maintain a high standard of code style, design, and
+functionality. Generative AI is rapidly changing the way code is
+written. As a scientific tool for the community, we must ensure that the
+code base stays maintainable, understandable, clean, and correct. The
+following guidelines apply to contributed code (pull requests) as well
+as issues.
+
+> [!NOTE]
+> The following is inspired by the generative AI policy used in the
+> Journal of Open Source Software
+> ([JOSS](https://joss.theoj.org/about#ai-policy)).
+
+The use of generative AI for code submissions is allowed, however, all
+such contributions must be disclosed in the pull request. This includes:
+
+- Tool use: The tools/models used (and versions) and where they were
+  used (code, text, docs, etc).
+- The nature and scope of assistance: e.g., code generation,
+  refactoring, test scaffolding, documenting, drafting, prototyping.
+- Confirmation of review: Authors must assert that human contributors
+  reviewed, edited, validated all AI-assisted outputs and made the core
+  design decisions.
+
+Failure to provide a disclosure may result in closing of the pull
+request and rejection of the contributions. Repeated offenses may result
+in the user being blocked from the repository.
+
+All code review, including conversation, will be conducted by humans.
