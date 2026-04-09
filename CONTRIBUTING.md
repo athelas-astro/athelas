@@ -58,6 +58,8 @@ For a PR to be merged, the following must:
 - include documentation in the `doc/` folder (feature or developer; if applicable)
 - include a brief summary in `CHANGELOG.md`
 
+**All code review will be done by humans and will not involve agentic AI.**
+
 ## Code Style and Formatting
 
 ### C++ Code
