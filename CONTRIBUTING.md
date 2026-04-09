@@ -155,7 +155,7 @@ Please add appropriate tests to the suite for new features.
 
 ## Versioning
 
-We plan to use **CalVer** (Calendar Versioning) with the format `vYY.0M`,
+We use **CalVer** (Calendar Versioning) with the format `vYY.0M`,
 that is, a short year and a zero-padded month.
 
 Version tags will be created by maintainers for stable releases.
