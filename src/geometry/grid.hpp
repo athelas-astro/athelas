@@ -12,6 +12,8 @@ enum class Domain { Interior, Entire };
 
 enum class Interface { Left, Right };
 
+enum class Boundary { Interior, Exterior };
+
 class GridStructure {
  public:
   explicit GridStructure(const ProblemIn *pin);

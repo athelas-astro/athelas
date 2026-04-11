@@ -166,6 +166,8 @@ ImplicitRadiationMomentsPackage::ImplicitRadiationMomentsPackage(
       solver_Bi_lu_("ImplicitMoments::solver_Bi_lu", 2 * nq, 2 * nq),
       A_minus_("ImplicitMoments::Aplus", nx + 1, 2, 2),
       A_plus_("ImplicitMoments::Aminus", nx + 1, 2, 2),
+      A_bndry_("ImplicitMoments::A_bndry", 2, 2),
+      d_bndry_("ImplicitMoments::d_bndry", 2, 2),
       delta_("implicit radhydro delta implicit", n_stages, nx + 2, nq, 5),
       e_rad_old_("ImplicitMoments::e_rad_old", nx + 2, nq),
       f_rad_old_("ImplicitMoments::f_rad_old", nx + 2, nq) {
@@ -386,14 +388,20 @@ void ImplicitRadiationMomentsPackage::update_implicit(
     const double vstar_o = facedata(i_outer, idx_vstar);
     const double rho_i = 1.0 / u_f_r_(i_inner, 0);
     const double rho_o = 1.0 / u_f_l_(i_outer, 0);
-    const double f_i = flux_factor(u_f_r_(i_inner, 1), u_f_r_(i_inner, 2));
-    const double f_o = flux_factor(u_f_l_(i_outer, 1), u_f_l_(i_outer, 2));
+    const double erad_i = u_f_r_(i_inner, 1);
+    const double erad_o = u_f_l_(i_outer, 1);
+    const double f_rad_i = u_f_r_(i_inner, 2);
+    const double f_rad_o = u_f_l_(i_outer, 2);
+    const double f_i = flux_factor(erad_i, u_f_r_(i_inner, 2));
+    const double f_o = flux_factor(erad_o, u_f_l_(i_outer, 2));
     const double chi_i = eddington_factor(f_i);
     const double chi_o = eddington_factor(f_o);
     const double chi_prime_i = eddington_factor_prime(f_i);
     const double chi_prime_o = eddington_factor_prime(f_o);
     const double gL_i = sqrt_gm(i_inner, 0);
     const double gR_o = sqrt_gm(i_outer, nNodes + 1);
+    const double alpha_i = rad_wavespeed(erad_i, erad_i, f_rad_i, f_rad_i, vstar_i);
+    const double alpha_o = rad_wavespeed(erad_o, erad_o, f_rad_o, f_rad_o, vstar_o);
 
     // inner boundary
     int blk = 0;
@@ -401,6 +409,11 @@ void ImplicitRadiationMomentsPackage::update_implicit(
     switch (inner_bc.type) {
 
     case BcType::Outflow:
+    for (int v = 0; v < 2; ++v) {
+        d_bndry_(v, v) = 1.0;
+    }
+    boundary_jacobian<Boundary::Interior>(A_bndry_, u_f_l_, u_f_r_, d_bndry_, vstar_i);
+
       for (int q = 0; q < nNodes; ++q) {
         for (int p = 0; p < nNodes; ++p) {
           const double ellL_q = phi(i_inner, 0, q);
@@ -410,19 +423,31 @@ void ImplicitRadiationMomentsPackage::update_implicit(
             for (int w = 0; w < 2; ++w) {
               const int row = idx(q, v);
               const int col = idx(p, w);
-              // This pattern is messy but simple. Form the flux Jacobian 
-              // contribution
-                double J = 1.0;
-                if (v == 0 && w == 0) { 
-                  J = -vstar_i;
-                } else if (v == 1 && w == 1) {
-                        J = c * chi_prime_i - vstar_i;
-                } else if (v == 1 && w == 0) {
-                  J = c2 * (chi_i - f_i * chi_prime_i);
-                }
-              solver_mat_diag_(blk, row, col) -=
-                  dt_aii * ellL_q * gL_i * J * ellL_p * rho_i;
 
+              solver_mat_diag_(blk, row, col) -=
+                  dt_aii * ellL_q * gL_i * A_bndry_(v, w) * ellL_p * rho_i;
+            }
+          }
+        }
+      }
+      break;
+    case BcType::Marshak:
+      for (int q = 0; q < nNodes; ++q) {
+        for (int p = 0; p < nNodes; ++p) {
+          const double ellL_q = phi(i_inner, 0, q);
+          const double ellL_p = phi(i_inner, 0, p);
+
+          for (int v = 0; v < 2; ++v) {
+            for (int w = 0; w < 2; ++w) {
+              const int row = idx(q, v);
+              const int col = idx(p, w);
+              const double J[2][2] = {
+                  { 0.5 * (-vstar_i + alpha_i), 1.0 },
+                  { c2 * (chi_i - f_i * chi_prime_i),  0.5 * (c * chi_prime_i - vstar_i + alpha_i) }
+              };
+
+              solver_mat_diag_(blk, row, col) -=
+                  dt_aii * ellL_q * gL_i * J[v][w] * ellL_p * rho_i;
             }
           }
         }
@@ -437,6 +462,10 @@ void ImplicitRadiationMomentsPackage::update_implicit(
     switch (outer_bc.type) {
 
     case BcType::Outflow:
+    for (int v = 0; v < 2; ++v) {
+      d_bndry_(v, v) = 1.0;
+    }
+    boundary_jacobian<Boundary::Exterior>(A_bndry_, u_f_l_, u_f_r_, d_bndry_, vstar_o);
       for (int q = 0; q < nNodes; ++q) {
         for (int p = 0; p < nNodes; ++p) {
           const double ellR_q = phi(i_outer, nNodes + 1, q);
@@ -446,18 +475,8 @@ void ImplicitRadiationMomentsPackage::update_implicit(
             for (int w = 0; w < 2; ++w) {
               const int row = idx(q, v);
               const int col = idx(p, w);
-              // This pattern is messy but simple. Form the flux Jacobian 
-              // contribution
-                double J = 1.0;
-                if (v == 0 && w == 0) { 
-                  J = -vstar_o;
-                } else if (v == 1 && w == 1) {
-                        J = c * chi_prime_o - vstar_o;
-                } else if (v == 1 && w == 0) {
-                  J = c2 * (chi_o - f_o * chi_prime_o);
-                }
               solver_mat_diag_(blk, row, col) +=
-                dt_aii * ellR_q * gR_o * J * ellR_p * rho_o;
+                dt_aii * ellR_q * gR_o * A_bndry_(v, w) * ellR_p * rho_o;
             }
           }
         }

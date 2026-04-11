@@ -86,7 +86,7 @@ void block_thomas_solve(const int N, const int m,
     // This is a 0D loop, it simply creates a "parallel" region
     athelas::par_for(DEFAULT_FLAT_LOOP_PATTERN, "block_thomas",
         DevExecSpace(), 0, 0,
-        KOKKOS_LAMBDA(int) {
+        KOKKOS_LAMBDA(const int) {
 
 
             // Apply already-factored Bi_lu to a 1D vector in-place.
