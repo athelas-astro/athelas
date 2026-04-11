@@ -83,3 +83,8 @@ which will automatically symlink the hook into `.git/hooks`.
 * Sol (submodule)
 * Lua
 * HDF5
+
+# Contributors
+| Name | Handle | Affiliation |
+| :--- | :--- | :--- |
+| Brandon L. Barker | @AstroBarker | LANL |
