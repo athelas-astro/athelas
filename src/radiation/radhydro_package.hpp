@@ -109,6 +109,61 @@ class ImplicitRadiationMomentsPackage {
   static constexpr int NUM_VARS_ = 4;
 };
 
+KOKKOS_FUNCTION
+template <Boundary Loc>
+void boundary_jacobian(AthelasArray2D<double> A, AthelasArray2D<double> ufl, AthelasArray2D<double> ufr, 
+                AthelasArray2D<double> D, const double vstar) {
+  constexpr double c2 = constants::c_cgs * constants::c_cgs;
+  // NOTE: We assume that ufl and ufr contain specific volume (:, 0), 
+  // specific radition energy density (:, 1), 
+  // specific radiation flux (:, 2)
+  if constexpr (Loc == Boundary::Interior) {
+  // First, form the interior contribution 
+  const int i_inner = 1;
+  const double alpha = rad_wavespeed(ufl(i_inner, 1), ufr(i_inner, 1), ufl(i_inner, 2), ufr(i_inner, 2), vstar);
+  double f = flux_factor(ufr(i_inner, 1), ufr(i_inner, 2));
+  double chi = eddington_factor(f);
+  double chi_prime = eddington_factor_prime(f);
+  double rho = ufl(i_inner, 0);
+  A(0, 0) = 0.5 * (-vstar + alpha) * rho;
+  A(0, 1) = 0.5 * rho;
+  A(1, 0) = 0.5 * c2 * (chi - f * chi_prime);
+  A(1, 1) = 0.5 * (-vstar - alpha) * rho;
+
+  // Then, the exterior contribution
+  f = flux_factor(ufl(i_inner, 1), ufl(i_inner, 2));
+  chi = eddington_factor(f);
+  chi_prime = eddington_factor_prime(f);
+  rho = ufr(i_inner, 0);
+  A(0, 0) += 0.5 * (-vstar + alpha) * rho * D(0, 0);
+  A(0, 1) += 0.5 * rho * D(0, 1);
+  A(1, 0) += 0.5 * c2 * (chi - f * chi_prime) * D(1, 0);
+  A(1, 1) += 0.5 * (-vstar - alpha) * rho * D(1, 1);
+  }
+  if constexpr (Loc == Boundary::Exterior) {
+  static const int i_outer = static_cast<int>(ufl.extent(0));
+  const double alpha = rad_wavespeed(ufl(i_outer, 1), ufr(i_outer, 1), ufl(i_outer, 2), ufr(i_outer, 2), vstar);
+  double f = flux_factor(ufr(i_outer, 1), ufr(i_outer, 2));
+  double chi = eddington_factor(f);
+  double chi_prime = eddington_factor_prime(f);
+  double rho = ufl(i_outer, 0);
+  A(0, 0) = 0.5 * (-vstar + alpha) * rho;
+  A(0, 1) = 0.5 * rho;
+  A(1, 0) = 0.5 * c2 * (chi - f * chi_prime);
+  A(1, 1) = 0.5 * (-vstar - alpha) * rho;
+
+  // Then, the exterior contribution
+  f = flux_factor(ufl(i_outer, 1), ufl(i_outer, 2));
+  chi = eddington_factor(f);
+  chi_prime = eddington_factor_prime(f);
+  rho = ufr(i_outer, 0);
+  A(0, 0) += 0.5 * (-vstar + alpha) * rho * D(0, 0);
+  A(0, 1) += 0.5 * rho * D(0, 1);
+  A(1, 0) += 0.5 * c2 * (chi - f * chi_prime) * D(1, 0);
+  A(1, 1) += 0.5 * (-vstar - alpha) * rho * D(1, 1);
+  }
+}
+
 // ----------------------------------------------------------------------------
 
 class RadHydroPackage {
