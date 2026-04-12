@@ -122,7 +122,7 @@ void boundary_jacobian(AthelasArray2D<double> A, AthelasArray2D<double> ufl, Ath
   // specific radiation flux (:, 2)
   if constexpr (Loc == Boundary::Interior) {
   // First, form the interior contribution.
-  const int i_inner = 1;
+  constexpr int i_inner = 1;
   const double alpha = rad_wavespeed(ufl(i_inner, 1), ufr(i_inner, 1), ufl(i_inner, 2), ufr(i_inner, 2), vstar);
   double f = flux_factor(ufr(i_inner, 1), ufr(i_inner, 2));
   double chi = eddington_factor(f);
@@ -132,17 +132,17 @@ void boundary_jacobian(AthelasArray2D<double> A, AthelasArray2D<double> ufl, Ath
   A(1, 0) = 0.5 * c2 * (chi - f * chi_prime);
   A(1, 1) = 0.5 * (c * chi_prime - vstar + alpha);
 
-  f = flux_factor(ufl(i_inner, 1), ufl(i_inner, 2));
-  chi = eddington_factor(f);
-  chi_prime = eddington_factor_prime(f);
   // Then, the exterior contribution.
   // The contribution from the ghost goes the matrix product J * dU_ext/dU_int
   // Here, D is the derivative. If the boundary condition does not depend 
   // at all on the interior, D = 0.
+  f = flux_factor(ufl(i_inner, 1), ufl(i_inner, 2));
+  chi = eddington_factor(f);
+  chi_prime = eddington_factor_prime(f);
   A(0, 0) += 0.5 * (-vstar - alpha) * D(0, 0) + 0.5 * D(1, 0);
-  A(0, 1) += 0.5 * (-vstar - alpha) * D(1, 0) + 0.5 * D(1, 1);
+  A(0, 1) += 0.5 * (-vstar - alpha) * D(0, 1) + 0.5 * D(1, 1);
   A(1, 0) += 0.5 * c2 * (chi - f * chi_prime) * D(0, 0) + 0.5 * (c * chi_prime - vstar - alpha) * D(1, 0);
-  A(1, 1) += 0.5 * c2 * (chi - f * chi_prime) * D(1, 0) + 0.5 * (c * chi_prime - vstar - alpha) * D(1, 1);
+  A(1, 1) += 0.5 * c2 * (chi - f * chi_prime) * D(0, 1) + 0.5 * (c * chi_prime - vstar - alpha) * D(1, 1);
   }
   if constexpr (Loc == Boundary::Exterior) {
   static const int i_outer = static_cast<int>(ufl.extent(0)) - 1;
@@ -156,13 +156,13 @@ void boundary_jacobian(AthelasArray2D<double> A, AthelasArray2D<double> ufl, Ath
   A(1, 1) = 0.5 * (c * chi_prime - vstar + alpha);
 
   // exterior / ghost
-  f = flux_factor(ufl(i_outer, 1), ufl(i_outer, 2));
+  f = flux_factor(ufr(i_outer, 1), ufr(i_outer, 2));
   chi = eddington_factor(f);
   chi_prime = eddington_factor_prime(f);
   A(0, 0) += 0.5 * (-vstar - alpha) * D(0, 0) + 0.5 * D(1, 0);
-  A(0, 1) += 0.5 * (-vstar - alpha) * D(1, 0) + 0.5 * D(1, 1);
+  A(0, 1) += 0.5 * (-vstar - alpha) * D(0, 1) + 0.5 * D(1, 1);
   A(1, 0) += 0.5 * c2 * (chi - f * chi_prime) * D(0, 0) + 0.5 * (c * chi_prime - vstar - alpha) * D(1, 0);
-  A(1, 1) += 0.5 * c2 * (chi - f * chi_prime) * D(1, 0) + 0.5 * (c * chi_prime - vstar - alpha) * D(1, 1);
+  A(1, 1) += 0.5 * c2 * (chi - f * chi_prime) * D(0, 1) + 0.5 * (c * chi_prime - vstar - alpha) * D(1, 1);
   }
 }
 

@@ -240,6 +240,14 @@ void ImplicitRadiationMomentsPackage::update_implicit(
         const double rho_L = 1.0 / u_f_l_(i, 0);
         const double rho_R = 1.0 / u_f_r_(i, 0);
         const double vstar = facedata(i, idx_vstar);
+        for (int q = 0; q < nNodes; ++q) {
+        if (i == 1 && q == 0) {
+        //std::println(" i q cE F {} {} {:.5e} {:.5e}", i, q, c * ucf(i, q, 3), ucf(i, q, 4));
+        }
+        if (std::abs(ucf(i, q, 4)) > c * std::abs(ucf(i, q, 3))) {
+        std::println("BAD i q cE F {} {} {:.5e} {:.5e}", i, q, c * ucf(i, q, 3), ucf(i, q, 4));
+        }
+        }
 
         // Radiation specific variables
         const double E_L = u_f_l_(i, 1) * rho_L;
@@ -388,20 +396,8 @@ void ImplicitRadiationMomentsPackage::update_implicit(
     const double vstar_o = facedata(i_outer, idx_vstar);
     const double rho_i = 1.0 / u_f_r_(i_inner, 0);
     const double rho_o = 1.0 / u_f_l_(i_outer, 0);
-    const double erad_i = u_f_r_(i_inner, 1);
-    const double erad_o = u_f_l_(i_outer, 1);
-    const double f_rad_i = u_f_r_(i_inner, 2);
-    const double f_rad_o = u_f_l_(i_outer, 2);
-    const double f_i = flux_factor(erad_i, u_f_r_(i_inner, 2));
-    const double f_o = flux_factor(erad_o, u_f_l_(i_outer, 2));
-    const double chi_i = eddington_factor(f_i);
-    const double chi_o = eddington_factor(f_o);
-    const double chi_prime_i = eddington_factor_prime(f_i);
-    const double chi_prime_o = eddington_factor_prime(f_o);
     const double gL_i = sqrt_gm(i_inner, 0);
     const double gR_o = sqrt_gm(i_outer, nNodes + 1);
-    const double alpha_i = rad_wavespeed(erad_i, erad_i, f_rad_i, f_rad_i, vstar_i);
-    const double alpha_o = rad_wavespeed(erad_o, erad_o, f_rad_o, f_rad_o, vstar_o);
 
     // inner boundary
     int blk = 0;
@@ -412,49 +408,32 @@ void ImplicitRadiationMomentsPackage::update_implicit(
     for (int v = 0; v < 2; ++v) {
         d_bndry_(v, v) = 1.0;
     }
-    boundary_jacobian<Boundary::Interior>(A_bndry_, u_f_l_, u_f_r_, d_bndry_, vstar_i);
-
-      for (int q = 0; q < nNodes; ++q) {
-        for (int p = 0; p < nNodes; ++p) {
-          const double ellL_q = phi(i_inner, 0, q);
-          const double ellL_p = phi(i_inner, 0, p);
-
-          for (int v = 0; v < 2; ++v) {
-            for (int w = 0; w < 2; ++w) {
-              const int row = idx(q, v);
-              const int col = idx(p, w);
-
-              solver_mat_diag_(blk, row, col) -=
-                  dt_aii * ellL_q * gL_i * A_bndry_(v, w) * ellL_p * rho_i;
-            }
-          }
-        }
-      }
       break;
     case BcType::Marshak:
-      for (int q = 0; q < nNodes; ++q) {
-        for (int p = 0; p < nNodes; ++p) {
-          const double ellL_q = phi(i_inner, 0, q);
-          const double ellL_p = phi(i_inner, 0, p);
-
-          for (int v = 0; v < 2; ++v) {
-            for (int w = 0; w < 2; ++w) {
-              const int row = idx(q, v);
-              const int col = idx(p, w);
-              const double J[2][2] = {
-                  { 0.5 * (-vstar_i + alpha_i), 1.0 },
-                  { c2 * (chi_i - f_i * chi_prime_i),  0.5 * (c * chi_prime_i - vstar_i + alpha_i) }
-              };
-
-              solver_mat_diag_(blk, row, col) -=
-                  dt_aii * ellL_q * gL_i * J[v][w] * ellL_p * rho_i;
-            }
-          }
-        }
-      }
+      d_bndry_(0, 0) = 1.0;
+      d_bndry_(0, 1) = 0.0;
+      d_bndry_(1, 0) = - 0.5 * c;
+      d_bndry_(1, 1) = -1.0;
       break;
     default:
       break;
+    }
+    boundary_jacobian<Boundary::Interior>(A_bndry_, u_f_l_, u_f_r_, d_bndry_, vstar_i);
+    for (int q = 0; q < nNodes; ++q) {
+      for (int p = 0; p < nNodes; ++p) {
+        const double ellL_q = phi(i_inner, 0, q);
+        const double ellL_p = phi(i_inner, 0, p);
+
+        for (int v = 0; v < 2; ++v) {
+          for (int w = 0; w < 2; ++w) {
+            const int row = idx(q, v);
+            const int col = idx(p, w);
+
+            solver_mat_diag_(blk, row, col) -=
+                dt_aii * ellL_q * gL_i * A_bndry_(v, w) * ellL_p * rho_i;
+          }
+        }
+      }
     }
 
     blk = nblocks - 1;
@@ -465,25 +444,25 @@ void ImplicitRadiationMomentsPackage::update_implicit(
     for (int v = 0; v < 2; ++v) {
       d_bndry_(v, v) = 1.0;
     }
-    boundary_jacobian<Boundary::Exterior>(A_bndry_, u_f_l_, u_f_r_, d_bndry_, vstar_o);
-      for (int q = 0; q < nNodes; ++q) {
-        for (int p = 0; p < nNodes; ++p) {
-          const double ellR_q = phi(i_outer, nNodes + 1, q);
-          const double ellR_p = phi(i_outer, nNodes + 1, p);
-
-          for (int v = 0; v < 2; ++v) {
-            for (int w = 0; w < 2; ++w) {
-              const int row = idx(q, v);
-              const int col = idx(p, w);
-              solver_mat_diag_(blk, row, col) +=
-                dt_aii * ellR_q * gR_o * A_bndry_(v, w) * ellR_p * rho_o;
-            }
-          }
-        }
-      }
       break;
     default:
       break;
+    }
+    boundary_jacobian<Boundary::Exterior>(A_bndry_, u_f_l_, u_f_r_, d_bndry_, vstar_o);
+    for (int q = 0; q < nNodes; ++q) {
+      for (int p = 0; p < nNodes; ++p) {
+        const double ellR_q = phi(i_outer, nNodes + 1, q);
+        const double ellR_p = phi(i_outer, nNodes + 1, p);
+
+        for (int v = 0; v < 2; ++v) {
+          for (int w = 0; w < 2; ++w) {
+            const int row = idx(q, v);
+            const int col = idx(p, w);
+            solver_mat_diag_(blk, row, col) +=
+              dt_aii * ellR_q * gR_o * A_bndry_(v, w) * ellR_p * rho_o;
+          }
+        }
+      }
     }
     });
 
