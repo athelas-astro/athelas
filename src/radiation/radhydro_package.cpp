@@ -168,7 +168,7 @@ ImplicitRadiationMomentsPackage::ImplicitRadiationMomentsPackage(
       A_plus_("ImplicitMoments::Aminus", nx + 1, 2, 2),
       A_bndry_("ImplicitMoments::A_bndry", 2, 2),
       d_bndry_("ImplicitMoments::d_bndry", 2, 2),
-      delta_("implicit radhydro delta implicit", n_stages, nx + 2, nq, 5),
+      delta_("implicit radhydro delta implicit", n_stages, nx + 2, nq, 4),
       e_rad_old_("ImplicitMoments::e_rad_old", nx + 2, nq),
       f_rad_old_("ImplicitMoments::f_rad_old", nx + 2, nq) {
               // Storing package params
@@ -409,6 +409,10 @@ void ImplicitRadiationMomentsPackage::update_implicit(
         d_bndry_(v, v) = 1.0;
     }
       break;
+    case BcType::Reflecting:
+      d_bndry_(0, 0) = 1.0;
+      d_bndry_(1, 1) = -1.0;
+      break;
     case BcType::Marshak:
       d_bndry_(0, 0) = 1.0;
       d_bndry_(0, 1) = 0.0;
@@ -444,6 +448,16 @@ void ImplicitRadiationMomentsPackage::update_implicit(
     for (int v = 0; v < 2; ++v) {
       d_bndry_(v, v) = 1.0;
     }
+      break;
+    case BcType::Reflecting:
+      d_bndry_(0, 0) = 1.0;
+      d_bndry_(1, 1) = -1.0;
+      break;
+    case BcType::Marshak:
+      d_bndry_(0, 0) = 1.0;
+      d_bndry_(0, 1) = 0.0;
+      d_bndry_(1, 0) = - 0.5 * c;
+      d_bndry_(1, 1) = -1.0;
       break;
     default:
       break;
@@ -592,6 +606,14 @@ auto ImplicitRadiationMomentsPackage::min_timestep(
     dt_out = std::max(cfl_ * dt_out, MIN_DT);
     dt_out = std::min(dt_out, MAX_DT);
 
+    // If we are at the start of a run and don't have previous timestep data, 
+    // then ignore the implicit timestep control, as it interferes 
+    // with the ramp up.
+    // A bit hacky and maybe not appropriate for restarts.
+    if (dt_info.t == 0.0) {
+        dt_out = MAX_DT;
+    }
+
     // Store the current radiation energy and flux for use
     // in the next timestep calculation.
     athelas::par_for(
@@ -676,7 +698,7 @@ RadHydroPackage::RadHydroPackage(const ProblemIn *pin, int n_stages, int nq,
       dFlux_num_("hydro::dFlux_num_", nx + 2 + 1, 5),
       u_f_l_("hydro::u_f_l_", nx + 2, 5), u_f_r_("hydro::u_f_r_", nx + 2, 5),
       delta_("radhydro delta", n_stages, nx + 2, nq, 5),
-      delta_im_("radhydro delta implicit", n_stages, nx + 2, nq, 5) {}
+      delta_im_("radhydro delta implicit", n_stages, nx + 2, nq, 4) {}
 
 void RadHydroPackage::update_explicit(const StageData &stage_data,
                                       const GridStructure &grid,
@@ -736,11 +758,12 @@ void RadHydroPackage::apply_delta(AthelasArray3D<double> lhs,
           for (int v = vb.s; v <= vb.e; ++v) {
             lhs(i, q, v) += dt_info.dt_coef * delta_(stage, i, q, v);
           }
-          for (int v = vb.s + 1; v <= vb.e - 1; ++v) {
-            lhs(i, q, v + 1) +=
-                dt_info.dt_coef_implicit * delta_im_(stage, i, q, v);
+          for (int v = vb.s + 1; v <= vb.e; ++v) {
+            lhs(i, q, v) +=
+                dt_info.dt_coef_implicit * delta_im_(stage, i, q, v - 1);
           }
         });
+
 }
 
 /**
@@ -759,19 +782,21 @@ void RadHydroPackage::zero_delta() const noexcept {
     athelas::par_for(
         DEFAULT_LOOP_PATTERN, "RadHydro :: Zero delta", DevExecSpace(), ib.s,
         ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-          for (int v = vb.s; v <= vb.e; ++v) {
+          for (int v = vb.s; v <= vb.e - 1; ++v) {
             delta_im_(0, i, q, v) = delta_im_(ns, i, q, v);
           }
         });
 
     athelas::par_for(
-        DEFAULT_LOOP_PATTERN, "RadHydro :: Zero delta", DevExecSpace(),
+        DEFAULT_LOOP_PATTERN, "RadHydro :: Zero delta_im", DevExecSpace(),
         sb.s + 1, sb.e, ib.s, ib.e, qb.s, qb.e,
         KOKKOS_CLASS_LAMBDA(const int s, const int i, const int q) {
-          for (int v = vb.s; v <= vb.e; ++v) {
-            delta_(s, i, q, v) = 0.0;
+          for (int v = vb.s; v <= vb.e - 1; ++v) {
+            delta_im_(s, i, q, v) = 0.0;
           }
         });
+
+    Kokkos::deep_copy(delta_, 0.0);
 }
 
 // Compute the divergence of the flux term for the update
