@@ -238,6 +238,11 @@ class TimeStepper {
       // set U_s (stage data)
       Kokkos::deep_copy(u, SumVar_U_);
 
+      // Seems to be necessary when doing explicit transport.
+      apply_slope_limiter(sl_rad, u, grid_s_[iS], rad_basis, eos);
+
+      Kokkos::deep_copy(SumVar_U_, u);
+
       // implicit update
       dt_info.stage = iS;
       dt_info.t = t + integrator_.explicit_tableau.c_i(iS) * dt;
