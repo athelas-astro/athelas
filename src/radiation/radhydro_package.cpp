@@ -240,14 +240,6 @@ void ImplicitRadiationMomentsPackage::update_implicit(
         const double rho_L = 1.0 / u_f_l_(i, 0);
         const double rho_R = 1.0 / u_f_r_(i, 0);
         const double vstar = facedata(i, idx_vstar);
-        for (int q = 0; q < nNodes; ++q) {
-        if (i == 1 && q == 0) {
-        //std::println(" i q cE F {} {} {:.5e} {:.5e}", i, q, c * ucf(i, q, 3), ucf(i, q, 4));
-        }
-        if (std::abs(ucf(i, q, 4)) > c * std::abs(ucf(i, q, 3))) {
-        std::println("BAD i q cE F {} {} {:.5e} {:.5e}", i, q, c * ucf(i, q, 3), ucf(i, q, 4));
-        }
-        }
 
         // Radiation specific variables
         const double E_L = u_f_l_(i, 1) * rho_L;
@@ -560,7 +552,6 @@ void ImplicitRadiationMomentsPackage::zero_delta() const noexcept {
             delta_(s, i, q, v) = 0.0;
           }
         });
-
 }
 
 /**
@@ -599,7 +590,7 @@ auto ImplicitRadiationMomentsPackage::min_timestep(
                               (std::abs(ucf(i, q, idx_er) - e_old) + EPS);
           const double dt_f =
               dt_old * max_change_f / (std::abs(f - f_old) + EPS);
-          lmin = std::min({dt_e, dt_f, lmin});
+          lmin = std::min({dt_e, dt_f, lmin}); 
         },
         Kokkos::Min<double>(dt_out));
 
@@ -617,7 +608,7 @@ auto ImplicitRadiationMomentsPackage::min_timestep(
     // Store the current radiation energy and flux for use
     // in the next timestep calculation.
     athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "ImplicitMoments :: cache of radiation vars",
+        DEFAULT_FLAT_LOOP_PATTERN, "ImplicitMoments :: cache old radiation vars",
         DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
         KOKKOS_CLASS_LAMBDA(const int i, const int q) {
           e_rad_old_(i, q) = ucf(i, q, idx_er);
