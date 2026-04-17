@@ -9,6 +9,16 @@
 
 namespace athelas::radiation {
 
+/**
+ * @struct LLFRiemannState
+ * @brief Holds the state for a Rusanov LLF Riemann solver.
+ * @note Contains U and F.
+ */
+struct LLFRiemannState {
+  double u;
+  double f;
+};
+
 using root_finders::PhysicalScales, root_finders::RadHydroConvergence;
 
 /**
@@ -24,7 +34,7 @@ KOKKOS_FORCEINLINE_FUNCTION
 auto flux_factor(const double E, const double F) -> double {
   assert(E > 0.0 &&
          "Radiation :: flux_factor :: non positive definite energy density.");
-  return std::abs(F) / (constants::c_cgs * E);
+  return std::clamp(std::abs(F) / (constants::c_cgs * E), 0.0, 1.0);
 }
 
 /**
@@ -98,15 +108,6 @@ radiation_four_force(const double D, const double V, const double T,
 }
 
 /**
- * @brief factor of c scaling terms for radiation-matter sources
- **/
-[[nodiscard]] KOKKOS_FORCEINLINE_FUNCTION auto source_factor_rad()
-    -> std::tuple<double, double> {
-  constexpr static double c = constants::c_cgs;
-  return {c, c * c};
-}
-
-/**
  * @brief M1 closure of Levermore 1984
  * TODO(astrobarker): It would be nice to make this easier to modify
  * Perhaps CRTP model
@@ -117,7 +118,7 @@ radiation_four_force(const double D, const double V, const double T,
   assert(E > 0.0 &&
          "Radiation :: compute_closure(radial) :: Non positive definite "
          "radiation energy density.");
-  const double f = std::clamp(flux_factor(E, F), 0.0, 1.0);
+  const double f = flux_factor(E, F);
   const double chi = eddington_factor(f);
   return chi * E;
 }
@@ -126,7 +127,7 @@ radiation_four_force(const double D, const double V, const double T,
                                                      const double F) -> double {
   assert(E > 0.0 && "Radiation :: p_rad_perp :: Non positive definite "
                     "radiation energy density.");
-  const double f = std::clamp(flux_factor(E, F), 0.0, 1.0);
+  const double f = flux_factor(E, F);
   const double chi = eddington_factor(f);
   return E * (1.0 - chi) * 0.5;
 }
@@ -134,10 +135,8 @@ radiation_four_force(const double D, const double V, const double T,
 /**
  * @brief LLF numerical flux
  */
-auto KOKKOS_FORCEINLINE_FUNCTION llf_flux(const double Fp, const double Fm,
-                                          const double Up, const double Um,
-                                          const double alpha) -> double {
-  return 0.5 * std::fma(alpha, (Um - Up), (Fp + Fm));
+auto KOKKOS_FORCEINLINE_FUNCTION llf_flux(const LLFRiemannState &left, const LLFRiemannState &right, const double alpha) -> double {
+  return 0.5 * std::fma(alpha, (left.u - right.u), (right.f + left.f));
 }
 
 /**

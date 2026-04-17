@@ -846,6 +846,7 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
         });
 
     // --- Calc numerical flux at all faces ---
+    static constexpr double c2 = constants::c_cgs * constants::c_cgs;
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Numerical fluxes",
         DevExecSpace(), ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
@@ -867,7 +868,6 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
           const double Prad_R = compute_closure(E_R, F_R);
 
           // --- Numerical Fluxes ---
-          static constexpr double c2 = constants::c_cgs * constants::c_cgs;
 
           // Riemann Problem
           // auto [flux_u, flux_p] = numerical_flux_gudonov( u_f_l_(i,  1 ),
@@ -881,11 +881,16 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
           const double vstar = flux_u;
 
           const double alpha = rad_wavespeed(E_L, E_R, F_L, F_R, vstar);
+
+          const LLFRiemannState left_erad{.u=E_L, .f=F_L - vstar * E_L};
+          const LLFRiemannState right_erad{.u=E_R, .f=F_R - vstar * E_R};
           const double flux_e =
-              llf_flux(F_R - vstar * E_R, F_L - vstar * E_L, E_R, E_L, alpha);
+              llf_flux(left_erad, right_erad, alpha);
+
+          const LLFRiemannState left_frad{.u=F_L, .f=c2 * Prad_L - vstar * F_L};
+          const LLFRiemannState right_frad{.u=F_R, .f=c2 * Prad_R - vstar * F_R};
           const double flux_f =
-              llf_flux(c2 * Prad_R - vstar * F_R, c2 * Prad_L - vstar * F_L,
-                       F_R, F_L, alpha);
+              llf_flux(left_frad, right_frad, alpha);
 
           dFlux_num_(i, idx_tau) = -flux_u;
           dFlux_num_(i, idx_vel) = flux_p;
