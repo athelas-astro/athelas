@@ -12,11 +12,12 @@ namespace athelas::radiation {
 /**
  * @struct LLFRiemannState
  * @brief Holds the state for a Rusanov LLF Riemann solver.
- * @note Contains U and F.
+ * @note Contains U, F, alpha.
  */
 struct LLFRiemannState {
   double u;
   double f;
+  double alpha;
 };
 
 using root_finders::PhysicalScales, root_finders::RadHydroConvergence;
@@ -109,6 +110,7 @@ radiation_four_force(const double D, const double V, const double T,
 
 /**
  * @brief M1 closure of Levermore 1984
+ * @note These should be volumetric.
  * TODO(astrobarker): It would be nice to make this easier to modify
  * Perhaps CRTP model
  */
@@ -135,8 +137,11 @@ radiation_four_force(const double D, const double V, const double T,
 /**
  * @brief LLF numerical flux
  */
-auto KOKKOS_FORCEINLINE_FUNCTION llf_flux(const LLFRiemannState &left, const LLFRiemannState &right, const double alpha) -> double {
-  return 0.5 * std::fma(alpha, (left.u - right.u), (right.f + left.f));
+auto KOKKOS_FORCEINLINE_FUNCTION llf_flux(const LLFRiemannState &left, const LLFRiemannState &right) -> double {
+  // Weird check here, but to keep Riemann solvers APIs consistent we need 
+  // the shared wavespeed alpha in the struct.
+  assert(left.alpha == right.alpha && "llf_flux: left and right alphas must be identical!");
+  return 0.5 * std::fma(left.alpha, (left.u - right.u), (right.f + left.f));
 }
 
 /**

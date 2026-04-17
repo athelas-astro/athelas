@@ -882,15 +882,15 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
 
           const double alpha = rad_wavespeed(E_L, E_R, F_L, F_R, vstar);
 
-          const LLFRiemannState left_erad{.u=E_L, .f=F_L - vstar * E_L};
-          const LLFRiemannState right_erad{.u=E_R, .f=F_R - vstar * E_R};
+          const LLFRiemannState left_erad{.u=E_L, .f=F_L - vstar * E_L, .alpha=alpha};
+          const LLFRiemannState right_erad{.u=E_R, .f=F_R - vstar * E_R, .alpha=alpha};
           const double flux_e =
-              llf_flux(left_erad, right_erad, alpha);
+              llf_flux(left_erad, right_erad);
 
-          const LLFRiemannState left_frad{.u=F_L, .f=c2 * Prad_L - vstar * F_L};
-          const LLFRiemannState right_frad{.u=F_R, .f=c2 * Prad_R - vstar * F_R};
+          const LLFRiemannState left_frad{.u=F_L, .f=c2 * Prad_L - vstar * F_L, .alpha=alpha};
+          const LLFRiemannState right_frad{.u=F_R, .f=c2 * Prad_R - vstar * F_R, .alpha=alpha};
           const double flux_f =
-              llf_flux(left_frad, right_frad, alpha);
+              llf_flux(left_frad, right_frad);
 
           dFlux_num_(i, idx_tau) = -flux_u;
           dFlux_num_(i, idx_vel) = flux_p;
