@@ -1,10 +1,4 @@
 #pragma once
-/**
- * @file fluid_utilities.hpp
- * --------------
- *
- * @brief Utilities for fluid evolution
- */
 
 #include <cassert>
 #include <tuple>
@@ -14,6 +8,18 @@
 #include "utils/utilities.hpp"
 
 namespace athelas::fluid {
+
+/**
+ * @struct FluidRiemannState
+ * @brief Holds the state (i.e., left or right) for the fluid Riemann solver.
+ * @note Contains specific volume, velocity, pressure, sound speed.
+ */
+struct FluidRiemannState {
+  double tau;
+  double v;
+  double p;
+  double cs;
+};
 
 KOKKOS_INLINE_FUNCTION
 auto flux_fluid(const double V, const double P)
@@ -25,10 +31,15 @@ auto flux_fluid(const double V, const double P)
  * Gudonov style numerical flux. Constructs v* and p* states.
  **/
 KOKKOS_INLINE_FUNCTION
-auto numerical_flux_gudonov(const double vL, const double vR, const double pL,
-                            const double pR, const double zL, const double zR)
+auto numerical_flux_gudonov(const FluidRiemannState &left, const FluidRiemannState &right)
     -> std::tuple<double, double> {
   assert(pL > 0.0 && pR > 0.0 && "numerical_flux_gudonov :: negative pressure");
+  const double pL = left.p;
+  const double pR = right.p;
+  const double vL = left.v;
+  const double vR = right.v;
+  const double zL = left.cs / left.tau;
+  const double zR = right.cs / right.tau;
   const double Flux_U = (pL - pR + zR * vR + zL * vL) / (zR + zL);
   const double Flux_P = (zR * pL + zL * pR + zL * zR * (vL - vR)) / (zR + zL);
   return {Flux_U, Flux_P};
@@ -38,13 +49,20 @@ auto numerical_flux_gudonov(const double vL, const double vR, const double pL,
  * TODO(astrobarker): do I need tau_r_star if I construct p* with left?
  **/
 KOKKOS_INLINE_FUNCTION
-auto numerical_flux_gudonov_positivity(const double tauL, const double tauR,
-                                       const double vL, const double vR,
-                                       const double pL, const double pR,
-                                       const double csL, const double csR)
+auto numerical_flux_gudonov_positivity(const FluidRiemannState &left, const FluidRiemannState &right)
     -> std::tuple<double, double> {
   assert(pL > 0.0 && pR > 0.0 && "numerical_flux_gudonov :: negative pressure");
   using utilities::pos_part;
+
+  const double tauL = left.tau;
+  const double tauR = right.tau;
+  const double vL = left.v;
+  const double vR = right.v;
+  const double pL = left.p;
+  const double pR = right.p;
+  const double csL = left.cs;
+  const double csR = right.cs;
+
   const double pRmL = pR - pL; // [[p]]
   const double vRmL = vR - vL; // [[v]]
   /*
@@ -78,17 +96,4 @@ auto numerical_flux_gudonov_positivity(const double tauL, const double tauR,
   return {Flux_U, Flux_P};
 }
 
-/**
- * Gudonov style numerical flux. Constructs v* and p* states.
- **/
-KOKKOS_INLINE_FUNCTION
-void numerical_flux_hllc(double vL, double vR, double pL, double pR, double cL,
-                         double cR, double rhoL, double rhoR, double &Flux_U,
-                         double &Flux_P) {
-  double const aL = vL - cL; // left wave speed estimate
-  double const aR = vR + cR; // right wave speed estimate
-  Flux_U = (rhoR * vR * (aR - vR) - rhoL * vL * (aL - vL) + pL - pR) /
-           (rhoR * (aR - vR) - rhoL * (aL - vL));
-  Flux_P = rhoL * (vL - aL) * (vL - Flux_U) + pL;
-}
 } // namespace athelas::fluid

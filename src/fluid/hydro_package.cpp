@@ -1,9 +1,3 @@
-/**
- * @file hydro_package.cpp
- * --------------
- *
- * @brief Pure hydrodynamics package
- */
 #include <limits>
 
 #include "Kokkos_Macros.hpp"
@@ -90,6 +84,12 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
   static const IndexRange qb(grid.n_nodes());
   static const IndexRange vb(NUM_VARS_);
 
+  static const int idx_tau = stage_data.var_index("u_cf", "tau");
+  static const int idx_vel = stage_data.var_index("u_cf", "vel");
+  static const int idx_ener = stage_data.var_index("u_cf", "fluid_energy");
+  static const int idx_pre = stage_data.var_index("u_af", "pressure");
+  static const int idx_cs = stage_data.var_index("u_af", "sound speed");
+
   auto x_l = grid.x_l();
   auto sqrt_gm = grid.sqrt_gm();
   auto weights = grid.weights();
@@ -113,11 +113,11 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
   par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Numerical Fluxes", DevExecSpace(),
       ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
-        const double P_L = uaf(i - 1, nNodes + 1, vars::aux::Pressure);
-        const double Cs_L = uaf(i - 1, nNodes + 1, vars::aux::Cs);
+        const double P_L = uaf(i - 1, nNodes + 1, idx_pre);
+        const double Cs_L = uaf(i - 1, nNodes + 1, idx_cs);
 
-        const double P_R = uaf(i, 0, vars::aux::Pressure);
-        const double Cs_R = uaf(i, 0, vars::aux::Cs);
+        const double P_R = uaf(i, 0, idx_pre);
+        const double Cs_R = uaf(i, 0, idx_cs);
 
         // --- Numerical Fluxes ---
 
@@ -125,16 +125,14 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
         // auto [flux_u, flux_p] = numerical_flux_gudonov( u_f_l_(ib,  1 ),
         // u_f_r_(ib,  1
         // ), P_L, P_R, lam_L, lam_R);
-        const auto [flux_u, flux_p] = numerical_flux_gudonov_positivity(
-            u_f_l_(i, vars::cons::SpecificVolume),
-            u_f_r_(i, vars::cons::SpecificVolume),
-            u_f_l_(i, vars::cons::Velocity), u_f_r_(i, vars::cons::Velocity),
-            P_L, P_R, Cs_L, Cs_R);
+        const FluidRiemannState left{.tau=u_f_l_(i, idx_tau), .v=u_f_l_(i, idx_vel), .p=P_L, .cs=Cs_L};
+        const FluidRiemannState right{.tau=u_f_r_(i, idx_tau), .v=u_f_r_(i, idx_vel), .p=P_R, .cs=Cs_R};
+        const auto [flux_u, flux_p] = numerical_flux_gudonov_positivity(left, right);
         facedata(i, idx_vstar) = flux_u;
 
-        dFlux_num_(i, vars::cons::SpecificVolume) = -flux_u;
-        dFlux_num_(i, vars::cons::Velocity) = flux_p;
-        dFlux_num_(i, vars::cons::Energy) = flux_u * flux_p;
+        dFlux_num_(i, idx_tau) = -flux_u;
+        dFlux_num_(i, idx_vel) = flux_p;
+        dFlux_num_(i, idx_ener) = flux_u * flux_p;
       });
 
   facedata(0, idx_vstar) = facedata(1, idx_vstar);
@@ -161,8 +159,8 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
           double local_sum2 = 0.0;
           double local_sum3 = 0.0;
           for (int q = 0; q < nNodes; ++q) {
-            const double vel = ucf(i, q, vars::cons::Velocity);
-            const double P = uaf(i, q + 1, vars::aux::Pressure);
+            const double vel = ucf(i, q, idx_vel);
+            const double P = uaf(i, q + 1, idx_pre);
             const auto [flux1, flux2, flux3] = flux_fluid(vel, P);
             const double w = weights(q);
             const double dphi = dphis(i, q + 1, p);
@@ -173,9 +171,9 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
             local_sum3 += w * flux3 * dphi * sqrtgm;
           }
 
-          delta_(stage, i, p, vars::cons::SpecificVolume) += local_sum1;
-          delta_(stage, i, p, vars::cons::Velocity) += local_sum2;
-          delta_(stage, i, p, vars::cons::Energy) += local_sum3;
+          delta_(stage, i, p, idx_tau) += local_sum1;
+          delta_(stage, i, p, idx_vel) += local_sum2;
+          delta_(stage, i, p, idx_ener) += local_sum3;
         });
   }
 }

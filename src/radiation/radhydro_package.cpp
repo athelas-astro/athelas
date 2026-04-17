@@ -795,11 +795,10 @@ void RadHydroPackage::zero_delta() const noexcept {
 void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
                                           const GridStructure &grid,
                                           const int stage) const {
+    using fluid::FluidRiemannState;
     auto ucf = stage_data.get_field("u_cf");
     auto uaf = stage_data.get_field("u_af");
     auto facedata = stage_data.get_field<AthelasArray2D<double>>("facedata");
-
-    static const int idx_vstar = stage_data.var_index("facedata", "vstar");
 
     const auto &rad_basis = stage_data.rad_basis();
     const auto &fluid_basis = stage_data.fluid_basis();
@@ -810,6 +809,15 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
     static const IndexRange ib(grid.domain<Domain::Interior>());
     static const IndexRange qb(grid.n_nodes());
     static const IndexRange vb(NUM_VARS_);
+
+    static const int idx_tau = stage_data.var_index("u_cf", "tau");
+    static const int idx_vel = stage_data.var_index("u_cf", "vel");
+    static const int idx_ener = stage_data.var_index("u_cf", "fluid_energy");
+    static const int idx_pre = stage_data.var_index("u_af", "pressure");
+    static const int idx_cs = stage_data.var_index("u_af", "sound speed");
+    static const int idx_radener = stage_data.var_index("u_cf", "rad_energy");
+    static const int idx_radflux = stage_data.var_index("u_cf", "rad_momentum");
+    static const int idx_vstar = stage_data.var_index("facedata", "vstar");
 
     auto sqrt_gm = grid.sqrt_gm();
     auto weights = grid.weights();
@@ -841,19 +849,19 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Numerical fluxes",
         DevExecSpace(), ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
-          const double Pgas_L = uaf(i - 1, nNodes + 1, vars::aux::Pressure);
-          const double Cs_L = uaf(i - 1, nNodes + 1, vars::aux::Cs);
+          const double Pgas_L = uaf(i - 1, nNodes + 1, idx_pre);
+          const double Cs_L = uaf(i - 1, nNodes + 1, idx_cs);
 
-          const double Pgas_R = uaf(i, 0, vars::aux::Pressure);
-          const double Cs_R = uaf(i, 0, vars::aux::Cs);
+          const double Pgas_R = uaf(i, 0, idx_pre);
+          const double Cs_R = uaf(i, 0, idx_cs);
 
-          const double rhoL = 1.0 / u_f_l_(i, vars::cons::SpecificVolume);
-          const double rhoR = 1.0 / u_f_r_(i, vars::cons::SpecificVolume);
+          const double rhoL = 1.0 / u_f_l_(i, idx_tau);
+          const double rhoR = 1.0 / u_f_r_(i, idx_tau);
 
-          const double E_L = u_f_l_(i, vars::cons::RadEnergy) * rhoL;
-          const double F_L = u_f_l_(i, vars::cons::RadFlux) * rhoL;
-          const double E_R = u_f_r_(i, vars::cons::RadEnergy) * rhoR;
-          const double F_R = u_f_r_(i, vars::cons::RadFlux) * rhoR;
+          const double E_L = u_f_l_(i, idx_radener) * rhoL;
+          const double F_L = u_f_l_(i, idx_radflux) * rhoL;
+          const double E_R = u_f_r_(i, idx_radener) * rhoR;
+          const double F_R = u_f_r_(i, idx_radflux) * rhoR;
 
           const double Prad_L = compute_closure(E_L, F_L);
           const double Prad_R = compute_closure(E_R, F_R);
@@ -865,18 +873,12 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
           // auto [flux_u, flux_p] = numerical_flux_gudonov( u_f_l_(i,  1 ),
           // u_f_r_(i,  1
           // ), P_L, P_R, lam_L, lam_R);
-          const auto [flux_u, flux_p] = numerical_flux_gudonov_positivity(
-              u_f_l_(i, vars::cons::SpecificVolume),
-              u_f_r_(i, vars::cons::SpecificVolume),
-              u_f_l_(i, vars::cons::Velocity), u_f_r_(i, vars::cons::Velocity),
-              Pgas_L, Pgas_R, Cs_L, Cs_R);
+          const FluidRiemannState left{.tau=u_f_l_(i, idx_tau), .v=u_f_l_(i, idx_vel), .p=Pgas_L, .cs=Cs_L};
+          const FluidRiemannState right{.tau=u_f_r_(i, idx_tau), .v=u_f_r_(i, idx_vel), .p=Pgas_R, .cs=Cs_R};
+          const auto [flux_u, flux_p] = numerical_flux_gudonov_positivity(left, right);
           facedata(i, idx_vstar) = flux_u;
 
           const double vstar = flux_u;
-          // auto [flux_e, flux_f] =
-          //    numerical_flux_hll_rad( E_L, E_R, F_L, F_R, Prad_L, Prad_R,
-          //    vstar
-          //    );
 
           const double alpha = rad_wavespeed(E_L, E_R, F_L, F_R, vstar);
           const double flux_e =
@@ -885,12 +887,12 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
               llf_flux(c2 * Prad_R - vstar * F_R, c2 * Prad_L - vstar * F_L,
                        F_R, F_L, alpha);
 
-          dFlux_num_(i, vars::cons::SpecificVolume) = -flux_u;
-          dFlux_num_(i, vars::cons::Velocity) = flux_p;
-          dFlux_num_(i, vars::cons::Energy) = +flux_u * flux_p;
+          dFlux_num_(i, idx_tau) = -flux_u;
+          dFlux_num_(i, idx_vel) = flux_p;
+          dFlux_num_(i, idx_ener) = +flux_u * flux_p;
 
-          dFlux_num_(i, vars::cons::RadEnergy) = flux_e;
-          dFlux_num_(i, vars::cons::RadFlux) = flux_f;
+          dFlux_num_(i, idx_radener) = flux_e;
+          dFlux_num_(i, idx_radflux) = flux_f;
         });
 
     facedata(ilo - 1, idx_vstar) = facedata(ilo, idx_vstar);
@@ -926,11 +928,11 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
             for (int q = 0; q < nNodes; ++q) {
               const int qp1 = q + 1;
 
-              const double pressure = uaf(i, qp1, vars::aux::Pressure);
+              const double pressure = uaf(i, qp1, idx_pre);
               const double rho = upf(i, q, vars::prim::Rho);
-              const double vel = ucf(i, q, vars::cons::Velocity);
-              const double e_rad = ucf(i, q, vars::cons::RadEnergy) * rho;
-              const double f_rad = ucf(i, q, vars::cons::RadFlux) * rho;
+              const double vel = ucf(i, q, idx_vel);
+              const double e_rad = ucf(i, q, idx_radener) * rho;
+              const double f_rad = ucf(i, q, idx_radflux) * rho;
               const double p_rad = compute_closure(e_rad, f_rad);
               const auto [flux1, flux2, flux3] =
                   athelas::fluid::flux_fluid(vel, pressure);
@@ -945,11 +947,11 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
               local_sum_f += w_dphi_sqrtgm * flux_f;
             }
 
-            delta_(stage, i, p, vars::cons::SpecificVolume) += local_sum1;
-            delta_(stage, i, p, vars::cons::Velocity) += local_sum2;
-            delta_(stage, i, p, vars::cons::Energy) += local_sum3;
-            delta_(stage, i, p, vars::cons::RadEnergy) += local_sum_e;
-            delta_(stage, i, p, vars::cons::RadFlux) += local_sum_f;
+            delta_(stage, i, p, idx_tau) += local_sum1;
+            delta_(stage, i, p, idx_vel) += local_sum2;
+            delta_(stage, i, p, idx_ener) += local_sum3;
+            delta_(stage, i, p, idx_radener) += local_sum_e;
+            delta_(stage, i, p, idx_radflux) += local_sum_f;
           });
     }
 } // radhydro_divergence
