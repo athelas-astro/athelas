@@ -18,4 +18,4 @@ detail.  Why is this change required?  What problem does it solve?-->
 - [ ] Explain what you did.
 - [ ] Make any necessary changes to the documentation.
 - [ ] Update `CHANGELOG.md`
-- [ ] If any part of this contribution was made with generative AI assistance please include an AI usage disclosure following our [AI Policy](CONTRIBUTING.md#ai-policy).
+- [ ] If any part of this contribution was made with generative AI assistance please include an AI usage disclosure following our [AI Policy](../CONTRIBUTING.md#ai-policy).
