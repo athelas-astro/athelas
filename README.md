@@ -26,7 +26,7 @@ Work in progress [docs](https://athelas-astro.github.io) are available.
 `athelas` uses submodules to include dependencies. 
 The best way to get the source is the following 
 ```sh
-git clone --recursive git@github.com:athelas-astro/athelas.git
+git clone --recursive https://github.com/athelas-astro/athelas.git
 ```
 
 # Building
