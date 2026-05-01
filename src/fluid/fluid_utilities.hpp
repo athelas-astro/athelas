@@ -33,13 +33,13 @@ auto flux_fluid(const double V, const double P)
 KOKKOS_INLINE_FUNCTION
 auto numerical_flux_gudonov(const FluidRiemannState &left, const FluidRiemannState &right)
     -> std::tuple<double, double> {
-  assert(pL > 0.0 && pR > 0.0 && "numerical_flux_gudonov :: negative pressure");
   const double pL = left.p;
   const double pR = right.p;
   const double vL = left.v;
   const double vR = right.v;
   const double zL = left.cs / left.tau;
   const double zR = right.cs / right.tau;
+  assert(pL > 0.0 && pR > 0.0 && "numerical_flux_gudonov :: negative pressure");
   const double Flux_U = (pL - pR + zR * vR + zL * vL) / (zR + zL);
   const double Flux_P = (zR * pL + zL * pR + zL * zR * (vL - vR)) / (zR + zL);
   return {Flux_U, Flux_P};
@@ -51,7 +51,6 @@ auto numerical_flux_gudonov(const FluidRiemannState &left, const FluidRiemannSta
 KOKKOS_INLINE_FUNCTION
 auto numerical_flux_gudonov_positivity(const FluidRiemannState &left, const FluidRiemannState &right)
     -> std::tuple<double, double> {
-  assert(pL > 0.0 && pR > 0.0 && "numerical_flux_gudonov :: negative pressure");
   using utilities::pos_part;
 
   const double tauL = left.tau;
@@ -62,6 +61,8 @@ auto numerical_flux_gudonov_positivity(const FluidRiemannState &left, const Flui
   const double pR = right.p;
   const double csL = left.cs;
   const double csR = right.cs;
+
+  assert(pL > 0.0 && pR > 0.0 && "numerical_flux_gudonov :: negative pressure");
 
   const double pRmL = pR - pL; // [[p]]
   const double vRmL = vR - vL; // [[v]]
