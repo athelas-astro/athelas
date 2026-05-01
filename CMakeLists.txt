@@ -107,7 +107,7 @@ include_directories("src/basis")
 include_directories("src/fluid")
 include_directories("src/radiation")
 include_directories("src/pgen")
-include_directories("src/linalg")
+include_directories("src/math")
 include_directories("src/eos")
 include_directories("src/bc")
 include_directories("src/io")
@@ -145,8 +145,8 @@ set( ATHELAS_SOURCES
   "src/gravity/gravity_package.cpp"
   "src/io/io.cpp"
   "src/io/tables.cpp"
-  "src/linalg/linear_algebra.cpp"
-  "src/quadrature/quadrature.cpp"
+  "src/math/linear_algebra.cpp"
+  "src/math/quadrature.cpp"
   "src/limiters/bound_enforcing_limiter.cpp"
   "src/limiters/slope_limiter_unlimited.cpp"
   "src/limiters/slope_limiter_utilities.cpp"

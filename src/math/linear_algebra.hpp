@@ -1,19 +1,10 @@
-/**
- * @file linear_algebra.hpp
- * --------------
- *
- * @brief Basic linear algebra functions.
- *
- * @details Linear algebra routines for quadrature and limiters.
- */
-
 #pragma once
 
 #include <vector>
 
 #include "Kokkos_Macros.hpp"
 
-namespace athelas {
+namespace athelas::math::linalg {
 
 // Fill identity matrix
 template <class T>
@@ -51,4 +42,4 @@ void tri_sym_diag(int n, std::vector<double> &d, std::vector<double> &e,
                   std::vector<double> &array);
 KOKKOS_FUNCTION
 void invert_matrix(std::vector<double> &M, int n);
-} // namespace athelas
+} // namespace athelas::math::linalg

@@ -1,20 +1,10 @@
-/**
- * @file quadrature.cpp
- * --------------
- *
- * @author Brandon L. Barker
- * @brief Quadrature rules
- *
- * @details Computes Gauss-legendre nodes and weights
- */
-
 #include <cmath>
 #include <vector>
 
-#include "linalg/linear_algebra.hpp"
-#include "quadrature/quadrature.hpp"
+#include "math/linear_algebra.hpp"
+#include "math/quadrature.hpp"
 
-namespace athelas::quadrature {
+namespace athelas::math::quadrature {
 
 /**
  * @brief Computes the Jacobi matrix for legendre-Gauss quadrature rule
@@ -86,7 +76,7 @@ void lg_quadrature(int m, std::vector<double> &nodes,
   }
 
   // --- Diagonalize the Jacobi matrix. ---
-  tri_sym_diag(m, nodes, bj, weights); // imtqlx
+  math::linalg::tri_sym_diag(m, nodes, bj, weights); // imtqlx
 
   for (int i = 0; i < m; i++) {
     weights[i] = weights[i] * weights[i];
@@ -97,4 +87,4 @@ void lg_quadrature(int m, std::vector<double> &nodes,
   }
 }
 
-} // namespace athelas::quadrature
+} // namespace athelas::math::quadrature
