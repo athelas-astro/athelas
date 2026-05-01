@@ -86,6 +86,7 @@ class ImplicitRadiationMomentsPackage {
   AthelasArray3D<double> solver_mat_upper_;
   AthelasArray3D<double> solver_mat_lower_;
   AthelasArray2D<double> solver_b_; // rhs for implicit solve
+  AthelasArray2D<double> flux_num_;
 
   // Workspace for block Thomas solve:
   AthelasArray3D<double> solver_W_;
