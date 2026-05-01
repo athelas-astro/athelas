@@ -18,9 +18,9 @@ auto initialize_slope_limiter(std::string field, const GridStructure *grid,
 // Standard MINMOD function
 template <typename T>
 constexpr auto MINMOD(T a, T b, T c) -> T {
-  using math::utils::SGN;
-  if (SGN(a) == SGN(b) && SGN(b) == SGN(c)) {
-    return SGN(a) * std::min({std::abs(a), std::abs(b), std::abs(c)});
+  using math::utils::sgn;
+  if (sgn(a) == sgn(b) && sgn(b) == sgn(c)) {
+    return sgn(a) * std::min({std::abs(a), std::abs(b), std::abs(c)});
   }
   return T(0);
 }

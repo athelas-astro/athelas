@@ -378,7 +378,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
       } else {
         // Should we just set it to 0.0? Will cause problems if ever we
         // do ionization of ni56.
-        comps_star_host(i_cell, ind_ni) = math::utils::SMALL();
+        comps_star_host(i_cell, ind_ni) = math::utils::small();
       }
     }
   }

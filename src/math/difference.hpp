@@ -9,6 +9,7 @@ namespace athelas::math::difference {
 /**
  * @brief Finite difference derivative.
  */
+KOKKOS_FUNCTION
 template <DiffScheme Scheme = DiffScheme::Forward, typename F, typename... Args>
 constexpr auto finite_difference(double h, F &&f, double x, Args &&...args) {
   if constexpr (Scheme == DiffScheme::Forward) {

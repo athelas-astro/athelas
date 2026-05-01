@@ -340,7 +340,7 @@ void limit_rad_momentum(StageData &stage_data, const GridStructure &grid) {
           const double F_q = U(i, q, vars::cons::RadFlux);
 
           if (std::abs(F_q) > c * E_q) {
-            const double s = math::utils::SGN(F_q);
+            const double s = math::utils::sgn(F_q);
             const double numerator = c * E_avg - s * F_avg;
             const double denominator = s * (F_q - F_avg) - c * (E_q - E_avg);
 
