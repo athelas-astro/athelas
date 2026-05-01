@@ -22,6 +22,7 @@
 #include "kokkos_types.hpp"
 #include "loop_layout.hpp"
 #include "math/quadrature.hpp"
+#include "math/utils.hpp"
 #include "utils/utilities.hpp"
 
 namespace athelas {
@@ -206,7 +207,7 @@ void GridStructure::create_log_grid() {
   auto x_l_h = Kokkos::create_mirror_view(x_l_);
 
   const double log_xl = std::log10(xL_);
-  const double log_ratio = std::log10(utilities::ratio(xR_, xL_));
+  const double log_ratio = std::log10(math::utils::ratio(xR_, xL_));
   const double dx = log_ratio / (nElements_ - 0);
 
   // Set up cell centers

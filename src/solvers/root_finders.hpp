@@ -2,11 +2,14 @@
 
 #include <algorithm>
 #include <cmath>
+#include <print>
+#include <vector>
 
 #include "Kokkos_Macros.hpp"
 #include "concepts/arithmetic.hpp"
+#include "math/utils.hpp"
 #include "solvers/root_finder_opts.hpp"
-#include "utils/utilities.hpp"
+#include "utils/error.hpp"
 
 // TODO(astrobarker): make a solvers namespace? If it grows beyond rf, yes.
 namespace athelas::root_finders {
@@ -23,7 +26,7 @@ KOKKOS_INLINE_FUNCTION auto residual(const T f, const T x) -> T {
 
 KOKKOS_INLINE_FUNCTION
 auto alpha_aa(const double r_n, const double r_nm1) -> double {
-  return std::clamp(utilities::ratio(r_n, (r_n - r_nm1)), 0.0, 1.0);
+  return std::clamp(math::utils::ratio(r_n, (r_n - r_nm1)), 0.0, 1.0);
 }
 
 // physical scales for normalization
