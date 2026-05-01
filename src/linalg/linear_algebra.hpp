@@ -8,6 +8,7 @@
 
 namespace athelas {
 
+
 using Scalar    = double;
 using ExecSpace = Kokkos::DefaultExecutionSpace;
 using MemSpace  = ExecSpace::memory_space;
@@ -17,6 +18,25 @@ using BlockStore = Kokkos::View<Scalar***, Layout, MemSpace>; // [N, m, m] or [N
 using VecStore   = Kokkos::View<Scalar**,  Layout, MemSpace>; // [N,m] or [N-1, m]
 using PivotStore = Kokkos::View<int*,      Layout, MemSpace>; // [m]
 
+/**
+ * @brief Computes a quadrature-weighted L2 error norm for a Newton-Raphson iteration.
+ *
+ * @param du      2D Kokkos view of shape (nx, 2*nNodes) containing the Newton update vector
+ * @param wgts    1D Kokkos view of length nNodes containing quadrature weights
+ * @param scale_e  Characteristic scale for the first quantity
+ * @param scale_f  Characteristic scale for the second quantity
+ * @return Dimensionless L2 norm of the scaled update vector
+ */
+auto newton_norm_l2(
+    AthelasArray2D<double> du,
+    AthelasArray1D<double> wgts,
+    double scale_e,
+    double scale_f) -> double;
+
+/**
+ * @struct ThomasScratch
+ * @brief Scratch storage for block Thomas solve.
+ */
 struct ThomasScratch {
   // Workspaces that persist across solves to avoid allocations.
   BlockStore W; // [N - 1, m, m]
@@ -26,6 +46,31 @@ struct ThomasScratch {
   AthelasArray2D<double> Bi_lu; // [m, m]
 };
 
+/** 
+ * @ brief Block Thomas Algorithm for block tridiagonal systems
+ *
+ *  Solves the N×N block tridiagonal system:
+ *
+ *   [ B(0,:,:)  C(0,:,:)                          ] [ x(0,:)   ]   [ d(0,:)   ]
+ *   [ A(1,:,:)  B(1,:,:)  C(1,:,:)                ] [ x(1,:)   ]   [ d(1,:)   ]
+ *   [           A(2,:,:)  B(2,:,:)  C(2,:,:)      ] [ x(2,:)   ] = [ d(2,:)   ]
+ *   [                      ...                    ] [  ...     ]   [  ...     ]
+ *   [                     A(N-1:,:) B(N-1:,:)     ] [ x(N-1,:) ]   [ d(N-1,:) ]
+ *
+ * each block is m×m dense; A(:,:,0) and C(:,:,N-1) are unused.
+ *
+ * Algorithm:
+ *   Forward sweep (i = 0 .. N-2):
+ *     Solve B(i) * [W(i) | Y(i)] = [C(i) | d(i)]
+ *     B(i+1) -= A(i+1) * W(i)
+ *     d(i+1) -= A(i+1) * Y(i)
+ *
+ *   Back substitution:
+ *     Solve B(N-1) * x(N-1) = d(N-1)
+ *     x(i) = Y(i) - W(i) * x(i+1)  for i = N-2..0
+ *
+ *  NOTE: Can I remove Bi_lu and factor into B?
+ */
 void block_thomas_solve(int N, int m, BlockStore A, BlockStore B,
                         BlockStore C, VecStore d,
                         const ThomasScratch &scratch);

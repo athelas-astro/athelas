@@ -18,31 +18,37 @@
 
 namespace athelas {
 
-/** 
- * @ brief Block Thomas Algorithm for block tridiagonal systems
- *
- *  Solves the N×N block tridiagonal system:
- *
- *   [ B(0,:,:)  C(0,:,:)                          ] [ x(0,:)   ]   [ d(0,:)   ]
- *   [ A(1,:,:)  B(1,:,:)  C(1,:,:)                ] [ x(1,:)   ]   [ d(1,:)   ]
- *   [           A(2,:,:)  B(2,:,:)  C(2,:,:)      ] [ x(2,:)   ] = [ d(2,:)   ]
- *   [                      ...                    ] [  ...     ]   [  ...     ]
- *   [                     A(N-1:,:) B(N-1:,:)     ] [ x(N-1,:) ]   [ d(N-1,:) ]
- *
- * each block is m×m dense; A(:,:,0) and C(:,:,N-1) are unused.
- *
- * Algorithm:
- *   Forward sweep (i = 0 .. N-2):
- *     Solve B(i) * [W(i) | Y(i)] = [C(i) | d(i)]
- *     B(i+1) -= A(i+1) * W(i)
- *     d(i+1) -= A(i+1) * Y(i)
- *
- *   Back substitution:
- *     Solve B(N-1) * x(N-1) = d(N-1)
- *     x(i) = Y(i) - W(i) * x(i+1)  for i = N-2..0
- *
- *  NOTE: Can I remove Bi_lu and factor into B?
- */
+auto newton_norm_l2(
+    AthelasArray2D<double> du,
+    AthelasArray1D<double> wgts,
+    const double scale_e,
+    const double scale_f) -> double {
+
+  auto idx = [&](const int q, const int v) { return q * 2 + v; };
+
+  Kokkos::Array<const double, 2> inv_scale = {1.0 / scale_e, 1.0 / scale_f};
+
+  static const int nq = static_cast<int>(wgts.size());
+  static const int nx = static_cast<int>(du.extent(0));
+  static const IndexRange ib(nx);
+  static const IndexRange qb(nq);
+
+  double norm_sq = 0.0;
+  athelas::par_reduce(
+      DEFAULT_LOOP_PATTERN, "norm_l2", DevExecSpace(),
+      ib.s, ib.e, qb.s, qb.e,
+      KOKKOS_LAMBDA(const int i, const int q, double& lnorm_sq) {
+        const double w = wgts(q);
+        for (int v = 0; v < 2; ++v) {
+          const double r = du(i, idx(q, v)) * inv_scale[v];
+          lnorm_sq += w * r * r;
+        }
+      },
+      Kokkos::Sum<double>(norm_sq));
+
+  return Kokkos::sqrt(norm_sq);
+}
+
 void block_thomas_solve(const int N, const int m,
                         BlockStore A, BlockStore B, BlockStore C,
                         VecStore d, const ThomasScratch& scratch) {
@@ -139,7 +145,7 @@ void block_thomas_solve(const int N, const int m,
 
                 // Y(i) = B(i)^{-1} d(i)
                 for (int r = 0; r < m; ++r) {
-                        Yi(r) = di(r);
+                   Yi(r) = di(r);
                 }
                 trsv(Yi);
 
