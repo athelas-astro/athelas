@@ -36,9 +36,11 @@ CheckOptions:
   - key: readability-identifier-naming.NamespaceFunctionCase
     value: lower_case
   - key: readability-identifier-naming.ConstexprFunctionCase
-    value: UPPER_CASE
+    value: lower_case
   - key: readability-identifier-naming.GlobalFunctionCase
     value: lower_case
+  - key: readability-identifier-naming.GlobalConstantCase
+    value: UPPER_CAE
   - key: readability-identifier-naming.PrivateFunctionCase
     value: lower_case
   - key: readability-identifier-naming.StaticFunctionCase

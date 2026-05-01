@@ -13,7 +13,7 @@ namespace athelas::math::interp {
  */
 KOKKOS_FUNCTION
 template <typename T>
-constexpr auto LINTERP(T x0, T x1, T y0, T y1, T x) noexcept -> T {
+constexpr auto linterp(T x0, T x1, T y0, T y1, T x) noexcept -> T {
   if (x0 == x1) {
     return y0;
   }

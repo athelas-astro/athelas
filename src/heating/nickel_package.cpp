@@ -171,7 +171,7 @@ void NickelHeatingPackage::fill_derived(StageData &stage_data,
     return;
   }
   using math::interp::find_closest_cell;
-  using math::interp::LINTERP;
+  using math::interp::linterp;
   // TODO(astrobarker): possibly compute r_min_ni here.
   // fill dtau_gamma, tau_gamma
   // I think we assume that tau = 0 at the outer interface, but
@@ -237,13 +237,13 @@ void NickelHeatingPackage::fill_derived(StageData &stage_data,
                 const double rx = l * dr;
                 const double rj = std::sqrt(ri2 + rx * rx + two_ri_cos * rx);
                 const int index = find_closest_cell(centers, rj, nx);
-                const double rho_interp = LINTERP(
+                const double rho_interp = linterp(
                     centers(index), centers(index + 1),
                     1.0 / ucf(index, q, vars::cons::SpecificVolume),
                     1.0 / ucf(index + 1, q, vars::cons::SpecificVolume), rj);
 
                 const double ye_interp =
-                    LINTERP(centers(index), centers(index + 1), ye(index, 0),
+                    linterp(centers(index), centers(index + 1), ye(index, 0),
                             ye(index + 1, nnodes + 1), rj);
                 optical_depth += dtau(rho_interp, kappa_gamma(ye_interp), dr);
               }
