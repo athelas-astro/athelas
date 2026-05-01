@@ -26,6 +26,8 @@ execute_process(
         ${CMAKE_SOURCE_DIR}/compile_commands.json
 )
 
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+
 # If this is a debug build, set kokkos debug on
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
   message(STATUS "Enabling Kokkos debug mode")
@@ -293,12 +295,30 @@ configure_file(
   @ONLY
 )
 
-
 # Eigen
 add_subdirectory(external/spiner)
 
 # Lua, sol2
-find_package(Lua 5.3 REQUIRED)
+# This is hacky. Sol2 does not yet accept Lua v5.5. cmake's find_package
+# accepts version ranges but it does not seem to be working here. 
+# Walk backwards from 5.4 and take the first found version.
+set(LUA_VERSIONS_TO_CHECK "5.4" "5.3" "5.2" "5.1" "5.0")
+
+foreach(_lua_ver ${LUA_VERSIONS_TO_CHECK})
+    # Search for the specific version
+    # quiet: stays silent if not found so the log isn't messy
+    find_package(Lua ${_lua_ver} EXACT QUIET)
+    
+    if(Lua_FOUND)
+        message(STATUS "Found compatible Lua version: ${LUA_VERSION_STRING}")
+        break() # Exit the loop immediately
+    endif()
+endforeach()
+
+# Final check to ensure we found SOMETHING
+if(NOT Lua_FOUND)
+    message(FATAL_ERROR "Could not find Lua version < 5.5 (tried 5.4 down to 5.0)")
+endif()
 include_directories(${LUA_INCLUDE_DIR})
 add_subdirectory(external/sol2)
 
@@ -325,12 +345,10 @@ target_compile_features(athelas PRIVATE cxx_std_23)
 set_target_properties(athelas PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/lib"
     LIBRARY_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/lib"
-    #RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin"
 )
 
 # Set compile options
 target_compile_options(athelas PRIVATE 
-        #    -fPIC 
     -Wall 
     ${OpenMP_CXX_FLAGS}
 )
@@ -349,7 +367,6 @@ endif()
 
 # Link libraries (do this only once, with all libraries)
 target_link_libraries(athelas PRIVATE
-        #    libathelas
     kokkos
     spiner::spiner
     Eigen3::Eigen
