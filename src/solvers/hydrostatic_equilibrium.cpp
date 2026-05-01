@@ -13,7 +13,7 @@
 namespace athelas {
 
 using math::interp::find_closest_cell;
-using math::interp::LINTERP;
+using math::interp::linterp;
 
 auto HydrostaticEquilibrium::rhs(const double mass_enc, const double p,
                                  const double r) const -> double {
@@ -128,7 +128,7 @@ void HydrostaticEquilibrium::solve(MeshState &mesh_state, GridStructure *grid,
     for (int q = 0; q < nNodes + 2; ++q) {
       const double rq = h_r(ix * (nNodes + 2) + q);
       const int idx = find_closest_cell(radius, rq, radius.size());
-      const double y = LINTERP(radius[idx], radius[idx + 1], pressure[idx],
+      const double y = linterp(radius[idx], radius[idx + 1], pressure[idx],
                                pressure[idx + 1], rq);
       h_uAF(ix, q, iP_) = y;
     }

@@ -32,6 +32,7 @@ add_executable( unit_tests
   test_legendre.cpp
   test_paczynski.cpp
   test_root_finders.cpp
+  test_fd.cpp
   )
 
 target_link_libraries( unit_tests

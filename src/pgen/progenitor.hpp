@@ -46,7 +46,7 @@ namespace athelas {
 void progenitor_init(MeshState &mesh_state, GridStructure *grid,
                      ProblemIn *pin) {
   using math::interp::find_closest_cell;
-  using math::interp::LINTERP;
+  using math::interp::linterp;
   // If we ever add columns to the hydro profile, change this.
   constexpr int NUM_COLS_HYDRO = 6;
 
@@ -200,7 +200,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
       mass_enc += dm;
       if (mass_enc >= mass_cut) {
         idx_cut = i - 1;
-        r_cut = LINTERP(mass_enc - dm, mass_enc, radius_host(idx_cut),
+        r_cut = linterp(mass_enc - dm, mass_enc, radius_host(idx_cut),
                         radius_host(idx_cut + 1), mass_cut);
         mass_cut = mass_enc;
         mass_cut_ref = mass_cut;
@@ -230,15 +230,15 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
               std::min(find_closest_cell(radius_view, r_athelas, n_zones_prog),
                        n_zones_prog - 2);
           uPF(i, q, vars::prim::Rho) =
-              LINTERP(radius_view(index_left), radius_view(index_left + 1),
+              linterp(radius_view(index_left), radius_view(index_left + 1),
                       density_view(index_left), density_view(index_left + 1),
                       r_athelas);
           uAF(i, q, vars::aux::Pressure) =
-              LINTERP(radius_view(index_left), radius_view(index_left + 1),
+              linterp(radius_view(index_left), radius_view(index_left + 1),
                       pressure_view(index_left), pressure_view(index_left + 1),
                       r_athelas);
           uAF(i, q, vars::aux::Tgas) =
-              LINTERP(radius_view(index_left), radius_view(index_left + 1),
+              linterp(radius_view(index_left), radius_view(index_left + 1),
                       temperature_view(index_left),
                       temperature_view(index_left + 1), r_athelas);
         }
@@ -395,7 +395,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
         const double rq = r_h(i, q + 1);
         const int idx = find_closest_cell(radius_host, rq, n_zones_prog);
         mass_fractions_h(i, q, e) =
-            LINTERP(radius_host(idx), radius_host(idx + 1),
+            linterp(radius_host(idx), radius_host(idx + 1),
                     comps_star_host(idx, e), comps_star_host(idx + 1, e), rq);
       }
     }
@@ -485,7 +485,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
           const double rq = r(i, q + 1);
           const int idx = find_closest_cell(radius_view, rq, n_zones_prog);
           uCF(i, q, vars::cons::Velocity) =
-              LINTERP(radius_view(idx), radius_view(idx + 1),
+              linterp(radius_view(idx), radius_view(idx + 1),
                       velocity_view(idx), velocity_view(idx + 1), rq);
         }
       });
@@ -588,7 +588,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
                 uCF(i, q, vars::cons::SpecificVolume);
             uCF(i, q, vars::cons::RadFlux) =
                 uCF(i, q, vars::cons::SpecificVolume) *
-                LINTERP(radius_view(idx), radius_view(idx + 1),
+                linterp(radius_view(idx), radius_view(idx + 1),
                         luminosity_view(idx), luminosity_view(idx + 1), rq) /
                 (constants::FOURPI * rq * rq);
           }
