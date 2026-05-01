@@ -20,8 +20,8 @@ add_executable( unit_tests
   ../../src/eos/eos_ideal.cpp
   ../../src/eos/eos_polytropic.cpp
   ../../src/eos/eos_marshak.cpp
-  ../../src/linalg/linear_algebra.cpp
-  ../../src/quadrature/quadrature.cpp
+  ../../src/math/linear_algebra.cpp
+  ../../src/math/quadrature.cpp
   ../../src/basis/nodal_basis.cpp
   ../../src/geometry/grid.cpp
   ../../src/timestepper/tableau.cpp
