@@ -1,31 +1,17 @@
-/**
- * @file slope_limiter_weno.cpp
- * --------------
- *
- * @author Brandon L. Barker
- * @brief Implementation of the WENO-Z slope limiter for discontinuous Galerkin
- *        methods
- *
- * @details This file implements the WENO-Z slope limiter based on H. Zhu 2020,
- *          "Simple, high-order compact WENO RKDG slope limiter". The limiter
- *          uses a compact stencil approach to maintain high-order accuracy
- *          while preventing oscillations.
- */
-
-#include "basis/polynomial_basis.hpp"
 #include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
 #include "limiters/characteristic_decomposition.hpp"
 #include "limiters/slope_limiter.hpp"
 #include "limiters/slope_limiter_utilities.hpp"
-#include "linear_algebra.hpp"
 #include "loop_layout.hpp"
+#include "math/linear_algebra.hpp"
+#include "math/utils.hpp"
 
 namespace athelas {
 
 using basis::NodalBasis;
 using eos::EOS;
-using utilities::ratio;
+using math::utils::ratio;
 using namespace vars::modes;
 
 /**
@@ -79,7 +65,7 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U,
               U_c_T_i(v) = u_k_(i, k, v);
               w_c_T_i(v) = 0.0;
             }
-            MAT_MUL<3>(1.0, R_inv_i, U_c_T_i, 0.0, w_c_T_i);
+            math::linalg::MAT_MUL<3>(1.0, R_inv_i, U_c_T_i, 0.0, w_c_T_i);
 
             for (int v = 0; v < nvars; ++v) {
               u_k_(i, k, v) = w_c_T_i(v);
@@ -154,7 +140,7 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U,
               U_c_T_i(v) = u_k_(i, k, v);
               w_c_T_i(v) = 0.0;
             }
-            MAT_MUL<3>(1.0, R_i, U_c_T_i, 0.0, w_c_T_i);
+            math::linalg::MAT_MUL<3>(1.0, R_i, U_c_T_i, 0.0, w_c_T_i);
 
             for (int v = 0; v < nvars; ++v) {
               u_k_(i, k, v) = w_c_T_i(v);

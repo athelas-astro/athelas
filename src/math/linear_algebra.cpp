@@ -1,25 +1,13 @@
-/**
- * @file linear_algebra.cpp
- * --------------
- *
- * @author Brandon L. Barker
- * @brief Basic linear algebra functions.
- *
- * @details Linear algebra routines for quadrature and limiters.
- *          - tri_sym_diag
- *          - invert_matrix
- */
-
 #include <cstddef>
 #include <vector>
 
 #include <Eigen/Dense>
 #include <Kokkos_Core.hpp>
 
-#include "linalg/linear_algebra.hpp"
+#include "math/linear_algebra.hpp"
 #include "utils/error.hpp"
 
-namespace athelas {
+namespace athelas::math::linalg {
 
 /**
  * @brief Diagonalizes a symmetric tridiagonal matrix using Eigen.
@@ -91,4 +79,4 @@ void invert_matrix(std::vector<double> &M, int n) {
   matrix = inverse;
 }
 
-} // namespace athelas
+} // namespace athelas::math::linalg

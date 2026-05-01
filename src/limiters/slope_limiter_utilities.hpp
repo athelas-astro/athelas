@@ -3,11 +3,9 @@
 #include "Kokkos_Macros.hpp"
 #include "geometry/grid.hpp"
 #include "limiters/slope_limiter.hpp"
-#include "utils/utilities.hpp"
+#include "math/utils.hpp"
 
 namespace athelas {
-
-using namespace utilities;
 
 void conservative_correction(AthelasArray3D<double> u_k,
                              AthelasArray3D<double> ucf,
@@ -20,6 +18,7 @@ auto initialize_slope_limiter(std::string field, const GridStructure *grid,
 // Standard MINMOD function
 template <typename T>
 constexpr auto MINMOD(T a, T b, T c) -> T {
+  using math::utils::SGN;
   if (SGN(a) == SGN(b) && SGN(b) == SGN(c)) {
     return SGN(a) * std::min({std::abs(a), std::abs(b), std::abs(c)});
   }

@@ -1,17 +1,11 @@
 #pragma once
-/**
- * @file fluid_utilities.hpp
- * --------------
- *
- * @brief Utilities for fluid evolution
- */
 
 #include <cassert>
 #include <tuple>
 
 #include "Kokkos_Macros.hpp"
 
-#include "utils/utilities.hpp"
+#include "math/utils.hpp"
 
 namespace athelas::fluid {
 
@@ -44,7 +38,7 @@ auto numerical_flux_gudonov_positivity(const double tauL, const double tauR,
                                        const double csL, const double csR)
     -> std::tuple<double, double> {
   assert(pL > 0.0 && pR > 0.0 && "numerical_flux_gudonov :: negative pressure");
-  using utilities::pos_part;
+  using math::utils::pos_part;
   const double pRmL = pR - pL; // [[p]]
   const double vRmL = vR - vL; // [[v]]
   /*

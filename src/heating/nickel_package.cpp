@@ -7,6 +7,7 @@
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
 #include "loop_layout.hpp"
+#include "math/interp.hpp"
 #include "pgen/problem_in.hpp"
 #include "utils/utilities.hpp"
 
@@ -169,8 +170,8 @@ void NickelHeatingPackage::fill_derived(StageData &stage_data,
   if (model_ != NiHeatingModel::Jeffery) {
     return;
   }
-  using utilities::find_closest_cell;
-  using utilities::LINTERP;
+  using math::interp::find_closest_cell;
+  using math::interp::LINTERP;
   // TODO(astrobarker): possibly compute r_min_ni here.
   // fill dtau_gamma, tau_gamma
   // I think we assume that tau = 0 at the outer interface, but
@@ -235,7 +236,7 @@ void NickelHeatingPackage::fill_derived(StageData &stage_data,
               for (int l = 0; l < nr; ++l) {
                 const double rx = l * dr;
                 const double rj = std::sqrt(ri2 + rx * rx + two_ri_cos * rx);
-                const int index = utilities::find_closest_cell(centers, rj, nx);
+                const int index = find_closest_cell(centers, rj, nx);
                 const double rho_interp = LINTERP(
                     centers(index), centers(index + 1),
                     1.0 / ucf(index, q, vars::cons::SpecificVolume),
