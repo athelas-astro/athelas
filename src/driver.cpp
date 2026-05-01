@@ -240,10 +240,10 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   if (rad_active) {
     const std::string discretization = pin_->param()->get<std::string>("radiation.discretization");
     if (discretization == "implicit") {
-    manager_->add_package(ImplicitRadiationMomentsPackage{pin, n_stages, nnodes, bcs_.get(),
-                                          cfl, nx, pkg_active});
     manager_->add_package(
         HydroPackage{pin, n_stages, nnodes, bcs_.get(), cfl, nx, pkg_active});
+    manager_->add_package(ImplicitRadiationMomentsPackage{pin, n_stages, nnodes, bcs_.get(),
+                                          cfl, nx, pkg_active});
     }
     if (discretization == "explicit") {
     manager_->add_package(RadHydroPackage{pin, n_stages, nnodes, bcs_.get(),
