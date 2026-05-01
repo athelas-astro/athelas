@@ -9,7 +9,7 @@
 #include "fluid/fluid_utilities.hpp"
 #include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
-#include "linalg/linear_algebra.hpp"
+#include "math/linear_algebra.hpp"
 #include "loop_layout.hpp"
 #include "pgen/problem_in.hpp"
 #include "rad_utilities.hpp"
@@ -184,6 +184,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
     const StageData &stage_data, AthelasArray3D<double> ustar,
     const GridStructure &grid, const TimeStepInfo &dt_info) {
   using bc::BcType;
+  using math::linalg::ThomasScratch, math::linalg::block_thomas_solve;
 
   const auto &basis = stage_data.fluid_basis();
   const int nNodes = grid.n_nodes();
@@ -544,7 +545,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
         }
       });
 
-  athelas::ThomasScratch scratch{
+  ThomasScratch scratch{
       .W = solver_W_,
       .Y = solver_Y_,
       .Bi_lu = solver_Bi_lu_,

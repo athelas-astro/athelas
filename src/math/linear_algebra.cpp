@@ -5,7 +5,7 @@
 #include <Kokkos_Core.hpp>
 
 #include "kokkos_abstraction.hpp"
-#include "linalg/linear_algebra.hpp"
+#include "math/linear_algebra.hpp"
 #include "OpenMP/Kokkos_OpenMP_Parallel_For.hpp"
 #include "kokkos_types.hpp"
 #include "loop_layout.hpp"
@@ -16,7 +16,7 @@
 #include <KokkosBatched_Gemm_Decl.hpp>
 
 
-namespace athelas {
+namespace athelas::math::linalg {
 
 auto newton_norm_l2(
     AthelasArray2D<double> du,
@@ -251,4 +251,4 @@ void invert_matrix(std::vector<double> &M, int n) {
   matrix = inverse;
 }
 
-} // namespace athelas
+} // namespace athelas::math::linalg

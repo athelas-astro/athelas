@@ -72,7 +72,7 @@ enum class GravityModel { Constant, Spherical };
 
 enum class IonizationPhysics { Active, Inactive };
 
-enum class DiffScheme { Forward, Central };
+enum class DiffScheme { Forward, Backward, Central };
 
 enum class OpacityType { Planck, Rosseland };
 

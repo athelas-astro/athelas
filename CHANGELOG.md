@@ -5,6 +5,7 @@
 ---
 
 ### Added (new features/APIs/variables/...)
+- [PR 165](https://github.com/athelas-astro/athelas/pull/165) Add a code of conduct.
 - [PR 162](https://github.com/athelas-astro/athelas/pull/162) Add `-h` CLI arg.
 - [PR 161](https://github.com/athelas-astro/athelas/pull/161) Input configuration with Lua+Sol2
 - [PR 156](https://github.com/athelas-astro/athelas/pull/156) Add `enabled(const std::string &physics)` to `state`.
@@ -22,12 +23,14 @@
 ### Infrastructure (organization/...)
 
 ### Removed (removing behavior/API/variables/...)
+- [PR 164](https://github.com/athelas-astro/athelas/pull/164) Migrate docs to https://athelas-astro.github.io
 - [PR 161](https://github.com/athelas-astro/athelas/pull/161) Removed tomlplusplus
 - [PR 157](https://github.com/athelas-astro/athelas/pull/157) Removed `poly_basis` enum.
 
 ### Incompatibilities (i.e. breaking changes)
 
 ### Misc
+- [PR 163](https://github.com/athelas-astro/athelas/pull/163) Misc docs
 
 ## Release 26.03
 Date: 2026-03-01

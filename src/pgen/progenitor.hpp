@@ -34,9 +34,9 @@
 #include "geometry/grid.hpp"
 #include "io/parser.hpp"
 #include "kokkos_abstraction.hpp"
+#include "math/interp.hpp"
 #include "radiation/rad_utilities.hpp"
 #include "state/state.hpp"
-#include "utilities.hpp"
 
 namespace athelas {
 
@@ -45,6 +45,8 @@ namespace athelas {
  **/
 void progenitor_init(MeshState &mesh_state, GridStructure *grid,
                      ProblemIn *pin) {
+  using math::interp::find_closest_cell;
+  using math::interp::linterp;
   // If we ever add columns to the hydro profile, change this.
   constexpr int NUM_COLS_HYDRO = 6;
 
@@ -198,9 +200,8 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
       mass_enc += dm;
       if (mass_enc >= mass_cut) {
         idx_cut = i - 1;
-        r_cut =
-            utilities::LINTERP(mass_enc - dm, mass_enc, radius_host(idx_cut),
-                               radius_host(idx_cut + 1), mass_cut);
+        r_cut = linterp(mass_enc - dm, mass_enc, radius_host(idx_cut),
+                        radius_host(idx_cut + 1), mass_cut);
         mass_cut = mass_enc;
         mass_cut_ref = mass_cut;
         break;
@@ -226,21 +227,20 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
 
           const double r_athelas = r(i, q);
           const int index_left =
-              std::min(utilities::find_closest_cell(radius_view, r_athelas,
-                                                    n_zones_prog),
+              std::min(find_closest_cell(radius_view, r_athelas, n_zones_prog),
                        n_zones_prog - 2);
-          uPF(i, q, vars::prim::Rho) = utilities::LINTERP(
-              radius_view(index_left), radius_view(index_left + 1),
-              density_view(index_left), density_view(index_left + 1),
-              r_athelas);
-          uAF(i, q, vars::aux::Pressure) = utilities::LINTERP(
-              radius_view(index_left), radius_view(index_left + 1),
-              pressure_view(index_left), pressure_view(index_left + 1),
-              r_athelas);
-          uAF(i, q, vars::aux::Tgas) = utilities::LINTERP(
-              radius_view(index_left), radius_view(index_left + 1),
-              temperature_view(index_left), temperature_view(index_left + 1),
-              r_athelas);
+          uPF(i, q, vars::prim::Rho) =
+              linterp(radius_view(index_left), radius_view(index_left + 1),
+                      density_view(index_left), density_view(index_left + 1),
+                      r_athelas);
+          uAF(i, q, vars::aux::Pressure) =
+              linterp(radius_view(index_left), radius_view(index_left + 1),
+                      pressure_view(index_left), pressure_view(index_left + 1),
+                      r_athelas);
+          uAF(i, q, vars::aux::Tgas) =
+              linterp(radius_view(index_left), radius_view(index_left + 1),
+                      temperature_view(index_left),
+                      temperature_view(index_left + 1), r_athelas);
         }
       });
 
@@ -378,7 +378,7 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
       } else {
         // Should we just set it to 0.0? Will cause problems if ever we
         // do ionization of ni56.
-        comps_star_host(i_cell, ind_ni) = utilities::SMALL();
+        comps_star_host(i_cell, ind_ni) = math::utils::small();
       }
     }
   }
@@ -393,11 +393,10 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
       // loop over nodes on an element, interpolate to nodal positions
       for (int q = 0; q < nNodes; ++q) {
         const double rq = r_h(i, q + 1);
-        const int idx =
-            utilities::find_closest_cell(radius_host, rq, n_zones_prog);
-        mass_fractions_h(i, q, e) = utilities::LINTERP(
-            radius_host(idx), radius_host(idx + 1), comps_star_host(idx, e),
-            comps_star_host(idx + 1, e), rq);
+        const int idx = find_closest_cell(radius_host, rq, n_zones_prog);
+        mass_fractions_h(i, q, e) =
+            linterp(radius_host(idx), radius_host(idx + 1),
+                    comps_star_host(idx, e), comps_star_host(idx + 1, e), rq);
       }
     }
   }
@@ -484,11 +483,10 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
       DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
         for (int q = 0; q < nNodes; ++q) {
           const double rq = r(i, q + 1);
-          const int idx =
-              utilities::find_closest_cell(radius_view, rq, n_zones_prog);
-          uCF(i, q, vars::cons::Velocity) = utilities::LINTERP(
-              radius_view(idx), radius_view(idx + 1), velocity_view(idx),
-              velocity_view(idx + 1), rq);
+          const int idx = find_closest_cell(radius_view, rq, n_zones_prog);
+          uCF(i, q, vars::cons::Velocity) =
+              linterp(radius_view(idx), radius_view(idx + 1),
+                      velocity_view(idx), velocity_view(idx + 1), rq);
         }
       });
 
@@ -584,16 +582,14 @@ void progenitor_init(MeshState &mesh_state, GridStructure *grid,
         DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
           for (int q = 0; q < nNodes; ++q) {
             const double rq = r(i, q + 1);
-            const int idx =
-                utilities::find_closest_cell(radius_view, rq, n_zones_prog);
+            const int idx = find_closest_cell(radius_view, rq, n_zones_prog);
             uCF(i, q, vars::cons::RadEnergy) =
                 radiation::rad_energy(uAF(i, q + 1, vars::aux::Tgas)) *
                 uCF(i, q, vars::cons::SpecificVolume);
             uCF(i, q, vars::cons::RadFlux) =
                 uCF(i, q, vars::cons::SpecificVolume) *
-                utilities::LINTERP(radius_view(idx), radius_view(idx + 1),
-                                   luminosity_view(idx),
-                                   luminosity_view(idx + 1), rq) /
+                linterp(radius_view(idx), radius_view(idx + 1),
+                        luminosity_view(idx), luminosity_view(idx + 1), rq) /
                 (constants::FOURPI * rq * rq);
           }
         });

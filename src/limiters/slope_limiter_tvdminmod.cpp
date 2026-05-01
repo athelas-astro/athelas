@@ -7,8 +7,8 @@
 #include "limiters/characteristic_decomposition.hpp"
 #include "limiters/slope_limiter.hpp"
 #include "limiters/slope_limiter_utilities.hpp"
-#include "linalg/linear_algebra.hpp"
 #include "loop_layout.hpp"
+#include "math/linear_algebra.hpp"
 
 namespace athelas {
 
@@ -73,7 +73,7 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
               U_c_T_i(v) = u_k_(i, k, v);
               w_c_T_i(v) = 0.0;
             }
-            MAT_MUL<3>(1.0, R_inv_i, U_c_T_i, 0.0, w_c_T_i);
+            math::linalg::MAT_MUL<3>(1.0, R_inv_i, U_c_T_i, 0.0, w_c_T_i);
 
             for (int v = 0; v < nvars; ++v) {
               u_k_(i, k, v) = w_c_T_i(v);
@@ -138,7 +138,7 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
               U_c_T_i(v) = u_k_(i, k, v);
               w_c_T_i(v) = 0.0;
             }
-            MAT_MUL<3>(1.0, R_i, U_c_T_i, 0.0, w_c_T_i);
+            math::linalg::MAT_MUL<3>(1.0, R_i, U_c_T_i, 0.0, w_c_T_i);
 
             for (int v = 0; v < nvars; ++v) {
               u_k_(i, k, v) = w_c_T_i(v);

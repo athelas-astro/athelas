@@ -14,7 +14,7 @@
 
 #pragma once
 
-#include "basis/polynomial_basis.hpp"
+#include "basis/nodal_basis.hpp"
 #include "eos/eos_variant.hpp"
 
 namespace athelas {

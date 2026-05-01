@@ -6,7 +6,7 @@
 #include "Kokkos_Macros.hpp"
 #include <Kokkos_Core.hpp>
 
-namespace athelas {
+namespace athelas::math::linalg {
 
 
 using Scalar    = double;
@@ -111,4 +111,4 @@ void tri_sym_diag(int n, std::vector<double> &d, std::vector<double> &e,
                   std::vector<double> &array);
 KOKKOS_FUNCTION
 void invert_matrix(std::vector<double> &M, int n);
-} // namespace athelas
+} // namespace athelas::math::linalg

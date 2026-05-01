@@ -1,11 +1,11 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
-#include "linalg/linear_algebra.hpp"
+#include "math/linear_algebra.hpp"
 #include "test_utils.hpp"
 
-using athelas::block_thomas_solve;
-using athelas::ThomasScratch;
+using athelas::math::linalg::block_thomas_solve;
+using athelas::math::linalg::ThomasScratch;
 
 TEST_CASE("Block Thomas Solver", "[Block Thomas]") {
 

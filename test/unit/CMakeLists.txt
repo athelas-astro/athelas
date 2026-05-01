@@ -20,8 +20,8 @@ add_executable( unit_tests
   ../../src/eos/eos_ideal.cpp
   ../../src/eos/eos_polytropic.cpp
   ../../src/eos/eos_marshak.cpp
-  ../../src/linalg/linear_algebra.cpp
-  ../../src/quadrature/quadrature.cpp
+  ../../src/math/linear_algebra.cpp
+  ../../src/math/quadrature.cpp
   ../../src/basis/nodal_basis.cpp
   ../../src/geometry/grid.cpp
   ../../src/timestepper/tableau.cpp
@@ -33,6 +33,7 @@ add_executable( unit_tests
   test_paczynski.cpp
   test_root_finders.cpp
   test_block_thomas.cpp
+  test_fd.cpp
   )
 
 target_link_libraries( unit_tests

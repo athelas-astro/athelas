@@ -110,7 +110,7 @@ include_directories("src/basis")
 include_directories("src/fluid")
 include_directories("src/radiation")
 include_directories("src/pgen")
-include_directories("src/linalg")
+include_directories("src/math")
 include_directories("src/eos")
 include_directories("src/bc")
 include_directories("src/io")
@@ -148,8 +148,8 @@ set( ATHELAS_SOURCES
   "src/gravity/gravity_package.cpp"
   "src/io/io.cpp"
   "src/io/tables.cpp"
-  "src/linalg/linear_algebra.cpp"
-  "src/quadrature/quadrature.cpp"
+  "src/math/linear_algebra.cpp"
+  "src/math/quadrature.cpp"
   "src/limiters/bound_enforcing_limiter.cpp"
   "src/limiters/slope_limiter_unlimited.cpp"
   "src/limiters/slope_limiter_utilities.cpp"
@@ -298,7 +298,6 @@ configure_file(
   @ONLY
 )
 
-
 # Eigen
 add_subdirectory(external/spiner)
 
@@ -352,12 +351,10 @@ target_compile_features(athelas PRIVATE cxx_std_23)
 set_target_properties(athelas PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/lib"
     LIBRARY_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/lib"
-    #RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin"
 )
 
 # Set compile options
 target_compile_options(athelas PRIVATE 
-        #    -fPIC 
     -Wall 
     ${OpenMP_CXX_FLAGS}
 )
@@ -376,7 +373,6 @@ endif()
 
 # Link libraries (do this only once, with all libraries)
 target_link_libraries(athelas PRIVATE
-        #    libathelas
     kokkos
     Kokkos::kokkoskernels
     spiner::spiner

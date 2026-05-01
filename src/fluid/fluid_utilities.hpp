@@ -5,7 +5,7 @@
 
 #include "Kokkos_Macros.hpp"
 
-#include "utils/utilities.hpp"
+#include "math/utils.hpp"
 
 namespace athelas::fluid {
 
@@ -51,7 +51,7 @@ auto numerical_flux_gudonov(const FluidRiemannState &left, const FluidRiemannSta
 KOKKOS_INLINE_FUNCTION
 auto numerical_flux_gudonov_positivity(const FluidRiemannState &left, const FluidRiemannState &right)
     -> std::tuple<double, double> {
-  using utilities::pos_part;
+  using math::utils::pos_part;
 
   const double tauL = left.tau;
   const double tauR = right.tau;
