@@ -18,8 +18,9 @@ config.problem = {
 
   -- Parameters unique to a setup.
   params = {
-    fn_hydro = "../profiles/profile_hydro.dat",
-    fn_comps = "../profiles/profile_comps.dat",
+    -- Profiles are relative to executable.
+    fn_hydro = "../inputs/profiles/profile_hydro.dat",
+    fn_comps = "../inputs/profiles/profile_comps.dat",
     mass_cut = 1.4,
     ni_mass = 0.07,
     ni_boundary = 3.0,
