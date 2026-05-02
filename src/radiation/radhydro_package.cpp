@@ -9,10 +9,11 @@
 #include "fluid/fluid_utilities.hpp"
 #include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
-#include "math/linear_algebra.hpp"
 #include "loop_layout.hpp"
+#include "math/difference.hpp"
+#include "math/linear_algebra.hpp"
 #include "pgen/problem_in.hpp"
-#include "rad_utilities.hpp"
+#include "radiation/rad_utilities.hpp"
 #include "radiation/radhydro_package.hpp"
 
 namespace athelas::radiation {
@@ -184,6 +185,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
     const StageData &stage_data, AthelasArray3D<double> ustar,
     const GridStructure &grid, const TimeStepInfo &dt_info) {
   using bc::BcType;
+  using math::difference::finite_difference;
   using math::linalg::ThomasScratch, math::linalg::block_thomas_solve;
 
   const auto &basis = stage_data.fluid_basis();
@@ -230,6 +232,13 @@ void ImplicitRadiationMomentsPackage::update_implicit(
   bc::fill_ghost_zones<2>(ustar, &grid, bcs_, {3, 4});
   bc::fill_ghost_zones<3>(ustar, &grid, bcs_, {0, 2});
 
+  Kokkos::deep_copy(solver_mat_diag_, 0.0);
+  Kokkos::deep_copy(solver_mat_upper_, 0.0);
+  Kokkos::deep_copy(solver_mat_lower_, 0.0);
+  Kokkos::deep_copy(solver_b_, 0.0);
+
+  const double dt_aii = dt_info.dt_coef;
+
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "ImplicitMoments :: Interface states",
       DevExecSpace(), ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
@@ -241,6 +250,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
         }
       });
 
+  using math::utils::sgn;
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "ImplicitMoments :: Interface Jacobians",
       DevExecSpace(), ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
@@ -268,22 +278,17 @@ void ImplicitRadiationMomentsPackage::update_implicit(
         A_minus_(i - ib.s, 0, 1) = 0.5 * rho_L;
         A_minus_(i - ib.s, 1, 0) =
             0.5 * (c2 * (chi_L - f_l * chi_prime_L)) * rho_L;
-        A_minus_(i - ib.s, 1, 1) = 0.5 * (chi_prime_L - vstar + alpha) * rho_L;
+        A_minus_(i - ib.s, 1, 1) =
+            0.5 * (c * chi_prime_L * sgn(F_L) - vstar + alpha) * rho_L;
 
         // A_plus = d(F_hat)/d(U_neighbor) = 0.5 * (J_neighbor - alpha * I)
         A_plus_(i - ib.s, 0, 0) = 0.5 * (-vstar - alpha) * rho_R;
         A_plus_(i - ib.s, 0, 1) = 0.5 * rho_R;
         A_plus_(i - ib.s, 1, 0) =
             0.5 * (c2 * (chi_R - f_r * chi_prime_R)) * rho_R;
-        A_plus_(i - ib.s, 1, 1) = 0.5 * (chi_prime_R - vstar - alpha) * rho_R;
+        A_plus_(i - ib.s, 1, 1) =
+            0.5 * (c * chi_prime_R * sgn(F_R) - vstar - alpha) * rho_R;
       });
-
-  Kokkos::deep_copy(solver_mat_diag_, 0.0);
-  Kokkos::deep_copy(solver_mat_upper_, 0.0);
-  Kokkos::deep_copy(solver_mat_lower_, 0.0);
-  Kokkos::deep_copy(solver_b_, 0.0);
-
-  const double dt_aii = dt_info.dt_coef;
 
   // Flat DOF index within a block (node-major: v fastest)
   auto idx = [&](const int q, const int v) { return q * 4 + v; };
@@ -311,8 +316,6 @@ void ImplicitRadiationMomentsPackage::update_implicit(
         const LLFRiemannState right_erad{
             .u = E_R, .f = F_R - vstar * E_R, .alpha = alpha};
         flux_num_(i, 0) = llf_flux(left_erad, right_erad);
-        //std::println("i fluxe {} {:.5e}", i, flux_num_(i, 0));
-        //std::println("i el er v {} {:.5e} {:.5e} {:.5e} {:.5e}", i, E_L, E_R, vstar, flux_num_(i, 0));
 
         const LLFRiemannState left_frad{
             .u = F_L, .f = c2 * Prad_L - vstar * F_L, .alpha = alpha};
@@ -356,9 +359,9 @@ void ImplicitRadiationMomentsPackage::update_implicit(
                 if (v == 0 && w == 0) {
                   A_vw = -vp;
                 } else if (v == 1 && w == 1) {
-                  A_vw = c2 * chi_prime - vp;
+                  A_vw = c * chi_prime - vp;
                 } else if (v == 1 && w == 0) {
-                  A_vw = sp2 - f * chi_prime;
+                  A_vw = sp2 - c2 * f * chi_prime;
                 }
 
                 solver_mat_diag_(blk, row, col) -=
@@ -426,8 +429,8 @@ void ImplicitRadiationMomentsPackage::update_implicit(
 
           for (int p = 0; p < nNodes; ++p) {
             const double rho = 1.0 / ustar(i, p, idx_tau);
-            const double e_rad = ustar(i, p, idx_er) * rho;
-            const double f_rad = ustar(i, p, idx_fr) * rho;
+            const double e_rad = ucf(i, p, idx_er) * rho;
+            const double f_rad = ucf(i, p, idx_fr) * rho;
             const double p_rad = compute_closure(e_rad, f_rad);
             const auto [flux_e, flux_f] = flux_rad(e_rad, f_rad, p_rad, vstar);
             const double w_dphi_sqrtgm =
@@ -438,12 +441,16 @@ void ImplicitRadiationMomentsPackage::update_implicit(
 
           const double m = mkk(i, q);
           // rhs = - M(U^i - U*) - dt a_ii T
-          solver_b_(blk, idx(q, 0)) = -(m * (ucf(i, q, idx_er) - ustar(i, q, idx_er)) - dt_aii * rhs_e);
-          solver_b_(blk, idx(q, 1)) = -(m * (ucf(i, q, idx_fr) - ustar(i, q, idx_fr)) - dt_aii * rhs_f);
-          //solver_b_(blk, idx(q, 0)) = m * ustar(i, q, idx_er);
-          //solver_b_(blk, idx(q, 1)) = m * ustar(i, q, idx_fr);
-          solver_b_(blk, idx(q, 2)) = m * ustar(i, q, idx_vel) - 0 * dt_aii * rhs_e;
-          solver_b_(blk, idx(q, 3)) = m * ustar(i, q, idx_ener) - 0 * dt_aii * rhs_f;
+          solver_b_(blk, idx(q, 0)) =
+              -(m * (ucf(i, q, idx_er) - ustar(i, q, idx_er)) - dt_aii * rhs_e);
+          solver_b_(blk, idx(q, 1)) =
+              -(m * (ucf(i, q, idx_fr) - ustar(i, q, idx_fr)) - dt_aii * rhs_f);
+          // solver_b_(blk, idx(q, 0)) = m * ustar(i, q, idx_er);
+          // solver_b_(blk, idx(q, 1)) = m * ustar(i, q, idx_fr);
+          solver_b_(blk, idx(q, 2)) =
+              m * ustar(i, q, idx_vel) - 0 * dt_aii * rhs_e;
+          solver_b_(blk, idx(q, 3)) =
+              m * ustar(i, q, idx_ener) - 0 * dt_aii * rhs_f;
         }
       });
 
@@ -560,14 +567,17 @@ void ImplicitRadiationMomentsPackage::update_implicit(
         const int blk = i - ib.s;
         for (int q = qb.s; q <= qb.e; ++q) {
           // E (v=0): row 2*q_local
-        std::println("blk deltae (old, change) {} {:.5e} {:.5e}", blk, delta_(dt_info.stage, i, q, 2), solver_b_(blk, idx(q, 0)/dt_aii));
+          // std::println("blk deltae (old, change) {} {:.5e} {:.5e}", blk,
+          // delta_(dt_info.stage, i, q, 2), solver_b_(blk, idx(q, 0)/dt_aii));
           delta_(dt_info.stage, i, q, 2) += solver_b_(blk, idx(q, 0)) / dt_aii;
-          //delta_(dt_info.stage, i, q, 2) += (solver_b_(blk, idx(q, 0)) - ustar(i, q, idx_er)) / dt_aii;
-          //std::println("blk delta e {} {:.5e}", blk, delta_(dt_info.stage, i, q, 2));
+          // delta_(dt_info.stage, i, q, 2) += (solver_b_(blk, idx(q, 0)) -
+          // ustar(i, q, idx_er)) / dt_aii; std::println("blk delta e {}
+          // {:.5e}", blk, delta_(dt_info.stage, i, q, 2));
 
           // F (v=1): row 2*q_local + 1
           delta_(dt_info.stage, i, q, 3) += solver_b_(blk, idx(q, 1)) / dt_aii;
-          //delta_(dt_info.stage, i, q, 3) += (solver_b_(blk, idx(q, 1)) - ustar(i, q, idx_fr)) / dt_aii;
+          // delta_(dt_info.stage, i, q, 3) += (solver_b_(blk, idx(q, 1)) -
+          // ustar(i, q, idx_fr)) / dt_aii;
         }
       });
 } // update_implicit
@@ -964,7 +974,8 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
         const LLFRiemannState right_erad{
             .u = E_R, .f = F_R - vstar * E_R, .alpha = alpha};
         const double flux_e = llf_flux(left_erad, right_erad);
-        std::println("i el er v {} {:.5e} {:.5e} {:.5e} {:.5e}", i, E_L, E_R, vstar, flux_e);
+        std::println("i el er v {} {:.5e} {:.5e} {:.5e} {:.5e}", i, E_L, E_R,
+                     vstar, flux_e);
 
         const LLFRiemannState left_frad{
             .u = F_L, .f = c2 * Prad_L - vstar * F_L, .alpha = alpha};
