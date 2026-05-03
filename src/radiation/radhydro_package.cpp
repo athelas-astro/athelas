@@ -103,9 +103,8 @@ void radiation_source_implicit(const StageData &stage_data,
               opac, lambda, dg_term);
 
           for (int v = 1; v < NUM_VARS; ++v) {
-            ucf(i, q, v) = scratch_sol[v];
             delta(dt_info.stage, i, q, v - 1) =
-                (ucf_i(v) - Ustar_i(v)) / dt_info.dt_coef;
+                (scratch_sol[v] - Ustar_i(v)) / dt_info.dt_coef;
           }
         });
   } else {
@@ -138,9 +137,8 @@ void radiation_source_implicit(const StageData &stage_data,
               opac, lambda, dg_term);
 
           for (int v = 1; v < NUM_VARS; ++v) {
-            ucf(i, q, v) = scratch_sol[v];
             delta(dt_info.stage, i, q, v - 1) =
-                (ucf_i(v) - Ustar_i(v)) / dt_info.dt_coef;
+                (scratch_sol[v] - Ustar_i(v)) / dt_info.dt_coef;
           }
         });
   }
@@ -242,11 +240,11 @@ void ImplicitRadiationMomentsPackage::update_implicit(
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "ImplicitMoments :: Interface states",
       DevExecSpace(), ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
-        u_f_l_(i, 0) = basis_eval<Interface::Right>(phi, ustar, i - 1, idx_tau);
-        u_f_r_(i, 0) = basis_eval<Interface::Left>(phi, ustar, i, idx_tau);
+        u_f_l_(i, 0) = basis_eval<Interface::Right>(phi, ucf, i - 1, idx_tau);
+        u_f_r_(i, 0) = basis_eval<Interface::Left>(phi, ucf, i, idx_tau);
         for (int v = 3; v < 5; ++v) {
-          u_f_l_(i, v - 2) = basis_eval<Interface::Right>(phi, ustar, i - 1, v);
-          u_f_r_(i, v - 2) = basis_eval<Interface::Left>(phi, ustar, i, v);
+          u_f_l_(i, v - 2) = basis_eval<Interface::Right>(phi, ucf, i - 1, v);
+          u_f_r_(i, v - 2) = basis_eval<Interface::Left>(phi, ucf, i, v);
         }
       });
 
@@ -359,7 +357,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
                 if (v == 0 && w == 0) {
                   A_vw = -vp;
                 } else if (v == 1 && w == 1) {
-                  A_vw = c * chi_prime - vp;
+                  A_vw = c * chi_prime * sgn(ucf(i, q, idx_fr)) - vp;
                 } else if (v == 1 && w == 0) {
                   A_vw = sp2 - c2 * f * chi_prime;
                 }
@@ -428,7 +426,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
                            flux_num_(i, 1) * phi(i, 0, q) * sqrt_gm(i, 0));
 
           for (int p = 0; p < nNodes; ++p) {
-            const double rho = 1.0 / ustar(i, p, idx_tau);
+            const double rho = 1.0 / ucf(i, p, idx_tau);
             const double e_rad = ucf(i, p, idx_er) * rho;
             const double f_rad = ucf(i, p, idx_fr) * rho;
             const double p_rad = compute_closure(e_rad, f_rad);
@@ -448,9 +446,9 @@ void ImplicitRadiationMomentsPackage::update_implicit(
           // solver_b_(blk, idx(q, 0)) = m * ustar(i, q, idx_er);
           // solver_b_(blk, idx(q, 1)) = m * ustar(i, q, idx_fr);
           solver_b_(blk, idx(q, 2)) =
-              m * ustar(i, q, idx_vel) - 0 * dt_aii * rhs_e;
+              -(m * (ucf(i, q, idx_vel) - ustar(i, q, idx_vel)));
           solver_b_(blk, idx(q, 3)) =
-              m * ustar(i, q, idx_ener) - 0 * dt_aii * rhs_f;
+              -(m * (ucf(i, q, idx_ener) - ustar(i, q, idx_ener)));
         }
       });
 
