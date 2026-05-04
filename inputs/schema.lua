@@ -239,6 +239,18 @@ schema.radiation = {
       doc = "Maximum allowed absolute change in radiation reduced flux. Timestep control for implicit transport.",
     },
   },
+  newton = {
+    max_iter = {
+      type = "int",
+      default = 10,
+      doc = "Maximum Newton iterations for implicit transport solve.",
+    },
+    tol = {
+      type = "double",
+      default = 1.0e-8,
+      doc = "Convergence tolerance for implicit transport Newton iteration.",
+    },
+  },
   limiter = {
     do_limiter = {
       type = "bool",
