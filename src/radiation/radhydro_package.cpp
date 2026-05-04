@@ -177,6 +177,10 @@ ImplicitRadiationMomentsPackage::ImplicitRadiationMomentsPackage(
       pin->param()->get<double>("radiation.timestep.max_fractional_change_e"));
   params_.add<double>("max_change_f", pin->param()->get<double>(
                                           "radiation.timestep.max_change_f"));
+  params_.add<int>("newton.max_iter",
+                   pin->param()->get<int>("radiation.newton.max_iter"));
+  params_.add<double>("newton.tol",
+                      pin->param()->get<double>("radiation.newton.tol"));
 }
 
 void ImplicitRadiationMomentsPackage::update_implicit(

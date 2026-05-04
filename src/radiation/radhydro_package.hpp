@@ -116,6 +116,7 @@ KOKKOS_FUNCTION
 template <Boundary Loc>
 void boundary_jacobian(AthelasArray2D<double> A, AthelasArray2D<double> ufl, AthelasArray2D<double> ufr, 
                 AthelasArray2D<double> D, const double vstar) {
+  using math::utils::sgn;
   constexpr double c = constants::c_cgs;
   constexpr double c2 = c * c;
   // NOTE: We assume that ufl and ufr contain specific volume (:, 0), 
@@ -124,14 +125,14 @@ void boundary_jacobian(AthelasArray2D<double> A, AthelasArray2D<double> ufl, Ath
   if constexpr (Loc == Boundary::Interior) {
   // First, form the interior contribution.
   constexpr int i_inner = 1;
-  const double alpha = rad_wavespeed(ufl(i_inner, 1), ufr(i_inner, 1), ufl(i_inner, 2), ufr(i_inner, 2), vstar);
+  const double alpha = rad_wavespeed(ufr(i_inner, 1), ufr(i_inner, 1), ufr(i_inner, 2), ufr(i_inner, 2), vstar);
   double f = flux_factor(ufr(i_inner, 1), ufr(i_inner, 2));
   double chi = eddington_factor(f);
   double chi_prime = eddington_factor_prime(f);
   A(0, 0) = 0.5 * (-vstar + alpha);
   A(0, 1) = 0.5;
   A(1, 0) = 0.5 * c2 * (chi - f * chi_prime);
-  A(1, 1) = 0.5 * (c * chi_prime - vstar + alpha);
+  A(1, 1) = 0.5 * (c * chi_prime * sgn(ufr(i_inner, 1)) - vstar + alpha);
 
   // Then, the exterior contribution.
   // The contribution from the ghost goes the matrix product J * dU_ext/dU_int
@@ -142,19 +143,19 @@ void boundary_jacobian(AthelasArray2D<double> A, AthelasArray2D<double> ufl, Ath
   chi_prime = eddington_factor_prime(f);
   A(0, 0) += 0.5 * (-vstar - alpha) * D(0, 0) + 0.5 * D(1, 0);
   A(0, 1) += 0.5 * (-vstar - alpha) * D(0, 1) + 0.5 * D(1, 1);
-  A(1, 0) += 0.5 * c2 * (chi - f * chi_prime) * D(0, 0) + 0.5 * (c * chi_prime - vstar - alpha) * D(1, 0);
-  A(1, 1) += 0.5 * c2 * (chi - f * chi_prime) * D(0, 1) + 0.5 * (c * chi_prime - vstar - alpha) * D(1, 1);
+  A(1, 0) += 0.5 * c2 * (chi - f * chi_prime) * D(0, 0) + 0.5 * (c * chi_prime * sgn(ufr(i_inner, 1)) - vstar - alpha) * D(1, 0);
+  A(1, 1) += 0.5 * c2 * (chi - f * chi_prime) * D(0, 1) + 0.5 * (c * chi_prime * sgn(ufr(i_inner, 1)) - vstar - alpha) * D(1, 1);
   }
   if constexpr (Loc == Boundary::Exterior) {
   static const int i_outer = static_cast<int>(ufl.extent(0)) - 1;
   const double alpha = rad_wavespeed(ufl(i_outer, 1), ufr(i_outer, 1), ufl(i_outer, 2), ufr(i_outer, 2), vstar);
-  double f = flux_factor(ufr(i_outer, 1), ufr(i_outer, 2));
+  double f = flux_factor(ufl(i_outer, 1), ufl(i_outer, 2));
   double chi = eddington_factor(f);
   double chi_prime = eddington_factor_prime(f);
   A(0, 0) = 0.5 * (-vstar + alpha);
   A(0, 1) = 0.5;
   A(1, 0) = 0.5 * c2 * (chi - f * chi_prime);
-  A(1, 1) = 0.5 * (c * chi_prime - vstar + alpha);
+  A(1, 1) = 0.5 * (c * chi_prime * sgn(ufl(i_outer, 1)) - vstar + alpha);
 
   // exterior / ghost
   f = flux_factor(ufr(i_outer, 1), ufr(i_outer, 2));
@@ -162,8 +163,8 @@ void boundary_jacobian(AthelasArray2D<double> A, AthelasArray2D<double> ufl, Ath
   chi_prime = eddington_factor_prime(f);
   A(0, 0) += 0.5 * (-vstar - alpha) * D(0, 0) + 0.5 * D(1, 0);
   A(0, 1) += 0.5 * (-vstar - alpha) * D(0, 1) + 0.5 * D(1, 1);
-  A(1, 0) += 0.5 * c2 * (chi - f * chi_prime) * D(0, 0) + 0.5 * (c * chi_prime - vstar - alpha) * D(1, 0);
-  A(1, 1) += 0.5 * c2 * (chi - f * chi_prime) * D(0, 1) + 0.5 * (c * chi_prime - vstar - alpha) * D(1, 1);
+  A(1, 0) += 0.5 * c2 * (chi - f * chi_prime) * D(0, 0) + 0.5 * (c * chi_prime * ufl(i_outer, 1) - vstar - alpha) * D(1, 0);
+  A(1, 1) += 0.5 * c2 * (chi - f * chi_prime) * D(0, 1) + 0.5 * (c * chi_prime * ufl(i_outer, 1) - vstar - alpha) * D(1, 1);
   }
 }
 
