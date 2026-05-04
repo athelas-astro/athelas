@@ -1,4 +1,3 @@
-#include <cstddef>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -6,7 +5,6 @@
 
 #include "kokkos_abstraction.hpp"
 #include "math/linear_algebra.hpp"
-#include "OpenMP/Kokkos_OpenMP_Parallel_For.hpp"
 #include "kokkos_types.hpp"
 #include "loop_layout.hpp"
 #include "utils/error.hpp"
@@ -23,8 +21,10 @@ auto newton_norm_l2(
     AthelasArray1D<double> wgts,
     const double scale_e,
     const double scale_f) -> double {
+  assert(scale_e > 0.0 && "newton_norm_l2 :: scale_e must be positive definite!");
+  assert(scale_f > 0.0 && "newton_norm_l2 :: scale_f must be positive definite!");
 
-  auto idx = [&](const int q, const int v) { return q * 2 + v; };
+  auto idx = [&](const int q, const int v) { return q * 4 + v; };
 
   Kokkos::Array<const double, 2> inv_scale = {1.0 / scale_e, 1.0 / scale_f};
 
