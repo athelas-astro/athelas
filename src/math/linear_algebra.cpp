@@ -18,11 +18,6 @@ namespace athelas::math::linalg {
 auto newton_norm_l2(AthelasArray2D<double> du, AthelasArray2D<double> sqrt_gm,
                     AthelasArray1D<double> dr, AthelasArray1D<double> wgts)
     -> double {
-  assert(scale_e > 0.0 &&
-         "newton_norm_l2 :: scale_e must be positive definite!");
-  assert(scale_f > 0.0 &&
-         "newton_norm_l2 :: scale_f must be positive definite!");
-
   auto idx = [&](const int q, const int v) { return 4 * q + v; };
 
   static const int nq = static_cast<int>(wgts.size());
