@@ -21,9 +21,7 @@ TEST_CASE("Block Thomas Solver", "[Block Thomas]") {
     VecStore Y("Y", (N > 0 ? N - 1 : 0), m);
 
     Kokkos::View<Scalar **, Layout, MemSpace> Bi_lu("Bi_lu", m, m);
-    ThomasScratch scratch{.W = W,
-                          .Y = Y,
-                          .Bi_lu = Bi_lu};
+    ThomasScratch scratch{.W = W, .Y = Y, .Bi_lu = Bi_lu};
 
     // B(0) = 2*I,  b = [2, 4, 6]  =>  x = [1, 2, 3]
     set_block(B, 0, m, {2, 0, 0, 0, 2, 0, 0, 0, 2});
@@ -48,9 +46,7 @@ TEST_CASE("Block Thomas Solver", "[Block Thomas]") {
     VecStore Y("Y", N - 1, m);
 
     Kokkos::View<Scalar **, Layout, MemSpace> Bi_lu("Bi_lu", m, m);
-    ThomasScratch scratch{.W = W,
-                          .Y = Y,
-                          .Bi_lu = Bi_lu};
+    ThomasScratch scratch{.W = W, .Y = Y, .Bi_lu = Bi_lu};
 
     // B(i) = 3*I,  C(0) = A(0) = -I,  x_exact = ones
     set_block(B, 0, m, {3, 0, 0, 3});
@@ -82,9 +78,7 @@ TEST_CASE("Block Thomas Solver", "[Block Thomas]") {
 
     build_identity_block_problem(N, m, A, B, C, d);
     Kokkos::View<Scalar **, Layout, MemSpace> Bi_lu("Bi_lu", m, m);
-    ThomasScratch scratch{.W = W,
-                          .Y = Y,
-                          .Bi_lu = Bi_lu};
+    ThomasScratch scratch{.W = W, .Y = Y, .Bi_lu = Bi_lu};
 
     block_thomas_solve(N, m, A, B, C, d, scratch);
 
@@ -105,9 +99,7 @@ TEST_CASE("Block Thomas Solver", "[Block Thomas]") {
 
     build_identity_block_problem(N, m, A, B, C, d);
     Kokkos::View<Scalar **, Layout, MemSpace> Bi_lu("Bi_lu", m, m);
-    ThomasScratch scratch{.W = W,
-                          .Y = Y,
-                          .Bi_lu = Bi_lu};
+    ThomasScratch scratch{.W = W, .Y = Y, .Bi_lu = Bi_lu};
 
     block_thomas_solve(N, m, A, B, C, d, scratch);
 
@@ -132,9 +124,7 @@ TEST_CASE("Block Thomas Solver", "[Block Thomas]") {
     VecStore Y("Y", N - 1, m);
 
     Kokkos::View<Scalar **, Layout, MemSpace> Bi_lu("Bi_lu", m, m);
-    ThomasScratch scratch{.W = W,
-                          .Y = Y,
-                          .Bi_lu = Bi_lu};
+    ThomasScratch scratch{.W = W, .Y = Y, .Bi_lu = Bi_lu};
 
     auto A_h = Kokkos::create_mirror_view(A);
     auto B_h = Kokkos::create_mirror_view(B);
@@ -201,9 +191,7 @@ TEST_CASE("Block Thomas Solver", "[Block Thomas]") {
     VecStore Y("Y", N - 1, m);
 
     Kokkos::View<Scalar **, Layout, MemSpace> Bi_lu("Bi_lu", m, m);
-    ThomasScratch scratch{.W = W,
-                          .Y = Y,
-                          .Bi_lu = Bi_lu};
+    ThomasScratch scratch{.W = W, .Y = Y, .Bi_lu = Bi_lu};
 
     auto A_h = Kokkos::create_mirror_view(A);
     auto B_h = Kokkos::create_mirror_view(B);

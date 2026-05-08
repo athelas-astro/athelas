@@ -94,14 +94,13 @@ class TimeStepper {
 
         pkgs->apply_delta(SumVar_U_, dt_info);
 
-        auto facedata = mesh_state(j).get_field<AthelasArray2D<double>>("facedata");
+        auto facedata =
+            mesh_state(j).get_field<AthelasArray2D<double>>("facedata");
         const int idx_vstar = mesh_state(j).var_index("facedata", "vstar");
         athelas::par_for(
             DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: EX :: grid",
             DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              x_l_sumvar_(iS, i) +=
-                  dt_a_ex *
-                  facedata(i, idx_vstar);
+              x_l_sumvar_(iS, i) += dt_a_ex * facedata(i, idx_vstar);
             });
       } // End inner loop
 
@@ -138,14 +137,13 @@ class TimeStepper {
 
       pkgs->apply_delta(u0, dt_info);
 
-      auto facedata = mesh_state(iS).get_field<AthelasArray2D<double>>("facedata");
+      auto facedata =
+          mesh_state(iS).get_field<AthelasArray2D<double>>("facedata");
       const int idx_vstar = mesh_state(iS).var_index("facedata", "vstar");
       athelas::par_for(
           DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: EX :: Finalize grid",
           DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-            x_l_sumvar_(0, i) +=
-                dt_b_ex *
-                facedata(i, idx_vstar);
+            x_l_sumvar_(0, i) += dt_b_ex * facedata(i, idx_vstar);
           });
       auto x_l_sumvar_j = Kokkos::subview(x_l_sumvar_, 0, Kokkos::ALL);
       grid_s_[iS] = grid;
@@ -204,7 +202,7 @@ class TimeStepper {
           DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
           KOKKOS_CLASS_LAMBDA(const int i, const int q) {
             for (int v = vb.s; v <= vb.e; ++v) {
-            SumVar_U_(i, q, v) = u0(i, q, v);
+              SumVar_U_(i, q, v) = u0(i, q, v);
             }
             x_l_sumvar_(iS, i) = left_interface(i);
           });
@@ -221,13 +219,13 @@ class TimeStepper {
 
         pkgs->apply_delta(SumVar_U_, dt_info);
 
-        auto facedata = mesh_state(j).get_field<AthelasArray2D<double>>("facedata");
+        auto facedata =
+            mesh_state(j).get_field<AthelasArray2D<double>>("facedata");
         const int idx_vstar = mesh_state(j).var_index("facedata", "vstar");
         athelas::par_for(
             DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: IMEX :: Update grid",
             DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              x_l_sumvar_(iS, i) +=
-                  dt_a * facedata(i, idx_vstar);
+              x_l_sumvar_(iS, i) += dt_a * facedata(i, idx_vstar);
             });
       } // End inner loop
 
@@ -274,13 +272,13 @@ class TimeStepper {
 
       pkgs->apply_delta(u0, dt_info);
 
-      auto facedata = mesh_state(iS).get_field<AthelasArray2D<double>>("facedata");
+      auto facedata =
+          mesh_state(iS).get_field<AthelasArray2D<double>>("facedata");
       const int idx_vstar = mesh_state(iS).var_index("facedata", "vstar");
       athelas::par_for(
           DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: IMEX :: Finalize grid",
           DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-            x_l_sumvar_(0, i) +=
-                dt_b * facedata(i, idx_vstar);
+            x_l_sumvar_(0, i) += dt_b * facedata(i, idx_vstar);
           });
       auto x_l_sumvar_j = Kokkos::subview(x_l_sumvar_, 0, Kokkos::ALL);
       grid_s_[iS] = grid;

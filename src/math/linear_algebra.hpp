@@ -2,36 +2,36 @@
 
 #include <vector>
 
-#include "kokkos_types.hpp"
 #include "Kokkos_Macros.hpp"
+#include "kokkos_types.hpp"
 #include <Kokkos_Core.hpp>
 
 namespace athelas::math::linalg {
 
-
-using Scalar    = double;
+using Scalar = double;
 using ExecSpace = Kokkos::DefaultExecutionSpace;
-using MemSpace  = ExecSpace::memory_space;
+using MemSpace = ExecSpace::memory_space;
 
-using Layout     = Kokkos::LayoutRight;
-using BlockStore = Kokkos::View<Scalar***, Layout, MemSpace>; // [N, m, m] or [N-1, m, m]
-using VecStore   = Kokkos::View<Scalar**,  Layout, MemSpace>; // [N,m] or [N-1, m]
-using PivotStore = Kokkos::View<int*,      Layout, MemSpace>; // [m]
+using Layout = Kokkos::LayoutRight;
+using BlockStore =
+    Kokkos::View<Scalar ***, Layout, MemSpace>; // [N, m, m] or [N-1, m, m]
+using VecStore = Kokkos::View<Scalar **, Layout, MemSpace>; // [N,m] or [N-1, m]
+using PivotStore = Kokkos::View<int *, Layout, MemSpace>; // [m]
 
 /**
- * @brief Computes a quadrature-weighted L2 error norm for a Newton-Raphson iteration.
+ * @brief Computes a quadrature-weighted L2 error norm for a Newton-Raphson
+ * iteration.
  *
- * @param du      2D Kokkos view of shape (nx, 2*nNodes) containing the Newton update vector
+ * @param du      2D Kokkos view of shape (nx, 2*nNodes) containing the Newton
+ * update vector
  * @param wgts    1D Kokkos view of length nNodes containing quadrature weights
  * @param scale_e  Characteristic scale for the first quantity
  * @param scale_f  Characteristic scale for the second quantity
  * @return Dimensionless L2 norm of the scaled update vector
  */
-auto newton_norm_l2(
-    AthelasArray2D<double> du,
-    AthelasArray1D<double> wgts,
-    double scale_e,
-    double scale_f) -> double;
+auto newton_norm_l2(AthelasArray2D<double> du, AthelasArray2D<double> sqrt_gm,
+                    AthelasArray1D<double> dr, AthelasArray1D<double> wgts)
+    -> double;
 
 /**
  * @struct ThomasScratch
@@ -46,7 +46,7 @@ struct ThomasScratch {
   AthelasArray2D<double> Bi_lu; // [m, m]
 };
 
-/** 
+/**
  * @ brief Block Thomas Algorithm for block tridiagonal systems
  *
  *  Solves the N×N block tridiagonal system:
@@ -71,9 +71,8 @@ struct ThomasScratch {
  *
  *  NOTE: Can I remove Bi_lu and factor into B?
  */
-void block_thomas_solve(int N, int m, BlockStore A, BlockStore B,
-                        BlockStore C, VecStore d,
-                        const ThomasScratch &scratch);
+void block_thomas_solve(int N, int m, BlockStore A, BlockStore B, BlockStore C,
+                        VecStore d, const ThomasScratch &scratch);
 
 // Fill identity matrix
 template <class T>

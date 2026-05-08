@@ -101,8 +101,7 @@ class StageData {
 
   // Generic field access
   template <typename T = AthelasArray3D<double>>
-  [[nodiscard]] auto get_field(const std::string &name) const
-      -> T;
+  [[nodiscard]] auto get_field(const std::string &name) const -> T;
 
   // Access with variable name instead of index
   [[nodiscard]] auto get_var(const std::string &field,
@@ -216,16 +215,16 @@ class MeshState {
   // Get staged field at specific stage (subview)
   template <typename T = AthelasArray3D<double>>
   [[nodiscard]] auto get_field(const std::string &name, int stage) const -> T {
-      if constexpr (std::is_same_v<T, AthelasArray1D<double>>) {
-          return Kokkos::subview(get_field<AthelasArray2D<double>>(name),
-                                 stage, Kokkos::ALL);
-      } else if constexpr (std::is_same_v<T, AthelasArray2D<double>>) {
-          return Kokkos::subview(get_field<AthelasArray3D<double>>(name),
-                                 stage, Kokkos::ALL, Kokkos::ALL);
-      } else if constexpr (std::is_same_v<T, AthelasArray3D<double>>) {
-          return Kokkos::subview(get_field<AthelasArray4D<double>>(name),
-                                 stage, Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
-      }
+    if constexpr (std::is_same_v<T, AthelasArray1D<double>>) {
+      return Kokkos::subview(get_field<AthelasArray2D<double>>(name), stage,
+                             Kokkos::ALL);
+    } else if constexpr (std::is_same_v<T, AthelasArray2D<double>>) {
+      return Kokkos::subview(get_field<AthelasArray3D<double>>(name), stage,
+                             Kokkos::ALL, Kokkos::ALL);
+    } else if constexpr (std::is_same_v<T, AthelasArray3D<double>>) {
+      return Kokkos::subview(get_field<AthelasArray4D<double>>(name), stage,
+                             Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
+    }
   }
 
   // Variable index access
@@ -373,8 +372,7 @@ class MeshState {
 };
 
 template <typename T>
-auto StageData::get_field(const std::string &name) const
-    -> T {
+auto StageData::get_field(const std::string &name) const -> T {
   assert(parent_->is_allocated(name) && "Field not allocated!");
   const auto &metadata = parent_->get_metadata(name);
 
@@ -383,6 +381,5 @@ auto StageData::get_field(const std::string &name) const
   }
   return parent_->get_field<T>(name);
 }
-
 
 } // namespace athelas

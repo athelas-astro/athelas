@@ -5,13 +5,13 @@
 #include "bc/boundary_conditions_base.hpp"
 #include "eos/eos_variant.hpp"
 #include "geometry/grid.hpp"
+#include "interface/params.hpp"
 #include "opacity/opac_variant.hpp"
 #include "pgen/problem_in.hpp"
 #include "radiation/rad_utilities.hpp"
 #include "root_finder_opts.hpp"
 #include "solvers/root_finders.hpp"
 #include "state/state.hpp"
-#include "interface/params.hpp"
 
 namespace athelas::radiation {
 
@@ -27,9 +27,11 @@ struct RadHydroSolverIonizationContent {
   double Z{};
 };
 
-void radiation_source_implicit(const StageData &stage_data, AthelasArray3D<double> R,
-                     AthelasArray4D<double> delta,
-                     const GridStructure &grid, const TimeStepInfo &dt_info);
+void radiation_source_implicit(const StageData &stage_data,
+                               AthelasArray3D<double> R,
+                               AthelasArray4D<double> delta,
+                               const GridStructure &grid,
+                               const TimeStepInfo &dt_info);
 
 using bc::BoundaryConditions;
 
@@ -39,12 +41,13 @@ using bc::BoundaryConditions;
  */
 class ImplicitRadiationMomentsPackage {
  public:
-  ImplicitRadiationMomentsPackage(const ProblemIn * /*pin*/, int n_stages, int nq,
-                  BoundaryConditions *bcs, double cfl, int nx,
-                  bool active = true);
+  ImplicitRadiationMomentsPackage(const ProblemIn * /*pin*/, int n_stages,
+                                  int nq, BoundaryConditions *bcs, double cfl,
+                                  int nx, bool active = true);
 
-  void update_implicit(const StageData &stage_data, AthelasArray3D<double> ustar,
-                       const GridStructure &grid, const TimeStepInfo &dt_info);
+  void update_implicit(const StageData &stage_data,
+                       AthelasArray3D<double> ustar, const GridStructure &grid,
+                       const TimeStepInfo &dt_info);
 
   void apply_delta(AthelasArray3D<double> lhs,
                    const TimeStepInfo &dt_info) const;
@@ -105,6 +108,10 @@ class ImplicitRadiationMomentsPackage {
   AthelasArray2D<double> e_rad_old_;
   AthelasArray2D<double> f_rad_old_;
 
+  // Newton iterate for transport solve: (nx+2, nq, 4) storing (specific er,
+  // specific fr, vel, ener)
+  AthelasArray3D<double> u_rad_work_;
+
   // package params
   Params params_;
 
@@ -114,57 +121,68 @@ class ImplicitRadiationMomentsPackage {
 
 KOKKOS_FUNCTION
 template <Boundary Loc>
-void boundary_jacobian(AthelasArray2D<double> A, AthelasArray2D<double> ufl, AthelasArray2D<double> ufr, 
-                AthelasArray2D<double> D, const double vstar) {
+void boundary_jacobian(AthelasArray2D<double> A, AthelasArray2D<double> ufl,
+                       AthelasArray2D<double> ufr, AthelasArray2D<double> D,
+                       const double vstar) {
   using math::utils::sgn;
   constexpr double c = constants::c_cgs;
   constexpr double c2 = c * c;
-  // NOTE: We assume that ufl and ufr contain specific volume (:, 0), 
-  // specific radition energy density (:, 1), 
+  // NOTE: We assume that ufl and ufr contain specific volume (:, 0),
+  // specific radition energy density (:, 1),
   // specific radiation flux (:, 2)
   if constexpr (Loc == Boundary::Interior) {
-  // First, form the interior contribution.
-  constexpr int i_inner = 1;
-  const double alpha = rad_wavespeed(ufr(i_inner, 1), ufr(i_inner, 1), ufr(i_inner, 2), ufr(i_inner, 2), vstar);
-  double f = flux_factor(ufr(i_inner, 1), ufr(i_inner, 2));
-  double chi = eddington_factor(f);
-  double chi_prime = eddington_factor_prime(f);
-  A(0, 0) = 0.5 * (-vstar + alpha);
-  A(0, 1) = 0.5;
-  A(1, 0) = 0.5 * c2 * (chi - f * chi_prime);
-  A(1, 1) = 0.5 * (c * chi_prime * sgn(ufr(i_inner, 1)) - vstar + alpha);
+    // First, form the interior contribution.
+    constexpr int i_inner = 1;
+    const double alpha = rad_wavespeed(ufr(i_inner, 1), ufr(i_inner, 1),
+                                       ufr(i_inner, 2), ufr(i_inner, 2), vstar);
+    double f = flux_factor(ufr(i_inner, 1), ufr(i_inner, 2));
+    double chi = eddington_factor(f);
+    double chi_prime = eddington_factor_prime(f);
+    A(0, 0) = 0.5 * (-vstar + alpha);
+    A(0, 1) = 0.5;
+    A(1, 0) = 0.5 * c2 * (chi - f * chi_prime);
+    A(1, 1) = 0.5 * (c * chi_prime * sgn(ufr(i_inner, 2)) - vstar + alpha);
 
-  // Then, the exterior contribution.
-  // The contribution from the ghost goes the matrix product J * dU_ext/dU_int
-  // Here, D is the derivative. If the boundary condition does not depend 
-  // at all on the interior, D = 0.
-  f = flux_factor(ufl(i_inner, 1), ufl(i_inner, 2));
-  chi = eddington_factor(f);
-  chi_prime = eddington_factor_prime(f);
-  A(0, 0) += 0.5 * (-vstar - alpha) * D(0, 0) + 0.5 * D(1, 0);
-  A(0, 1) += 0.5 * (-vstar - alpha) * D(0, 1) + 0.5 * D(1, 1);
-  A(1, 0) += 0.5 * c2 * (chi - f * chi_prime) * D(0, 0) + 0.5 * (c * chi_prime * sgn(ufr(i_inner, 1)) - vstar - alpha) * D(1, 0);
-  A(1, 1) += 0.5 * c2 * (chi - f * chi_prime) * D(0, 1) + 0.5 * (c * chi_prime * sgn(ufr(i_inner, 1)) - vstar - alpha) * D(1, 1);
+    // Then, the exterior contribution.
+    // The contribution from the ghost goes the matrix product J * dU_ext/dU_int
+    // Here, D is the derivative. If the boundary condition does not depend
+    // at all on the interior, D = 0.
+    f = flux_factor(ufl(i_inner, 1), ufl(i_inner, 2));
+    chi = eddington_factor(f);
+    chi_prime = eddington_factor_prime(f);
+    A(0, 0) += 0.5 * (-vstar - alpha) * D(0, 0) + 0.5 * D(1, 0);
+    A(0, 1) += 0.5 * (-vstar - alpha) * D(0, 1) + 0.5 * D(1, 1);
+    A(1, 0) +=
+        0.5 * c2 * (chi - f * chi_prime) * D(0, 0) +
+        0.5 * (c * chi_prime * sgn(ufr(i_inner, 2)) - vstar - alpha) * D(1, 0);
+    A(1, 1) +=
+        0.5 * c2 * (chi - f * chi_prime) * D(0, 1) +
+        0.5 * (c * chi_prime * sgn(ufr(i_inner, 2)) - vstar - alpha) * D(1, 1);
   }
   if constexpr (Loc == Boundary::Exterior) {
-  static const int i_outer = static_cast<int>(ufl.extent(0)) - 1;
-  const double alpha = rad_wavespeed(ufl(i_outer, 1), ufr(i_outer, 1), ufl(i_outer, 2), ufr(i_outer, 2), vstar);
-  double f = flux_factor(ufl(i_outer, 1), ufl(i_outer, 2));
-  double chi = eddington_factor(f);
-  double chi_prime = eddington_factor_prime(f);
-  A(0, 0) = 0.5 * (-vstar + alpha);
-  A(0, 1) = 0.5;
-  A(1, 0) = 0.5 * c2 * (chi - f * chi_prime);
-  A(1, 1) = 0.5 * (c * chi_prime * sgn(ufl(i_outer, 1)) - vstar + alpha);
+    static const int i_outer = static_cast<int>(ufl.extent(0)) - 1;
+    const double alpha = rad_wavespeed(ufl(i_outer, 1), ufr(i_outer, 1),
+                                       ufl(i_outer, 2), ufr(i_outer, 2), vstar);
+    double f = flux_factor(ufl(i_outer, 1), ufl(i_outer, 2));
+    double chi = eddington_factor(f);
+    double chi_prime = eddington_factor_prime(f);
+    A(0, 0) = 0.5 * (-vstar + alpha);
+    A(0, 1) = 0.5;
+    A(1, 0) = 0.5 * c2 * (chi - f * chi_prime);
+    A(1, 1) = 0.5 * (c * chi_prime * sgn(ufl(i_outer, 2)) - vstar + alpha);
 
-  // exterior / ghost
-  f = flux_factor(ufr(i_outer, 1), ufr(i_outer, 2));
-  chi = eddington_factor(f);
-  chi_prime = eddington_factor_prime(f);
-  A(0, 0) += 0.5 * (-vstar - alpha) * D(0, 0) + 0.5 * D(1, 0);
-  A(0, 1) += 0.5 * (-vstar - alpha) * D(0, 1) + 0.5 * D(1, 1);
-  A(1, 0) += 0.5 * c2 * (chi - f * chi_prime) * D(0, 0) + 0.5 * (c * chi_prime * ufl(i_outer, 1) - vstar - alpha) * D(1, 0);
-  A(1, 1) += 0.5 * c2 * (chi - f * chi_prime) * D(0, 1) + 0.5 * (c * chi_prime * ufl(i_outer, 1) - vstar - alpha) * D(1, 1);
+    // exterior / ghost
+    f = flux_factor(ufr(i_outer, 1), ufr(i_outer, 2));
+    chi = eddington_factor(f);
+    chi_prime = eddington_factor_prime(f);
+    A(0, 0) += 0.5 * (-vstar - alpha) * D(0, 0) + 0.5 * D(1, 0);
+    A(0, 1) += 0.5 * (-vstar - alpha) * D(0, 1) + 0.5 * D(1, 1);
+    A(1, 0) +=
+        0.5 * c2 * (chi - f * chi_prime) * D(0, 0) +
+        0.5 * (c * chi_prime * sgn(ufl(i_outer, 2)) - vstar - alpha) * D(1, 0);
+    A(1, 1) +=
+        0.5 * c2 * (chi - f * chi_prime) * D(0, 1) +
+        0.5 * (c * chi_prime * sgn(ufl(i_outer, 2)) - vstar - alpha) * D(1, 1);
   }
 }
 

@@ -87,7 +87,7 @@ apply_bc(const BoundaryConditionsData<N> &bc, AthelasArray3D<double> U,
     break;
 
   // --------------------------------------------------
-  // Reflecting 
+  // Reflecting
   //
   // - reverse node ordering
   // - flip sign of normal vector components

@@ -28,8 +28,14 @@ config.physics = {
   engine = false,
 }
 
+config.time = {
+  -- integrator = "IMEX_ARK32_ESDIRK",
+  integrator = "IMEX_PDARS_ESDIRK",
+  -- integrator = "IMEX_SSPRK11",
+}
+
 config.basis = {
-  nnodes = 3,
+  nnodes = 1,
 }
 
 config.bc = {
@@ -46,7 +52,8 @@ config.bc = {
 
 config.output = {
   ncycle_out = 100,
-  dt_init_frac = 1.0005,
+  dt_init_frac = 1.1,
+  dt_init = 1.0e-21,
   --   dt_hdf5 = 1.0,
   history = {
     fn = config.problem.name .. ".hst",
@@ -66,6 +73,15 @@ config.fluid = {
 }
 
 config.radiation = {
+  discretization = "implicit",
+  timestep = {
+    max_fractional_change_e = 0.01,
+    max_change_f = 0.01,
+  },
+  newton = {
+    max_iter = 8,
+    tol = 1.0e-10,
+  },
   limiter = {
     do_limiter = true,
     type = "minmod",
@@ -75,12 +91,6 @@ config.radiation = {
     tci_val = 0.1,
     characteristic = false,
   },
-}
-
-config.time = {
-  integrator = "IMEX_ARK32_ESDIRK",
-  -- integrator = "IMEX_PDARS_ESDIRK"
-  -- integrator = "IMEX_SSPRK11"
 }
 
 config.eos = {

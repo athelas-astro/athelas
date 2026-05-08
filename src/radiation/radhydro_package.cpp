@@ -168,16 +168,17 @@ ImplicitRadiationMomentsPackage::ImplicitRadiationMomentsPackage(
       A_plus_("ImplicitMoments::Aminus", nx + 1, 2, 2),
       A_bndry_("ImplicitMoments::A_bndry", 2, 2),
       d_bndry_("ImplicitMoments::d_bndry", 2, 2),
-      delta_("implicit radhydro delta implicit", n_stages, nx + 2, nq, 4),
+      delta_("ImplicitMoments::delta", n_stages, nx + 2, nq, 4),
       e_rad_old_("ImplicitMoments::e_rad_old", nx + 2, nq),
-      f_rad_old_("ImplicitMoments::f_rad_old", nx + 2, nq) {
+      f_rad_old_("ImplicitMoments::f_rad_old", nx + 2, nq),
+      u_rad_work_("ImplicitMoments::u_rad_work", nx + 2, nq, 5) {
   // Storing package params
   params_.add<double>(
       "max_fractional_change_e",
       pin->param()->get<double>("radiation.timestep.max_fractional_change_e"));
   params_.add<double>("max_change_f", pin->param()->get<double>(
                                           "radiation.timestep.max_change_f"));
-  params_.add<int>("newton.max_iter",
+  params_.add<int>("newton.max_iters",
                    pin->param()->get<int>("radiation.newton.max_iter"));
   params_.add<double>("newton.tol",
                       pin->param()->get<double>("radiation.newton.tol"));
@@ -206,6 +207,8 @@ void ImplicitRadiationMomentsPackage::update_implicit(
   static const int idx_fr = stage_data.var_index("u_cf", "rad_momentum");
   static const int idx_vstar = stage_data.var_index("facedata", "vstar");
 
+  const double dt_aii = dt_info.dt_coef;
+
   auto phi = basis.phi();
   auto dphi = basis.dphi();
   auto mkk = basis.mass_matrix();
@@ -217,7 +220,28 @@ void ImplicitRadiationMomentsPackage::update_implicit(
   // compute radiation-matter coupling sources implicitly with Newton-Raphson.
   radiation_source_implicit(stage_data, ustar, delta_, grid, dt_info);
 
+  // Now work through the implicit transport solve.
+  // Initial guess: ustar
+
+  ThomasScratch scratch{
+      .W = solver_W_,
+      .Y = solver_Y_,
+      .Bi_lu = solver_Bi_lu_,
+  };
+
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Newton :: Guess",
+      DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
+      KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+        for (int v = 0; v <= 4; ++v) {
+          u_rad_work_(i, q, v) = ustar(i, q, v);
+        }
+      });
+
   const int block_size = 4 * nNodes;
+
+  // Flat DOF index within a block (node-major: v fastest)
+  auto idx = [&](const int q, const int v) { return q * 4 + v; };
 
   // Left/Right face states
   // Extract left/right interface states for necessary vars.
@@ -231,355 +255,379 @@ void ImplicitRadiationMomentsPackage::update_implicit(
 
   bc::fill_ghost_zones<2>(ucf, &grid, bcs_, {3, 4});
   bc::fill_ghost_zones<3>(ucf, &grid, bcs_, {0, 2});
+  bc::fill_ghost_zones<2>(u_rad_work_, &grid, bcs_, {3, 4});
+  bc::fill_ghost_zones<3>(u_rad_work_, &grid, bcs_, {0, 2});
   bc::fill_ghost_zones<2>(ustar, &grid, bcs_, {3, 4});
   bc::fill_ghost_zones<3>(ustar, &grid, bcs_, {0, 2});
 
-  Kokkos::deep_copy(solver_mat_diag_, 0.0);
-  Kokkos::deep_copy(solver_mat_upper_, 0.0);
-  Kokkos::deep_copy(solver_mat_lower_, 0.0);
-  Kokkos::deep_copy(solver_b_, 0.0);
+  int iter = 0;
+  double norm_resid = 1.0;
 
-  const double dt_aii = dt_info.dt_coef;
+  static auto max_iters = params_.get<int>("newton.max_iters");
+  static auto tol = params_.get<double>("newton.tol");
+  bool converged = false;
 
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "ImplicitMoments :: Interface states",
-      DevExecSpace(), ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
-        u_f_l_(i, 0) = basis_eval<Interface::Right>(phi, ucf, i - 1, idx_tau);
-        u_f_r_(i, 0) = basis_eval<Interface::Left>(phi, ucf, i, idx_tau);
-        for (int v = 3; v < 5; ++v) {
-          u_f_l_(i, v - 2) = basis_eval<Interface::Right>(phi, ucf, i - 1, v);
-          u_f_r_(i, v - 2) = basis_eval<Interface::Left>(phi, ucf, i, v);
-        }
-      });
+  double resid0 = 0.0;
+  while (iter < max_iters && !converged) {
 
-  using math::utils::sgn;
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "ImplicitMoments :: Interface Jacobians",
-      DevExecSpace(), ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
-        // States at the interface i+1/2 (L is i, R is i+1)
-        const double rho_L = 1.0 / u_f_l_(i, 0);
-        const double rho_R = 1.0 / u_f_r_(i, 0);
-        const double vstar = facedata(i, idx_vstar);
+    Kokkos::deep_copy(solver_mat_diag_, 0.0);
+    Kokkos::deep_copy(solver_mat_upper_, 0.0);
+    Kokkos::deep_copy(solver_mat_lower_, 0.0);
+    Kokkos::deep_copy(solver_b_, 0.0);
 
-        // Radiation specific variables
-        const double E_L = u_f_l_(i, 1) * rho_L;
-        const double E_R = u_f_r_(i, 1) * rho_R;
-        const double F_L = u_f_l_(i, 2) * rho_L;
-        const double F_R = u_f_r_(i, 2) * rho_R;
-
-        const double alpha = rad_wavespeed(E_L, E_R, F_L, F_R, vstar);
-        const double f_l = flux_factor(u_f_l_(i, 1), u_f_l_(i, 2));
-        const double f_r = flux_factor(u_f_r_(i, 1), u_f_r_(i, 2));
-        const double chi_L = eddington_factor(f_l);
-        const double chi_R = eddington_factor(f_r);
-        const double chi_prime_L = eddington_factor_prime(f_l);
-        const double chi_prime_R = eddington_factor_prime(f_r);
-
-        // A_minus = d(F_hat)/d(U_local) = 0.5 * (J_local + alpha * I)
-        A_minus_(i - ib.s, 0, 0) = 0.5 * (-vstar + alpha) * rho_L;
-        A_minus_(i - ib.s, 0, 1) = 0.5 * rho_L;
-        A_minus_(i - ib.s, 1, 0) =
-            0.5 * (c2 * (chi_L - f_l * chi_prime_L)) * rho_L;
-        A_minus_(i - ib.s, 1, 1) =
-            0.5 * (c * chi_prime_L * sgn(F_L) - vstar + alpha) * rho_L;
-
-        // A_plus = d(F_hat)/d(U_neighbor) = 0.5 * (J_neighbor - alpha * I)
-        A_plus_(i - ib.s, 0, 0) = 0.5 * (-vstar - alpha) * rho_R;
-        A_plus_(i - ib.s, 0, 1) = 0.5 * rho_R;
-        A_plus_(i - ib.s, 1, 0) =
-            0.5 * (c2 * (chi_R - f_r * chi_prime_R)) * rho_R;
-        A_plus_(i - ib.s, 1, 1) =
-            0.5 * (c * chi_prime_R * sgn(F_R) - vstar - alpha) * rho_R;
-      });
-
-  // Flat DOF index within a block (node-major: v fastest)
-  auto idx = [&](const int q, const int v) { return q * 4 + v; };
-
-  // Build transport numerical fluxes from U* at all interfaces.
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN,
-      "ImplicitMoments :: Interface transport fluxes", DevExecSpace(), ib.s,
-      ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
-        const double rho_L = 1.0 / u_f_l_(i, 0);
-        const double rho_R = 1.0 / u_f_r_(i, 0);
-        const double vstar = facedata(i, idx_vstar);
-
-        const double E_L = u_f_l_(i, 1) * rho_L;
-        const double E_R = u_f_r_(i, 1) * rho_R;
-        const double F_L = u_f_l_(i, 2) * rho_L;
-        const double F_R = u_f_r_(i, 2) * rho_R;
-
-        const double Prad_L = compute_closure(E_L, F_L);
-        const double Prad_R = compute_closure(E_R, F_R);
-        const double alpha = rad_wavespeed(E_L, E_R, F_L, F_R, vstar);
-
-        const LLFRiemannState left_erad{
-            .u = E_L, .f = F_L - vstar * E_L, .alpha = alpha};
-        const LLFRiemannState right_erad{
-            .u = E_R, .f = F_R - vstar * E_R, .alpha = alpha};
-        flux_num_(i, 0) = llf_flux(left_erad, right_erad);
-
-        const LLFRiemannState left_frad{
-            .u = F_L, .f = c2 * Prad_L - vstar * F_L, .alpha = alpha};
-        const LLFRiemannState right_frad{
-            .u = F_R, .f = c2 * Prad_R - vstar * F_R, .alpha = alpha};
-        flux_num_(i, 1) = llf_flux(left_frad, right_frad);
-      });
-
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Assemble solver_mat",
-      DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-        const int blk = i - ib.s;
-
-        // Mass matrix - diagonal block only
-        for (int q = 0; q < nNodes; ++q) {
-          const double m = mkk(i, q);
-          for (int v = 0; v < 4; ++v) {
-            const int row = idx(q, v);
-            solver_mat_diag_(blk, row, row) += m;
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "ImplicitMoments :: Interface states",
+        DevExecSpace(), ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
+          u_f_l_(i, 0) =
+              basis_eval<Interface::Right>(phi, u_rad_work_, i - 1, idx_tau);
+          u_f_r_(i, 0) =
+              basis_eval<Interface::Left>(phi, u_rad_work_, i, idx_tau);
+          for (int v = 3; v < 5; ++v) {
+            u_f_l_(i, v - 2) =
+                basis_eval<Interface::Right>(phi, u_rad_work_, i - 1, v);
+            u_f_r_(i, v - 2) =
+                basis_eval<Interface::Left>(phi, u_rad_work_, i, v);
           }
-        }
+        });
 
-        // Volume term - diagonal block
-        // K_vol[q*2+v, p*2+w] = [D^T W]_{qp} * J_vol[v,w](x_p)
-        // J_vol = rho[[-v, 1], [s^2, -v]] with s^2 = c^2 * chi
-        for (int q = 0; q < nNodes; ++q) {
-          for (int v = 0; v < 2; ++v) {
-            const int row = idx(q, v);
-            for (int p = 0; p < nNodes; ++p) {
-              const double vp = ucf(i, p, idx_vel);
-              const double rhop = 1.0 / ucf(i, p, idx_tau);
-              const double f =
-                  flux_factor(ucf(i, p, idx_er), ucf(i, p, idx_fr));
-              const double chi = eddington_factor(f);
-              const double sp2 = c2 * chi;
-              const double chi_prime = eddington_factor_prime(f);
-              for (int w = 0; w < 2; ++w) {
-                const int col = idx(p, w);
+    using math::utils::sgn;
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "ImplicitMoments :: Interface Jacobians",
+        DevExecSpace(), ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
+          // States at the interface i+1/2 (L is i, R is i+1)
+          const double rho_L = 1.0 / u_f_l_(i, 0);
+          const double rho_R = 1.0 / u_f_r_(i, 0);
+          const double vstar = facedata(i, idx_vstar);
 
-                double A_vw = 1.0;
-                if (v == 0 && w == 0) {
-                  A_vw = -vp;
-                } else if (v == 1 && w == 1) {
-                  A_vw = c * chi_prime * sgn(ucf(i, q, idx_fr)) - vp;
-                } else if (v == 1 && w == 0) {
-                  A_vw = sp2 - c2 * f * chi_prime;
-                }
+          // Radiation specific variables
+          const double E_L = u_f_l_(i, 1) * rho_L;
+          const double E_R = u_f_r_(i, 1) * rho_R;
+          const double F_L = u_f_l_(i, 2) * rho_L;
+          const double F_R = u_f_r_(i, 2) * rho_R;
 
-                solver_mat_diag_(blk, row, col) -=
-                    dt_aii * dphi(i, p + 1, q) * weights(p) *
-                    sqrt_gm(i, p + 1) * A_vw * rhop;
-              }
+          const double alpha = rad_wavespeed(E_L, E_R, F_L, F_R, vstar);
+          const double f_l = flux_factor(u_f_l_(i, 1), u_f_l_(i, 2));
+          const double f_r = flux_factor(u_f_r_(i, 1), u_f_r_(i, 2));
+          const double chi_L = eddington_factor(f_l);
+          const double chi_R = eddington_factor(f_r);
+          const double chi_prime_L = eddington_factor_prime(f_l);
+          const double chi_prime_R = eddington_factor_prime(f_r);
+
+          // A_minus = d(F_hat)/d(U_local) = 0.5 * (J_local + alpha * I)
+          A_minus_(i - ib.s, 0, 0) = 0.5 * (-vstar + alpha) * rho_L;
+          A_minus_(i - ib.s, 0, 1) = 0.5 * rho_L;
+          A_minus_(i - ib.s, 1, 0) =
+              0.5 * (c2 * (chi_L - f_l * chi_prime_L)) * rho_L;
+          A_minus_(i - ib.s, 1, 1) =
+              0.5 * (c * chi_prime_L * sgn(F_L) - vstar + alpha) * rho_L;
+
+          // A_plus = d(F_hat)/d(U_neighbor) = 0.5 * (J_neighbor - alpha * I)
+          A_plus_(i - ib.s, 0, 0) = 0.5 * (-vstar - alpha) * rho_R;
+          A_plus_(i - ib.s, 0, 1) = 0.5 * rho_R;
+          A_plus_(i - ib.s, 1, 0) =
+              0.5 * (c2 * (chi_R - f_r * chi_prime_R)) * rho_R;
+          A_plus_(i - ib.s, 1, 1) =
+              0.5 * (c * chi_prime_R * sgn(F_R) - vstar - alpha) * rho_R;
+        });
+
+    // Build transport numerical fluxes from U* at all interfaces.
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN,
+        "ImplicitMoments :: Interface transport fluxes", DevExecSpace(), ib.s,
+        ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
+          const double rho_L = 1.0 / u_f_l_(i, 0);
+          const double rho_R = 1.0 / u_f_r_(i, 0);
+          const double vstar = facedata(i, idx_vstar);
+
+          const double E_L = u_f_l_(i, 1) * rho_L;
+          const double E_R = u_f_r_(i, 1) * rho_R;
+          const double F_L = u_f_l_(i, 2) * rho_L;
+          const double F_R = u_f_r_(i, 2) * rho_R;
+
+          const double Prad_L = compute_closure(E_L, F_L);
+          const double Prad_R = compute_closure(E_R, F_R);
+          const double alpha = rad_wavespeed(E_L, E_R, F_L, F_R, vstar);
+
+          const LLFRiemannState left_erad{
+              .u = E_L, .f = F_L - vstar * E_L, .alpha = alpha};
+          const LLFRiemannState right_erad{
+              .u = E_R, .f = F_R - vstar * E_R, .alpha = alpha};
+          flux_num_(i, 0) = llf_flux(left_erad, right_erad);
+
+          const LLFRiemannState left_frad{
+              .u = F_L, .f = c2 * Prad_L - vstar * F_L, .alpha = alpha};
+          const LLFRiemannState right_frad{
+              .u = F_R, .f = c2 * Prad_R - vstar * F_R, .alpha = alpha};
+          flux_num_(i, 1) = llf_flux(left_frad, right_frad);
+        });
+
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Assemble solver_mat",
+        DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
+          const int blk = i - ib.s;
+
+          // Mass matrix - diagonal block only
+          for (int q = 0; q < nNodes; ++q) {
+            const double m = mkk(i, q);
+            for (int v = 0; v < 4; ++v) {
+              const int row = idx(q, v);
+              solver_mat_diag_(blk, row, row) += m;
             }
           }
-        }
 
-        const double gL = sqrt_gm(i, 0);
-        const double gR = sqrt_gm(i, nNodes + 1);
-
-        for (int q = 0; q < nNodes; ++q) {
-          const double ellL_q = phi(i, 0, q);
-          const double ellR_q = phi(i, nNodes + 1, q);
-          for (int p = 0; p < nNodes; ++p) {
-            const double ellL_p = phi(i, 0, p);
-            const double ellR_p = phi(i, nNodes + 1, p);
-
+          // Volume term - diagonal block
+          // K_vol[q*2+v, p*2+w] = [D^T W]_{qp} * J_vol[v,w](x_p)
+          // J_vol = rho[[-v, 1], [s^2, -v]] with s^2 = c^2 * chi
+          const double vstar = facedata(i, idx_vstar);
+          for (int q = 0; q < nNodes; ++q) {
             for (int v = 0; v < 2; ++v) {
               const int row = idx(q, v);
-              for (int w = 0; w < 2; ++w) {
-                const int col = idx(p, w);
+              for (int p = 0; p < nNodes; ++p) {
+                const double rhop = 1.0 / ucf(i, p, idx_tau);
+                const double f = flux_factor(u_rad_work_(i, p, idx_er),
+                                             u_rad_work_(i, p, idx_fr));
+                const double chi = eddington_factor(f);
+                const double sp2 = c2 * chi;
+                const double chi_prime = eddington_factor_prime(f);
+                for (int w = 0; w < 2; ++w) {
+                  const int col = idx(p, w);
 
-                // --- right face ---
-                if (i < ib.e) {
-                  const double ellL_p_nbr = phi(i + 1, 0, p);
-                  const int ifaceR = i - ib.s + 1;
-
-                  solver_mat_diag_(blk, row, col) +=
-                      dt_aii * ellR_q * gR * A_minus_(ifaceR, v, w) * ellR_p;
-
-                  solver_mat_upper_(blk, row, col) +=
-                      dt_aii * ellR_q * gR * A_plus_(ifaceR, v, w) * ellL_p_nbr;
-                }
-
-                // --- left face ---
-                if (i > ib.s) {
-                  const double ellR_p_nbr = phi(i - 1, nNodes + 1, p);
-                  const int ifaceL = i - ib.s;
+                  double A_vw = 1.0;
+                  if (v == 0 && w == 0) {
+                    A_vw = -vstar;
+                  } else if (v == 1 && w == 1) {
+                    A_vw =
+                        c * chi_prime * sgn(u_rad_work_(i, p, idx_fr)) - vstar;
+                  } else if (v == 1 && w == 0) {
+                    A_vw = sp2 - c2 * f * chi_prime;
+                  }
 
                   solver_mat_diag_(blk, row, col) -=
-                      dt_aii * ellL_q * gL * A_plus_(ifaceL, v, w) * ellL_p;
-
-                  solver_mat_lower_(blk - 1, row, col) -=
-                      dt_aii * ellL_q * gL * A_minus_(ifaceL, v, w) *
-                      ellR_p_nbr;
+                      dt_aii * dphi(i, p + 1, q) * weights(p) *
+                      sqrt_gm(i, p + 1) * A_vw * rhop;
                 }
               }
             }
           }
-        }
 
-        // RHS - T(U*) packed into flattened block RHS b.
-        const double vstar = facedata(i, idx_vstar);
-        for (int q = 0; q < nNodes; ++q) {
+          const double gL = sqrt_gm(i, 0);
+          const double gR = sqrt_gm(i, nNodes + 1);
 
-          double rhs_e = -(flux_num_(i + 1, 0) * phi(i, nNodes + 1, q) *
-                               sqrt_gm(i, nNodes + 1) -
-                           flux_num_(i, 0) * phi(i, 0, q) * sqrt_gm(i, 0));
-          double rhs_f = -(flux_num_(i + 1, 1) * phi(i, nNodes + 1, q) *
-                               sqrt_gm(i, nNodes + 1) -
-                           flux_num_(i, 1) * phi(i, 0, q) * sqrt_gm(i, 0));
+          for (int q = 0; q < nNodes; ++q) {
+            const double ellL_q = phi(i, 0, q);
+            const double ellR_q = phi(i, nNodes + 1, q);
+            for (int p = 0; p < nNodes; ++p) {
+              const double ellL_p = phi(i, 0, p);
+              const double ellR_p = phi(i, nNodes + 1, p);
 
-          for (int p = 0; p < nNodes; ++p) {
-            const double rho = 1.0 / ucf(i, p, idx_tau);
-            const double e_rad = ucf(i, p, idx_er) * rho;
-            const double f_rad = ucf(i, p, idx_fr) * rho;
-            const double p_rad = compute_closure(e_rad, f_rad);
-            const auto [flux_e, flux_f] = flux_rad(e_rad, f_rad, p_rad, vstar);
-            const double w_dphi_sqrtgm =
-                weights(p) * dphi(i, p + 1, q) * sqrt_gm(i, p + 1);
-            rhs_e += w_dphi_sqrtgm * flux_e;
-            rhs_f += w_dphi_sqrtgm * flux_f;
-          }
+              for (int v = 0; v < 2; ++v) {
+                const int row = idx(q, v);
+                for (int w = 0; w < 2; ++w) {
+                  const int col = idx(p, w);
 
-          const double m = mkk(i, q);
-          // rhs = - M(U^i - U*) - dt a_ii T
-          solver_b_(blk, idx(q, 0)) =
-              -(m * (ucf(i, q, idx_er) - ustar(i, q, idx_er)) - dt_aii * rhs_e);
-          solver_b_(blk, idx(q, 1)) =
-              -(m * (ucf(i, q, idx_fr) - ustar(i, q, idx_fr)) - dt_aii * rhs_f);
-          // solver_b_(blk, idx(q, 0)) = m * ustar(i, q, idx_er);
-          // solver_b_(blk, idx(q, 1)) = m * ustar(i, q, idx_fr);
-          solver_b_(blk, idx(q, 2)) =
-              -(m * (ucf(i, q, idx_vel) - ustar(i, q, idx_vel)));
-          solver_b_(blk, idx(q, 3)) =
-              -(m * (ucf(i, q, idx_ener) - ustar(i, q, idx_ener)));
-        }
-      });
+                  // --- right face ---
+                  if (i < ib.e) {
+                    const double ellL_p_nbr = phi(i + 1, 0, p);
+                    const int ifaceR = i - ib.s + 1;
 
-  const auto rad_bcs = get_bc_data<2>(bcs_);
-  static const int nblocks = grid.n_elements();
-  static const int i_inner = 1;
-  static const int i_outer = nblocks + 1;
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN,
-      "ImplicitMoments :: Assemble solver_mat :: boundaries", DevExecSpace(), 0,
-      0, KOKKOS_CLASS_LAMBDA(const int) {
-        const double vstar_i = facedata(i_inner, idx_vstar);
-        const double vstar_o = facedata(i_outer, idx_vstar);
-        const double rho_i = 1.0 / u_f_r_(i_inner, 0);
-        const double rho_o = 1.0 / u_f_l_(i_outer, 0);
-        const double gL_i = sqrt_gm(i_inner, 0);
-        const double gR_o = sqrt_gm(i_outer, nNodes + 1);
+                    solver_mat_diag_(blk, row, col) +=
+                        dt_aii * ellR_q * gR * A_minus_(ifaceR, v, w) * ellR_p;
 
-        // inner boundary
-        int blk = 0;
-        const auto inner_bc = rad_bcs[0];
-        switch (inner_bc.type) {
+                    solver_mat_upper_(blk, row, col) += dt_aii * ellR_q * gR *
+                                                        A_plus_(ifaceR, v, w) *
+                                                        ellL_p_nbr;
+                  }
 
-        case BcType::Outflow:
-          for (int v = 0; v < 2; ++v) {
-            d_bndry_(v, v) = 1.0;
-          }
-          break;
-        case BcType::Reflecting:
-          d_bndry_(0, 0) = 1.0;
-          d_bndry_(1, 1) = -1.0;
-          break;
-        case BcType::Marshak:
-          d_bndry_(0, 0) = 1.0;
-          d_bndry_(0, 1) = 0.0;
-          d_bndry_(1, 0) = -0.5 * c;
-          d_bndry_(1, 1) = -1.0;
-          break;
-        default:
-          break;
-        }
-        boundary_jacobian<Boundary::Interior>(A_bndry_, u_f_l_, u_f_r_,
-                                              d_bndry_, vstar_i);
-        for (int q = 0; q < nNodes; ++q) {
-          for (int p = 0; p < nNodes; ++p) {
-            const double ellL_q = phi(i_inner, 0, q);
-            const double ellL_p = phi(i_inner, 0, p);
+                  // --- left face ---
+                  if (i > ib.s) {
+                    const double ellR_p_nbr = phi(i - 1, nNodes + 1, p);
+                    const int ifaceL = i - ib.s;
 
-            for (int v = 0; v < 2; ++v) {
-              const int row = idx(q, v);
-              for (int w = 0; w < 2; ++w) {
-                const int col = idx(p, w);
+                    solver_mat_diag_(blk, row, col) -=
+                        dt_aii * ellL_q * gL * A_plus_(ifaceL, v, w) * ellL_p;
 
-                solver_mat_diag_(blk, row, col) -=
-                    dt_aii * ellL_q * gL_i * A_bndry_(v, w) * ellL_p * rho_i;
+                    solver_mat_lower_(blk - 1, row, col) -=
+                        dt_aii * ellL_q * gL * A_minus_(ifaceL, v, w) *
+                        ellR_p_nbr;
+                  }
+                }
               }
             }
           }
-        }
 
-        blk = nblocks - 1;
-        const auto outer_bc = rad_bcs[1];
-        switch (outer_bc.type) {
+          // RHS - T(U*) - M(U^i - U*) - dt a_ii T packed into flattened block
+          // RHS b.
+          for (int q = 0; q < nNodes; ++q) {
 
-        case BcType::Outflow:
-          for (int v = 0; v < 2; ++v) {
-            d_bndry_(v, v) = 1.0;
+            double rhs_e = -(flux_num_(i + 1, 0) * phi(i, nNodes + 1, q) *
+                                 sqrt_gm(i, nNodes + 1) -
+                             flux_num_(i, 0) * phi(i, 0, q) * sqrt_gm(i, 0));
+            double rhs_f = -(flux_num_(i + 1, 1) * phi(i, nNodes + 1, q) *
+                                 sqrt_gm(i, nNodes + 1) -
+                             flux_num_(i, 1) * phi(i, 0, q) * sqrt_gm(i, 0));
+
+            for (int p = 0; p < nNodes; ++p) {
+              const double rho = 1.0 / ucf(i, p, idx_tau);
+              const double e_rad = u_rad_work_(i, p, idx_er) * rho;
+              const double f_rad = u_rad_work_(i, p, idx_fr) * rho;
+              const double p_rad = compute_closure(e_rad, f_rad);
+              const auto [flux_e, flux_f] =
+                  flux_rad(e_rad, f_rad, p_rad, vstar);
+              const double w_dphi_sqrtgm =
+                  weights(p) * dphi(i, p + 1, q) * sqrt_gm(i, p + 1);
+              rhs_e += w_dphi_sqrtgm * flux_e;
+              rhs_f += w_dphi_sqrtgm * flux_f;
+            }
+
+            const double m = mkk(i, q);
+            solver_b_(blk, idx(q, 0)) =
+                -(m * (u_rad_work_(i, q, idx_er) - ustar(i, q, idx_er)) -
+                  dt_aii * rhs_e);
+            solver_b_(blk, idx(q, 1)) =
+                -(m * (u_rad_work_(i, q, idx_fr) - ustar(i, q, idx_fr)) -
+                  dt_aii * rhs_f);
+            solver_b_(blk, idx(q, 2)) =
+                -(m * (u_rad_work_(i, q, idx_vel) - ustar(i, q, idx_vel)));
+            solver_b_(blk, idx(q, 3)) =
+                -(m * (u_rad_work_(i, q, idx_ener) - ustar(i, q, idx_ener)));
           }
-          break;
-        case BcType::Reflecting:
-          d_bndry_(0, 0) = 1.0;
-          d_bndry_(1, 1) = -1.0;
-          break;
-        case BcType::Marshak:
-          d_bndry_(0, 0) = 1.0;
-          d_bndry_(0, 1) = 0.0;
-          d_bndry_(1, 0) = -0.5 * c;
-          d_bndry_(1, 1) = -1.0;
-          break;
-        default:
-          break;
-        }
-        boundary_jacobian<Boundary::Exterior>(A_bndry_, u_f_l_, u_f_r_,
-                                              d_bndry_, vstar_o);
-        for (int q = 0; q < nNodes; ++q) {
-          for (int p = 0; p < nNodes; ++p) {
-            const double ellR_q = phi(i_outer, nNodes + 1, q);
-            const double ellR_p = phi(i_outer, nNodes + 1, p);
+        });
 
+    const auto rad_bcs = get_bc_data<2>(bcs_);
+    static const int nblocks = grid.n_elements();
+    static const int i_inner = 1;
+    static const int i_outer = nblocks + 1;
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN,
+        "ImplicitMoments :: Assemble solver_mat :: boundaries", DevExecSpace(),
+        0, 0, KOKKOS_CLASS_LAMBDA(const int) {
+          const double vstar_i = facedata(i_inner, idx_vstar);
+          const double vstar_o = facedata(i_outer, idx_vstar);
+          const double rho_i = 1.0 / u_f_r_(i_inner, 0);
+          const double rho_o = 1.0 / u_f_l_(i_outer, 0);
+          const double gL_i = sqrt_gm(i_inner, 0);
+          const double gR_o = sqrt_gm(i_outer, nNodes + 1);
+
+          // inner boundary
+          int blk = 0;
+          const auto inner_bc = rad_bcs[0];
+          switch (inner_bc.type) {
+
+          case BcType::Outflow:
             for (int v = 0; v < 2; ++v) {
-              const int row = idx(q, v);
-              for (int w = 0; w < 2; ++w) {
-                const int col = idx(p, w);
-                solver_mat_diag_(blk, row, col) +=
-                    dt_aii * ellR_q * gR_o * A_bndry_(v, w) * ellR_p * rho_o;
+              d_bndry_(v, v) = 1.0;
+            }
+            break;
+          case BcType::Reflecting:
+            d_bndry_(0, 0) = 1.0;
+            d_bndry_(1, 1) = -1.0;
+            break;
+          case BcType::Marshak:
+            d_bndry_(0, 0) = 1.0;
+            d_bndry_(0, 1) = 0.0;
+            d_bndry_(1, 0) = -0.5 * c;
+            d_bndry_(1, 1) = -1.0;
+            break;
+          default:
+            break;
+          }
+          boundary_jacobian<Boundary::Interior>(A_bndry_, u_f_l_, u_f_r_,
+                                                d_bndry_, vstar_i);
+          for (int q = 0; q < nNodes; ++q) {
+            for (int p = 0; p < nNodes; ++p) {
+              const double ellL_q = phi(i_inner, 0, q);
+              const double ellL_p = phi(i_inner, 0, p);
+
+              for (int v = 0; v < 2; ++v) {
+                const int row = idx(q, v);
+                for (int w = 0; w < 2; ++w) {
+                  const int col = idx(p, w);
+
+                  solver_mat_diag_(blk, row, col) -=
+                      dt_aii * ellL_q * gL_i * A_bndry_(v, w) * ellL_p * rho_i;
+                }
               }
             }
           }
-        }
-      });
 
-  ThomasScratch scratch{
-      .W = solver_W_,
-      .Y = solver_Y_,
-      .Bi_lu = solver_Bi_lu_,
-  };
+          blk = nblocks - 1;
+          const auto outer_bc = rad_bcs[1];
+          switch (outer_bc.type) {
 
-  block_thomas_solve(nblocks, block_size, solver_mat_lower_, solver_mat_diag_,
-                     solver_mat_upper_, solver_b_, scratch);
+          case BcType::Outflow:
+            for (int v = 0; v < 2; ++v) {
+              d_bndry_(v, v) = 1.0;
+            }
+            break;
+          case BcType::Reflecting:
+            d_bndry_(0, 0) = 1.0;
+            d_bndry_(1, 1) = -1.0;
+            break;
+          case BcType::Marshak:
+            d_bndry_(0, 0) = 1.0;
+            d_bndry_(0, 1) = 0.0;
+            d_bndry_(1, 0) = -0.5 * c;
+            d_bndry_(1, 1) = -1.0;
+            break;
+          default:
+            break;
+          }
+          boundary_jacobian<Boundary::Exterior>(A_bndry_, u_f_l_, u_f_r_,
+                                                d_bndry_, vstar_o);
+          for (int q = 0; q < nNodes; ++q) {
+            for (int p = 0; p < nNodes; ++p) {
+              const double ellR_q = phi(i_outer, nNodes + 1, q);
+              const double ellR_p = phi(i_outer, nNodes + 1, p);
+
+              for (int v = 0; v < 2; ++v) {
+                const int row = idx(q, v);
+                for (int w = 0; w < 2; ++w) {
+                  const int col = idx(p, w);
+                  solver_mat_diag_(blk, row, col) +=
+                      dt_aii * ellR_q * gR_o * A_bndry_(v, w) * ellR_p * rho_o;
+                }
+              }
+            }
+          }
+        });
+
+    norm_resid = math::linalg::newton_norm_l2(solver_b_, sqrt_gm, dr, weights);
+
+    if (iter == 0) {
+      resid0 = norm_resid;
+    }
+
+    // Should we break here or compute and apply the update?
+    if (norm_resid / resid0 < tol) {
+      converged = true;
+      break;
+    }
+
+    block_thomas_solve(nblocks, block_size, solver_mat_lower_, solver_mat_diag_,
+                       solver_mat_upper_, solver_b_, scratch);
+
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Newton :: Update",
+        DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
+        KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+          u_rad_work_(i, q, idx_er) += solver_b_(i - ib.s, idx(q, 0));
+          u_rad_work_(i, q, idx_fr) += solver_b_(i - ib.s, idx(q, 1));
+        });
+
+    ++iter;
+  } // Newton-Raphson loop
 
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Increment delta",
       DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-        const int blk = i - ib.s;
         for (int q = qb.s; q <= qb.e; ++q) {
-          // E (v=0): row 2*q_local
-          // std::println("blk deltae (old, change) {} {:.5e} {:.5e}", blk,
-          // delta_(dt_info.stage, i, q, 2), solver_b_(blk, idx(q, 0)/dt_aii));
-          delta_(dt_info.stage, i, q, 2) += solver_b_(blk, idx(q, 0)) / dt_aii;
-          // delta_(dt_info.stage, i, q, 2) += (solver_b_(blk, idx(q, 0)) -
-          // ustar(i, q, idx_er)) / dt_aii; std::println("blk delta e {}
-          // {:.5e}", blk, delta_(dt_info.stage, i, q, 2));
+          // E (v=0)
+          delta_(dt_info.stage, i, q, 2) +=
+              (u_rad_work_(i, q, idx_er) - ustar(i, q, idx_er)) / dt_aii;
 
-          // F (v=1): row 2*q_local + 1
-          delta_(dt_info.stage, i, q, 3) += solver_b_(blk, idx(q, 1)) / dt_aii;
-          // delta_(dt_info.stage, i, q, 3) += (solver_b_(blk, idx(q, 1)) -
-          // ustar(i, q, idx_fr)) / dt_aii;
+          // F (v=1)
+          delta_(dt_info.stage, i, q, 3) +=
+              (u_rad_work_(i, q, idx_fr) - ustar(i, q, idx_fr)) / dt_aii;
         }
       });
 } // update_implicit
@@ -801,7 +849,6 @@ void RadHydroPackage::update_explicit(const StageData &stage_data,
         const double inv_mm = inv_mqq(i, q);
         for (int v = 0; v < NUM_VARS_; ++v) {
           delta_(stage, i, q, v) *= inv_mm;
-          std::println("i de {} {:.5e}", i, delta_(dt_info.stage, i, q, 2));
         }
       });
 } // update_explicit
@@ -976,8 +1023,6 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
         const LLFRiemannState right_erad{
             .u = E_R, .f = F_R - vstar * E_R, .alpha = alpha};
         const double flux_e = llf_flux(left_erad, right_erad);
-        std::println("i el er v {} {:.5e} {:.5e} {:.5e} {:.5e}", i, E_L, E_R,
-                     vstar, flux_e);
 
         const LLFRiemannState left_frad{
             .u = F_L, .f = c2 * Prad_L - vstar * F_L, .alpha = alpha};

@@ -137,10 +137,13 @@ radiation_four_force(const double D, const double V, const double T,
 /**
  * @brief LLF numerical flux
  */
-auto KOKKOS_FORCEINLINE_FUNCTION llf_flux(const LLFRiemannState &left, const LLFRiemannState &right) -> double {
-  // Weird check here, but to keep Riemann solvers APIs consistent we need 
+auto KOKKOS_FORCEINLINE_FUNCTION llf_flux(const LLFRiemannState &left,
+                                          const LLFRiemannState &right)
+    -> double {
+  // Weird check here, but to keep Riemann solvers APIs consistent we need
   // the shared wavespeed alpha in the struct.
-  assert(left.alpha == right.alpha && "llf_flux: left and right alphas must be identical!");
+  assert(left.alpha == right.alpha &&
+         "llf_flux: left and right alphas must be identical!");
   return 0.5 * std::fma(left.alpha, (left.u - right.u), (right.f + left.f));
 }
 
@@ -168,11 +171,12 @@ auto lambda_hll(const double f, const int sign) -> double {
  * @note See Audit et al 2002
  */
 KOKKOS_INLINE_FUNCTION
-auto rad_lambda(const double f, const double sgn_F, const double chi, const double chi_prime,
-                const int sign) -> double {
+auto rad_lambda(const double f, const double sgn_F, const double chi,
+                const double chi_prime, const int sign) -> double {
   return constants::c_cgs * 0.5 *
-         (chi_prime * sgn_F + sign * std::sqrt(chi_prime * chi_prime -
-                                       4.0 * chi_prime * f + 4.0 * chi));
+         (chi_prime * sgn_F +
+          sign * std::sqrt(chi_prime * chi_prime - 4.0 * chi_prime * f +
+                           4.0 * chi));
 }
 
 /**

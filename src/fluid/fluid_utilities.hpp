@@ -31,7 +31,8 @@ auto flux_fluid(const double V, const double P)
  * Gudonov style numerical flux. Constructs v* and p* states.
  **/
 KOKKOS_INLINE_FUNCTION
-auto numerical_flux_gudonov(const FluidRiemannState &left, const FluidRiemannState &right)
+auto numerical_flux_gudonov(const FluidRiemannState &left,
+                            const FluidRiemannState &right)
     -> std::tuple<double, double> {
   const double pL = left.p;
   const double pR = right.p;
@@ -49,7 +50,8 @@ auto numerical_flux_gudonov(const FluidRiemannState &left, const FluidRiemannSta
  * TODO(astrobarker): do I need tau_r_star if I construct p* with left?
  **/
 KOKKOS_INLINE_FUNCTION
-auto numerical_flux_gudonov_positivity(const FluidRiemannState &left, const FluidRiemannState &right)
+auto numerical_flux_gudonov_positivity(const FluidRiemannState &left,
+                                       const FluidRiemannState &right)
     -> std::tuple<double, double> {
   using math::utils::pos_part;
 

@@ -1,5 +1,5 @@
-#include <catch2/catch_session.hpp>
 #include "test_utils.hpp"
+#include <catch2/catch_session.hpp>
 
 int main(int argc, char *argv[]) {
   int result = 0;

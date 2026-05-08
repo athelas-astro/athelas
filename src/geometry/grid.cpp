@@ -14,6 +14,7 @@
  *          ihi = nElements_
  */
 
+#include <iomanip>
 #include <vector>
 
 #include "basic_types.hpp"

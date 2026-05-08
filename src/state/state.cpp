@@ -22,7 +22,8 @@ auto StageData::get_var(const std::string &field, const std::string &var_name,
 }
 
 [[nodiscard]] auto StageData::var_index(const std::string &field,
-                             const std::string &var_name) const -> int {
+                                        const std::string &var_name) const
+    -> int {
   return parent_->var_index(field, var_name);
 }
 

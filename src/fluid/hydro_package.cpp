@@ -25,8 +25,7 @@ HydroPackage::HydroPackage(const ProblemIn * /*pin*/, int n_stages, int order,
     : active_(active), nx_(nx), cfl_(cfl), bcs_(bcs),
       dFlux_num_("hydro::dFlux_num_", nx + 2 + 1, 3),
       u_f_l_("hydro::u_f_l_", nx + 2, 3), u_f_r_("hydro::u_f_r_", nx + 2, 3),
-      delta_("hydro :: delta", n_stages, nx_ + 2, order, 3) {
-}
+      delta_("hydro :: delta", n_stages, nx_ + 2, order, 3) {}
 
 void HydroPackage::update_explicit(const StageData &stage_data,
                                    const GridStructure &grid,
@@ -125,9 +124,16 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
         // auto [flux_u, flux_p] = numerical_flux_gudonov( u_f_l_(ib,  1 ),
         // u_f_r_(ib,  1
         // ), P_L, P_R, lam_L, lam_R);
-        const FluidRiemannState left{.tau=u_f_l_(i, idx_tau), .v=u_f_l_(i, idx_vel), .p=P_L, .cs=Cs_L};
-        const FluidRiemannState right{.tau=u_f_r_(i, idx_tau), .v=u_f_r_(i, idx_vel), .p=P_R, .cs=Cs_R};
-        const auto [flux_u, flux_p] = numerical_flux_gudonov_positivity(left, right);
+        const FluidRiemannState left{.tau = u_f_l_(i, idx_tau),
+                                     .v = u_f_l_(i, idx_vel),
+                                     .p = P_L,
+                                     .cs = Cs_L};
+        const FluidRiemannState right{.tau = u_f_r_(i, idx_tau),
+                                      .v = u_f_r_(i, idx_vel),
+                                      .p = P_R,
+                                      .cs = Cs_R};
+        const auto [flux_u, flux_p] =
+            numerical_flux_gudonov_positivity(left, right);
         facedata(i, idx_vstar) = flux_u;
 
         dFlux_num_(i, idx_tau) = -flux_u;
@@ -300,9 +306,11 @@ void HydroPackage::fill_derived(StageData &stage_data,
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Fill derived :: temperature",
         DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-          EOSLambda lambda;;
+          EOSLambda lambda;
+          ;
           for (int q = 0; q < nNodes + 2; ++q) {
-            const double rho = 1.0 / basis.basis_eval(ucf, i, vars::cons::SpecificVolume, q);
+            const double rho =
+                1.0 / basis.basis_eval(ucf, i, vars::cons::SpecificVolume, q);
             const double vel =
                 basis.basis_eval(ucf, i, vars::cons::Velocity, q);
             const double emt = basis.basis_eval(ucf, i, vars::cons::Energy, q);

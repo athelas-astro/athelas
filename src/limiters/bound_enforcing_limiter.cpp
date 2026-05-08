@@ -273,7 +273,7 @@ void limit_rad_energy(StageData &stage_data, const GridStructure &grid) {
 
           // Solve for smallest admissible theta
           if (E_q < EPSILON) {
-          std::println("eavg eq {:.5e} {:.5e}", E_avg, E_q);
+            std::println("eavg eq {:.5e} {:.5e}", E_avg, E_q);
             const double theta_q = backtrace(E_avg, E_q, EPSILON);
             theta = std::min(theta, theta_q);
           }
