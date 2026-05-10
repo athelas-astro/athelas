@@ -42,7 +42,7 @@ using bc::BoundaryConditions;
 class ImplicitRadiationMomentsPackage {
  public:
   ImplicitRadiationMomentsPackage(const ProblemIn * /*pin*/, int n_stages,
-                                  int nq, BoundaryConditions *bcs, double cfl,
+                                  int nq, BoundaryConditions *bcs,
                                   int nx, bool active = true);
 
   void update_implicit(const StageData &stage_data,
@@ -76,7 +76,6 @@ class ImplicitRadiationMomentsPackage {
   bool active_;
 
   int nx_;
-  double cfl_;
 
   BoundaryConditions *bcs_;
 

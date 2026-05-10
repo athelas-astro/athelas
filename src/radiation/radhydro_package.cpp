@@ -150,8 +150,8 @@ void radiation_source_implicit(const StageData &stage_data,
  */
 ImplicitRadiationMomentsPackage::ImplicitRadiationMomentsPackage(
     const ProblemIn *pin, int n_stages, int nq, BoundaryConditions *bcs,
-    double cfl, int nx, bool active)
-    : active_(active), cfl_(cfl), bcs_(bcs),
+    int nx, bool active)
+    : active_(active), bcs_(bcs),
       u_f_l_("ImplicitMoments::u_f_l_", nx + 2, 3),
       u_f_r_("ImplicitMoments::u_f_r_", nx + 2, 3),
       solver_mat_diag_("ImplicitMoments::solver_mat_diag", nx, 4 * nq, 4 * nq),
@@ -707,6 +707,7 @@ auto ImplicitRadiationMomentsPackage::min_timestep(
   const auto max_change_f = params_.get<double>("max_change_f");
 
   const double dt_old = dt_info.dt;
+  assert(dt_old > 0.0 && "ImplicitRadiationMomentsPackage::min_timestep: dt must be positive definite!");
 
   double dt_out = 0.0;
   athelas::par_reduce(
@@ -725,7 +726,7 @@ auto ImplicitRadiationMomentsPackage::min_timestep(
       },
       Kokkos::Min<double>(dt_out));
 
-  dt_out = std::max(cfl_ * dt_out, MIN_DT);
+  dt_out = std::max(dt_out, MIN_DT);
   dt_out = std::min(dt_out, MAX_DT);
 
   // If we are at the start of a run and don't have previous timestep data,
@@ -733,7 +734,7 @@ auto ImplicitRadiationMomentsPackage::min_timestep(
   // with the ramp up.
   // A bit hacky and maybe not appropriate for restarts.
   if (dt_info.t == 0.0) {
-    dt_out = MAX_DT;
+    dt_out = dt_old;
   }
 
   // Store the current radiation energy and flux for use

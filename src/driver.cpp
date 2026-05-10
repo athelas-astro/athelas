@@ -239,13 +239,13 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   // NOTE: Hydro/RadHydro should be registered first
   const bool pkg_active = true;
   if (rad_active) {
-    const std::string discretization =
+    const auto discretization =
         pin_->param()->get<std::string>("radiation.discretization");
     if (discretization == "implicit") {
       manager_->add_package(
           HydroPackage{pin, n_stages, nnodes, bcs_.get(), cfl, nx, pkg_active});
       manager_->add_package(ImplicitRadiationMomentsPackage{
-          pin, n_stages, nnodes, bcs_.get(), cfl, nx, pkg_active});
+          pin, n_stages, nnodes, bcs_.get(), nx, pkg_active});
     }
     if (discretization == "explicit") {
       manager_->add_package(RadHydroPackage{pin, n_stages, nnodes, bcs_.get(),
