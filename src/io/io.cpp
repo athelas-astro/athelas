@@ -283,6 +283,10 @@ class HDF5Writer {
     create_group(base_group);
 
     for (const auto &field_name : mesh_state.list_fields()) {
+      // skip list
+      if (field_name == "facedata") {
+        continue;
+      }
       write_field(mesh_state, field_name, base_group, stage);
     }
   }

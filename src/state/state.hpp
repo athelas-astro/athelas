@@ -100,13 +100,15 @@ class StageData {
       : stage_(stage), parent_(parent) {}
 
   // Generic field access
-  [[nodiscard]] auto get_field(const std::string &name) const
-      -> AthelasArray3D<double>;
+  template <typename T = AthelasArray3D<double>>
+  [[nodiscard]] auto get_field(const std::string &name) const -> T;
 
   // Access with variable name instead of index
   [[nodiscard]] auto get_var(const std::string &field,
                              const std::string &var_name, int i, int q) const
       -> double;
+  [[nodiscard]] auto var_index(const std::string &field,
+                               const std::string &var_name) const -> int;
 
   [[nodiscard]] auto comps() const -> atom::CompositionData *;
   [[nodiscard]] auto ionization_state() const -> atom::IonizationState *;
@@ -210,13 +212,19 @@ class MeshState {
     return std::get<T>(it->second);
   }
 
-  // Get staged field at specific stage (returns 3D subview)
-  [[nodiscard]] auto get_field_at_stage(const std::string &name,
-                                        int stage) const
-      -> AthelasArray3D<double> {
-    auto arr_4d = get_field<AthelasArray4D<double>>(name);
-    return Kokkos::subview(arr_4d, stage, Kokkos::ALL, Kokkos::ALL,
-                           Kokkos::ALL);
+  // Get staged field at specific stage (subview)
+  template <typename T = AthelasArray3D<double>>
+  [[nodiscard]] auto get_field(const std::string &name, int stage) const -> T {
+    if constexpr (std::is_same_v<T, AthelasArray1D<double>>) {
+      return Kokkos::subview(get_field<AthelasArray2D<double>>(name), stage,
+                             Kokkos::ALL);
+    } else if constexpr (std::is_same_v<T, AthelasArray2D<double>>) {
+      return Kokkos::subview(get_field<AthelasArray3D<double>>(name), stage,
+                             Kokkos::ALL, Kokkos::ALL);
+    } else if constexpr (std::is_same_v<T, AthelasArray3D<double>>) {
+      return Kokkos::subview(get_field<AthelasArray4D<double>>(name), stage,
+                             Kokkos::ALL, Kokkos::ALL, Kokkos::ALL);
+    }
   }
 
   // Variable index access
@@ -362,5 +370,16 @@ class MeshState {
   std::unique_ptr<basis::NodalBasis> fluid_basis_;
   std::unique_ptr<basis::NodalBasis> rad_basis_;
 };
+
+template <typename T>
+auto StageData::get_field(const std::string &name) const -> T {
+  assert(parent_->is_allocated(name) && "Field not allocated!");
+  const auto &metadata = parent_->get_metadata(name);
+
+  if (metadata.policy == DataPolicy::Staged) {
+    return parent_->get_field<T>(name, stage_);
+  }
+  return parent_->get_field<T>(name);
+}
 
 } // namespace athelas

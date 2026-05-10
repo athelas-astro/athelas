@@ -222,6 +222,35 @@ schema.fluid = {
 -- radiation
 -- -------------------------
 schema.radiation = {
+  discretization = {
+    type = "string",
+    required = { when = "physics.radiation", is_true = true },
+    doc = "Spatial discretization of the transport term. Options: 'implicit' or 'explicit'.",
+  },
+  timestep = {
+    max_fractional_change_e = {
+      type = "double",
+      required = { when = "radiation.discretization", equals = "implicit" },
+      doc = "Maximum allowed fractional change in radiation energy. Timestep control for implicit transport.",
+    },
+    max_change_f = {
+      type = "double",
+      required = { when = "radiation.discretization", equals = "implicit" },
+      doc = "Maximum allowed absolute change in radiation reduced flux. Timestep control for implicit transport.",
+    },
+  },
+  newton = {
+    max_iter = {
+      type = "int",
+      default = 10,
+      doc = "Maximum Newton iterations for implicit transport solve.",
+    },
+    tol = {
+      type = "double",
+      default = 1.0e-8,
+      doc = "Convergence tolerance for implicit transport Newton iteration.",
+    },
+  },
   limiter = {
     do_limiter = {
       type = "bool",

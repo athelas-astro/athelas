@@ -7,7 +7,7 @@ local config = {}
 -- Note: The domain bounds xl and xr are overwritten.
 config.problem = {
   name = "supernova",
-  t_end = 1.0 * day,
+  t_end = 100.0, -- 1.0 * day,
   nlim = -1,
   geometry = "spherical",
   xl = 100.0,
@@ -89,6 +89,15 @@ config.fluid = {
 }
 
 config.radiation = {
+  discretization = "implicit",
+  timestep = {
+    max_fractional_change_e = 0.015,
+    max_change_f = 0.05,
+  },
+  newton = {
+    max_iter = 25,
+    tol = 1.0e-10,
+  },
   limiter = {
     type = "minmod",
     m_tvb = 0.0,

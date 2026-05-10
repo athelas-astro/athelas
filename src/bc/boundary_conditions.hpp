@@ -74,19 +74,12 @@ apply_bc(const BoundaryConditionsData<N> &bc, AthelasArray3D<double> U,
          const int n_nodes) {
   switch (bc.type) {
 
-  // --------------------------------------------------
-  // OUTFLOW: copy nodal values directly
-  // --------------------------------------------------
   case BcType::Outflow:
     for (int i = 0; i < n_nodes; ++i) {
       U(ghost_cell, i, v) = U(interior_cell, i, v);
     }
     break;
 
-  // --------------------------------------------------
-  // PERIODIC: copy from mapped interior cell
-  // (interior_cell already chosen correctly)
-  // --------------------------------------------------
   case BcType::Periodic:
     for (int i = 0; i < n_nodes; ++i) {
       U(ghost_cell, i, v) = U(interior_cell, i, v);
@@ -94,10 +87,10 @@ apply_bc(const BoundaryConditionsData<N> &bc, AthelasArray3D<double> U,
     break;
 
   // --------------------------------------------------
-  // REFLECTING
+  // Reflecting
   //
-  // 1) reverse node ordering
-  // 2) flip sign of normal momentum component
+  // - reverse node ordering
+  // - flip sign of normal vector components
   // --------------------------------------------------
   case BcType::Reflecting:
     for (int i = 0; i < n_nodes; ++i) {
@@ -114,11 +107,6 @@ apply_bc(const BoundaryConditionsData<N> &bc, AthelasArray3D<double> U,
     }
     break;
 
-  // --------------------------------------------------
-  // DIRICHLET
-  //
-  // Strong nodal enforcement
-  // --------------------------------------------------
   case BcType::Dirichlet: {
     const double g = bc.dirichlet_values[v];
 
@@ -127,11 +115,6 @@ apply_bc(const BoundaryConditionsData<N> &bc, AthelasArray3D<double> U,
     }
   } break;
 
-  // --------------------------------------------------
-  // MARSHak (radiation)
-  //
-  // Incoming half-range enforcement
-  // --------------------------------------------------
   case BcType::Marshak: {
 
     constexpr double c = constants::c_cgs;

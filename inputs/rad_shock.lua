@@ -13,12 +13,12 @@ config.problem = {
   grid_type = "uniform",
 
   params = {
-    vL = 5.190000e+07,
-    vR = 1.730000e+07,
+    vL = 5.19e+07,
+    vR = 1.73e+07,
     rhoL = 5.69,
     rhoR = 17.1,
-    T_L = 2.180000e+06,
-    T_R = 7.980000e+06,
+    T_L = 2.18e+06,
+    T_R = 7.98e+06,
   },
 }
 
@@ -31,6 +31,11 @@ config.physics = {
   engine = false,
 }
 
+config.time = {
+  integrator = "IMEX_PDARS_ESDIRK",
+  -- integrator = "IMEX_SSPRK11",
+}
+
 config.basis = {
   nnodes = 2,
 }
@@ -39,20 +44,17 @@ config.bc = {
   fluid = {
     bc_i = "outflow",
     bc_o = "outflow",
-    dirichlet_values_i = { 0.1757469, 5.190000e+07, 1.616577e+15 },
-    dirichlet_values_o = { 0.05847953, 1.730000e+07, 1.137159e+15 },
   },
   radiation = {
     bc_i = "outflow",
     bc_o = "outflow",
-    dirichlet_values_i = { 1.708744e+11, 0.0 },
-    dirichlet_values_o = { 3.068051e+13, 0.0 },
   },
 }
 
 config.output = {
   ncycle_out = 250,
-  dt_init_frac = 1.001,
+  dt_init_frac = 1.2,
+  dt_init = 1.0e-17,
   history = {
     fn = config.problem.name .. ".hst",
   },
@@ -71,6 +73,15 @@ config.fluid = {
 }
 
 config.radiation = {
+  discretization = "implicit",
+  timestep = {
+    max_fractional_change_e = 0.01,
+    max_change_f = 0.01,
+  },
+  newton = {
+    max_iter = 8,
+    tol = 1.0e-8,
+  },
   limiter = {
     type = "minmod",
     m_tvb = 0.0,
@@ -79,10 +90,6 @@ config.radiation = {
     tci_val = 0.1,
     characteristic = false,
   },
-}
-
-config.time = {
-  integrator = "IMEX_PDARS_ESDIRK",
 }
 
 config.eos = {

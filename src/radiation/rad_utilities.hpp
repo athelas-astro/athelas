@@ -9,6 +9,17 @@
 
 namespace athelas::radiation {
 
+/**
+ * @struct LLFRiemannState
+ * @brief Holds the state for a Rusanov LLF Riemann solver.
+ * @note Contains U, F, alpha.
+ */
+struct LLFRiemannState {
+  double u;
+  double f;
+  double alpha;
+};
+
 using root_finders::PhysicalScales, root_finders::RadHydroConvergence;
 
 /**
@@ -24,7 +35,7 @@ KOKKOS_FORCEINLINE_FUNCTION
 auto flux_factor(const double E, const double F) -> double {
   assert(E > 0.0 &&
          "Radiation :: flux_factor :: non positive definite energy density.");
-  return std::abs(F) / (constants::c_cgs * E);
+  return std::clamp(std::abs(F) / (constants::c_cgs * E), 0.0, 1.0);
 }
 
 /**
@@ -98,16 +109,8 @@ radiation_four_force(const double D, const double V, const double T,
 }
 
 /**
- * @brief factor of c scaling terms for radiation-matter sources
- **/
-[[nodiscard]] KOKKOS_FORCEINLINE_FUNCTION auto source_factor_rad()
-    -> std::tuple<double, double> {
-  constexpr static double c = constants::c_cgs;
-  return {c, c * c};
-}
-
-/**
  * @brief M1 closure of Levermore 1984
+ * @note These should be volumetric.
  * TODO(astrobarker): It would be nice to make this easier to modify
  * Perhaps CRTP model
  */
@@ -117,7 +120,7 @@ radiation_four_force(const double D, const double V, const double T,
   assert(E > 0.0 &&
          "Radiation :: compute_closure(radial) :: Non positive definite "
          "radiation energy density.");
-  const double f = std::clamp(flux_factor(E, F), 0.0, 1.0);
+  const double f = flux_factor(E, F);
   const double chi = eddington_factor(f);
   return chi * E;
 }
@@ -126,7 +129,7 @@ radiation_four_force(const double D, const double V, const double T,
                                                      const double F) -> double {
   assert(E > 0.0 && "Radiation :: p_rad_perp :: Non positive definite "
                     "radiation energy density.");
-  const double f = std::clamp(flux_factor(E, F), 0.0, 1.0);
+  const double f = flux_factor(E, F);
   const double chi = eddington_factor(f);
   return E * (1.0 - chi) * 0.5;
 }
@@ -134,10 +137,14 @@ radiation_four_force(const double D, const double V, const double T,
 /**
  * @brief LLF numerical flux
  */
-auto KOKKOS_FORCEINLINE_FUNCTION llf_flux(const double Fp, const double Fm,
-                                          const double Up, const double Um,
-                                          const double alpha) -> double {
-  return 0.5 * std::fma(alpha, (Um - Up), (Fp + Fm));
+auto KOKKOS_FORCEINLINE_FUNCTION llf_flux(const LLFRiemannState &left,
+                                          const LLFRiemannState &right)
+    -> double {
+  // Weird check here, but to keep Riemann solvers APIs consistent we need
+  // the shared wavespeed alpha in the struct.
+  assert(left.alpha == right.alpha &&
+         "llf_flux: left and right alphas must be identical!");
+  return 0.5 * std::fma(left.alpha, (left.u - right.u), (right.f + left.f));
 }
 
 /**
@@ -164,11 +171,12 @@ auto lambda_hll(const double f, const int sign) -> double {
  * @note See Audit et al 2002
  */
 KOKKOS_INLINE_FUNCTION
-auto rad_lambda(const double f, const double chi, const double chi_prime,
-                const int sign) -> double {
+auto rad_lambda(const double f, const double sgn_F, const double chi,
+                const double chi_prime, const int sign) -> double {
   return constants::c_cgs * 0.5 *
-         (chi_prime + sign * std::sqrt(chi_prime * chi_prime -
-                                       4.0 * chi_prime * f + 4.0 * chi));
+         (chi_prime * sgn_F +
+          sign * std::sqrt(chi_prime * chi_prime - 4.0 * chi_prime * f +
+                           4.0 * chi));
 }
 
 /**
@@ -178,6 +186,7 @@ auto rad_lambda(const double f, const double chi, const double chi_prime,
 KOKKOS_INLINE_FUNCTION
 auto rad_wavespeed(const double E_L, const double E_R, const double F_L,
                    const double F_R, const double vstar) -> double {
+  using math::utils::sgn;
   const double f_l = flux_factor(E_L, F_L);
   const double f_r = flux_factor(E_R, F_R);
   const double chi_l = eddington_factor(f_l);
@@ -187,10 +196,12 @@ auto rad_wavespeed(const double E_L, const double E_R, const double F_L,
   // const double lam_l = rad_lambda(f_l, chi_l, chi_prime_l, +1);
   // const double lam_r = rad_lambda(f_r, chi_r, chi_prime_r, +1);
   // const double res = std::max(lam_l - vstar, lam_r - vstar);
-  const double lam_lp = rad_lambda(f_l, chi_l, chi_prime_l, +1);
-  const double lam_lm = rad_lambda(f_l, chi_l, chi_prime_l, -1);
-  const double lam_rp = rad_lambda(f_r, chi_r, chi_prime_r, +1);
-  const double lam_rm = rad_lambda(f_r, chi_r, chi_prime_r, -1);
+  const double sgn_F_L = sgn(F_L);
+  const double sgn_F_R = sgn(F_R);
+  const double lam_lp = rad_lambda(f_l, sgn_F_L, chi_l, chi_prime_l, +1);
+  const double lam_lm = rad_lambda(f_l, sgn_F_L, chi_l, chi_prime_l, -1);
+  const double lam_rp = rad_lambda(f_r, sgn_F_R, chi_r, chi_prime_r, +1);
+  const double lam_rm = rad_lambda(f_r, sgn_F_R, chi_r, chi_prime_r, -1);
 
   const double alpha =
       std::max({std::abs(lam_lp - vstar), std::abs(lam_lm - vstar),
@@ -209,21 +220,24 @@ auto numerical_flux_hll_rad(const double E_L, const double E_R,
                             const double P_L, const double P_R,
                             const double vstar) -> std::tuple<double, double> {
   using namespace riemann;
+  using math::utils::sgn;
 
   constexpr static double c2 = constants::c_cgs * constants::c_cgs;
   const double f_l = flux_factor(E_L, F_L);
   const double chi_l = eddington_factor(f_l);
   const double chi_prime_l = eddington_factor_prime(f_l);
 
-  const double lam_lp = rad_lambda(f_l, chi_l, chi_prime_l, +1);
-  const double lam_lm = rad_lambda(f_l, chi_l, chi_prime_l, -1);
+  const double sgn_F_L = sgn(F_L);
+  const double sgn_F_R = sgn(F_R);
+  const double lam_lp = rad_lambda(f_l, sgn_F_L, chi_l, chi_prime_l, +1);
+  const double lam_lm = rad_lambda(f_l, sgn_F_L, chi_l, chi_prime_l, -1);
 
   const double f_r = flux_factor(E_R, F_R);
   const double chi_r = eddington_factor(f_r);
   const double chi_prime_r = eddington_factor_prime(f_r);
 
-  const double lam_rp = rad_lambda(f_r, chi_r, chi_prime_r, +1);
-  const double lam_rm = rad_lambda(f_r, chi_r, chi_prime_r, -1);
+  const double lam_rp = rad_lambda(f_r, sgn_F_R, chi_r, chi_prime_r, +1);
+  const double lam_rm = rad_lambda(f_r, sgn_F_R, chi_r, chi_prime_r, -1);
 
   // --- Moving-mesh signal speeds ---
   const double s_l = std::min({lam_lm - vstar, lam_rm - vstar, 0.0});

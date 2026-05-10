@@ -59,6 +59,11 @@ config.fluid = {
 }
 
 config.radiation = {
+  discretization = "implicit",
+  timestep = {
+    max_fractional_change_e = 0.0005,
+    max_change_f = 0.001,
+  },
   limiter = {
     tci_opt = false,
     tci_val = 0.1,

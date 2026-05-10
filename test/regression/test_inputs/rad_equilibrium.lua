@@ -30,6 +30,10 @@ config.physics = {
   engine = false,
 }
 
+config.time = {
+  integrator = "IMEX_ARK32_ESDIRK",
+}
+
 config.basis = {
   nnodes = 3,
 }
@@ -61,6 +65,7 @@ config.fluid = {
 }
 
 config.radiation = {
+  discretization = "explicit",
   limiter = {
     do_limiter = true,
     type = "minmod",
@@ -70,10 +75,6 @@ config.radiation = {
     tci_val = 0.1,
     characteristic = false,
   },
-}
-
-config.time = {
-  integrator = "IMEX_ARK32_ESDIRK",
 }
 
 config.eos = {

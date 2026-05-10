@@ -281,6 +281,31 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
           "option from [radiation] block.");
     }
 
+    const std::string discretization_type =
+        rad_block->get<std::string>("discretization");
+    if (discretization_type != "implicit" &&
+        discretization_type != "explicit") {
+      throw_athelas_error(
+          "radiation.discretization must be 'explicit' or 'implicit'.");
+    }
+    params_->add("radiation.discretization", discretization_type);
+
+    // implicit radiation timestep controls
+    if (discretization_type == "implicit") {
+      sol::table timestep = radiation["timestep"];
+      const double max_frac_change_e =
+          timestep.get<double>("max_fractional_change_e");
+      const double max_change_f = timestep.get<double>("max_change_f");
+      params_->add("radiation.timestep.max_fractional_change_e",
+                   max_frac_change_e);
+      params_->add("radiation.timestep.max_change_f", max_change_f);
+
+      sol::optional<sol::table> newton_block = radiation["newton"];
+      sol::table newton = newton_block.value_or(lua_.create_table());
+      params_->add("radiation.newton.max_iter", newton.get_or("max_iter", 10));
+      params_->add("radiation.newton.tol", newton.get_or("tol", 1.0e-8));
+    }
+
     sol::optional<sol::table> rad_limiter_block = radiation["limiter"];
     sol::table rad_lim = rad_limiter_block.value_or(lua_.create_table());
 

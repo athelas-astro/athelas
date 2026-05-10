@@ -32,6 +32,7 @@ add_executable( unit_tests
   test_legendre.cpp
   test_paczynski.cpp
   test_root_finders.cpp
+  test_block_thomas.cpp
   test_fd.cpp
   )
 
@@ -42,6 +43,7 @@ target_link_libraries( unit_tests
     sol2::sol2
     ${LUA_LIBRARIES}
     kokkos
+    Kokkos::kokkoskernels
 )
 
 # add_subdirectory( basis )

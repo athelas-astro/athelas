@@ -5,6 +5,7 @@
 #include "bc/boundary_conditions_base.hpp"
 #include "eos/eos_variant.hpp"
 #include "geometry/grid.hpp"
+#include "interface/params.hpp"
 #include "opacity/opac_variant.hpp"
 #include "pgen/problem_in.hpp"
 #include "radiation/rad_utilities.hpp"
@@ -14,18 +15,6 @@
 
 namespace athelas::radiation {
 
-/*
-struct RadHydroSolverIonizationContent {
-  AthelasArray2D<double> number_density;
-  AthelasArray2D<double> ye;
-  AthelasArray2D<double> ybar;
-  AthelasArray2D<double> sigma1;
-  AthelasArray2D<double> sigma2;
-  AthelasArray2D<double> sigma3;
-  AthelasArray2D<double> e_ion_corr;
-  AthelasArray3D<double> bulk;
-};
-*/
 struct RadHydroSolverIonizationContent {
   double number_density{};
   double ye{};
@@ -38,7 +27,165 @@ struct RadHydroSolverIonizationContent {
   double Z{};
 };
 
+void radiation_source_implicit(const StageData &stage_data,
+                               AthelasArray3D<double> R,
+                               AthelasArray4D<double> delta,
+                               const GridStructure &grid,
+                               const TimeStepInfo &dt_info);
+
 using bc::BoundaryConditions;
+
+/**
+ * @brief Implicit radiation moments
+ * Used for fully implicit transport
+ */
+class ImplicitRadiationMomentsPackage {
+ public:
+  ImplicitRadiationMomentsPackage(const ProblemIn * /*pin*/, int n_stages,
+                                  int nq, BoundaryConditions *bcs,
+                                  int nx, bool active = true);
+
+  void update_implicit(const StageData &stage_data,
+                       AthelasArray3D<double> ustar, const GridStructure &grid,
+                       const TimeStepInfo &dt_info);
+
+  void apply_delta(AthelasArray3D<double> lhs,
+                   const TimeStepInfo &dt_info) const;
+
+  void zero_delta() const noexcept;
+
+  [[nodiscard]] auto min_timestep(const StageData & /*stage_data*/,
+                                  const GridStructure &grid,
+                                  const TimeStepInfo & /*dt_info*/) const
+      -> double;
+
+  [[nodiscard]] auto name() const noexcept -> std::string_view;
+
+  [[nodiscard]] auto is_active() const noexcept -> bool;
+
+  void fill_derived(StageData &stage_data, const GridStructure &grid,
+                    const TimeStepInfo &dt_info) const;
+
+  void set_active(bool active);
+
+  [[nodiscard]] static constexpr auto num_vars() noexcept -> int {
+    return NUM_VARS_;
+  }
+
+ private:
+  bool active_;
+
+  int nx_;
+
+  BoundaryConditions *bcs_;
+
+  // package storage
+  AthelasArray2D<double> u_f_l_; // left faces
+  AthelasArray2D<double> u_f_r_; // right faces
+
+  // Block-tridiagonal storage for implicit solver.
+  AthelasArray3D<double> solver_mat_diag_;
+  AthelasArray3D<double> solver_mat_upper_;
+  AthelasArray3D<double> solver_mat_lower_;
+  AthelasArray2D<double> solver_b_; // rhs for implicit solve
+  AthelasArray2D<double> flux_num_;
+
+  // Workspace for block Thomas solve:
+  AthelasArray3D<double> solver_W_;
+  AthelasArray2D<double> solver_Y_;
+  AthelasArray2D<double> solver_Bi_lu_;
+
+  // Flux Jacobian storage
+  AthelasArray3D<double> A_minus_;
+  AthelasArray3D<double> A_plus_;
+  AthelasArray2D<double> A_bndry_;
+  AthelasArray2D<double> d_bndry_;
+
+  AthelasArray4D<double> delta_; // rhs delta
+
+  // storage for old radiation energy density and flux
+  AthelasArray2D<double> e_rad_old_;
+  AthelasArray2D<double> f_rad_old_;
+
+  // Newton iterate for transport solve: (nx+2, nq, 4) storing (specific er,
+  // specific fr, vel, ener)
+  AthelasArray3D<double> u_rad_work_;
+
+  // package params
+  Params params_;
+
+  // constants
+  static constexpr int NUM_VARS_ = 4;
+};
+
+KOKKOS_FUNCTION
+template <Boundary Loc>
+void boundary_jacobian(AthelasArray2D<double> A, AthelasArray2D<double> ufl,
+                       AthelasArray2D<double> ufr, AthelasArray2D<double> D,
+                       const double vstar) {
+  using math::utils::sgn;
+  constexpr double c = constants::c_cgs;
+  constexpr double c2 = c * c;
+  // NOTE: We assume that ufl and ufr contain specific volume (:, 0),
+  // specific radition energy density (:, 1),
+  // specific radiation flux (:, 2)
+  if constexpr (Loc == Boundary::Interior) {
+    // First, form the interior contribution.
+    constexpr int i_inner = 1;
+    const double alpha = rad_wavespeed(ufr(i_inner, 1), ufr(i_inner, 1),
+                                       ufr(i_inner, 2), ufr(i_inner, 2), vstar);
+    double f = flux_factor(ufr(i_inner, 1), ufr(i_inner, 2));
+    double chi = eddington_factor(f);
+    double chi_prime = eddington_factor_prime(f);
+    A(0, 0) = 0.5 * (-vstar + alpha);
+    A(0, 1) = 0.5;
+    A(1, 0) = 0.5 * c2 * (chi - f * chi_prime);
+    A(1, 1) = 0.5 * (c * chi_prime * sgn(ufr(i_inner, 2)) - vstar + alpha);
+
+    // Then, the exterior contribution.
+    // The contribution from the ghost goes the matrix product J * dU_ext/dU_int
+    // Here, D is the derivative. If the boundary condition does not depend
+    // at all on the interior, D = 0.
+    f = flux_factor(ufl(i_inner, 1), ufl(i_inner, 2));
+    chi = eddington_factor(f);
+    chi_prime = eddington_factor_prime(f);
+    A(0, 0) += 0.5 * (-vstar - alpha) * D(0, 0) + 0.5 * D(1, 0);
+    A(0, 1) += 0.5 * (-vstar - alpha) * D(0, 1) + 0.5 * D(1, 1);
+    A(1, 0) +=
+        0.5 * c2 * (chi - f * chi_prime) * D(0, 0) +
+        0.5 * (c * chi_prime * sgn(ufr(i_inner, 2)) - vstar - alpha) * D(1, 0);
+    A(1, 1) +=
+        0.5 * c2 * (chi - f * chi_prime) * D(0, 1) +
+        0.5 * (c * chi_prime * sgn(ufr(i_inner, 2)) - vstar - alpha) * D(1, 1);
+  }
+  if constexpr (Loc == Boundary::Exterior) {
+    static const int i_outer = static_cast<int>(ufl.extent(0)) - 1;
+    const double alpha = rad_wavespeed(ufl(i_outer, 1), ufr(i_outer, 1),
+                                       ufl(i_outer, 2), ufr(i_outer, 2), vstar);
+    double f = flux_factor(ufl(i_outer, 1), ufl(i_outer, 2));
+    double chi = eddington_factor(f);
+    double chi_prime = eddington_factor_prime(f);
+    A(0, 0) = 0.5 * (-vstar + alpha);
+    A(0, 1) = 0.5;
+    A(1, 0) = 0.5 * c2 * (chi - f * chi_prime);
+    A(1, 1) = 0.5 * (c * chi_prime * sgn(ufl(i_outer, 2)) - vstar + alpha);
+
+    // exterior / ghost
+    f = flux_factor(ufr(i_outer, 1), ufr(i_outer, 2));
+    chi = eddington_factor(f);
+    chi_prime = eddington_factor_prime(f);
+    A(0, 0) += 0.5 * (-vstar - alpha) * D(0, 0) + 0.5 * D(1, 0);
+    A(0, 1) += 0.5 * (-vstar - alpha) * D(0, 1) + 0.5 * D(1, 1);
+    A(1, 0) +=
+        0.5 * c2 * (chi - f * chi_prime) * D(0, 0) +
+        0.5 * (c * chi_prime * sgn(ufl(i_outer, 2)) - vstar - alpha) * D(1, 0);
+    A(1, 1) +=
+        0.5 * c2 * (chi - f * chi_prime) * D(0, 1) +
+        0.5 * (c * chi_prime * sgn(ufl(i_outer, 2)) - vstar - alpha) * D(1, 1);
+  }
+}
+
+// ----------------------------------------------------------------------------
 
 class RadHydroPackage {
  public:
@@ -73,8 +220,6 @@ class RadHydroPackage {
 
   void set_active(bool active);
 
-  [[nodiscard]] auto get_flux_u(int stage, int i) const -> double;
-
   [[nodiscard]] static constexpr auto num_vars() noexcept -> int {
     return NUM_VARS_;
   }
@@ -91,7 +236,6 @@ class RadHydroPackage {
   AthelasArray2D<double> dFlux_num_; // stores Riemann solutions
   AthelasArray2D<double> u_f_l_; // left faces
   AthelasArray2D<double> u_f_r_; // right faces
-  AthelasArray2D<double> flux_u_; // Riemann velocities
 
   AthelasArray4D<double> delta_; // rhs delta [nstages, nx, order, nvars]
   AthelasArray4D<double> delta_im_; // rhs delta
@@ -423,8 +567,6 @@ template <OpacityType Opac>
 KOKKOS_FUNCTION auto dkappa_dT(const Opacity &opac, const double rho,
                                const double T, const double X, const double Z)
     -> double {
-  // Use a log-space perturbation since the table is uniform in logT
-  // 1e-4 is ~0.01% of a decade,
   constexpr double h_log = 1e-4;
   const double logT = std::log10(T);
   const double T_plus = std::pow(10.0, logT + h_log);
@@ -440,10 +582,9 @@ KOKKOS_FUNCTION auto dkappa_dT(const Opacity &opac, const double rho,
     k_base = opac.rosseland_mean(rho, T, X, Z, nullptr);
   }
 
-  // 1. Compute the slope in log-log or linear-log space: d(kappa)/d(log10T)
   const double dk_dlogT = (k_plus - k_base) / h_log;
 
-  // 2. d(kappa)/dT = d(kappa)/d(log10T) * d(log10T)/dT
+  // d(kappa)/dT = d(kappa)/d(log10T) * d(log10T)/dT
   // d(log10T)/dT = 1 / (T * ln(10))
   constexpr double inv_ln10 = 1.0 / std::numbers::log10e;
 
@@ -887,26 +1028,11 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T uaf,
     const double J21 = -dt_a_ii * dsvde;
     const double J22 = 1.0 - dt_a_ii * dsvdv;
 
-    // Get Row Scales
-    const double r1 = 1.0; // std::max({std::abs(J11), std::abs(J12), 1e-14});
-    const double r2 = 1.0; // std::max({std::abs(J21), std::abs(J22), 1e-14});
-
-    // Scale rows (Balance the equations)
-    const double a1 = J11 / r1;
-    const double b1 = J12 / r1;
-    const double c1 = J21 / r2;
-    const double d1 = J22 / r2;
-
-    const double rhs1 = f_e / r1;
-    const double rhs2 = f_v / r2;
-
-    // Solve the balanced system
-    const double det = a1 * d1 - b1 * c1;
-
+    const double det = J11 * J22 - J12 * J21;
     const double inv_det = 1.0 / det;
 
-    const double delta_e = -(d1 * rhs1 - b1 * rhs2) * inv_det;
-    const double delta_v = -(a1 * rhs2 - c1 * rhs1) * inv_det;
+    const double delta_e = -(J22 * f_e - J12 * f_v) * inv_det;
+    const double delta_v = -(J11 * f_v - J21 * f_e) * inv_det;
 
     // Line search
     double lam = 1.0;
@@ -917,7 +1043,7 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T uaf,
     double sie_trial = e_trial - 0.5 * v_trial * v_trial;
 
     // merit function: residual norm
-    const double F0 = rhs1 * rhs1 + rhs2 * rhs2;
+    const double F0 = f_e * f_e + f_v * f_v;
 
     for (int ls = 0; ls < max_linesearch; ++ls) {
       e_trial = e + lam * delta_e;
@@ -939,7 +1065,7 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T uaf,
       const auto [se_t, sv_t] = compute_rad_sources(trial_in, lambda.ptr());
       const double fe_t = e_trial - e_star - dt_a_ii * se_t;
       const double fv_t = v_trial - vstar - dt_a_ii * sv_t;
-      const double F_trial = fe_t * fe_t / (r1 * r1) + fv_t * fv_t / (r2 * r2);
+      const double F_trial = fe_t * fe_t + fv_t * fv_t;
 
       // 3. Classic Armoji line search criteria
       if (F_trial < (1.0 - 2.0 * alpha * lam) * F0) {

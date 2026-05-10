@@ -94,12 +94,13 @@ class TimeStepper {
 
         pkgs->apply_delta(SumVar_U_, dt_info);
 
+        auto facedata =
+            mesh_state(j).get_field<AthelasArray2D<double>>("facedata");
+        const int idx_vstar = mesh_state(j).var_index("facedata", "vstar");
         athelas::par_for(
             DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: EX :: grid",
             DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              x_l_sumvar_(iS, i) +=
-                  dt_a_ex *
-                  pkgs->get_package<HydroPackage>("Hydro")->get_flux_u(j, i);
+              x_l_sumvar_(iS, i) += dt_a_ex * facedata(i, idx_vstar);
             });
       } // End inner loop
 
@@ -136,12 +137,13 @@ class TimeStepper {
 
       pkgs->apply_delta(u0, dt_info);
 
+      auto facedata =
+          mesh_state(iS).get_field<AthelasArray2D<double>>("facedata");
+      const int idx_vstar = mesh_state(iS).var_index("facedata", "vstar");
       athelas::par_for(
           DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: EX :: Finalize grid",
           DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-            x_l_sumvar_(0, i) +=
-                dt_b_ex *
-                pkgs->get_package<HydroPackage>("Hydro")->get_flux_u(iS, i);
+            x_l_sumvar_(0, i) += dt_b_ex * facedata(i, idx_vstar);
           });
       auto x_l_sumvar_j = Kokkos::subview(x_l_sumvar_, 0, Kokkos::ALL);
       grid_s_[iS] = grid;
@@ -197,9 +199,11 @@ class TimeStepper {
       auto u = stage_data.get_field("u_cf");
       athelas::par_for(
           DEFAULT_LOOP_PATTERN, "Timestepper :: IMEX :: Reset sumvar",
-          DevExecSpace(), ib.s, ib.e, qb.s, qb.e, vb.s, vb.e,
-          KOKKOS_CLASS_LAMBDA(const int i, const int q, const int v) {
-            SumVar_U_(i, q, v) = u0(i, q, v);
+          DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
+          KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+            for (int v = vb.s; v <= vb.e; ++v) {
+              SumVar_U_(i, q, v) = u0(i, q, v);
+            }
             x_l_sumvar_(iS, i) = left_interface(i);
           });
 
@@ -215,12 +219,13 @@ class TimeStepper {
 
         pkgs->apply_delta(SumVar_U_, dt_info);
 
+        auto facedata =
+            mesh_state(j).get_field<AthelasArray2D<double>>("facedata");
+        const int idx_vstar = mesh_state(j).var_index("facedata", "vstar");
         athelas::par_for(
             DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: IMEX :: Update grid",
             DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-              x_l_sumvar_(iS, i) +=
-                  dt_a * pkgs->get_package<RadHydroPackage>("RadHydro")
-                             ->get_flux_u(j, i);
+              x_l_sumvar_(iS, i) += dt_a * facedata(i, idx_vstar);
             });
       } // End inner loop
 
@@ -229,25 +234,12 @@ class TimeStepper {
       grid_s_[iS].update_grid(x_l_sumvar_j);
 
       // set U_s (stage data)
-      athelas::par_for(
-          DEFAULT_LOOP_PATTERN, "Timestepper :: IMEX :: Update Us",
-          DevExecSpace(), ib.s, ib.e, qb.s, qb.e, vb.s, vb.e,
-          KOKKOS_CLASS_LAMBDA(const int i, const int q, const int v) {
-            u(i, q, v) = SumVar_U_(i, q, v);
-          });
+      Kokkos::deep_copy(u, SumVar_U_);
 
-      apply_slope_limiter(sl_hydro, u, grid_s_[iS], fluid_basis, eos);
+      // Seems to be necessary when doing explicit transport.
       apply_slope_limiter(sl_rad, u, grid_s_[iS], rad_basis, eos);
-      bel::apply_bound_enforcing_limiter(stage_data, grid_s_[iS]);
-      bel::apply_bound_enforcing_limiter_rad(stage_data, grid_s_[iS]);
 
-      // set U_s (stage data)
-      athelas::par_for(
-          DEFAULT_LOOP_PATTERN, "Timestepper :: IMEX :: Update Us",
-          DevExecSpace(), ib.s, ib.e, qb.s, qb.e, vb.s, vb.e,
-          KOKKOS_CLASS_LAMBDA(const int i, const int q, const int v) {
-            SumVar_U_(i, q, v) = u(i, q, v);
-          });
+      Kokkos::deep_copy(SumVar_U_, u);
 
       // implicit update
       dt_info.stage = iS;
@@ -280,12 +272,13 @@ class TimeStepper {
 
       pkgs->apply_delta(u0, dt_info);
 
+      auto facedata =
+          mesh_state(iS).get_field<AthelasArray2D<double>>("facedata");
+      const int idx_vstar = mesh_state(iS).var_index("facedata", "vstar");
       athelas::par_for(
           DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: IMEX :: Finalize grid",
           DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-            x_l_sumvar_(0, i) +=
-                dt_b * pkgs->get_package<RadHydroPackage>("RadHydro")
-                           ->get_flux_u(iS, i);
+            x_l_sumvar_(0, i) += dt_b * facedata(i, idx_vstar);
           });
       auto x_l_sumvar_j = Kokkos::subview(x_l_sumvar_, 0, Kokkos::ALL);
       grid_s_[iS] = grid;
