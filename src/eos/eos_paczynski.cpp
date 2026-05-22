@@ -47,8 +47,10 @@ Paczynski::temperature_from_density_sie(const double rho, const double sie,
                        const double *const lambda) {
     return sie_from_density_temperature(rho, temperature, lambda) - sie;
   };
+  static constexpr double T_lo = 100.0;
+  static constexpr double T_hi = 1.0e12;
   const double res =
-      root_finder_.solve(target, 100.0, 1.0e12, temperature_guess, rho, lambda);
+      root_finder_.solve(target, T_lo, T_hi, temperature_guess, rho, lambda);
   return res;
 }
 
@@ -400,6 +402,8 @@ Paczynski::sie_from_density_temperature(const double rho,
   const double pedr = p_edr(rho, ye);
   const double ped = p_ed(pednr, pedr);
   const double f = degeneracy_factor(ped, pednr, pedr);
+
+  // Include ionization energy?
   return ped / (rho * (f - 1.0));
 }
 

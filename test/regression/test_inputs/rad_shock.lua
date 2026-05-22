@@ -2,14 +2,14 @@ local config = {}
 
 config.problem = {
   name = "rad_shock",
-  t_end = 2.0e-10,
+  t_end = 1.0e-10,
   nlim = -1,
   geometry = "planar",
   xl = 0.0,
   xr = 0.01575,
   x_d = 0.0132,
   cfl = 0.5,
-  nx = 512,
+  nx = 256,
   grid_type = "uniform",
 
   params = {
@@ -33,7 +33,6 @@ config.physics = {
 
 config.time = {
   integrator = "IMEX_PDARS_ESDIRK",
-  -- integrator = "IMEX_SSPRK11",
 }
 
 config.basis = {
@@ -76,7 +75,7 @@ config.radiation = {
   discretization = "implicit",
   timestep = {
     max_fractional_change_e = 0.05,
-    max_change_f = 0.1,
+    max_change_f = 0.05,
   },
   newton = {
     max_iter = 9,

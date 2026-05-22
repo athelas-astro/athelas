@@ -7,7 +7,6 @@
 
 #include "geometry/grid.hpp"
 #include "history/history.hpp"
-#include "polynomial_basis.hpp"
 #include "state/state.hpp"
 
 namespace athelas {
@@ -65,8 +64,7 @@ void HistoryOutput::write(const MeshState &mesh_state,
   Kokkos::Profiling::popRegion();
   Kokkos::Profiling::popRegion();
 
-  // We don't necessarily want to force a flush.
-  // file_.flush();
+  file_.flush();
 }
 
 } // namespace athelas

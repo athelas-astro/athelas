@@ -12,13 +12,13 @@ config.problem = {
   geometry = "spherical",
   xl = 100.0,
   xr = 7.0e5,
-  cfl = 0.8,
+  cfl = 0.5,
   nx = 512,
   grid_type = "logarithmic",
 
   -- Parameters unique to a setup.
   params = {
-    -- Profiles are relative to executable.
+    -- Paths are relative to executable.
     fn_hydro = "../inputs/profiles/profile_hydro.dat",
     fn_comps = "../inputs/profiles/profile_comps.dat",
     mass_cut = 1.4,
@@ -48,6 +48,16 @@ config.basis = {
   nnodes = 1,
 }
 
+config.output = {
+  ncycle_out = 5,
+  dt_growth_frac = 2.0,
+  hist_dt = config.problem.t_end,
+  dt_init = 1.0e-16,
+  history = {
+    fn = config.problem.name .. ".hst",
+  },
+}
+
 -- Thermal engine
 config.engine = {
   thermal = {
@@ -68,8 +78,8 @@ config.composition = {
 config.ionization = {
   fn_ionization = "../data/atomic_data_ionization.dat",
   fn_degeneracy = "../data/atomic_data_degeneracy_factors.dat",
-  ncomps = 1,
-  solver = "log", -- linear or log
+  ncomps = 2,
+  solver = "linear", -- linear or log
 }
 
 config.bc = {
@@ -89,6 +99,15 @@ config.fluid = {
 }
 
 config.radiation = {
+  discretization = "implicit",
+  timestep = {
+    max_fractional_change_e = 0.01,
+    max_change_f = 0.05,
+  },
+  newton = {
+    max_iter = 8,
+    tol = 8.0e-5,
+  },
   limiter = {
     type = "minmod",
     m_tvb = 0.0,

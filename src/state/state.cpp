@@ -14,22 +14,17 @@ using atom::IonizationState;
   return parent_->enabled(physics);
 }
 
-auto StageData::get_field(const std::string &name) const
-    -> AthelasArray3D<double> {
-  assert(parent_->is_allocated(name) && "Field not allocated!");
-  const auto &metadata = parent_->get_metadata(name);
-
-  if (metadata.policy == DataPolicy::Staged) {
-    return parent_->get_field_at_stage(name, stage_);
-  }
-  return parent_->get_field<AthelasArray3D<double>>(name);
-}
-
 auto StageData::get_var(const std::string &field, const std::string &var_name,
                         const int i, const int q) const -> double {
   const int var_idx = parent_->var_index(field, var_name);
   auto var = get_field(field);
   return var(i, q, var_idx);
+}
+
+[[nodiscard]] auto StageData::var_index(const std::string &field,
+                                        const std::string &var_name) const
+    -> int {
+  return parent_->var_index(field, var_name);
 }
 
 [[nodiscard]] auto StageData::nvars(const std::string &field) const -> int {

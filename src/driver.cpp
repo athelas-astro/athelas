@@ -2,20 +2,22 @@
 #include "basic_types.hpp"
 #include "basis/nodal_basis.hpp"
 #include "basis/polynomial_basis.hpp"
+#include "engines/thermal.hpp"
 #include "fluid/hydro_package.hpp"
 #include "geometry/geometry_package.hpp"
 #include "gravity/gravity_package.hpp"
 #include "heating/nickel_package.hpp"
 #include "history/quantities.hpp"
-#include "initialization.hpp"
 #include "interface/packages_base.hpp"
 #include "io/io.hpp"
 #include "kokkos_types.hpp"
 #include "limiters/slope_limiter.hpp"
 #include "loop_layout.hpp"
+#include "pgen/initialization.hpp"
 #include "pgen/problem_in.hpp"
+#include "radiation/imex_radhydro_package.hpp"
+#include "radiation/implicit_moments_package.hpp"
 #include "state/state.hpp"
-#include "thermal.hpp"
 #include "timestepper/timestepper.hpp"
 #include "utils/error.hpp"
 
@@ -34,12 +36,13 @@ auto Driver::execute() -> int {
   Kokkos::Timer timer_zone_cycles;
   double zc_ws = 0.0; // zone cycles / wall second
 
-  const double nlim = (pin_->param()->get<double>("problem.nlim")) == -1
+  const double nlim = (pin_->param()->get<double>("problem.nlim")) < 0
                           ? std::numeric_limits<double>::infinity()
                           : pin_->param()->get<double>("problem.nlim");
   const auto ncycle_out = pin_->param()->get<int>("output.ncycle_out");
   const auto dt_init = pin_->param()->get<double>("output.dt_init");
-  const auto dt_init_frac = pin_->param()->get<double>("output.dt_init_frac");
+  const auto dt_growth_frac =
+      pin_->param()->get<double>("output.dt_growth_frac");
   const auto dt_hdf5 = pin_->param()->get<double>("output.dt_hdf5");
   const auto fixed_dt = pin_->param()->contains("output.dt_fixed");
 
@@ -48,7 +51,8 @@ auto Driver::execute() -> int {
                        .dt = dt_,
                        .dt_coef_implicit = dt_,
                        .dt_coef = dt_,
-                       .stage = 0};
+                       .stage = 0,
+                       .cycle = 1};
 
   // some startup io
   auto sd0 = mesh_state_(0);
@@ -58,29 +62,39 @@ auto Driver::execute() -> int {
   history_->write(mesh_state_, grid_, time_);
 
   // --- Evolution loop ---
-  int iStep = 0;
+  int cycle = 1;
   int i_out_h5 = 1; // output label, start 1
   int i_out_hist = 1; // output hist
-  std::println("# Step    t       dt       zone_cycles / wall_second");
-  while (time_ < t_end_ && iStep <= nlim) {
+  std::println("# Cycle      t       dt       zone_cycles / wall_second");
+  while (time_ < t_end_ && cycle <= nlim) {
+    dt_info.t = time_;
+    dt_info.dt = dt_;
+    dt_info.dt_coef_implicit = dt_;
+    dt_info.dt_coef = dt_;
+    dt_info.stage = 0;
+    dt_info.cycle = cycle;
+
     if (!fixed_dt) {
-      dt_ =
-          std::min(manager_->min_timestep(mesh_state_(0), grid_,
-                                          {.t = time_, .dt = dt_, .stage = 0}),
-                   dt_ * dt_init_frac);
+      dt_ = std::min(manager_->min_timestep(mesh_state_(0), grid_, dt_info),
+                     dt_ * dt_growth_frac);
     } else {
       dt_ = pin_->param()->get<double>("output.dt_fixed");
     }
+
     if (time_ + dt_ > t_end_) {
       dt_ = t_end_ - time_;
     }
 
+    dt_info.dt = dt_;
+    dt_info.dt_coef_implicit = dt_;
+    dt_info.dt_coef = dt_;
+
     // This logic could probably be cleaner..
     if (!rad_active) {
-      ssprk_.step(manager_.get(), mesh_state_, grid_, time_, dt_, &sl_hydro_);
+      ssprk_.step(manager_.get(), mesh_state_, grid_, dt_info, &sl_hydro_);
     } else {
       try {
-        ssprk_.step_imex(manager_.get(), mesh_state_, grid_, time_, dt_,
+        ssprk_.step_imex(manager_.get(), mesh_state_, grid_, dt_info,
                          &sl_hydro_, &sl_rad_);
       } catch (const AthelasError &e) {
         std::cerr << e.what() << "\n";
@@ -94,11 +108,20 @@ auto Driver::execute() -> int {
     // Call the operator split time stepper
     // Likely will need work if implicit physics is split.
     if (operator_split_physics_) {
-      split_stepper_->step(split_manager_.get(), mesh_state_, grid_, time_,
-                           dt_);
+      dt_info.t = time_;
+      dt_info.dt = dt_;
+      dt_info.dt_coef_implicit = dt_;
+      dt_info.dt_coef = dt_;
+      dt_info.stage = 0;
+      split_stepper_->step(split_manager_.get(), mesh_state_, grid_, dt_info);
     }
 
     time_ += dt_;
+    dt_info.t = time_;
+    dt_info.dt = dt_;
+    dt_info.dt_coef_implicit = dt_;
+    dt_info.dt_coef = dt_;
+    dt_info.stage = 0;
     post_step_work();
 
     // Write state, other io
@@ -108,20 +131,21 @@ auto Driver::execute() -> int {
       i_out_h5 += 1;
     }
 
+    // history
     if (time_ >= i_out_hist * pin_->param()->get<double>("output.hist_dt")) {
       history_->write(mesh_state_, grid_, time_);
       i_out_hist += 1;
     }
 
     // timer
-    if (iStep % ncycle_out == 0) {
+    if (cycle % ncycle_out == 0) {
       zc_ws =
           static_cast<double>(ncycle_out) * nx / timer_zone_cycles.seconds();
-      std::println("{} {:.5e} {:.5e} {:.5e}", iStep, time_, dt_, zc_ws);
+      std::println("{} {:.5e} {:.5e} {:.5e}", cycle, time_, dt_, zc_ws);
       timer_zone_cycles.reset();
     }
 
-    iStep++;
+    ++cycle;
   }
 
   manager_->fill_derived(sd0, grid_, dt_info);
@@ -135,6 +159,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   using geometry::GeometryPackage;
   using gravity::GravityPackage;
   using nickel::NickelHeatingPackage;
+  using radiation::ImplicitRadiationMomentsPackage;
   using thermal_engine::ThermalEnginePackage;
 
   const auto nx = pin_->param()->get<int>("problem.nx");
@@ -189,6 +214,10 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
                                nnodes + 2, 3);
   }
 
+  mesh_state_.register_field("facedata", DataPolicy::Staged,
+                             "Misc variable face data", {"vstar"}, nx + 2 + 1,
+                             1);
+
   // auto info = mesh_state_.field_info();
 
   if (!restart_) {
@@ -233,8 +262,18 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   // NOTE: Hydro/RadHydro should be registered first
   const bool pkg_active = true;
   if (rad_active) {
-    manager_->add_package(RadHydroPackage{pin, n_stages, nnodes, bcs_.get(),
-                                          cfl, nx, pkg_active});
+    const auto discretization =
+        pin_->param()->get<std::string>("radiation.discretization");
+    if (discretization == "implicit") {
+      manager_->add_package(
+          HydroPackage{pin, n_stages, nnodes, bcs_.get(), cfl, nx, pkg_active});
+      manager_->add_package(ImplicitRadiationMomentsPackage{
+          pin, n_stages, nnodes, bcs_.get(), nx, pkg_active});
+    }
+    if (discretization == "explicit") {
+      manager_->add_package(RadHydroPackage{pin, n_stages, nnodes, bcs_.get(),
+                                            cfl, nx, pkg_active});
+    }
   } else [[unlikely]] {
     // pure Hydro
     manager_->add_package(
@@ -447,44 +486,6 @@ void Driver::post_step_work() {
           ->set_active(false);
       thermal_engine_active = false;
     }
-  }
-  const bool ionization_enabled = mesh_state_.enabled("ionization");
-  if (ionization_enabled) {
-    static const IndexRange ib(grid_.domain<Domain::Interior>());
-    static const IndexRange qb(grid_.n_nodes());
-
-    const auto &eos = mesh_state_.eos();
-    auto ucf = mesh_state_(0).get_field("u_cf");
-
-    const auto *const comps = mesh_state_.comps();
-    auto number_density = comps->number_density();
-    auto ye = comps->ye();
-
-    const auto *const ionization_states = mesh_state_.ionization_state();
-    auto ybar = ionization_states->ybar();
-    auto e_ion_corr = ionization_states->e_ion_corr();
-    auto sigma1 = ionization_states->sigma1();
-    auto sigma2 = ionization_states->sigma2();
-    auto sigma3 = ionization_states->sigma3();
-    athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "Fixup", DevExecSpace(), ib.s, ib.e,
-        KOKKOS_LAMBDA(const int i) {
-          for (int q = qb.s; q <= qb.e; ++q) {
-            const double rho = 1.0 / ucf(i, q, vars::cons::SpecificVolume);
-            const double vel = ucf(i, q, vars::cons::Velocity);
-            const double emt = ucf(i, q, vars::cons::Energy);
-            const double sie = emt - 0.5 * vel * vel;
-            eos::EOSLambda lambda;
-            lambda.data[1] = ye(i, q + 1);
-            const double emin = eos::min_sie(eos, rho, lambda.ptr());
-            if (sie <= emin) {
-              double sie_fix = 1.1 * emin;
-              ucf(i, q, vars::cons::Energy) = sie_fix + 0.5 * vel * vel;
-              std::println("FIXUP i sie sie_min siefix {} {:.8e} {:.8e} {:.5e}",
-                           i, sie, emin, sie_fix);
-            }
-          }
-        });
   }
 
 #ifdef ATHELAS_DEBUG

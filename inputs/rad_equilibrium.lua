@@ -27,8 +27,13 @@ config.physics = {
   engine = false,
 }
 
+config.time = {
+  -- integrator = "IMEX_SSPRK11",
+  integrator = "IMEX_PDARS_ESDIRK",
+}
+
 config.basis = {
-  nnodes = 1,
+  nnodes = 2,
 }
 
 config.bc = {
@@ -44,7 +49,7 @@ config.bc = {
 
 config.output = {
   ncycle_out = 100,
-  dt_init_frac = 1.005,
+  dt_growth_frac = 1.005,
   history = {
     fn = "rad_equilibrium.hst",
   },
@@ -59,15 +64,20 @@ config.fluid = {
 }
 
 config.radiation = {
+  discretization = "implicit",
+  timestep = {
+    max_fractional_change_e = 0.01,
+    max_change_f = 0.001,
+  },
+  newton = {
+    max_iter = 12,
+    tol = 1.0e-8,
+  },
   limiter = {
     tci_opt = false,
     tci_val = 0.1,
     characteristic = false,
   },
-}
-
-config.time = {
-  integrator = "IMEX_SSPRK11",
 }
 
 config.eos = {
@@ -77,8 +87,8 @@ config.eos = {
 
 config.opacity = {
   type = "powerlaw",
-  kP = 4.000000e-08,
-  kR = 4.000000e-08,
+  kP = 4.0e-08,
+  kR = 4.0e-08,
   rho_exp = -1.0,
   t_exp = 0.0,
 }

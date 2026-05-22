@@ -10,15 +10,16 @@ using eos::EOS;
  * @brief Operator split timestep
  */
 void OperatorSplitStepper::step(PackageManager *pkgs, MeshState &mesh_state,
-                                const GridStructure &grid, const double t,
-                                const double dt) {
+                                const GridStructure &grid,
+                                TimeStepInfo &dt_info) {
 
   static constexpr int stage = 0; // op split
   auto sd0 = mesh_state(stage);
   auto U = sd0.get_field("u_cf");
 
-  const TimeStepInfo dt_info{
-      .t = t, .dt = dt, .dt_coef_implicit = dt, .dt_coef = dt, .stage = 0};
+  dt_info.stage = stage;
+  dt_info.dt_coef_implicit = dt_info.dt;
+  dt_info.dt_coef = dt_info.dt;
 
   pkgs->fill_derived(sd0, grid, dt_info);
   pkgs->update_explicit(sd0, grid, dt_info);

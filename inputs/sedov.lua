@@ -41,7 +41,7 @@ config.bc = {
 config.output = {
   ncycle_out = 100,
   dt_hdf5 = 0.001,
-  dt_init_frac = 1.05,
+  dt_growth_frac = 1.05,
   history = {
     fn = "sedov.hst",
   },

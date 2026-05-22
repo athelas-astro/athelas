@@ -281,6 +281,31 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
           "option from [radiation] block.");
     }
 
+    const std::string discretization_type =
+        rad_block->get<std::string>("discretization");
+    if (discretization_type != "implicit" &&
+        discretization_type != "explicit") {
+      throw_athelas_error(
+          "radiation.discretization must be 'explicit' or 'implicit'.");
+    }
+    params_->add("radiation.discretization", discretization_type);
+
+    // implicit radiation timestep controls
+    if (discretization_type == "implicit") {
+      sol::table timestep = radiation["timestep"];
+      const double max_frac_change_e =
+          timestep.get<double>("max_fractional_change_e");
+      const double max_change_f = timestep.get<double>("max_change_f");
+      params_->add("radiation.timestep.max_fractional_change_e",
+                   max_frac_change_e);
+      params_->add("radiation.timestep.max_change_f", max_change_f);
+
+      sol::optional<sol::table> newton_block = radiation["newton"];
+      sol::table newton = newton_block.value_or(lua_.create_table());
+      params_->add("radiation.newton.max_iter", newton.get_or("max_iter", 10));
+      params_->add("radiation.newton.tol", newton.get_or("tol", 1.0e-6));
+    }
+
     sol::optional<sol::table> rad_limiter_block = radiation["limiter"];
     sol::table rad_lim = rad_limiter_block.value_or(lua_.create_table());
 
@@ -536,7 +561,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
 
   const int ncycle_out = output.get_or("ncycle_out", 1);
   const double dt_hdf5 = output.get_or("dt_hdf5", tf.value_or(1.0) / 100.0);
-  const double dt_init_frac = output.get_or("dt_init_frac", 1.05);
+  const double dt_growth_frac = output.get_or("dt_growth_frac", 1.05);
   const double dt_init = output.get_or("dt_init", 1.0e-16);
 
   sol::optional<sol::table> hist_block = output["history"];
@@ -552,8 +577,8 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   if (dt_init <= 0.0) {
     throw_athelas_error("dt_init must be strictly > 0.0\n");
   }
-  if (dt_init_frac <= 1.0) {
-    throw_athelas_error("dt_init_frac must be strictly > 1.0\n");
+  if (dt_growth_frac <= 1.0) {
+    throw_athelas_error("dt_growth_frac must be strictly > 1.0\n");
   }
   if (dt_hdf5 <= 0.0) {
     throw_athelas_error("dt_hdf5 must be strictly > 0.0\n");
@@ -563,7 +588,7 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   }
   params_->add("output.ncycle_out", ncycle_out);
   params_->add("output.dt_hdf5", dt_hdf5);
-  params_->add("output.dt_init_frac", dt_init_frac);
+  params_->add("output.dt_growth_frac", dt_growth_frac);
   params_->add("output.dt_init", dt_init);
   params_->add("output.history_enabled", history_enabled);
   params_->add("output.hist_fn", hist_fn);

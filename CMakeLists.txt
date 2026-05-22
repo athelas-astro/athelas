@@ -57,6 +57,9 @@ enable_language(CXX)
 include("cmake/build_info.cmake")
 CheckGitSetup()
 
+# set defaults for KokkosKernels
+include(cmake/kokkos_kernels_config.cmake)
+
 include(CTest)
 option(ATHELAS_ENABLE_UNIT_TESTS "Enable unit tests" OFF)
 option(ATHELAS_ENABLE_INTEGRATION_TESTS "Enable integration tests" OFF) # Future
@@ -139,7 +142,8 @@ set( ATHELAS_SOURCES
   "src/heating/nickel_package.cpp"
   "src/history/history.cpp"
   "src/interface/params.cpp"
-  "src/radiation/radhydro_package.cpp"
+  "src/radiation/imex_radhydro_package.cpp"
+  "src/radiation/implicit_moments_package.cpp"
   "src/geometry/geometry_package.cpp"
   "src/geometry/grid.cpp"
   "src/gravity/gravity_package.cpp"
@@ -298,6 +302,9 @@ configure_file(
 # Eigen
 add_subdirectory(external/spiner)
 
+# Kokkos kernels
+add_subdirectory(external/kokkos-kernels)
+
 # Lua, sol2
 # This is hacky. Sol2 does not yet accept Lua v5.5. cmake's find_package
 # accepts version ranges but it does not seem to be working here. 
@@ -368,6 +375,7 @@ endif()
 # Link libraries (do this only once, with all libraries)
 target_link_libraries(athelas PRIVATE
     kokkos
+    Kokkos::kokkoskernels
     spiner::spiner
     Eigen3::Eigen
     sol2::sol2

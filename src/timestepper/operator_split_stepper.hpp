@@ -1,5 +1,6 @@
 #pragma once
 
+#include "basic_types.hpp"
 #include "geometry/grid.hpp"
 #include "interface/packages_base.hpp"
 #include "state/state.hpp"
@@ -19,7 +20,7 @@ class OperatorSplitStepper {
   OperatorSplitStepper() = default;
 
   static void step(PackageManager *pkgs, MeshState &mesh_state,
-                   const GridStructure &grid, double t, double dt);
+                   const GridStructure &grid, TimeStepInfo &dt_info);
 };
 
 } // namespace athelas
