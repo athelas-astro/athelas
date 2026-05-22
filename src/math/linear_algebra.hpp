@@ -22,11 +22,9 @@ using PivotStore = Kokkos::View<int *, Layout, MemSpace>; // [m]
  * @brief Computes a quadrature-weighted L2 error norm for a Newton-Raphson
  * iteration.
  *
- * @param du      2D Kokkos view of shape (nx, 2*nNodes) containing the Newton
+ * @param du      2D Kokkos view of shape (nx, 4*nNodes) containing the Newton
  * update vector
  * @param wgts    1D Kokkos view of length nNodes containing quadrature weights
- * @param scale_e  Characteristic scale for the first quantity
- * @param scale_f  Characteristic scale for the second quantity
  * @return Dimensionless L2 norm of the scaled update vector
  */
 auto newton_norm_l2(AthelasArray2D<double> du, AthelasArray2D<double> sqrt_gm,
@@ -76,7 +74,7 @@ void block_thomas_solve(int N, int m, BlockStore A, BlockStore B, BlockStore C,
 
 // Fill identity matrix
 template <class T>
-KOKKOS_INLINE_FUNCTION constexpr void IDENTITY_MATRIX(T Mat, int n) {
+KOKKOS_INLINE_FUNCTION constexpr void identity_matrix(T Mat, int n) {
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < n; j++) {
       if (i == j) {
@@ -92,7 +90,7 @@ KOKKOS_INLINE_FUNCTION constexpr void IDENTITY_MATRIX(T Mat, int n) {
  * @brief Matrix vector multiplication
  **/
 template <int N, class M, class V>
-KOKKOS_INLINE_FUNCTION constexpr void MAT_MUL(double alpha, M A, V x,
+KOKKOS_INLINE_FUNCTION constexpr void mat_mul(double alpha, M A, V x,
                                               double beta, V y) {
   static_assert(M::rank == 2 && V::rank == 1,
                 "Input types must be rank 2 and rank 1 views.");

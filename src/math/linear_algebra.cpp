@@ -31,7 +31,7 @@ auto newton_norm_l2(AthelasArray2D<double> du, AthelasArray2D<double> sqrt_gm,
       KOKKOS_LAMBDA(const int i, const int q, double &lnorm_sq) {
         const double w = wgts(q);
         const double gm = sqrt_gm(i, q + 1);
-        for (int v = 0; v < 2; ++v) {
+        for (int v = 0; v < 4; ++v) {
           const double r = du(i, idx(q, v));
           lnorm_sq += w * r * r * gm * dr(i);
         }

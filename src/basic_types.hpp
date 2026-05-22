@@ -66,6 +66,7 @@ struct TimeStepInfo {
   double dt_coef_implicit; // dt * tableau coefficient
   double dt_coef; // dt * tableau coefficient
   int stage;
+  int cycle; // step count since run start; 0 on the very first dt-control call
 };
 
 enum class GravityModel { Constant, Spherical };

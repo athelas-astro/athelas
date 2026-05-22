@@ -35,7 +35,7 @@ config.time = {
 }
 
 config.basis = {
-  nnodes = 1,
+  nnodes = 2,
 }
 
 config.bc = {
@@ -52,7 +52,7 @@ config.bc = {
 
 config.output = {
   ncycle_out = 100,
-  dt_init_frac = 1.1,
+  dt_growth_frac = 2.0,
   dt_init = 1.0e-21,
   --   dt_hdf5 = 1.0,
   history = {
@@ -79,8 +79,8 @@ config.radiation = {
     max_change_f = 0.01,
   },
   newton = {
-    max_iter = 8,
-    tol = 1.0e-10,
+    max_iter = 10,
+    tol = 1.0e-8,
   },
   limiter = {
     do_limiter = true,

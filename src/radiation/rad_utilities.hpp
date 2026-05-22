@@ -3,8 +3,12 @@
 #include <tuple>
 
 #include "Kokkos_Macros.hpp"
+#include "basic_types.hpp"
+#include "eos/eos_variant.hpp"
+#include "opacity/opac_variant.hpp"
 #include "solvers/root_finder_opts.hpp"
 #include "solvers/root_finders.hpp"
+#include "utils.hpp"
 #include "utils/riemann.hpp"
 
 namespace athelas::radiation {
@@ -250,5 +254,187 @@ auto numerical_flux_hll_rad(const double E_L, const double E_R,
                             c2 * P_R - 0 * vstar * F_R, s_l, s_r);
   return {flux_e, flux_f};
 }
+
+template <OpacityType Opac>
+KOKKOS_INLINE_FUNCTION auto dkappa_dT(const Opacity &opac, const double rho,
+                                      const double T, const double X,
+                                      const double Z) -> double {
+  constexpr double h_log = 1e-4;
+  const double logT = std::log10(T);
+  const double T_plus = std::pow(10.0, logT + h_log);
+
+  double k_plus = 0.0;
+  double k_base = 0.0;
+
+  if constexpr (Opac == OpacityType::Planck) {
+    k_plus = opac.planck_mean(rho, T_plus, X, Z, nullptr);
+    k_base = opac.planck_mean(rho, T, X, Z, nullptr);
+  } else if constexpr (Opac == OpacityType::Rosseland) {
+    k_plus = opac.rosseland_mean(rho, T_plus, X, Z, nullptr);
+    k_base = opac.rosseland_mean(rho, T, X, Z, nullptr);
+  }
+
+  const double dk_dlogT = (k_plus - k_base) / h_log;
+
+  // d(kappa)/dT = d(kappa)/d(log10T) * d(log10T)/dT
+  // d(log10T)/dT = 1 / (T * ln(10)) = log10(e) / T
+  return dk_dlogT * std::numbers::log10e / T;
+}
+
+struct RadSourceInputs {
+  double rho, e, v;
+  // Specific radiation energy and flux (per unit mass), supplied directly
+  // by the caller. Joint transport+source solves use these directly; the
+  // legacy source-only newton_radhydro reconstructs them each Newton iter
+  // from the conservation invariants (etot, m_tot below) and writes the
+  // result into erad, frad.
+  double erad, frad;
+  double etot, m_tot; // conserved across a source-only step
+  double X, Z;
+  double dt_a_ii, dg_term;
+  const eos::EOS *eos;
+  const Opacity *opac;
+};
+
+struct RadHydroSources {
+  double s_eg;
+  double s_v;
+  double s_er;
+  double s_fr;
+
+  KOKKOS_INLINE_FUNCTION
+  RadHydroSources(const RadSourceInputs &in, double *lambda) {
+    constexpr double c = constants::c_cgs;
+    constexpr double inv_c = 1.0 / c;
+    // Volumetric radiation variables. The struct holds specific (per-mass)
+    // versions; we convert here.
+    const double Er = in.erad * in.rho;
+    const double Fr = in.frad * in.rho;
+
+    const double temperature = eos::temperature_from_density_sie(
+        *in.eos, in.rho, in.e - 0.5 * in.v * in.v, lambda);
+
+    const double at3 = constants::a * temperature * temperature * temperature;
+    const double at4 = at3 * temperature;
+
+    const double kappa_p =
+        in.opac->planck_mean(in.rho, temperature, in.X, in.Z, lambda);
+    const double kappa_r =
+        in.opac->rosseland_mean(in.rho, temperature, in.X, in.Z, lambda);
+
+    const double Pr = compute_closure(Er, Fr);
+
+    const double s_eg_local =
+        in.rho * (-c * kappa_p * (at4 - Er) - kappa_r * in.v * Fr * inv_c) *
+        in.dg_term;
+    s_eg = s_eg_local;
+    s_v = in.rho * inv_c *
+          (kappa_r * Fr - kappa_p * in.v * at4 - kappa_r * in.v * Pr) *
+          in.dg_term;
+
+    s_er = -s_eg; // NOLINT
+    s_fr = -c * c * s_v;
+  }
+};
+
+/**
+ * @brief Radhydro exchange source derivatives to v/c
+ * NOTE: Derivatives are expected to be with respect to specific quantities.
+ */
+struct RadHydroSourceDerivatives {
+  double dsedeg;
+  double dsedv;
+  double dseder;
+  double dsedfr;
+  double dsvdeg;
+  double dsvdv;
+  double dsvder;
+  double dsvdfr;
+
+  KOKKOS_INLINE_FUNCTION
+  RadHydroSourceDerivatives(const RadSourceInputs &in, double *lambda) {
+    constexpr double c = constants::c_cgs;
+    constexpr double c2 = c * c;
+    constexpr double inv_c = 1.0 / c;
+    constexpr double inv_c2 = 1.0 / c2;
+
+    const double Er = in.erad * in.rho;
+    const double Fr = in.frad * in.rho;
+    const double v = in.v;
+    const double rho = in.rho;
+
+    const double c_rho = c * in.rho;
+
+    const double temperature = eos::temperature_from_density_sie(
+        *in.eos, in.rho, in.e - 0.5 * in.v * in.v, lambda);
+
+    // Numerical cv at fixed lambda. We deliberately avoid
+    // eos::cv_from_density_temperature here: for EOSs that include
+    // ionization state in lambda (Paczynski), the analytic dsie/dT can
+    // include Saha-pathway terms that don't apply when lambda is held
+    // fixed -- the regime the rest of this Jacobian assumes (no Saha
+    // inside compute_rad_sources; only between Newton iters). A symmetric
+    // FD on sie_from_density_temperature gives the partial derivative at
+    // fixed lambda that matches what temperature_from_density_sie just
+    // inverted. Two extra EOS evaluations per cell per Jacobian build.
+    const double hT_cv = 1.0e-6 * temperature;
+    const double sie_p = eos::sie_from_density_temperature(
+        *in.eos, in.rho, temperature + hT_cv, lambda);
+    const double sie_m = eos::sie_from_density_temperature(
+        *in.eos, in.rho, temperature - hT_cv, lambda);
+    const double cv = (sie_p - sie_m) / (2.0 * hT_cv);
+    const double inv_cv = 1.0 / cv;
+
+    const double at3 = constants::a * temperature * temperature * temperature;
+    const double at4 = at3 * temperature;
+
+    const double delta = at4 - Er;
+
+    const double kappa_p =
+        in.opac->planck_mean(in.rho, temperature, in.X, in.Z, lambda);
+    const double kappa_r =
+        in.opac->rosseland_mean(in.rho, temperature, in.X, in.Z, lambda);
+    // Finite difference for opacity derivatives
+    const auto *const opac = in.opac;
+    const double dkappa_p_dT =
+        dkappa_dT<OpacityType::Planck>(*opac, in.rho, temperature, in.X, in.Z);
+    const double dkappa_r_dT = dkappa_dT<OpacityType::Rosseland>(
+        *opac, in.rho, temperature, in.X, in.Z);
+
+    const double f = flux_factor(Er, Fr);
+    const double chi = eddington_factor(f);
+    const double chi_prime = eddington_factor_prime(f);
+    const double Pr = compute_closure(Er, Fr);
+    const double dprder = rho * (chi - f * chi_prime);
+    const double dprdfr = rho * inv_c * chi_prime * math::utils::sgn(Fr);
+
+    // Energy source derivatives
+    dsedeg = c_rho * inv_cv *
+             (-4.0 * at3 * kappa_p - delta * dkappa_p_dT -
+              v * Fr * dkappa_r_dT * inv_c2) *
+             in.dg_term;
+    dsedv = (c_rho * inv_cv *
+                 (4 * at3 * in.v * kappa_p + delta * in.v * dkappa_p_dT +
+                  Fr * v * v * dkappa_r_dT * inv_c2) -
+             rho * Fr * kappa_r * inv_c) *
+            in.dg_term;
+    dseder = c_rho * rho * kappa_p * in.dg_term;
+    dsedfr = -rho * rho * kappa_r * v * inv_c * in.dg_term;
+
+    // Momentum source derivatives
+    dsvdeg = rho * inv_c * inv_cv *
+             (Fr * dkappa_r_dT - 4.0 * at3 * v * kappa_p -
+              at4 * v * dkappa_p_dT - v * Pr * dkappa_r_dT) *
+             in.dg_term;
+    dsvdv = (rho * inv_c * inv_cv *
+                 (-Fr * v * dkappa_r_dT + 4.0 * at3 * kappa_p * v * v +
+                  at4 * v * v * dkappa_p_dT + v * v * Pr * dkappa_r_dT) -
+             rho * Pr * kappa_r * inv_c - rho * at4 * kappa_p * inv_c) *
+            in.dg_term;
+    dsvder = -rho * kappa_r * v * inv_c * dprder * in.dg_term;
+    dsvdfr = rho * (rho * kappa_r * inv_c - kappa_r * v * inv_c * dprdfr) *
+             in.dg_term;
+  }
+};
 
 } // namespace athelas::radiation

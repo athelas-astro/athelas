@@ -51,7 +51,7 @@ config.bc = {
 
 config.output = {
   ncycle_out = 250,
-  dt_init_frac = 1.01,
+  dt_growth_frac = 1.01,
   history = {
     fn = "ni_decay.hst",
   },

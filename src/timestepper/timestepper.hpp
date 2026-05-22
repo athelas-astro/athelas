@@ -43,17 +43,17 @@ class TimeStepper {
    * Update fluid solution with SSPRK methods
    **/
   void step(PackageManager *pkgs, MeshState &mesh_state, GridStructure &grid,
-            const double t, const double dt, SlopeLimiter *sl_hydro) {
+            TimeStepInfo &dt_info, SlopeLimiter *sl_hydro) {
     // hydro explicit update
-    update_fluid_explicit(pkgs, mesh_state, grid, t, dt, sl_hydro);
+    update_fluid_explicit(pkgs, mesh_state, grid, dt_info, sl_hydro);
   }
 
   /**
    * Explicit fluid update with SSPRK methods
    **/
   void update_fluid_explicit(PackageManager *pkgs, MeshState &mesh_state,
-                             GridStructure &grid, const double t,
-                             const double dt, SlopeLimiter *sl_hydro) {
+                             GridStructure &grid, TimeStepInfo &dt_info,
+                             SlopeLimiter *sl_hydro) {
     static const int nvars = mesh_state.nvars("u_cf");
     static const IndexRange ib(grid.domain<Domain::Entire>());
     static const IndexRange qb(grid.n_nodes());
@@ -61,7 +61,8 @@ class TimeStepper {
 
     grid_s_[0] = grid;
 
-    TimeStepInfo dt_info{.t = t, .dt = dt, .stage = 0};
+    const double t = dt_info.t;
+    const double dt = dt_info.dt;
 
     const auto &fluid_basis = mesh_state.fluid_basis();
     const auto &eos = mesh_state.eos();
@@ -162,19 +163,18 @@ class TimeStepper {
    * Update rad hydro solution with SSPRK methods
    **/
   void step_imex(PackageManager *pkgs, MeshState &mesh_state,
-                 GridStructure &grid, const double t, const double dt,
+                 GridStructure &grid, TimeStepInfo &dt_info,
                  SlopeLimiter *sl_hydro, SlopeLimiter *sl_rad) {
 
-    update_rad_hydro_imex(pkgs, mesh_state, grid, t, dt, sl_hydro, sl_rad);
+    update_rad_hydro_imex(pkgs, mesh_state, grid, dt_info, sl_hydro, sl_rad);
   }
 
   /**
    * Fully coupled IMEX rad hydro update with SSPRK methods
    **/
   void update_rad_hydro_imex(PackageManager *pkgs, MeshState &mesh_state,
-                             GridStructure &grid, const double t,
-                             const double dt, SlopeLimiter *sl_hydro,
-                             SlopeLimiter *sl_rad) {
+                             GridStructure &grid, TimeStepInfo &dt_info,
+                             SlopeLimiter *sl_hydro, SlopeLimiter *sl_rad) {
     static const int nnodes = grid.n_nodes();
 
     static const int nvars = mesh_state.nvars("u_cf");
@@ -184,7 +184,8 @@ class TimeStepper {
 
     grid_s_[0] = grid;
 
-    TimeStepInfo dt_info{.t = t, .dt = dt, .stage = 0};
+    const double t = dt_info.t;
+    const double dt = dt_info.dt;
 
     const auto &fluid_basis = mesh_state.fluid_basis();
     const auto &rad_basis = mesh_state.rad_basis();

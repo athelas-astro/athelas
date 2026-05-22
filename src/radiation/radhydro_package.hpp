@@ -35,6 +35,56 @@ void radiation_source_implicit(const StageData &stage_data,
 
 using bc::BoundaryConditions;
 
+// Scratch views used by the implicit transport solver. Grouped by purpose
+// so the package class doesn't carry a flat list of ~13 loose member views.
+// All allocated once in the package constructor and reused across calls.
+
+// Face states (filled by evaluate_residual) and the per-face flux Jacobian
+// blocks used by the matrix-build kernel.
+struct TransportFaceScratch {
+  AthelasArray2D<double> u_f_l; // left  side at face i: (face_idx, var)
+  AthelasArray2D<double> u_f_r; // right side at face i
+  AthelasArray2D<double> flux_num; // numerical fluxes at faces
+  AthelasArray3D<double> A_minus; // dF_hat/dU_L per interior face
+  AthelasArray3D<double> A_plus; // dF_hat/dU_R per interior face
+  // Boundary-face Jacobians split so the kernel can apply distinct phi
+  // factors. A_bndry = direct (interior) part; A_bndry_ghost = ghost-side
+  // part, multiplied by d_bndry (BC variable-Jacobian) in the kernel.
+  AthelasArray2D<double> A_bndry;
+  AthelasArray2D<double> A_bndry_ghost;
+  AthelasArray2D<double> d_bndry;
+};
+
+// Block-tridiagonal Newton system and Thomas-solver workspace.
+struct BlockTridiagSolver {
+  AthelasArray3D<double> mat_diag;
+  AthelasArray3D<double> mat_upper;
+  AthelasArray3D<double> mat_lower;
+  AthelasArray2D<double> b; // rhs / Newton step delta after solve
+  AthelasArray3D<double> W; // Thomas scratch
+  AthelasArray2D<double> Y;
+  AthelasArray2D<double> Bi_lu;
+};
+
+// Newton iterate and line-search trial state.
+struct NewtonScratch {
+  // (nx+2, nq, 5) storing (tau, vel, ener, specific er, specific fr).
+  AthelasArray3D<double> u_rad_work;
+
+  // Line-search trial: same layout as u_rad_work, holds the damped step's
+  // proposed state for residual evaluation.
+  AthelasArray3D<double> u_rad_trial;
+
+  // Trial residual at u_rad_trial, same layout as solver_.b.
+  AthelasArray2D<double> ls_b_trial;
+};
+
+// History needed for the radiation-physics-based dt restriction.
+struct ImplicitTimestepHistory {
+  AthelasArray2D<double> e_rad_old;
+  AthelasArray2D<double> f_rad_old;
+};
+
 /**
  * @brief Implicit radiation moments
  * Used for fully implicit transport
@@ -42,12 +92,22 @@ using bc::BoundaryConditions;
 class ImplicitRadiationMomentsPackage {
  public:
   ImplicitRadiationMomentsPackage(const ProblemIn * /*pin*/, int n_stages,
-                                  int nq, BoundaryConditions *bcs,
-                                  int nx, bool active = true);
+                                  int nq, BoundaryConditions *bcs, int nx,
+                                  bool active = true);
 
   void update_implicit(const StageData &stage_data,
                        AthelasArray3D<double> ustar, const GridStructure &grid,
                        const TimeStepInfo &dt_info);
+
+  // Compute the implicit-transport residual b_out = -R(U), where
+  // R = M (U - U*) - dt_aii * (T(U) + S(U)), T is the DG transport operator
+  // (volume + surface), and S are the sources.
+  // Side effect: refills u_f_l_, u_f_r_, flux_num_
+  // from U after applying ghost-zone BCs to U.
+  void evaluate_residual(AthelasArray2D<double> b_out, AthelasArray3D<double> U,
+                         AthelasArray3D<double> ustar,
+                         const StageData &stage_data, const GridStructure &grid,
+                         double dt_aii);
 
   void apply_delta(AthelasArray3D<double> lhs,
                    const TimeStepInfo &dt_info) const;
@@ -75,41 +135,15 @@ class ImplicitRadiationMomentsPackage {
  private:
   bool active_;
 
-  int nx_;
-
   BoundaryConditions *bcs_;
 
-  // package storage
-  AthelasArray2D<double> u_f_l_; // left faces
-  AthelasArray2D<double> u_f_r_; // right faces
+  // Grouped scratch (see struct definitions above).
+  TransportFaceScratch faces_;
+  BlockTridiagSolver solver_;
+  NewtonScratch newton_;
+  ImplicitTimestepHistory dt_cache_;
 
-  // Block-tridiagonal storage for implicit solver.
-  AthelasArray3D<double> solver_mat_diag_;
-  AthelasArray3D<double> solver_mat_upper_;
-  AthelasArray3D<double> solver_mat_lower_;
-  AthelasArray2D<double> solver_b_; // rhs for implicit solve
-  AthelasArray2D<double> flux_num_;
-
-  // Workspace for block Thomas solve:
-  AthelasArray3D<double> solver_W_;
-  AthelasArray2D<double> solver_Y_;
-  AthelasArray2D<double> solver_Bi_lu_;
-
-  // Flux Jacobian storage
-  AthelasArray3D<double> A_minus_;
-  AthelasArray3D<double> A_plus_;
-  AthelasArray2D<double> A_bndry_;
-  AthelasArray2D<double> d_bndry_;
-
-  AthelasArray4D<double> delta_; // rhs delta
-
-  // storage for old radiation energy density and flux
-  AthelasArray2D<double> e_rad_old_;
-  AthelasArray2D<double> f_rad_old_;
-
-  // Newton iterate for transport solve: (nx+2, nq, 4) storing (specific er,
-  // specific fr, vel, ener)
-  AthelasArray3D<double> u_rad_work_;
+  AthelasArray4D<double> delta_;
 
   // package params
   Params params_;
@@ -118,70 +152,90 @@ class ImplicitRadiationMomentsPackage {
   static constexpr int NUM_VARS_ = 4;
 };
 
+// Split flux Jacobian at a boundary face into two independent pieces that
+// the caller multiplies by separate phi factors:
+//
+//   A_direct = dF_hat/dU_interior (the side of the face facing the interior)
+//   A_ghost  = dF_hat/dU_ghost    (the side facing the ghost, BEFORE applying
+//                                  the BC's variable-Jacobian D)
+//
+// The caller is responsible for combining A_ghost with D and for using the
+// correct column-side phi/node-mapping for each piece, because:
+//   - Direct uses basis-eval at the interior cell's near-face edge.
+//   - Ghost uses basis-eval at the ghost cell's near-face edge (the *other*
+//     edge from the interior's perspective) and may also need a node
+//     permutation for reflecting/Marshak BCs.
+//
+// Variables on second axis of ufl/ufr: 0 = specific volume, 1 = specific
+// radiation energy density, 2 = specific radiation flux.
+//
+// TODO(astrobarker): add the dalpha/dU contribution generally — here in
+// boundary_jacobian *and* in the A_minus_ / A_plus_ assembly in
+// update_implicit — so the analytic Jacobian is exact.
 KOKKOS_FUNCTION
 template <Boundary Loc>
-void boundary_jacobian(AthelasArray2D<double> A, AthelasArray2D<double> ufl,
-                       AthelasArray2D<double> ufr, AthelasArray2D<double> D,
+void boundary_jacobian(AthelasArray2D<double> A_direct,
+                       AthelasArray2D<double> A_ghost,
+                       AthelasArray2D<double> ufl, AthelasArray2D<double> ufr,
                        const double vstar) {
   using math::utils::sgn;
   constexpr double c = constants::c_cgs;
   constexpr double c2 = c * c;
-  // NOTE: We assume that ufl and ufr contain specific volume (:, 0),
-  // specific radition energy density (:, 1),
-  // specific radiation flux (:, 2)
   if constexpr (Loc == Boundary::Interior) {
-    // First, form the interior contribution.
+    // Inner face: interior on R side, ghost on L side.
+    // A_direct uses the A_plus shape (-alpha), A_ghost uses A_minus (+alpha).
+    // alpha must use BOTH ghost (L) and interior (R) states to match the
+    // alpha actually used in the LLF flux at this face.
     constexpr int i_inner = 1;
-    const double alpha = rad_wavespeed(ufr(i_inner, 1), ufr(i_inner, 1),
-                                       ufr(i_inner, 2), ufr(i_inner, 2), vstar);
+    const double alpha = rad_wavespeed(ufl(i_inner, 1), ufr(i_inner, 1),
+                                       ufl(i_inner, 2), ufr(i_inner, 2), vstar);
+
+    // Direct (interior, R side).
     double f = flux_factor(ufr(i_inner, 1), ufr(i_inner, 2));
     double chi = eddington_factor(f);
     double chi_prime = eddington_factor_prime(f);
-    A(0, 0) = 0.5 * (-vstar + alpha);
-    A(0, 1) = 0.5;
-    A(1, 0) = 0.5 * c2 * (chi - f * chi_prime);
-    A(1, 1) = 0.5 * (c * chi_prime * sgn(ufr(i_inner, 2)) - vstar + alpha);
+    A_direct(0, 0) = 0.5 * (-vstar - alpha);
+    A_direct(0, 1) = 0.5;
+    A_direct(1, 0) = 0.5 * c2 * (chi - f * chi_prime);
+    A_direct(1, 1) =
+        0.5 * (c * chi_prime * sgn(ufr(i_inner, 2)) - vstar - alpha);
 
-    // Then, the exterior contribution.
-    // The contribution from the ghost goes the matrix product J * dU_ext/dU_int
-    // Here, D is the derivative. If the boundary condition does not depend
-    // at all on the interior, D = 0.
+    // Ghost (L side).
     f = flux_factor(ufl(i_inner, 1), ufl(i_inner, 2));
     chi = eddington_factor(f);
     chi_prime = eddington_factor_prime(f);
-    A(0, 0) += 0.5 * (-vstar - alpha) * D(0, 0) + 0.5 * D(1, 0);
-    A(0, 1) += 0.5 * (-vstar - alpha) * D(0, 1) + 0.5 * D(1, 1);
-    A(1, 0) +=
-        0.5 * c2 * (chi - f * chi_prime) * D(0, 0) +
-        0.5 * (c * chi_prime * sgn(ufr(i_inner, 2)) - vstar - alpha) * D(1, 0);
-    A(1, 1) +=
-        0.5 * c2 * (chi - f * chi_prime) * D(0, 1) +
-        0.5 * (c * chi_prime * sgn(ufr(i_inner, 2)) - vstar - alpha) * D(1, 1);
+    A_ghost(0, 0) = 0.5 * (-vstar + alpha);
+    A_ghost(0, 1) = 0.5;
+    A_ghost(1, 0) = 0.5 * c2 * (chi - f * chi_prime);
+    A_ghost(1, 1) =
+        0.5 * (c * chi_prime * sgn(ufl(i_inner, 2)) - vstar + alpha);
   }
   if constexpr (Loc == Boundary::Exterior) {
+    // Outer face: interior on L side, ghost on R side.
+    // A_direct uses A_minus (+alpha), A_ghost uses A_plus (-alpha).
     static const int i_outer = static_cast<int>(ufl.extent(0)) - 1;
     const double alpha = rad_wavespeed(ufl(i_outer, 1), ufr(i_outer, 1),
                                        ufl(i_outer, 2), ufr(i_outer, 2), vstar);
+
+    // Direct (interior, L side).
     double f = flux_factor(ufl(i_outer, 1), ufl(i_outer, 2));
     double chi = eddington_factor(f);
     double chi_prime = eddington_factor_prime(f);
-    A(0, 0) = 0.5 * (-vstar + alpha);
-    A(0, 1) = 0.5;
-    A(1, 0) = 0.5 * c2 * (chi - f * chi_prime);
-    A(1, 1) = 0.5 * (c * chi_prime * sgn(ufl(i_outer, 2)) - vstar + alpha);
+    A_direct(0, 0) = 0.5 * (-vstar + alpha);
+    A_direct(0, 1) = 0.5;
+    A_direct(1, 0) = 0.5 * c2 * (chi - f * chi_prime);
+    A_direct(1, 1) =
+        0.5 * (c * chi_prime * sgn(ufl(i_outer, 2)) - vstar + alpha);
 
-    // exterior / ghost
+    // Ghost (R side).
     f = flux_factor(ufr(i_outer, 1), ufr(i_outer, 2));
     chi = eddington_factor(f);
     chi_prime = eddington_factor_prime(f);
-    A(0, 0) += 0.5 * (-vstar - alpha) * D(0, 0) + 0.5 * D(1, 0);
-    A(0, 1) += 0.5 * (-vstar - alpha) * D(0, 1) + 0.5 * D(1, 1);
-    A(1, 0) +=
-        0.5 * c2 * (chi - f * chi_prime) * D(0, 0) +
-        0.5 * (c * chi_prime * sgn(ufl(i_outer, 2)) - vstar - alpha) * D(1, 0);
-    A(1, 1) +=
-        0.5 * c2 * (chi - f * chi_prime) * D(0, 1) +
-        0.5 * (c * chi_prime * sgn(ufl(i_outer, 2)) - vstar - alpha) * D(1, 1);
+    A_ghost(0, 0) = 0.5 * (-vstar - alpha);
+    A_ghost(0, 1) = 0.5;
+    A_ghost(1, 0) = 0.5 * c2 * (chi - f * chi_prime);
+    A_ghost(1, 1) =
+        0.5 * (c * chi_prime * sgn(ufr(i_outer, 2)) - vstar - alpha);
   }
 }
 
@@ -227,7 +281,6 @@ class RadHydroPackage {
  private:
   bool active_;
 
-  int nx_;
   double cfl_;
 
   BoundaryConditions *bcs_;
@@ -554,51 +607,15 @@ fixed_point_radhydro_nodal(T R, double dt_a_ii, double emin, G scratch,
   } // while not converged
 }
 
-struct RadSourceInputs {
-  double rho, e, v;
-  double etot, m_tot; // conserved, fixed -- derive Er, Fr internally
-  double X, Z;
-  double dt_a_ii, dg_term;
-  const eos::EOS *eos;
-  const Opacity *opac;
-};
-
-template <OpacityType Opac>
-KOKKOS_FUNCTION auto dkappa_dT(const Opacity &opac, const double rho,
-                               const double T, const double X, const double Z)
-    -> double {
-  constexpr double h_log = 1e-4;
-  const double logT = std::log10(T);
-  const double T_plus = std::pow(10.0, logT + h_log);
-
-  double k_plus = 0.0;
-  double k_base = 0.0;
-
-  if constexpr (Opac == OpacityType::Planck) {
-    k_plus = opac.planck_mean(rho, T_plus, X, Z, nullptr);
-    k_base = opac.planck_mean(rho, T, X, Z, nullptr);
-  } else if constexpr (Opac == OpacityType::Rosseland) {
-    k_plus = opac.rosseland_mean(rho, T_plus, X, Z, nullptr);
-    k_base = opac.rosseland_mean(rho, T, X, Z, nullptr);
-  }
-
-  const double dk_dlogT = (k_plus - k_base) / h_log;
-
-  // d(kappa)/dT = d(kappa)/d(log10T) * d(log10T)/dT
-  // d(log10T)/dT = 1 / (T * ln(10))
-  constexpr double inv_ln10 = 1.0 / std::numbers::log10e;
-
-  return dk_dlogT * (inv_ln10 / T);
-}
-
 KOKKOS_INLINE_FUNCTION
 auto compute_rad_sources(const RadSourceInputs &in, double *lambda)
     -> std::tuple<double, double> {
   constexpr double c = constants::c_cgs;
   constexpr double inv_c = 1.0 / c;
-  constexpr double c2 = c * c;
-  const double Er = (in.etot - in.e) * in.rho;
-  const double Fr = c2 * (in.m_tot - in.v) * in.rho;
+  // Volumetric radiation variables. The struct holds specific (per-mass)
+  // versions; we convert here.
+  const double Er = in.erad * in.rho;
+  const double Fr = in.frad * in.rho;
 
   const double temperature = eos::temperature_from_density_sie(
       *in.eos, in.rho, in.e - 0.5 * in.v * in.v, lambda);
@@ -636,7 +653,8 @@ KOKKOS_INLINE_FUNCTION auto finite_diff_source(const RadSourceInputs &in,
   double dsvde;
   double dsvdv;
 
-  if constexpr (Scheme == DiffScheme::Forward) {
+  if constexpr (Scheme == DiffScheme::Forward ||
+                Scheme == DiffScheme::Backward) {
     // --- Forward / Backward Scheme ---
     // In the forward scheme we check that e + h < etot.
     // If we cross that bounds we switch to a backwards difference.
@@ -770,6 +788,8 @@ newton_radhydro_fd(const double dt_a_ii, const double emin, T ustar, T uaf,
     // Build inputs struct for source evaluation
     src_in.e = e;
     src_in.v = v;
+    src_in.erad = etot - e;
+    src_in.frad = c2 * (m_tot - v);
 
     // Sources and residuals
     const auto [se, sv] = compute_rad_sources(src_in, lambda.ptr());
@@ -833,6 +853,9 @@ newton_radhydro_fd(const double dt_a_ii, const double emin, T ustar, T uaf,
       RadSourceInputs trial_in = src_in;
       trial_in.e = e_trial;
       trial_in.v = v_trial;
+      // Conservation: trial rad vars track the trial (e, v).
+      trial_in.erad = etot - e_trial;
+      trial_in.frad = c2 * (m_tot - v_trial);
       const auto [se_t, sv_t] = compute_rad_sources(trial_in, lambda.ptr());
       const double fe_t = e_trial - e_star - dt_a_ii * se_t;
       const double fv_t = v_trial - vstar - dt_a_ii * sv_t;
@@ -862,8 +885,8 @@ newton_radhydro_fd(const double dt_a_ii, const double emin, T ustar, T uaf,
     e += lam * delta_e;
     v += lam * delta_v;
 
-    const bool energy_converged = (std::abs(f_e) <= 1.0e-8 * etot);
-    const bool momentum_converged = (std::abs(f_v) <= 1.0e-8 * vscale);
+    const bool energy_converged = (std::abs(f_e) <= 1.0e-9 * etot);
+    const bool momentum_converged = (std::abs(f_v) <= 1.0e-9 * vscale);
     converged = energy_converged && momentum_converged;
 
     ++n;
@@ -929,12 +952,17 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T uaf,
   std::size_t n = 0;
 
   while (n < root_finders::MAX_ITERS && !converged) {
-    // Reconstruct radiation variables from conservation
+    // Reconstruct radiation variables from conservation (source-only solve
+    // preserves etot = e + Er_spec and m_tot = v + Fr_spec/c²).
     const double Er = (etot - e);
     const double Fr = c2 * (m_tot - v);
 
     src_in.e = e;
     src_in.v = v;
+    // Feed the reconstructed specific rad variables into the now-explicit
+    // compute_rad_sources interface.
+    src_in.erad = Er;
+    src_in.frad = Fr;
 
     // Update dependent eos / opacity quantities
     if constexpr (Ionization == IonizationPhysics::Active) {
@@ -1062,6 +1090,9 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T uaf,
       RadSourceInputs trial_in = src_in;
       trial_in.e = e_trial;
       trial_in.v = v_trial;
+      // Conservation: trial rad vars track the trial (e, v).
+      trial_in.erad = etot - e_trial;
+      trial_in.frad = c2 * (m_tot - v_trial);
       const auto [se_t, sv_t] = compute_rad_sources(trial_in, lambda.ptr());
       const double fe_t = e_trial - e_star - dt_a_ii * se_t;
       const double fv_t = v_trial - vstar - dt_a_ii * sv_t;

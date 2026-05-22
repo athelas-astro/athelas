@@ -376,7 +376,7 @@ schema.output = {
     default = 1.0e-16,
     doc = "Initial timestep. Must be > 0.",
   },
-  dt_init_frac = {
+  dt_growth_frac = {
     type = "double",
     default = 1.05,
     doc = "Initial timestep growth factor. Must be > 1.",

@@ -39,7 +39,7 @@ config.bc = {
 
 config.output = {
   ncycle_out = 100,
-  dt_init_frac = 1.05,
+  dt_growth_frac = 1.05,
   history = {
     fn = "hydrostatic_balance.hst",
   },

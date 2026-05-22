@@ -41,7 +41,7 @@ config.bc = {
 config.output = {
   ncycle_out = 100,
   dt_hdf5 = 0.1,
-  dt_init_frac = 1.01,
+  dt_growth_frac = 1.01,
   history = {
     fn = "noh.hst",
   },

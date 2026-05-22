@@ -45,7 +45,7 @@ config.bc = {
 
 config.output = {
   ncycle_out = 100,
-  dt_init_frac = 1.001,
+  dt_growth_frac = 1.1,
   history = {
     fn = "rad_advection.hst",
   },

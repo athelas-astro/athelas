@@ -218,8 +218,7 @@ void HydroPackage::zero_delta() const noexcept {
  **/
 auto HydroPackage::min_timestep(const StageData &stage_data,
                                 const GridStructure &grid,
-                                const TimeStepInfo & /*dt_info*/) const
-    -> double {
+                                const TimeStepInfo &dt_info) const -> double {
   static constexpr double MAX_DT = std::numeric_limits<double>::max();
   static constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
 

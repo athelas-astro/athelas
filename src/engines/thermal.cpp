@@ -210,14 +210,15 @@ void ThermalEnginePackage::zero_delta() const noexcept {
 
 /**
  * @brief Thermal engine timestep restriction
- * @note We require that the engine is spread through 2500 timesteps at least.
+ * @note We require that the engine is spread through 5000 timesteps at least.
  * The actual heating restriction is prohibitively expensive.
  **/
 auto ThermalEnginePackage::min_timestep(const StageData & /*stage_data*/,
                                         const GridStructure & /*grid*/,
                                         const TimeStepInfo & /*dt_info*/) const
     -> double {
-  return tend_ / 2500.0;
+  static constexpr double inv_n_steps = 1.0 / 5000.0;
+  return tend_ * inv_n_steps;
 }
 
 /**

@@ -8,8 +8,8 @@ config.problem = {
   xl = 0.0,
   xr = 0.01575,
   x_d = 0.0132,
-  cfl = 0.75,
-  nx = 256,
+  cfl = 0.5,
+  nx = 512,
   grid_type = "uniform",
 
   params = {
@@ -52,8 +52,8 @@ config.bc = {
 }
 
 config.output = {
-  ncycle_out = 250,
-  dt_init_frac = 1.2,
+  ncycle_out = 100,
+  dt_growth_frac = 1.1,
   dt_init = 1.0e-17,
   history = {
     fn = config.problem.name .. ".hst",
@@ -65,7 +65,7 @@ config.fluid = {
     do_limiter = true,
     type = "minmod",
     m_tvb = 0.5,
-    b_tvd = 0.5,
+    b_tvd = 1.0,
     tci_opt = true,
     tci_val = 0.45,
     characteristic = false,
@@ -75,17 +75,17 @@ config.fluid = {
 config.radiation = {
   discretization = "implicit",
   timestep = {
-    max_fractional_change_e = 0.01,
-    max_change_f = 0.01,
+    max_fractional_change_e = 0.05,
+    max_change_f = 0.1,
   },
   newton = {
-    max_iter = 8,
+    max_iter = 9,
     tol = 1.0e-8,
   },
   limiter = {
     type = "minmod",
     m_tvb = 0.0,
-    b_tvd = 0.5,
+    b_tvd = 1.0,
     tci_opt = false,
     tci_val = 0.1,
     characteristic = false,
