@@ -1,0 +1,105 @@
+local config = {}
+
+config.problem = {
+  name = "rad_shock",
+  t_end = 1.0e-10,
+  nlim = -1,
+  geometry = "planar",
+  xl = 0.0,
+  xr = 0.01575,
+  x_d = 0.0132,
+  cfl = 0.5,
+  nx = 256,
+  grid_type = "uniform",
+
+  params = {
+    vL = 5.19e+07,
+    vR = 1.73e+07,
+    rhoL = 5.69,
+    rhoR = 17.1,
+    T_L = 2.18e+06,
+    T_R = 7.98e+06,
+  },
+}
+
+config.physics = {
+  radiation = true,
+  gravity = false,
+  composition = false,
+  ionization = false,
+  heating = false,
+  engine = false,
+}
+
+config.time = {
+  integrator = "IMEX_PDARS_ESDIRK",
+}
+
+config.basis = {
+  nnodes = 2,
+}
+
+config.bc = {
+  fluid = {
+    bc_i = "outflow",
+    bc_o = "outflow",
+  },
+  radiation = {
+    bc_i = "outflow",
+    bc_o = "outflow",
+  },
+}
+
+config.output = {
+  ncycle_out = 100,
+  dt_growth_frac = 1.1,
+  dt_init = 1.0e-17,
+  history = {
+    fn = config.problem.name .. ".hst",
+  },
+}
+
+config.fluid = {
+  limiter = {
+    do_limiter = true,
+    type = "minmod",
+    m_tvb = 0.5,
+    b_tvd = 1.0,
+    tci_opt = true,
+    tci_val = 0.45,
+    characteristic = false,
+  },
+}
+
+config.radiation = {
+  discretization = "implicit",
+  timestep = {
+    max_fractional_change_e = 0.05,
+    max_change_f = 0.05,
+  },
+  newton = {
+    max_iter = 9,
+    tol = 1.0e-8,
+  },
+  limiter = {
+    type = "minmod",
+    m_tvb = 0.0,
+    b_tvd = 1.0,
+    tci_opt = false,
+    tci_val = 0.1,
+    characteristic = false,
+  },
+}
+
+config.eos = {
+  type = "ideal",
+  gamma = 5.0 / 3.0,
+}
+
+config.opacity = {
+  type = "constant",
+  kP = 577.0,
+  kR = 577.0,
+}
+
+return config
