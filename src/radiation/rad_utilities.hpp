@@ -6,12 +6,23 @@
 #include "basic_types.hpp"
 #include "eos/eos_variant.hpp"
 #include "opacity/opac_variant.hpp"
-#include "solvers/root_finder_opts.hpp"
 #include "solvers/root_finders.hpp"
 #include "utils.hpp"
 #include "utils/riemann.hpp"
 
 namespace athelas::radiation {
+
+struct RadHydroSolverIonizationContent {
+  double number_density{};
+  double ye{};
+  double ybar{};
+  double sigma1{};
+  double sigma2{};
+  double sigma3{};
+  double e_ion_corr{};
+  double X{};
+  double Z{};
+};
 
 /**
  * @struct LLFRiemannState
@@ -436,5 +447,121 @@ struct RadHydroSourceDerivatives {
              in.dg_term;
   }
 };
+
+KOKKOS_INLINE_FUNCTION
+auto compute_rad_sources(const RadSourceInputs &in, double *lambda)
+    -> std::tuple<double, double> {
+  constexpr double c = constants::c_cgs;
+  constexpr double inv_c = 1.0 / c;
+  // Volumetric radiation variables. The struct holds specific (per-mass)
+  // versions; we convert here.
+  const double Er = in.erad * in.rho;
+  const double Fr = in.frad * in.rho;
+
+  const double temperature = eos::temperature_from_density_sie(
+      *in.eos, in.rho, in.e - 0.5 * in.v * in.v, lambda);
+
+  const double at3 = constants::a * temperature * temperature * temperature;
+  const double at4 = at3 * temperature;
+
+  const double kappa_p =
+      in.opac->planck_mean(in.rho, temperature, in.X, in.Z, lambda);
+  const double kappa_r =
+      in.opac->rosseland_mean(in.rho, temperature, in.X, in.Z, lambda);
+
+  const double Pr = compute_closure(Er, Fr);
+
+  const double se = in.rho *
+                    (-c * kappa_p * (at4 - Er) - kappa_r * in.v * Fr * inv_c) *
+                    in.dg_term;
+  const double sv =
+      in.rho * inv_c *
+      (kappa_r * Fr - kappa_p * in.v * at4 - kappa_r * in.v * Pr) * in.dg_term;
+  return {se, sv};
+}
+
+template <DiffScheme Scheme = DiffScheme::Forward>
+KOKKOS_INLINE_FUNCTION auto finite_diff_source(const RadSourceInputs &in,
+                                               double *lambda)
+    -> std::tuple<double, double, double, double> {
+  constexpr double h_base = (Scheme == DiffScheme::Central) ? 1.0e-6 : 1.0e-8;
+  constexpr double tol = 1.0e-14;
+
+  const double etot = in.etot;
+
+  double dsede;
+  double dsedv;
+  double dsvde;
+  double dsvdv;
+
+  if constexpr (Scheme == DiffScheme::Forward ||
+                Scheme == DiffScheme::Backward) {
+    // --- Forward / Backward Scheme ---
+    // In the forward scheme we check that e + h < etot.
+    // If we cross that bounds we switch to a backwards difference.
+    const auto [se0, sv0] = compute_rad_sources(in, lambda);
+
+    // Energy
+    {
+      const double h_e = h_base * std::abs(in.e) + tol;
+      const double side = (in.e + h_e > etot) ? -1.0 : 1.0;
+
+      auto in_p = in;
+      in_p.e += side * h_e;
+      const auto [sep, svp] = compute_rad_sources(in_p, lambda);
+
+      dsede = (sep - se0) / (side * h_e);
+      dsvde = (svp - sv0) / (side * h_e);
+    }
+    // Velocity
+    {
+      const double h_v = 100.0 * h_base * std::abs(in.v) + tol;
+      auto in_p = in;
+      in_p.v += h_v;
+      const auto [sep, svp] = compute_rad_sources(in_p, lambda);
+
+      dsedv = (sep - se0) / h_v;
+      dsvdv = (svp - sv0) / h_v;
+    }
+
+  } else {
+    // --- Central Difference ---
+    // Energy
+    {
+      const double h_e = h_base * std::abs(in.e) + tol;
+      auto in_p = in;
+      auto in_m = in;
+
+      in_p.e += h_e;
+      in_m.e -= h_e;
+
+      const auto [sep, svp] = compute_rad_sources(in_p, lambda);
+      const auto [sem, svm] = compute_rad_sources(in_m, lambda);
+
+      const double inv_2h = 0.5 / h_e;
+      dsede = (sep - sem) * inv_2h;
+      dsvde = (svp - svm) * inv_2h;
+    }
+
+    // Velocity
+    {
+      const double h_v = h_base * std::abs(in.v) + tol;
+      auto in_p = in;
+      auto in_m = in;
+
+      in_p.v += h_v;
+      in_m.v -= h_v;
+
+      const auto [sep, svp] = compute_rad_sources(in_p, lambda);
+      const auto [sem, svm] = compute_rad_sources(in_m, lambda);
+
+      const double inv_2h = 0.5 / h_v;
+      dsedv = (sep - sem) * inv_2h;
+      dsvdv = (svp - svm) * inv_2h;
+    }
+  }
+
+  return {dsede, dsedv, dsvde, dsvdv};
+}
 
 } // namespace athelas::radiation

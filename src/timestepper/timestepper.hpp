@@ -21,7 +21,8 @@
 #include "limiters/slope_limiter.hpp"
 #include "loop_layout.hpp"
 #include "problem_in.hpp"
-#include "radiation/radhydro_package.hpp"
+#include "radiation/imex_radhydro_package.hpp"
+#include "radiation/implicit_moments_package.hpp"
 #include "state/state.hpp"
 #include "timestepper/tableau.hpp"
 
@@ -29,6 +30,7 @@ namespace athelas {
 
 using bc::BoundaryConditions;
 using fluid::HydroPackage;
+using radiation::ImplicitRadiationMomentsPackage;
 using radiation::RadHydroPackage;
 
 class TimeStepper {
