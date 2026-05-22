@@ -957,7 +957,31 @@ void ImplicitRadiationMomentsPackage::apply_delta(
  * @brief zero delta field
  */
 void ImplicitRadiationMomentsPackage::zero_delta() const noexcept {
-  Kokkos::deep_copy(delta_, 0.0);
+  static const IndexRange sb(static_cast<int>(delta_.extent(0)));
+  static const IndexRange ib(static_cast<int>(delta_.extent(1)));
+  static const IndexRange qb(static_cast<int>(delta_.extent(2)));
+  static const IndexRange vb(static_cast<int>(delta_.extent(3)));
+
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "RadHydro :: Zero delta", DevExecSpace(), sb.s,
+      sb.e, ib.s, ib.e, qb.s, qb.e,
+      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int q) {
+        for (int v = vb.s; v <= vb.e; ++v) {
+          delta_(s, i, q, v) = 0.0;
+        }
+      });
+
+  // We store the last stage source in the state = 0 slot.
+  // That is, G(U^0) <- G(U^n).
+  // In an ESDIRK tableau we reuse this for the first stage.
+  const int ns = sb.e;
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "RadHydro :: Zero delta", DevExecSpace(), ib.s,
+      ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+        for (int v = vb.s; v <= vb.e; ++v) {
+          delta_(0, i, q, v) = delta_(ns, i, q, v);
+        }
+      });
 }
 
 /**
