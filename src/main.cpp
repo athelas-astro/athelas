@@ -4,6 +4,8 @@
 #include <filesystem>
 #include <print>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "Kokkos_Core.hpp"
 
@@ -19,6 +21,8 @@ namespace {
 struct CommandLineOptions {
   std::string input_file;
   std::string output_dir = "./";
+  // Each entry is (dotted_key, lua_expr) collected from --key=value args.
+  std::vector<std::pair<std::string, std::string>> overrides;
 };
 
 /*
@@ -41,24 +45,88 @@ auto parse_input_options(std::span<char *> args)
   CommandLineOptions opts;
   bool has_input = false;
 
+  // handle parsing of -h / --help separately. Bare invocation also prints
+  // help, but exits FAILURE (it's a usage error to omit -i).
+  // Not really important but nice.
+  const bool no_args = args.size() == 1;
+  const bool get_help =
+      args.size() >= 2 &&
+      (std::strcmp(args[1], "-h") == 0 || std::strcmp(args[1], "--help") == 0);
+  if (no_args || get_help) {
+    std::println("# Usage: ./athelas [-h] [-i /path/to/input.lua] [-o "
+                 "output_dir] [--key=value ...]");
+    std::println("Options:");
+    std::println("  -h, --help                Show this help message and exit");
+    std::println("  -i <path>, --input=<path>");
+    std::println("                            Path to the input .lua script "
+                 "(Required)");
+    std::println("  -o <dir>,  --output=<dir>");
+    std::println("                            Directory where output files "
+                 "will be saved (Default: ./)");
+    std::println("  --<key>=<lua_expr>        Override a value in the input "
+                 "deck. <key> is a dotted path");
+    std::println("                            into the Lua config table; "
+                 "<lua_expr> is parsed as Lua source.");
+    std::println("                            Strings must be Lua-quoted: "
+                 "--key='\"value\"'. Later values win.");
+
+    std::println("Examples:");
+    std::println("  ./athelas -i ../inputs/sod.lua");
+    std::println("  ./athelas -i ../inputs/supernova.lua -o run/output");
+    std::println("  ./athelas -i ../inputs/marshak.lua --problem.nx=256 "
+                 "--radiation.newton.tol=1e-12");
+    std::println("  ./athelas -i ../inputs/sedov.lua "
+                 "--output.history.fn='\"sedov.hst\"'");
+    std::println("  ./athelas -i ../inputs/marshak.lua "
+                 "--bc.radiation.dirichlet_values_i='{{1.1e12, 0.0}}'");
+    std::exit(get_help ? AthelasExitCodes::SUCCESS : AthelasExitCodes::FAILURE);
+  }
+
+  // Short flags (-i, -o) take the next argv as value. Long flags must use
+  // --name=value; unrecognized --name=value pairs become input-deck overrides.
   for (std::size_t i = 1; i < args.size(); ++i) {
     std::string_view arg = args[i];
 
-    if (arg == "-i" || arg == "--input") {
+    if (arg == "-i") {
       if (i + 1 >= args.size()) {
         return std::unexpected("Missing input file after -i");
       }
-      opts.input_file = args[i + 1];
+      opts.input_file = args[++i];
       has_input = true;
-      ++i; // Skip the next argument since we consumed it
-    } else if (arg == "-o" || arg == "--output-dir") {
+      continue;
+    }
+    if (arg == "-o") {
       if (i + 1 >= args.size()) {
         return std::unexpected("Missing output directory after -o");
       }
-      opts.output_dir = args[i + 1];
-      ++i; // Skip the next argument since we consumed it
-    } else {
+      opts.output_dir = args[++i];
+      continue;
+    }
+
+    // Handle long -- args
+    if (!arg.starts_with("--")) {
       return std::unexpected(std::format("Unknown argument: {}", arg));
+    }
+    const auto eq = arg.find('=');
+    if (eq == std::string_view::npos) {
+      return std::unexpected(
+          std::format("Long options require --name=value form: {}", arg));
+    }
+    const std::string_view name = arg.substr(0, eq);
+    std::string value(arg.substr(eq + 1));
+
+    if (name == "--input") {
+      opts.input_file = std::move(value);
+      has_input = true;
+    } else if (name == "--output") {
+      opts.output_dir = std::move(value);
+    } else {
+      // overrides
+      std::string key(name.substr(2));
+      if (key.empty()) {
+        return std::unexpected(std::format("Override missing key: '{}'", arg));
+      }
+      opts.overrides.emplace_back(std::move(key), std::move(value));
     }
   }
 
@@ -71,23 +139,6 @@ auto parse_input_options(std::span<char *> args)
 } // namespace
 
 auto main(int argc, char **argv) -> int {
-  // handle parsing of -h / --help separately
-  if (argc == 1 || std::strcmp(argv[1], "-h") == 0 ||
-      std::strcmp(argv[1], "--help") == 0) {
-    std::println(
-        "# Usage: ./athelas [-h] [-i /path/to/input.lua] [-o output_dir]");
-    std::println("Options:");
-    std::println("  -h, --help                Show this help message and exit");
-    std::println(
-        "  -i, --input <path>        Path to the input .lua script (Required)");
-    std::println("  -o, --output <dir>        Directory where output files "
-                 "will be saved (Default: ./)");
-
-    std::println("Examples:");
-    std::println("  ./athelas -i ../inputs/sod.lua");
-    std::println("  ./athelas -i ../inputs/supernova.lua -o run/output");
-    return AthelasExitCodes::SUCCESS;
-  }
 
   auto input_result =
       parse_input_options({argv, static_cast<std::size_t>(argc)});
@@ -127,8 +178,8 @@ auto main(int argc, char **argv) -> int {
   Kokkos::initialize(argc, argv);
   {
     // pin
-    const auto pin =
-        std::make_shared<ProblemIn>(opts.input_file, opts.output_dir);
+    const auto pin = std::make_shared<ProblemIn>(
+        opts.input_file, opts.output_dir, opts.overrides);
 
     // --- Create Driver ---
     Driver driver(pin);

@@ -11,6 +11,9 @@
 #pragma once
 
 #include <iostream>
+#include <string>
+#include <utility>
+#include <vector>
 
 #define SOL_ALL_SAFETIES_ON 1
 #include "sol/sol.hpp"
@@ -23,7 +26,9 @@ namespace athelas {
 class ProblemIn {
 
  public:
-  ProblemIn(const std::string &fn, const std::string &output_dir);
+  ProblemIn(
+      const std::string &fn, const std::string &output_dir,
+      const std::vector<std::pair<std::string, std::string>> &overrides = {});
 
   auto param() -> Params *;
   [[nodiscard]] auto param() const -> Params *;

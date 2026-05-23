@@ -14,7 +14,9 @@ auto ProblemIn::param() -> Params * { return params_.get(); }
   return params_.get();
 }
 
-ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
+ProblemIn::ProblemIn(
+    const std::string &fn, const std::string &output_dir,
+    const std::vector<std::pair<std::string, std::string>> &overrides) {
 
   // ---------------------------------
   // ---------- Load config ----------
@@ -22,6 +24,28 @@ ProblemIn::ProblemIn(const std::string &fn, const std::string &output_dir) {
   lua_.open_libraries(sol::lib::base, sol::lib::math);
   try {
     config_ = lua_.script_file(fn);
+
+    // Apply command-line overrides. The input deck returns `config`, so the
+    // local table is not visible to subsequent snippets; re-expose it
+    // mutate via Lua, and read back.
+    if (!overrides.empty()) {
+      lua_["config"] = config_;
+      for (const auto &[key, expr] : overrides) {
+        try {
+          lua_.script(std::format("config.{} = {}", key, expr));
+        } catch (const sol::error &e) {
+          std::println(std::cerr, "Override failed for '{} = {}': {}", key,
+                       expr, e.what());
+          std::println(std::cerr,
+                       "Hint: --key=value is parsed as Lua source; strings "
+                       "must be Lua-quoted, e.g. --key='\"value\"'.");
+          throw_athelas_error("Invalid command-line override");
+        }
+        std::println("# Override applied: {} = {}", key, expr);
+      }
+      config_ = lua_["config"];
+    }
+
     sol::table schema = lua_.script(ATHELAS_SCHEMA_LUA);
     Validator validator(schema);
     validator.validate(config_);
