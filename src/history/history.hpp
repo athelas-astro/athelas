@@ -8,7 +8,7 @@
 
 #include "geometry/grid.hpp"
 #include "polynomial_basis.hpp"
-#include "state/state.hpp"
+#include "interface/state.hpp"
 
 namespace athelas {
 

@@ -7,7 +7,7 @@
 
 #include "geometry/grid.hpp"
 #include "history/history.hpp"
-#include "state/state.hpp"
+#include "interface/state.hpp"
 
 namespace athelas {
 

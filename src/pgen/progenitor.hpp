@@ -36,7 +36,7 @@
 #include "kokkos_abstraction.hpp"
 #include "math/interp.hpp"
 #include "radiation/rad_utilities.hpp"
-#include "state/state.hpp"
+#include "interface/state.hpp"
 
 namespace athelas {
 

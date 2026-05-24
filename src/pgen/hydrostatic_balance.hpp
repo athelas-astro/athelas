@@ -6,7 +6,7 @@
 #include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
 #include "solvers/hydrostatic_equilibrium.hpp"
-#include "state/state.hpp"
+#include "interface/state.hpp"
 
 namespace athelas {
 

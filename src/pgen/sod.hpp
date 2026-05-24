@@ -4,7 +4,7 @@
 #include "geometry/grid.hpp"
 #include "kokkos_abstraction.hpp"
 #include "loop_layout.hpp"
-#include "state/state.hpp"
+#include "interface/state.hpp"
 
 namespace athelas {
 

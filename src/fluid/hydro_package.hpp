@@ -11,7 +11,7 @@
 #include "bc/boundary_conditions_base.hpp"
 #include "geometry/grid.hpp"
 #include "pgen/problem_in.hpp"
-#include "state/state.hpp"
+#include "interface/state.hpp"
 
 namespace athelas::fluid {
 

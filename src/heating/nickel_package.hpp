@@ -8,7 +8,7 @@
 #include "compdata.hpp"
 #include "geometry/grid.hpp"
 #include "pgen/problem_in.hpp"
-#include "state/state.hpp"
+#include "interface/state.hpp"
 #include "utils/constants.hpp"
 
 namespace athelas::nickel {

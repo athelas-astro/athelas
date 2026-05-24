@@ -13,7 +13,7 @@
 #include "kokkos_abstraction.hpp"
 #include "loop_layout.hpp"
 #include "polynomial_basis.hpp"
-#include "state/state.hpp"
+#include "interface/state.hpp"
 #include "utils/constants.hpp"
 
 namespace athelas::analysis {

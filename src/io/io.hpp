@@ -13,7 +13,7 @@
 #include "geometry/grid.hpp"
 #include "limiters/slope_limiter.hpp"
 #include "pgen/problem_in.hpp"
-#include "state/state.hpp"
+#include "interface/state.hpp"
 
 #include "H5Cpp.h"
 

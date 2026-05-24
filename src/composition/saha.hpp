@@ -13,7 +13,7 @@
 #include "kokkos_types.hpp"
 #include "loop_layout.hpp"
 #include "solvers/root_finders.hpp"
-#include "state/state.hpp"
+#include "interface/state.hpp"
 
 namespace athelas::atom {
 

@@ -17,7 +17,7 @@
 #include "pgen/problem_in.hpp"
 #include "radiation/imex_radhydro_package.hpp"
 #include "radiation/implicit_moments_package.hpp"
-#include "state/state.hpp"
+#include "interface/state.hpp"
 #include "timestepper/timestepper.hpp"
 #include "utils/error.hpp"
 

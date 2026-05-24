@@ -5,7 +5,7 @@
 #include "geometry/grid.hpp"
 #include "pgen/problem_in.hpp"
 #include "radiation/rad_utilities.hpp"
-#include "state/state.hpp"
+#include "interface/state.hpp"
 
 namespace athelas::radiation {
 

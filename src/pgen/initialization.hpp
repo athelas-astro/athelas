@@ -32,7 +32,7 @@
 #include "pgen/shu_osher.hpp"
 #include "pgen/smooth_flow.hpp"
 #include "pgen/sod.hpp"
-#include "state/state.hpp"
+#include "interface/state.hpp"
 #include "utils/error.hpp"
 
 namespace athelas {

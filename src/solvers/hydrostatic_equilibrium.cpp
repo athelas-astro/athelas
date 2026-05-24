@@ -7,7 +7,7 @@
 #include "loop_layout.hpp"
 #include "math/interp.hpp"
 #include "solvers/hydrostatic_equilibrium.hpp"
-#include "state/state.hpp"
+#include "interface/state.hpp"
 #include "utils/constants.hpp"
 
 namespace athelas {
