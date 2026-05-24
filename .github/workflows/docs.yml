@@ -1,0 +1,60 @@
+name: Build and Deploy docs
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types:
+      - created
+
+jobs:
+    docs:
+      name: build and deploy docs
+      runs-on: ubuntu-latest
+
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v4
+          with:
+            fetch-depth: 0
+        - name: Set up Python
+          uses: actions/setup-python@v5
+          with:
+            python-version: '3.14'
+        - name: install dependencies
+          run: |
+            pip install "sphinx<9"
+            pip install sphinx-sitemap
+            pip install sphinx-rtd-theme
+            pip install sphinx-multiversion
+            pip install sphinx-copybutton
+            pip install sphinx-book-theme
+        - name: build docs
+          working-directory: docs
+          run: |
+            echo "Repo = ${GITHUB_REPOSITORY}"
+            # throw warnings as error to make sure docs properly build
+            make multiversion SPHINXOPTS="-W --keep-going -n"
+        - name: write redirect index
+          run: |
+            cat > docs/_build/html/index.html <<'EOF'
+            <!DOCTYPE html>
+            <!-- Redirect to the main version. -->
+            <html>
+              <head>
+                <title>Redirecting to main branch</title>
+                <meta charset="utf-8">
+                <meta http-equiv="refresh" content="0; url=./main/index.html">
+                <link rel="canonical" href="https://athelas-astro.github.io/athelas/main/index.html">
+              </head>
+            </html>
+            EOF
+        - name: Deploy
+          if: ${{ (github.event.pull_request.head.repo.full_name == github.repository) || (github.ref == 'refs/heads/main') }}
+          uses: peaceiris/actions-gh-pages@v4
+          with:
+            github_token: ${{ secrets.GITHUB_TOKEN }}
+            publish_dir: ./docs/_build/html
+            force_orphan: true
