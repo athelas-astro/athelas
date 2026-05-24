@@ -5,9 +5,9 @@
 #include "bc/boundary_conditions_base.hpp"
 #include "geometry/grid.hpp"
 #include "interface/params.hpp"
+#include "interface/state.hpp"
 #include "pgen/problem_in.hpp"
 #include "radiation/rad_utilities.hpp"
-#include "interface/state.hpp"
 
 namespace athelas::radiation {
 

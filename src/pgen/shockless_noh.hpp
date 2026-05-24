@@ -1,8 +1,8 @@
 #pragma once
 
 #include "geometry/grid.hpp"
-#include "kokkos_abstraction.hpp"
 #include "interface/state.hpp"
+#include "kokkos_abstraction.hpp"
 
 namespace athelas {
 

@@ -5,10 +5,10 @@
 #include "basis/polynomial_basis.hpp"
 #include "constants.hpp"
 #include "geometry/grid.hpp"
+#include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
 #include "loop_layout.hpp"
-#include "interface/state.hpp"
 
 namespace athelas::atom {
 

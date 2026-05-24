@@ -4,8 +4,8 @@
 
 #include "basic_types.hpp"
 #include "geometry/grid.hpp"
-#include "pgen/problem_in.hpp"
 #include "interface/state.hpp"
+#include "pgen/problem_in.hpp"
 
 namespace athelas::thermal_engine {
 

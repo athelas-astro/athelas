@@ -4,9 +4,9 @@
 
 #include "eos/eos_variant.hpp"
 #include "geometry/grid.hpp"
+#include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 #include "solvers/hydrostatic_equilibrium.hpp"
-#include "interface/state.hpp"
 
 namespace athelas {
 

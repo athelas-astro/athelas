@@ -4,8 +4,8 @@
 
 #include "eos/eos_variant.hpp"
 #include "geometry/grid.hpp"
-#include "kokkos_abstraction.hpp"
 #include "interface/state.hpp"
+#include "kokkos_abstraction.hpp"
 #include "utils/constants.hpp"
 
 namespace athelas {

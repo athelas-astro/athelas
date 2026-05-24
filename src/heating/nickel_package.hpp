@@ -7,8 +7,8 @@
 #include "bc/boundary_conditions_base.hpp"
 #include "compdata.hpp"
 #include "geometry/grid.hpp"
-#include "pgen/problem_in.hpp"
 #include "interface/state.hpp"
+#include "pgen/problem_in.hpp"
 #include "utils/constants.hpp"
 
 namespace athelas::nickel {
