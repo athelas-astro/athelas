@@ -8,7 +8,9 @@ Key Features
 ^^^^^^^^^^^^^
 
 * Gray two moment radiation transport
+
   * Fully implicit and IMEX treatments
+
 * Lagrangian hydrodynamics
 * High order discontinuous Galerkin methods
 * Fully coupled implicit-explicit time integration
