@@ -13,6 +13,7 @@
 #include <string>
 
 #include "geometry/grid.hpp"
+#include "interface/state.hpp"
 #include "pgen/advection.hpp"
 #include "pgen/ejecta_csm.hpp"
 #include "pgen/hydrostatic_balance.hpp"
@@ -32,7 +33,6 @@
 #include "pgen/shu_osher.hpp"
 #include "pgen/smooth_flow.hpp"
 #include "pgen/sod.hpp"
-#include "state/state.hpp"
 #include "utils/error.hpp"
 
 namespace athelas {

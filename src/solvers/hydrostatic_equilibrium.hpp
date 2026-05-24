@@ -2,7 +2,7 @@
 
 #include "eos/eos_variant.hpp"
 #include "geometry/grid.hpp"
-#include "state/state.hpp"
+#include "interface/state.hpp"
 
 namespace athelas {
 

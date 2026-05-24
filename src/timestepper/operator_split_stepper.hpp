@@ -3,7 +3,7 @@
 #include "basic_types.hpp"
 #include "geometry/grid.hpp"
 #include "interface/packages_base.hpp"
-#include "state/state.hpp"
+#include "interface/state.hpp"
 
 namespace athelas {
 

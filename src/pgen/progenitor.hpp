@@ -32,11 +32,11 @@
 #include "eos/eos_variant.hpp"
 #include "error.hpp"
 #include "geometry/grid.hpp"
+#include "interface/state.hpp"
 #include "io/parser.hpp"
 #include "kokkos_abstraction.hpp"
 #include "math/interp.hpp"
 #include "radiation/rad_utilities.hpp"
-#include "state/state.hpp"
 
 namespace athelas {
 

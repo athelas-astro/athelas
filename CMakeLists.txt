@@ -115,7 +115,6 @@ include_directories("src/eos")
 include_directories("src/bc")
 include_directories("src/io")
 include_directories("src/opacity")
-include_directories("src/state")
 include_directories("src/solvers")
 include_directories("src/timestepper")
 
@@ -160,7 +159,7 @@ set( ATHELAS_SOURCES
   "src/opacity/opac_powerlaw.cpp"
   "src/opacity/opac_tabular.cpp"
   "src/solvers/hydrostatic_equilibrium.cpp"
-  "src/state/state.cpp"
+  "src/interface/state.cpp"
   "src/timestepper/tableau.cpp"
   "src/timestepper/timestepper.cpp"
   "src/timestepper/operator_split_stepper.cpp" )

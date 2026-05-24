@@ -9,6 +9,7 @@
 #include "heating/nickel_package.hpp"
 #include "history/quantities.hpp"
 #include "interface/packages_base.hpp"
+#include "interface/state.hpp"
 #include "io/io.hpp"
 #include "kokkos_types.hpp"
 #include "limiters/slope_limiter.hpp"
@@ -17,7 +18,6 @@
 #include "pgen/problem_in.hpp"
 #include "radiation/imex_radhydro_package.hpp"
 #include "radiation/implicit_moments_package.hpp"
-#include "state/state.hpp"
 #include "timestepper/timestepper.hpp"
 #include "utils/error.hpp"
 

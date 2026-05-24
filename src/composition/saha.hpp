@@ -9,11 +9,11 @@
 #include "eos.hpp"
 #include "eos/eos_variant.hpp"
 #include "geometry/grid.hpp"
+#include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
 #include "loop_layout.hpp"
 #include "solvers/root_finders.hpp"
-#include "state/state.hpp"
 
 namespace athelas::atom {
 

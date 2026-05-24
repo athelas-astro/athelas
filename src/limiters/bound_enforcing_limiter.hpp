@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Kokkos_Macros.hpp"
-#include "state/state.hpp"
+#include "interface/state.hpp"
 
 namespace athelas::bel {
 

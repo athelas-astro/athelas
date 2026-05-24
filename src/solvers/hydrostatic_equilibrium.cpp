@@ -2,12 +2,12 @@
 
 #include "composition/composition.hpp"
 #include "geometry/grid.hpp"
+#include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
 #include "loop_layout.hpp"
 #include "math/interp.hpp"
 #include "solvers/hydrostatic_equilibrium.hpp"
-#include "state/state.hpp"
 #include "utils/constants.hpp"
 
 namespace athelas {
