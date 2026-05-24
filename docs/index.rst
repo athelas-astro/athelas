@@ -1,0 +1,47 @@
+Athelas: Astrophysical Transients with Hydrodynamics and Emission using a Lagrangian Arbitrary order Scheme
+===========================================================================================================
+
+`Athelas`_ is a modern radiation hydrodynamics code for simulating astrophysical transients.
+
+
+Key Features
+^^^^^^^^^^^^^
+
+* Gray two moment radiation transport
+  * Fully implicit and IMEX treatments
+* Lagrangian hydrodynamics
+* High order discontinuous Galerkin methods
+* Fully coupled implicit-explicit time integration
+* Radioactive heating from Nickel and Cobalt decay including gammas and positrons.
+* Saha ionization with feedback into the equation of state
+* Shared memory parallelism with `Kokkos`_
+* A ``thermal engine`` for artificially driving supernovae.
+* A modular ``package`` system that automatically threads new physics into the timestepper.
+
+``Athelas`` is open source developed as a tool for the community.
+Check it out on `GitHub`_!
+
+.. image:: _static/logo.png
+   :align: center
+   :width: 300px
+
+.. _GitHub: https://github.com/athelas-astro/athelas
+.. _Athelas: https://github.com/athelas-astro/athelas
+.. _Kokkos: github.com/kokkos/kokkos
+
+.. note::
+
+   These docs are under active development.
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Contents:
+   :glob:
+
+   src/*
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`search`
