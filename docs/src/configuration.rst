@@ -113,6 +113,10 @@ This mechanism is complementary to the in-deck override pattern shown above:
 use the in-deck form when defining a permanent variant of a problem, and the
 command-line form for one-off parameter sweeps or quick experiments.
 
+The same ``--<key>=<value>`` syntax also applies when restarting from a
+checkpoint via ``-r``; see :ref:`restart`. On restart, overrides are scalar
+only (table-valued params cannot currently be overridden from the CLI).
+
 .. _schema-tools:
 
 Schema tools

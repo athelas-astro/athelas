@@ -1,21 +1,24 @@
+-- Sedov configuration for the restart regression test.
+-- dt_hdf5 is tuned so a midpoint dump (sedov_000001.ath @ t ~ 0.025) lands
+-- well before t_end, giving us a checkpoint to restart from.
+
 local config = {}
 
 config.problem = {
-  name = "noh",
-  t_end = 0.5,
+  name = "sedov",
+  t_end = 0.05,
   nlim = -1,
-  geometry = "planar",
+  geometry = "spherical",
   xl = 0.0,
   xr = 1.0,
-  bc = "reflecting",
-  cfl = 0.1,
-  nx = 128,
+  cfl = 0.25,
+  nx = 64,
   grid_type = "uniform",
 
   params = {
-    v0 = -1.0,
+    v0 = 0.0,
     rho0 = 1.0,
-    p0 = 1.000000e-06,
+    E0 = 0.5,
   },
 }
 
@@ -34,27 +37,27 @@ config.basis = {
 
 config.bc = {
   fluid = {
-    bc_i = "outflow",
+    bc_i = "reflecting",
     bc_o = "outflow",
   },
 }
 
 config.output = {
-  ncycle_out = 100,
-  dt_hdf5 = 0.1,
-  dt_init_frac = 1.01,
+  ncycle_out = 500,
+  dt_hdf5 = 0.025,
 }
 
 config.fluid = {
   limiter = {
     do_limiter = true,
     type = "minmod",
-    b_tvd = 2.0,
+    b_tvd = 1.0,
     m_tvb = 0.0,
-    tci_opt = false,
+    tci_opt = true,
     tci_val = 0.1,
     characteristic = false,
-    gamma_i = 0.8,
+    gamma_i = 0.998,
+    weno_r = 2.0,
   },
 }
 
@@ -64,6 +67,7 @@ config.time = {
 
 config.eos = {
   type = "ideal",
+  gamma = 1.4,
 }
 
 return config

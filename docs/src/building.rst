@@ -105,6 +105,38 @@ using ``--<dotted.key>=<lua_expr>``:
 
 See :ref:`cli-overrides` for the full syntax.
 
+.. _restart:
+
+Restarting from a checkpoint
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Any ``.ath`` HDF5 dump can be used to resume a run via ``-r``. The
+checkpoint embeds the processed input deck (under ``/params``) plus the full
+simulation state, so no Lua file is needed. 
+``-r`` is mutually exclusive with ``-i``:
+
+.. code:: bash
+
+   ./athelas -r run/sedov_000050.ath
+   ./athelas -r run/sedov_000050.ath -o new_run/
+   ./athelas -r run/sedov_final.ath  --problem.tf=0.1
+
+Both numbered dumps (``sedov_000050.ath``) and the post-loop ``_final``
+file are valid restart sources. CLI ``--<key>=<value>`` overrides apply on
+top of the checkpoint's params, parsed the same way as for new runs (see
+:ref:`cli-overrides`), so a run can be extended (``--problem.tf=...``,
+``--problem.nlim=...``) or retuned without editing the checkpoint or
+re-running the deck.
+
+A few currently-unsupported configurations to be aware of:
+
+* ``-r`` cannot be combined with ``-i``. If both are passed the run aborts
+  with an error.
+* CLI ``--<key>=<value>`` overrides on restart only accept scalar values
+  (``bool``, ``int``, ``double``, ``string``); table-valued params
+  (e.g. ``bc.fluid.dirichlet_values_i``) cannot currently be overridden
+  from the CLI on restart.
+
 Dependencies
 ------------
 

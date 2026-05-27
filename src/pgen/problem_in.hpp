@@ -26,14 +26,36 @@ namespace athelas {
 class ProblemIn {
 
  public:
+  /** Disambiguates the restart constructor from the Lua-input constructor. */
+  struct RestartTag {};
+
   ProblemIn(
       const std::string &fn, const std::string &output_dir,
+      const std::vector<std::pair<std::string, std::string>> &overrides = {});
+
+  /**
+   * @brief Construct from an HDF5 .ath restart file (no Lua input deck).
+   *
+   * Populates Params directly from /params, overrides output.dir with the
+   * supplied path, re-derives time.integrator from time.integrator_string,
+   * and applies any CLI overrides as Lua expressions (parsed via a private
+   * sol::state — no input file is loaded).
+   */
+  ProblemIn(
+      RestartTag, const std::string &h5_filename, const std::string &output_dir,
       const std::vector<std::pair<std::string, std::string>> &overrides = {});
 
   auto param() -> Params *;
   [[nodiscard]] auto param() const -> Params *;
 
  private:
+  /**
+   * @brief Apply a single restart-mode override: parse `expr` as Lua and
+   * assign into `params_[key]`. Type is taken from the existing param if
+   * present; otherwise inferred from the Lua value.
+   */
+  void apply_restart_override(const std::string &key, const std::string &expr);
+
   sol::state lua_;
   sol::table config_;
   // params obj

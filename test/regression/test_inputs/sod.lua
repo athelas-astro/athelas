@@ -5,7 +5,6 @@ config.problem = {
   t_end = 0.2,
   nlim = -1,
   geometry = "planar",
-  restart = false,
   xl = 0.0,
   xr = 1.0,
   cfl = 0.8,

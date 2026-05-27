@@ -11,6 +11,7 @@
 #include "interface/packages_base.hpp"
 #include "interface/state.hpp"
 #include "io/io.hpp"
+#include "io/restart.hpp"
 #include "kokkos_types.hpp"
 #include "limiters/slope_limiter.hpp"
 #include "loop_layout.hpp"
@@ -46,7 +47,9 @@ auto Driver::execute() -> int {
   const auto dt_hdf5 = pin_->param()->get<double>("output.dt_hdf5");
   const auto fixed_dt = pin_->param()->contains("output.dt_fixed");
 
-  dt_ = dt_init;
+  if (!restart_) {
+    dt_ = dt_init;
+  }
   TimeStepInfo dt_info{.t = time_,
                        .dt = dt_,
                        .dt_coef_implicit = dt_,
@@ -58,13 +61,25 @@ auto Driver::execute() -> int {
   auto sd0 = mesh_state_(0);
   manager_->fill_derived(sd0, grid_, dt_info);
   print_simulation_parameters(grid_, pin_.get());
-  write_output(mesh_state_, grid_, &sl_hydro_, pin_.get(), time_, 0);
-  history_->write(mesh_state_, grid_, time_);
+  // Initial dump has file index 0 and is followed by initial history entry
+  // 0 on the next line, so all "last_*" counters land at 0 here — restart
+  // from this dump then resumes at cycle/h5/hist = 1, matching a fresh-run
+  // loop init. Skipped on restart since the source .ath already covers it.
+  io::SimInfo info{.time = time_,
+                   .dt = dt_,
+                   .last_cycle = 0,
+                   .last_out_h5 = 0,
+                   .last_out_hist = 0};
+  if (!restart_) {
+    write_output(mesh_state_, grid_, &sl_hydro_, pin_.get(), info, 0);
+    history_->write(mesh_state_, grid_, time_);
+  }
 
   // --- Evolution loop ---
-  int cycle = 1;
-  int i_out_h5 = 1; // output label, start 1
-  int i_out_hist = 1; // output hist
+  // SimInfo stores "last completed" counters; restart resumes at last + 1.
+  int cycle = restart_ ? restart_info_.last_cycle + 1 : 1;
+  int i_out_h5 = restart_ ? restart_info_.last_out_h5 + 1 : 1;
+  int i_out_hist = restart_ ? restart_info_.last_out_hist + 1 : 1;
   std::println("# Cycle      t       dt       zone_cycles / wall_second");
   while (time_ < t_end_ && cycle <= nlim) {
     dt_info.t = time_;
@@ -127,7 +142,23 @@ auto Driver::execute() -> int {
     // Write state, other io
     if (time_ >= i_out_h5 * dt_hdf5) {
       manager_->fill_derived(sd0, grid_, dt_info);
-      write_output(mesh_state_, grid_, &sl_hydro_, pin_.get(), time_, i_out_h5);
+      // History is checked AFTER the HDF5 dump, so i_out_hist here is still
+      // the pre-history-fire value. Record the index of the most-recently-
+      // written history entry so restart's "next = recorded + 1" rule works
+      // regardless of whether HDF5 and history cadences align. If history is
+      // also due this cycle, the about-to-be-written entry counts as the
+      // most-recent (= i_out_hist); otherwise the most-recent is one less
+      // than the pending value.
+      const double hist_dt = pin_->param()->get<double>("output.hist_dt");
+      const bool hist_due_this_cycle = time_ >= i_out_hist * hist_dt;
+      const int last_out_hist =
+          hist_due_this_cycle ? i_out_hist : i_out_hist - 1;
+      info = {.time = time_,
+              .dt = dt_,
+              .last_cycle = cycle,
+              .last_out_h5 = i_out_h5,
+              .last_out_hist = last_out_hist};
+      write_output(mesh_state_, grid_, &sl_hydro_, pin_.get(), info, i_out_h5);
       i_out_h5 += 1;
     }
 
@@ -149,7 +180,15 @@ auto Driver::execute() -> int {
   }
 
   manager_->fill_derived(sd0, grid_, dt_info);
-  write_output(mesh_state_, grid_, &sl_hydro_, pin_.get(), time_, -1);
+  // Loop variables are post-increment here ("next-pending"). Normalize to the
+  // "last completed" SimInfo convention so restart-from-_final (with extended
+  // tf or nlim) doesn't skip a cycle / HDF5 / history index.
+  info = {.time = time_,
+          .dt = dt_,
+          .last_cycle = cycle - 1,
+          .last_out_h5 = i_out_h5 - 1,
+          .last_out_hist = i_out_hist - 1};
+  write_output(mesh_state_, grid_, &sl_hydro_, pin_.get(), info, -1);
 
   return AthelasExitCodes::SUCCESS;
 }
@@ -222,27 +261,76 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
 
   if (!restart_) {
     initialize_fields(mesh_state_, &grid_, pin);
-    auto sd0 = mesh_state_(0);
-    auto prims = sd0.get_field("u_pf");
-    auto cons = sd0.get_field("u_cf");
+    auto cons = mesh_state_(0).get_field("u_cf");
     bc::fill_ghost_zones<3>(cons, &grid_, bcs_.get(), {0, 2});
     grid_.compute_mass(cons);
+  } else {
+    // Restart path: rebuild MeshState/grid from the .ath file rather than the
+    // problem generator. Composition / ionization wiring must happen before
+    // fields are loaded and before any package queries comps()/ion_state().
+    io::RestartReader reader(restart_filename_);
+    restart_info_ = io::load_info_from_h5(reader);
 
-    auto nx = grid_.n_elements();
-    const bool rad_active =
-        pin_->param()->get<bool>("physics.radiation.enabled");
-    auto fluid_basis = std::make_unique<NodalBasis>(prims, &grid_, nnodes, nx);
-    mesh_state_.setup_fluid_basis(std::move(fluid_basis));
-    if (rad_active) {
-      auto radiation_basis =
-          std::make_unique<NodalBasis>(prims, &grid_, nnodes, nx);
-      mesh_state_.setup_rad_basis(std::move(radiation_basis));
+    if (comps_active) {
+      const auto ncomps = pin->param()->get<int>("composition.ncomps");
+      auto comps =
+          std::make_shared<atom::CompositionData>(nx + 2, nnodes, ncomps);
+      mesh_state_.setup_composition(comps);
+      io::load_composition_from_h5(*comps, reader);
     }
+
+    const bool ionization_active =
+        pin->param()->get<bool>("physics.ionization.enabled");
+    if (ionization_active) {
+      // n_states (= max_charge + 1) isn't a param — read it from the
+      // shape of the dumped ionization_fractions array.
+      const auto ifrac_dims =
+          reader.dataset_extent("/ionization/ionization_fractions");
+      athelas_requires(ifrac_dims.size() == 4,
+                       "Restart: /ionization/ionization_fractions must be 4D");
+      const int n_states = static_cast<int>(ifrac_dims[3]);
+      const auto ncomps = pin->param()->get<int>("composition.ncomps");
+      const auto saha_ncomps = pin->param()->get<int>("ionization.ncomps");
+      const auto fn_ion =
+          pin->param()->get<std::string>("ionization.fn_ionization");
+      const auto fn_deg =
+          pin->param()->get<std::string>("ionization.fn_degeneracy");
+      const auto solver = pin->param()->get<std::string>("ionization.solver");
+      auto ion = std::make_shared<atom::IonizationState>(
+          nx + 2, nnodes, ncomps, n_states, saha_ncomps, fn_ion, fn_deg,
+          solver);
+      mesh_state_.setup_ionization(ion);
+      // Loaded zbar/ionization_fractions serve as the Saha solver's initial
+      // guess on the first fill_derived call — required for bit-exact restart.
+      io::load_ionization_from_h5(*ion, reader);
+    }
+
+    io::load_fields_from_h5(mesh_state_, reader);
+    io::load_grid_from_h5(grid_, reader);
+
+    time_ = restart_info_.time;
+    dt_ = restart_info_.dt;
+    std::println("# Restart resumed at t = {:.5e}, cycle = {}, dt = {:.5e}",
+                 time_, restart_info_.last_cycle, dt_);
   }
 
-  // now that all is said and done, perform post init work
-  // We may need to do this before packages are constructed.
-  post_init_work();
+  // Basis construction is identical for both paths once u_pf is in place
+  // (pgen-populated or restart-loaded).
+  auto prims = mesh_state_(0).get_field("u_pf");
+  mesh_state_.setup_fluid_basis(
+      std::make_unique<NodalBasis>(prims, &grid_, nnodes, nx));
+  if (rad_active) {
+    mesh_state_.setup_rad_basis(
+        std::make_unique<NodalBasis>(prims, &grid_, nnodes, nx));
+  }
+
+  // post_init_work recomputes grid mass / center-of-mass and applies the
+  // mass-cut adjustment. For restart those values came from the .ath file
+  // and must not be re-derived (mass cut would double-count, and recomputing
+  // would slightly perturb a checkpointed state).
+  if (!restart_) {
+    post_init_work();
+  }
 
   const bool gravity_active =
       pin->param()->get<bool>("physics.gravity.enabled");
@@ -337,14 +425,19 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   std::print("\n\n");
 
   // --- Fill ghosts and apply limiters to initial condition ---
-  auto ucf = sd0.get_field("u_cf");
-  bc::fill_ghost_zones<3>(ucf, &grid_, bcs_.get(), {0, 2});
-  if (rad_active) {
-    bc::fill_ghost_zones<2>(ucf, &grid_, bcs_.get(), {3, 4});
+  // Restart state is already post-step-valid: ghost zones and limited values
+  // came from the .ath file, so re-running the limiter would alter the
+  // checkpointed state.
+  if (!restart_) {
+    auto ucf = sd0.get_field("u_cf");
+    bc::fill_ghost_zones<3>(ucf, &grid_, bcs_.get(), {0, 2});
+    if (rad_active) {
+      bc::fill_ghost_zones<2>(ucf, &grid_, bcs_.get(), {3, 4});
+    }
+    auto cons = sd0.get_field("u_cf");
+    apply_slope_limiter(&sl_hydro_, cons, grid_, sd0.fluid_basis(), sd0.eos());
+    bel::apply_bound_enforcing_limiter(sd0, grid_);
   }
-  auto cons = sd0.get_field("u_cf");
-  apply_slope_limiter(&sl_hydro_, cons, grid_, sd0.fluid_basis(), sd0.eos());
-  bel::apply_bound_enforcing_limiter(sd0, grid_);
 
   // --- Add history outputs ---
   // NOTE: Could be nice to have gravitational energy added
@@ -496,7 +589,12 @@ void Driver::post_step_work() {
   } catch (const AthelasError &e) {
     std::cerr << e.what() << "\n";
     std::println("!!! Bad State found, writing _final_ output file ...");
-    write_output(mesh_state_, grid_, &sl_hydro_, pin_.get(), time_, -1);
+    const io::SimInfo info{.time = time_,
+                           .dt = dt_,
+                           .last_cycle = -1,
+                           .last_out_h5 = -1,
+                           .last_out_hist = -1};
+    write_output(mesh_state_, grid_, &sl_hydro_, pin_.get(), info, -1);
   }
 #endif
 } // post_step_work
