@@ -1,11 +1,11 @@
 #pragma once
 
-#include "basic_types.hpp"
-#include "geometry/grid.hpp"
-#include "interface/packages_base.hpp"
-#include "interface/state.hpp"
-
 namespace athelas {
+
+class GridStructure;
+class MeshState;
+class PackageManager;
+struct TimeStepInfo;
 
 /**
  * @class OperatorSplitStepper
