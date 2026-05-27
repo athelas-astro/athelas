@@ -3,6 +3,7 @@
 #include <memory>
 
 #include "atom/atom.hpp"
+#include "bc/boundary_conditions_base.hpp"
 #include "eos/eos_variant.hpp"
 #include "geometry/grid.hpp"
 #include "history/history.hpp"
