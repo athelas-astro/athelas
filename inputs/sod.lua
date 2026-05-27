@@ -1,7 +1,7 @@
 local config = {}
 
 config.problem = {
-  name = "sod",
+  name = "shocktube",
   t_end = 0.2,
   nlim = -1,
   geometry = "planar",

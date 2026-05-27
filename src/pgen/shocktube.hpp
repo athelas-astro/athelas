@@ -6,8 +6,8 @@ class GridStructure;
 class ProblemIn;
 } // namespace athelas
 
-namespace athelas::pgen::shockless_noh {
+namespace athelas::pgen::shocktube {
 
 void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin);
 
-} // namespace athelas::pgen::shockless_noh
+} // namespace athelas::pgen::shocktube
