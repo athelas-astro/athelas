@@ -14,6 +14,7 @@
 #include "io/io.hpp"
 #include "io/restart.hpp"
 #include "kokkos_types.hpp"
+#include "limiters/bound_enforcing_limiter.hpp"
 #include "limiters/slope_limiter.hpp"
 #include "loop_layout.hpp"
 #include "pgen/pgen.hpp"
@@ -200,6 +201,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   using gravity::GravityPackage;
   using nickel::NickelHeatingPackage;
   using radiation::ImplicitRadiationMomentsPackage;
+  using radiation::RadHydroPackage;
   using thermal_engine::ThermalEnginePackage;
 
   const auto nx = pin_->param()->get<int>("problem.nx");
