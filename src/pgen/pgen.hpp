@@ -1,5 +1,5 @@
 /**
- * @file initialization.hpp
+ * @file pgen.hpp
  * --------------
  *
  * @author Brandon L. Barker

@@ -16,7 +16,7 @@
 #include "kokkos_types.hpp"
 #include "limiters/slope_limiter.hpp"
 #include "loop_layout.hpp"
-#include "pgen/initialization.hpp"
+#include "pgen/pgen.hpp"
 #include "pgen/problem_in.hpp"
 #include "radiation/imex_radhydro_package.hpp"
 #include "radiation/implicit_moments_package.hpp"

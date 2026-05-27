@@ -1,10 +1,3 @@
-/**
- * @file marshak.hpp
- * --------------
- *
- * @brief Radiation marshak wave test
- */
-
 #include "pgen/marshak.hpp"
 
 #include <cmath>

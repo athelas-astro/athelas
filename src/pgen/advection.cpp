@@ -1,10 +1,3 @@
-/**
- * @file advection.cpp
- * --------------
- *
- * @brief Fluid advection test
- */
-
 #include "pgen/advection.hpp"
 
 #include <cmath> /* sin */

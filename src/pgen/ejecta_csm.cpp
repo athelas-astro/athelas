@@ -1,11 +1,3 @@
-/**
- * @file ejecta_csm.cpp
- * --------------
- *
- * @brief Ejecta - CSM interaction test.
- * See Duffell 2016 (doi:10.3847/0004-637X/821/2/76)
- */
-
 #include "pgen/ejecta_csm.hpp"
 
 #include <cmath>

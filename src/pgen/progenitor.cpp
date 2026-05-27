@@ -1,5 +1,5 @@
 /**
- * @file progenitor.hpp
+ * @file progenitor.cpp
  * --------------
  *
  * @brief Supernova progenitor initialization
