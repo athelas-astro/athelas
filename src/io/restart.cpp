@@ -197,8 +197,7 @@ void load_composition_from_h5(atom::CompositionData &comps,
                               const RestartReader &reader) {
   reader.read_view(comps.charge(), "/composition/charge");
   reader.read_view(comps.neutron_number(), "/composition/neutron_number");
-  reader.read_view(comps.inverse_atomic_mass(),
-                   "/composition/inv_atomic_mass");
+  reader.read_view(comps.inverse_atomic_mass(), "/composition/inv_atomic_mass");
   reader.read_view(comps.abar(), "/composition/abar");
   reader.read_view(comps.number_density(), "/composition/number_density");
   reader.read_view(comps.ye(), "/composition/ye");
@@ -208,10 +207,9 @@ void load_composition_from_h5(atom::CompositionData &comps,
   // from (Z, N) heuristics — preserves custom aliases pgens may have added.
   auto *indexer = comps.species_indexer();
   if (reader.has("/composition/species_indexer")) {
-    for (const auto &name :
-         reader.list_group("/composition/species_indexer")) {
-      const int idx = reader.read_scalar<int>(
-          "/composition/species_indexer/" + name);
+    for (const auto &name : reader.list_group("/composition/species_indexer")) {
+      const int idx =
+          reader.read_scalar<int>("/composition/species_indexer/" + name);
       indexer->add(name, idx);
     }
   }

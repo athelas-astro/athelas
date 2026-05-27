@@ -42,8 +42,7 @@ class ProblemIn {
    * sol::state — no input file is loaded).
    */
   ProblemIn(
-      RestartTag, const std::string &h5_filename,
-      const std::string &output_dir,
+      RestartTag, const std::string &h5_filename, const std::string &output_dir,
       const std::vector<std::pair<std::string, std::string>> &overrides = {});
 
   auto param() -> Params *;

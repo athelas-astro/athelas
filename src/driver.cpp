@@ -589,9 +589,11 @@ void Driver::post_step_work() {
   } catch (const AthelasError &e) {
     std::cerr << e.what() << "\n";
     std::println("!!! Bad State found, writing _final_ output file ...");
-    const io::SimInfo info{
-        .time = time_, .dt = dt_, .last_cycle = -1, .last_out_h5 = -1,
-        .last_out_hist = -1};
+    const io::SimInfo info{.time = time_,
+                           .dt = dt_,
+                           .last_cycle = -1,
+                           .last_out_h5 = -1,
+                           .last_out_hist = -1};
     write_output(mesh_state_, grid_, &sl_hydro_, pin_.get(), info, -1);
   }
 #endif

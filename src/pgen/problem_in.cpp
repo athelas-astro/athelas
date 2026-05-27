@@ -773,8 +773,7 @@ ProblemIn::ProblemIn(
   // MethodID isn't serialized directly — recover it from the string form.
   const auto integrator_name =
       params_->get<std::string>("time.integrator_string");
-  const MethodID method_id =
-      string_to_id(utilities::to_lower(integrator_name));
+  const MethodID method_id = string_to_id(utilities::to_lower(integrator_name));
   if (params_->contains("time.integrator")) {
     params_->get_mutable_ref<MethodID>("time.integrator") = method_id;
   } else {

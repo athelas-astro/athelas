@@ -171,7 +171,8 @@ auto main(int argc, char **argv) -> int {
 
   namespace fs = std::filesystem;
   const bool restart_mode = !opts.restart_file.empty();
-  const std::string &primary = restart_mode ? opts.restart_file : opts.input_file;
+  const std::string &primary =
+      restart_mode ? opts.restart_file : opts.input_file;
   if (!fs::exists(primary)) {
     std::println(std::cerr, "{} file does not exist: {}",
                  restart_mode ? "Restart" : "Input", primary);
@@ -202,12 +203,13 @@ auto main(int argc, char **argv) -> int {
   Kokkos::initialize(argc, argv);
   {
     // pin
-    const auto pin = restart_mode
-                         ? std::make_shared<ProblemIn>(
-                               ProblemIn::RestartTag{}, opts.restart_file,
-                               opts.output_dir, opts.overrides)
-                         : std::make_shared<ProblemIn>(
-                               opts.input_file, opts.output_dir, opts.overrides);
+    const auto pin =
+        restart_mode
+            ? std::make_shared<ProblemIn>(ProblemIn::RestartTag{},
+                                          opts.restart_file, opts.output_dir,
+                                          opts.overrides)
+            : std::make_shared<ProblemIn>(opts.input_file, opts.output_dir,
+                                          opts.overrides);
 
     // --- Create Driver ---
     Driver driver(pin, restart_mode ? opts.restart_file : std::string{});

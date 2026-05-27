@@ -26,7 +26,7 @@ HistoryOutput::HistoryOutput(const std::string &filename,
   }
   const std::string path = output_dir_ + "/" + filename;
   // Restart case: existing non-empty file already carries a header - don't
-  // emit another one. This could lead to unintended behavior, such as if a 
+  // emit another one. This could lead to unintended behavior, such as if a
   // non-empty filename exists with garbage in it, we will happily append.
   std::error_code ec;
   if (std::filesystem::exists(path, ec) &&

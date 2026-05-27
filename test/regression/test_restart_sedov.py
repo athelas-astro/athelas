@@ -82,28 +82,37 @@ class RestartSedovTest(unittest.TestCase):
     os.mkdir(self.build_dir)
     try:
       subprocess.run(
-        ["cmake", "-DCMAKE_BUILD_TYPE=Release",
-         "-DATHELAS_ENABLE_UNIT_TESTS=OFF", self.src_dir],
-        cwd=self.build_dir, check=True,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        [
+          "cmake",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DATHELAS_ENABLE_UNIT_TESTS=OFF",
+          self.src_dir,
+        ],
+        cwd=self.build_dir,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
       )
       subprocess.run(
         ["cmake", "--build", ".", "--parallel"],
-        cwd=self.build_dir, check=True,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        cwd=self.build_dir,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
       )
     except subprocess.CalledProcessError as e:
       self.fail(f"Build failed: {e.stderr.decode(errors='replace')}")
-    self.executable = os.path.abspath(
-      os.path.join(self.build_dir, "athelas")
-    )
+    self.executable = os.path.abspath(os.path.join(self.build_dir, "athelas"))
 
   def _run(self, args, cwd, logname):
     with open(os.path.join(cwd, logname), "w") as out:
       try:
         subprocess.run(
           [self.executable, *args],
-          cwd=cwd, check=True, stdout=out, stderr=subprocess.PIPE,
+          cwd=cwd,
+          check=True,
+          stdout=out,
+          stderr=subprocess.PIPE,
         )
       except subprocess.CalledProcessError as e:
         self.fail(
@@ -142,9 +151,7 @@ class RestartSedovTest(unittest.TestCase):
       for v in self.varlist:
         arr_a = np.asarray(fa[v]).flatten()
         arr_b = np.asarray(fb[v]).flatten()
-        self.assertEqual(
-          arr_a.shape, arr_b.shape, f"shape mismatch for '{v}'"
-        )
+        self.assertEqual(arr_a.shape, arr_b.shape, f"shape mismatch for '{v}'")
         mismatches = 0
         worst = (0.0, 0.0, 0.0)  # (val, ref, frac_error)
         for n in range(len(arr_a)):
@@ -179,7 +186,8 @@ if __name__ == "__main__":
     description="Verify restart reproducibility on the sedov problem"
   )
   parser.add_argument(
-    "--executable", "-e",
+    "--executable",
+    "-e",
     help="Path to a prebuilt athelas executable (skips build)",
   )
   args = parser.parse_args()
