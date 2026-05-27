@@ -1,3 +1,5 @@
+#include "io/io.hpp"
+
 #include <array>
 #include <cstddef>
 #include <iomanip>
@@ -11,7 +13,6 @@
 
 #include "build_info.hpp"
 #include "geometry/grid.hpp"
-#include "io/io.hpp"
 #include "limiters/slope_limiter.hpp"
 
 namespace athelas {
@@ -19,8 +20,6 @@ namespace athelas {
 using basis::NodalBasis;
 
 namespace io {
-
-// using namespace athelas::build_info;
 
 /**
  * Write to standard output some initialization info
@@ -362,9 +361,7 @@ void write_output(const MeshState &mesh_state, GridStructure &mesh,
     writer.create_group("/basis/radiation");
   }
 
-  // Write simulation info. See the SimInfo struct doc for counter semantics:
-  // every counter on disk is the "last completed" value, and restart uses
-  // `last + 1` to compute the next-pending value.
+  // Write simulation info.
   writer.write_scalar("/info/last_cycle", info.last_cycle,
                       H5::PredType::NATIVE_INT);
   writer.write_scalar("/info/time", info.time, H5::PredType::NATIVE_DOUBLE);

@@ -9,7 +9,6 @@
 
 #pragma once
 
-#include "basis/polynomial_basis.hpp"
 #include "geometry/grid.hpp"
 #include "interface/state.hpp"
 #include "limiters/slope_limiter.hpp"
@@ -47,9 +46,6 @@ struct DataType {
 
 /**
  * @brief Snapshot of evolution state written to (and read from) /info.
- *
- * Bundles the values the driver passes through to the writer so we don't grow
- * the write_output signature each time we add another counter.
  *
  * **Counter semantics: "last completed" on disk; restart adds 1 to resume.**
  *

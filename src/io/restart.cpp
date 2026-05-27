@@ -1,3 +1,5 @@
+#include "io/restart.hpp"
+
 #include <array>
 #include <string>
 #include <vector>
@@ -8,7 +10,6 @@
 #include "geometry/grid.hpp"
 #include "interface/state.hpp"
 #include "io/io.hpp"
-#include "io/restart.hpp"
 #include "utils/error.hpp"
 
 namespace athelas::io {

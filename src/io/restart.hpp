@@ -29,8 +29,7 @@ namespace athelas::io {
 /**
  * @brief Read-only HDF5 reader for restart files.
  *
- * Mirrors the data primitives in HDF5Writer. Reads always go through a host
- * mirror before deep_copy to device, matching the writer's pattern.
+ * Mirrors the data primitives in HDF5Writer.
  */
 class RestartReader {
  public:
