@@ -2,7 +2,6 @@
  * @file pgen.hpp
  * --------------
  *
- * @author Brandon L. Barker
  * @brief Top level problem initialization
  *
  * @details Calls specific problem pgen functions.
