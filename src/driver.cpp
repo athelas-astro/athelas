@@ -2,6 +2,7 @@
 #include "basic_types.hpp"
 #include "basis/nodal_basis.hpp"
 #include "basis/polynomial_basis.hpp"
+#include "bc/boundary_conditions.hpp"
 #include "engines/thermal.hpp"
 #include "fluid/hydro_package.hpp"
 #include "geometry/geometry_package.hpp"

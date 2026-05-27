@@ -1,4 +1,4 @@
-#pragma once
+#include "pgen/shocktube.hpp"
 
 #include "eos/eos_variant.hpp"
 #include "geometry/grid.hpp"
@@ -6,14 +6,14 @@
 #include "kokkos_abstraction.hpp"
 #include "loop_layout.hpp"
 
-namespace athelas {
+namespace athelas::pgen::shocktube {
 
 /**
- * @brief Initialize Sod shock tube
+ * @brief Initialize shock tube
  **/
-void sod_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
+void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
-                   "Sod requires ideal gas eos!");
+                   "Shock tube requires ideal gas eos!");
 
   auto uCF = mesh_state(0).get_field("u_cf");
   auto uPF = mesh_state(0).get_field("u_pf");
@@ -34,8 +34,8 @@ void sod_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   const double gm1 = gamma - 1.0;
 
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Sod (1)", DevExecSpace(), ib.s, ib.e,
-      KOKKOS_LAMBDA(const int i) {
+      DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: ShockTube (1)", DevExecSpace(), ib.s,
+      ib.e, KOKKOS_LAMBDA(const int i) {
         const double X1 = grid->centers(i);
 
         if (X1 <= x_d) {
@@ -52,8 +52,8 @@ void sod_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   static const IndexRange nb(nNodes);
   auto r = grid->nodal_grid();
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Pgen :: Sod", DevExecSpace(), ib.s, ib.e, nb.s,
-      nb.e, KOKKOS_LAMBDA(const int i, const int q) {
+      DEFAULT_LOOP_PATTERN, "Pgen :: ShockTube", DevExecSpace(), ib.s, ib.e,
+      nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int q) {
         const double x = r(i, q + 1);
         if (x <= x_d) {
           uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D_L;
@@ -71,4 +71,4 @@ void sod_init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
       });
 }
 
-} // namespace athelas
+} // namespace athelas::pgen::shocktube

@@ -11,6 +11,8 @@
 #pragma once
 
 #include <string>
+#include <string_view>
+#include <unordered_map>
 
 #include "geometry/grid.hpp"
 #include "interface/state.hpp"
@@ -30,9 +32,9 @@
 #include "pgen/rad_shock_steady.hpp"
 #include "pgen/sedov.hpp"
 #include "pgen/shockless_noh.hpp"
+#include "pgen/shocktube.hpp"
 #include "pgen/shu_osher.hpp"
 #include "pgen/smooth_flow.hpp"
-#include "pgen/sod.hpp"
 #include "utils/error.hpp"
 
 namespace athelas {
@@ -44,48 +46,35 @@ void initialize_fields(MeshState &mesh_state, GridStructure *grid,
                        ProblemIn *pin) {
   std::print("# Running problem generator... ");
 
-  const auto problem_name = pin->param()->get<std::string>("problem.name");
+  using init_fn = void (*)(MeshState &, GridStructure *, ProblemIn *);
+  static const std::unordered_map<std::string_view, init_fn> pgen_registry = {
+      {"supernova", &pgen::progenitor::init},
+      {"shocktube", &pgen::shocktube::init},
+      {"shu_osher", &pgen::shu_osher::init},
+      {"moving_contact", &pgen::moving_contact::init},
+      {"hydrostatic_balance", &pgen::hydrostatic_balance::init},
+      {"smooth_advection", &pgen::advection::init},
+      {"sedov", &pgen::sedov::init},
+      {"noh", &pgen::noh::init},
+      {"shockless_noh", &pgen::shockless_noh::init},
+      {"smooth_flow", &pgen::smooth_flow::init},
+      {"ejecta_csm", &pgen::ejecta_csm::init},
+      {"rad_equilibrium", &pgen::rad_equilibrium::init},
+      {"rad_advection", &pgen::rad_advection::init},
+      {"rad_shock_steady", &pgen::rad_shock_steady::init},
+      {"rad_shock", &pgen::rad_shock::init},
+      {"marshak", &pgen::marshak::init},
+      {"one_zone_ionization", &pgen::one_zone_ionization::init},
+      {"ni_decay", &pgen::ni_decay::init},
+  };
 
-  // This is clunky and not elegant but it works.
-  if (problem_name == "supernova") {
-    progenitor_init(mesh_state, grid, pin);
-  } else if (problem_name == "sod") {
-    sod_init(mesh_state, grid, pin);
-  } else if (problem_name == "shu_osher") {
-    shu_osher_init(mesh_state, grid, pin);
-  } else if (problem_name == "moving_contact") {
-    moving_contact_init(mesh_state, grid, pin);
-  } else if (problem_name == "hydrostatic_balance") {
-    hydrostatic_balance_init(mesh_state, grid, pin);
-  } else if (problem_name == "smooth_advection") {
-    advection_init(mesh_state, grid, pin);
-  } else if (problem_name == "sedov") {
-    sedov_init(mesh_state, grid, pin);
-  } else if (problem_name == "noh") {
-    noh_init(mesh_state, grid, pin);
-  } else if (problem_name == "shockless_noh") {
-    shockless_noh_init(mesh_state, grid, pin);
-  } else if (problem_name == "smooth_flow") {
-    smooth_flow_init(mesh_state, grid, pin);
-  } else if (problem_name == "ejecta_csm") {
-    ejecta_csm_init(mesh_state, grid, pin);
-  } else if (problem_name == "rad_equilibrium") {
-    rad_equilibrium_init(mesh_state, grid, pin);
-  } else if (problem_name == "rad_advection") {
-    rad_advection_init(mesh_state, grid, pin);
-  } else if (problem_name == "rad_shock_steady") {
-    rad_shock_steady_init(mesh_state, grid, pin);
-  } else if (problem_name == "rad_shock") {
-    rad_shock_init(mesh_state, grid, pin);
-  } else if (problem_name == "marshak") {
-    marshak_init(mesh_state, grid, pin);
-  } else if (problem_name == "one_zone_ionization") {
-    one_zone_ionization_init(mesh_state, grid, pin);
-  } else if (problem_name == "ni_decay") {
-    ni_decay_init(mesh_state, grid, pin);
-  } else {
+  const auto problem_name = pin->param()->get<std::string>("problem.name");
+  const auto it = pgen_registry.find(problem_name);
+  if (it == pgen_registry.end()) {
     throw_athelas_error("Please choose a valid problem_name!");
   }
+  it->second(mesh_state, grid, pin);
+
   std::println(" .. complete!\n");
 }
 
