@@ -44,6 +44,7 @@ target_link_libraries( unit_tests
     ${LUA_LIBRARIES}
     kokkos
     Kokkos::kokkoskernels
+    spiner::spiner
 )
 
 # add_subdirectory( basis )
