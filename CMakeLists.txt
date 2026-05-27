@@ -147,6 +147,7 @@ set( ATHELAS_SOURCES
   "src/geometry/grid.cpp"
   "src/gravity/gravity_package.cpp"
   "src/io/io.cpp"
+  "src/io/restart.cpp"
   "src/io/tables.cpp"
   "src/math/linear_algebra.cpp"
   "src/math/quadrature.cpp"

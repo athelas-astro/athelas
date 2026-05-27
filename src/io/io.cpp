@@ -347,8 +347,8 @@ class HDF5Writer {
 };
 
 void write_output(const MeshState &mesh_state, GridStructure &mesh,
-                  ProblemIn *pin, const std::string &filename, int cycle,
-                  double time) {
+                  ProblemIn *pin, const std::string &filename,
+                  const SimInfo &info) {
   HDF5Writer writer(filename);
 
   // Create structure
@@ -362,15 +362,24 @@ void write_output(const MeshState &mesh_state, GridStructure &mesh,
     writer.create_group("/basis/radiation");
   }
 
-  // Write simulation info
-  writer.write_scalar("/info/cycle", cycle, H5::PredType::NATIVE_INT);
-  writer.write_scalar("/info/time", time, H5::PredType::NATIVE_DOUBLE);
+  // Write simulation info. See the SimInfo struct doc for counter semantics:
+  // every counter on disk is the "last completed" value, and restart uses
+  // `last + 1` to compute the next-pending value.
+  writer.write_scalar("/info/last_cycle", info.last_cycle,
+                      H5::PredType::NATIVE_INT);
+  writer.write_scalar("/info/time", info.time, H5::PredType::NATIVE_DOUBLE);
+  writer.write_scalar("/info/dt", info.dt, H5::PredType::NATIVE_DOUBLE);
+  writer.write_scalar("/info/last_out_h5", info.last_out_h5,
+                      H5::PredType::NATIVE_INT);
+  writer.write_scalar("/info/last_out_hist", info.last_out_hist,
+                      H5::PredType::NATIVE_INT);
   writer.write_scalar("/info/n_stages", mesh_state.n_stages(),
                       H5::PredType::NATIVE_INT);
 
   // Write the mesh.
   writer.write_view(mesh.widths(), "/mesh/dr");
   writer.write_view(mesh.centers(), "/mesh/r");
+  writer.write_view(mesh.x_l(), "/mesh/x_l");
   writer.write_view(mesh.nodal_grid(), "/mesh/r_q");
   writer.write_view(mesh.enclosed_mass(), "/mesh/enclosed_mass");
   writer.write_view(mesh.mass(), "/mesh/dm");
@@ -409,6 +418,20 @@ void write_output(const MeshState &mesh_state, GridStructure &mesh,
     writer.write_view(number_density, "composition/number_density");
     writer.write_view(ye, "composition/ye");
     writer.write_view(ne, "composition/ne");
+
+    // Serialize the species_indexer so restart preserves any custom aliases
+    // a pgen added (and so we don't need to re-derive standard ones from
+    // (Z, N) heuristics). Currently every value is an int (species index).
+    auto *indexer = comps->species_indexer();
+    writer.create_group("/composition/species_indexer");
+    for (const auto &key : indexer->keys()) {
+      const std::type_index t = indexer->get_type(key);
+      if (t == typeid(int)) {
+        writer.write_scalar("/composition/species_indexer/" + key,
+                            indexer->get<int>(key), H5::PredType::NATIVE_INT);
+      }
+      // Other value types intentionally skipped — extend here when needed.
+    }
   }
 
   if (mesh_state.enabled("ionization")) {
@@ -449,6 +472,16 @@ void write_output(const MeshState &mesh_state, GridStructure &mesh,
     } else if (t == typeid(std::vector<double>)) {
       auto v = params->get<std::vector<double>>(key);
       writer.write_vector("params/" + key, v, H5::PredType::NATIVE_DOUBLE);
+    } else if (t == typeid(std::array<double, 2>)) {
+      auto v = params->get<std::array<double, 2>>(key);
+      std::vector<double> as_vec(v.begin(), v.end());
+      writer.write_vector("params/" + key, as_vec, H5::PredType::NATIVE_DOUBLE);
+      writer.write_string_attribute("params/" + key, "param_kind", "array_2");
+    } else if (t == typeid(std::array<double, 3>)) {
+      auto v = params->get<std::array<double, 3>>(key);
+      std::vector<double> as_vec(v.begin(), v.end());
+      writer.write_vector("params/" + key, as_vec, H5::PredType::NATIVE_DOUBLE);
+      writer.write_string_attribute("params/" + key, "param_kind", "array_3");
     }
   }
 
@@ -494,7 +527,8 @@ auto generate_filename(const std::string &problem_name,
  * @brief write to hdf5
  */
 void write_output(const MeshState &mesh_state, GridStructure &grid,
-                  SlopeLimiter *SL, ProblemIn *pin, double time, int i_write) {
+                  SlopeLimiter *SL, ProblemIn *pin, const SimInfo &info,
+                  int i_write) {
   Kokkos::Profiling::pushRegion("IO");
   Kokkos::Profiling::pushRegion("HDF5");
   Kokkos::Profiling::pushRegion("Out");
@@ -506,7 +540,7 @@ void write_output(const MeshState &mesh_state, GridStructure &grid,
   std::string filename =
       generate_filename(problem_name, output_dir, i_write, max_digits);
 
-  write_output(mesh_state, grid, pin, filename, i_write, time);
+  write_output(mesh_state, grid, pin, filename, info);
 
   Kokkos::Profiling::popRegion();
   Kokkos::Profiling::popRegion();

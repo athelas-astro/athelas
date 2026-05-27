@@ -20,6 +20,7 @@ using athelas::Driver, athelas::AthelasExitCodes, athelas::ProblemIn,
 namespace {
 struct CommandLineOptions {
   std::string input_file;
+  std::string restart_file;
   std::string output_dir = "./";
   // Each entry is (dotted_key, lua_expr) collected from --key=value args.
   std::vector<std::pair<std::string, std::string>> overrides;
@@ -53,13 +54,16 @@ auto parse_input_options(std::span<char *> args)
       args.size() >= 2 &&
       (std::strcmp(args[1], "-h") == 0 || std::strcmp(args[1], "--help") == 0);
   if (no_args || get_help) {
-    std::println("# Usage: ./athelas [-h] [-i /path/to/input.lua] [-o "
-                 "output_dir] [--key=value ...]");
+    std::println("# Usage: ./athelas [-h] (-i /path/to/input.lua | -r "
+                 "/path/to/restart.ath) [-o output_dir] [--key=value ...]");
     std::println("Options:");
     std::println("  -h, --help                Show this help message and exit");
     std::println("  -i <path>, --input=<path>");
     std::println("                            Path to the input .lua script "
-                 "(Required)");
+                 "(required for a new run)");
+    std::println("  -r <path>, --restart=<path>");
+    std::println("                            Path to a .ath checkpoint to "
+                 "resume from. Mutually exclusive with -i.");
     std::println("  -o <dir>,  --output=<dir>");
     std::println("                            Directory where output files "
                  "will be saved (Default: ./)");
@@ -79,10 +83,12 @@ auto parse_input_options(std::span<char *> args)
                  "--output.history.fn='\"sedov.hst\"'");
     std::println("  ./athelas -i ../inputs/marshak.lua "
                  "--bc.radiation.dirichlet_values_i='{{1.1e12, 0.0}}'");
+    std::println("  ./athelas -r run/sedov_000050.ath -o run/");
+    std::println("  ./athelas -r run/sedov_000050.ath --problem.tf=0.2");
     std::exit(get_help ? AthelasExitCodes::SUCCESS : AthelasExitCodes::FAILURE);
   }
 
-  // Short flags (-i, -o) take the next argv as value. Long flags must use
+  // Short flags (-i, -r, -o) take the next argv as value. Long flags must use
   // --name=value; unrecognized --name=value pairs become input-deck overrides.
   for (std::size_t i = 1; i < args.size(); ++i) {
     std::string_view arg = args[i];
@@ -93,6 +99,13 @@ auto parse_input_options(std::span<char *> args)
       }
       opts.input_file = args[++i];
       has_input = true;
+      continue;
+    }
+    if (arg == "-r") {
+      if (i + 1 >= args.size()) {
+        return std::unexpected("Missing restart file after -r");
+      }
+      opts.restart_file = args[++i];
       continue;
     }
     if (arg == "-o") {
@@ -118,6 +131,8 @@ auto parse_input_options(std::span<char *> args)
     if (name == "--input") {
       opts.input_file = std::move(value);
       has_input = true;
+    } else if (name == "--restart") {
+      opts.restart_file = std::move(value);
     } else if (name == "--output") {
       opts.output_dir = std::move(value);
     } else {
@@ -130,8 +145,14 @@ auto parse_input_options(std::span<char *> args)
     }
   }
 
-  if (!has_input) {
-    return std::unexpected("No input file passed! Use -i <path>");
+  if (has_input && !opts.restart_file.empty()) {
+    return std::unexpected("-i and -r are mutually exclusive; -r restarts "
+                           "from a .ath file and pulls all params from it");
+  }
+  if (!has_input && opts.restart_file.empty()) {
+    return std::unexpected(
+        "No input passed! Use -i <path> for a new run, or -r <path> to "
+        "restart from a .ath checkpoint");
   }
 
   return opts;
@@ -149,8 +170,11 @@ auto main(int argc, char **argv) -> int {
   const auto &opts = input_result.value();
 
   namespace fs = std::filesystem;
-  if (!fs::exists(opts.input_file)) {
-    std::println(std::cerr, "Input file does not exist!");
+  const bool restart_mode = !opts.restart_file.empty();
+  const std::string &primary = restart_mode ? opts.restart_file : opts.input_file;
+  if (!fs::exists(primary)) {
+    std::println(std::cerr, "{} file does not exist: {}",
+                 restart_mode ? "Restart" : "Input", primary);
     return athelas::AthelasExitCodes::FAILURE;
   }
   if (opts.output_dir != "./") {
@@ -178,11 +202,15 @@ auto main(int argc, char **argv) -> int {
   Kokkos::initialize(argc, argv);
   {
     // pin
-    const auto pin = std::make_shared<ProblemIn>(
-        opts.input_file, opts.output_dir, opts.overrides);
+    const auto pin = restart_mode
+                         ? std::make_shared<ProblemIn>(
+                               ProblemIn::RestartTag{}, opts.restart_file,
+                               opts.output_dir, opts.overrides)
+                         : std::make_shared<ProblemIn>(
+                               opts.input_file, opts.output_dir, opts.overrides);
 
     // --- Create Driver ---
-    Driver driver(pin);
+    Driver driver(pin, restart_mode ? opts.restart_file : std::string{});
 
     // --- Timer ---
     Kokkos::Timer timer_total;

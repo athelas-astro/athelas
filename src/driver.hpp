@@ -7,6 +7,7 @@
 #include "geometry/grid.hpp"
 #include "history/history.hpp"
 #include "interface/packages_base.hpp"
+#include "io/io.hpp"
 #include "limiters/slope_limiter_utilities.hpp"
 #include "pgen/problem_in.hpp"
 #include "timestepper/operator_split_stepper.hpp"
@@ -26,9 +27,12 @@ class Driver {
  public:
   //  explicit Driver(std::shared_ptr<ProblemIn> pin);
   // Driver
-  explicit Driver(std::shared_ptr<ProblemIn> pin) // NOLINT
+  explicit Driver(std::shared_ptr<ProblemIn> pin,
+                  std::string restart_filename = "") // NOLINT
       : pin_(pin), manager_(std::make_unique<PackageManager>()),
-        split_manager_(std::make_unique<PackageManager>()), restart_(false),
+        split_manager_(std::make_unique<PackageManager>()),
+        restart_filename_(std::move(restart_filename)),
+        restart_(!restart_filename_.empty()),
         bcs_(std::make_unique<BoundaryConditions>(
             bc::make_boundary_conditions(pin.get()))),
         time_(0.0), dt_(pin_->param()->get<double>("output.dt_init")),
@@ -61,7 +65,9 @@ class Driver {
 
   // TODO(astrobarker): thread in run_id_
   // std::string run_id_;
+  std::string restart_filename_;
   bool restart_;
+  io::SimInfo restart_info_{}; // populated by restart load; zero otherwise
 
   std::unique_ptr<BoundaryConditions> bcs_;
 

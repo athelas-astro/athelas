@@ -5,7 +5,6 @@ config.problem = {
   t_end = 0.025,
   nlim = -1,
   geometry = "spherical",
-  restart = false,
   xl = 0.0,
   xr = 1.25,
   cfl = 0.5,

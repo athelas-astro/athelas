@@ -1,3 +1,4 @@
+#include <filesystem>
 #include <format>
 #include <fstream>
 #include <functional>
@@ -23,7 +24,16 @@ HistoryOutput::HistoryOutput(const std::string &filename,
   if (!enabled_) {
     return;
   }
-  file_.open(output_dir_ + "/" + filename, std::ios::out | std::ios::app);
+  const std::string path = output_dir_ + "/" + filename;
+  // Restart case: existing non-empty file already carries a header - don't
+  // emit another one. This could lead to unintended behavior, such as if a 
+  // non-empty filename exists with garbage in it, we will happily append.
+  std::error_code ec;
+  if (std::filesystem::exists(path, ec) &&
+      std::filesystem::file_size(path, ec) > 0) {
+    header_written_ = true;
+  }
+  file_.open(path, std::ios::out | std::ios::app);
 }
 
 void HistoryOutput::add_quantity(const std::string &name,

@@ -1,9 +1,13 @@
+-- One-zone ionization configuration for the restart regression test.
+-- Uses output.dt_fixed so dump cadence is deterministic w.r.t. cycle count,
+-- and nlim governs the runtime so the test is fast and predictable.
+
 local config = {}
 
 config.problem = {
   name = "one_zone_ionization",
-  t_end = 1.0,
-  nlim = 2,
+  t_end = 0.005,
+  nlim = 20,
   geometry = "planar",
   xl = 0.0,
   xr = 1.0,
@@ -33,6 +37,7 @@ config.ionization = {
   fn_ionization = "../../../data/atomic_data_ionization.dat",
   fn_degeneracy = "../../../data/atomic_data_degeneracy_factors.dat",
   ncomps = 3,
+  solver = "linear",
 }
 
 config.composition = {
@@ -48,10 +53,9 @@ config.bc = {
 
 config.output = {
   ncycle_out = 1,
-  dt_init_frac = 1.005,
-  history = {
-    fn = "one_zone_ionization.hst",
-  },
+  -- Fixed dt removes CFL surprises; midpoint dump lands at cycle 10.
+  dt_fixed = 1.0e-4,
+  dt_hdf5 = 1.0e-3,
 }
 
 config.fluid = {

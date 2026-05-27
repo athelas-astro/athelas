@@ -61,7 +61,10 @@ class TimeStepper {
     static const IndexRange qb(grid.n_nodes());
     static const IndexRange vb(nvars);
 
-    grid_s_[0] = grid;
+    // Seed every per-stage grid from the current grid.
+    for (int iS = 0; iS < nStages_; ++iS) {
+      grid_s_[iS] = grid;
+    }
 
     const double t = dt_info.t;
     const double dt = dt_info.dt;
@@ -184,7 +187,10 @@ class TimeStepper {
     static const IndexRange qb(nnodes);
     static const IndexRange vb(nvars);
 
-    grid_s_[0] = grid;
+    // Seed every per-stage grid from the current grid.
+    for (int iS = 0; iS < nStages_; ++iS) {
+      grid_s_[iS] = grid;
+    }
 
     const double t = dt_info.t;
     const double dt = dt_info.dt;

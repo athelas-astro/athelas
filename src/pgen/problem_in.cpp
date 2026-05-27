@@ -1,4 +1,5 @@
 #include "pgen/problem_in.hpp"
+#include "io/restart.hpp"
 #include "lua_schema.hpp"
 #include "pgen/lua_validator.hpp"
 #include "timestepper/tableau.hpp"
@@ -742,6 +743,110 @@ auto check_bc(std::string bc) -> bool {
         " - dirichlet");
   }
   return false; // should not reach
+}
+
+// ---------------------------------------------------------------------------
+// Restart construction
+// ---------------------------------------------------------------------------
+
+ProblemIn::ProblemIn(
+    RestartTag /*tag*/, const std::string &h5_filename,
+    const std::string &output_dir,
+    const std::vector<std::pair<std::string, std::string>> &overrides) {
+  // sol::state is still needed to parse --key=expr overrides; no input deck
+  // is loaded in restart mode.
+  lua_.open_libraries(sol::lib::base, sol::lib::math);
+  params_ = std::make_unique<Params>();
+
+  std::println("# Loading Restart File ... {}", h5_filename);
+
+  io::RestartReader reader(h5_filename);
+  io::load_params_from_h5(*params_, reader);
+
+  // Always honor the CLI output dir (allows redirecting restart output).
+  if (params_->contains("output.dir")) {
+    params_->get_mutable_ref<std::string>("output.dir") = output_dir;
+  } else {
+    params_->add("output.dir", output_dir);
+  }
+
+  // MethodID isn't serialized directly — recover it from the string form.
+  const auto integrator_name =
+      params_->get<std::string>("time.integrator_string");
+  const MethodID method_id =
+      string_to_id(utilities::to_lower(integrator_name));
+  if (params_->contains("time.integrator")) {
+    params_->get_mutable_ref<MethodID>("time.integrator") = method_id;
+  } else {
+    params_->add("time.integrator", method_id);
+  }
+
+  for (const auto &[key, expr] : overrides) {
+    apply_restart_override(key, expr);
+    std::println("# Override applied: {} = {}", key, expr);
+  }
+
+  std::println("# Restart load ... Complete\n");
+}
+
+void ProblemIn::apply_restart_override(const std::string &key,
+                                       const std::string &expr) {
+  sol::object value;
+  try {
+    value = lua_.script("return " + expr);
+  } catch (const sol::error &e) {
+    std::println(std::cerr, "Override failed for '{} = {}': {}", key, expr,
+                 e.what());
+    std::println(std::cerr,
+                 "Hint: --key=value is parsed as Lua source; strings must be "
+                 "Lua-quoted, e.g. --key='\"value\"'.");
+    throw_athelas_error("Invalid command-line override");
+  }
+
+  // If the key already exists, preserve its type so consumers see what they
+  // expect. Otherwise, infer from the Lua value.
+  const bool exists = params_->contains(key);
+  const std::type_index existing =
+      exists ? params_->get_type(key) : std::type_index(typeid(void));
+
+  auto store = [&](auto v) {
+    using T = decltype(v);
+    if (exists) {
+      params_->get_mutable_ref<T>(key) = std::move(v);
+    } else {
+      params_->add(key, std::move(v));
+    }
+  };
+
+  if (exists && existing == typeid(bool)) {
+    store(value.as<bool>());
+  } else if (exists && existing == typeid(int)) {
+    store(value.as<int>());
+  } else if (exists && existing == typeid(double)) {
+    store(value.as<double>());
+  } else if (exists && existing == typeid(std::string)) {
+    store(value.as<std::string>());
+  } else if (!exists) {
+    // No existing type — fall back to Lua's notion. Order matters: bool first
+    // (Lua bools also satisfy is<int>() in some sol setups), then int before
+    // double (sol distinguishes them).
+    if (value.is<bool>()) {
+      params_->add(key, value.as<bool>());
+    } else if (value.is<int>()) {
+      params_->add(key, value.as<int>());
+    } else if (value.is<double>()) {
+      params_->add(key, value.as<double>());
+    } else if (value.is<std::string>()) {
+      params_->add(key, value.as<std::string>());
+    } else {
+      throw_athelas_error("Restart override '" + key +
+                          "' has unsupported value type");
+    }
+  } else {
+    throw_athelas_error("Restart override for '" + key +
+                        "' targets a param type that is not overridable from "
+                        "the CLI");
+  }
 }
 
 } // namespace athelas
