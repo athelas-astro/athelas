@@ -57,6 +57,7 @@ class SodShockTubeTest(AthelasRegressionTest):
       tolerance=1.0e-5,
       build_required=build_required,
       compression_factor=16,
+      output_basename="shocktube",
     )
 
   def test_sod(self):

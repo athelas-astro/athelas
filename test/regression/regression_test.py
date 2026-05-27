@@ -38,6 +38,7 @@ class AthelasRegressionTest(unittest.TestCase):
     tolerance=1.0e-5,
     build_required=True,
     compression_factor=2,
+    output_basename=None,
   ):
     super().__init__(test_name)
     self.src_dir = src_dir
@@ -53,6 +54,7 @@ class AthelasRegressionTest(unittest.TestCase):
     self.tolerance = tolerance
     self.build_required = build_required
     self.compression_factor = compression_factor
+    self.output_basename = output_basename
 
   # End __init__
 
@@ -202,7 +204,9 @@ class AthelasRegressionTest(unittest.TestCase):
       sys.exit(os.EX_SOFTWARE)
 
     # load sim data
-    basename = os.path.splitext(os.path.basename(self.infile))[0]
+    basename = self.output_basename
+    if basename is None:
+      basename = os.path.splitext(os.path.basename(self.infile))[0]
     filename = basename + "_final.ath"
     variables_data = self.load_output(filename, self.varlist)
 
