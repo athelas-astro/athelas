@@ -16,10 +16,13 @@ add_executable( unit_tests
 
   test_catch_integration.cpp
   test_quadrature.cpp
+  ../../src/composition/compdata.cpp
   ../../src/eos/eos_paczynski.cpp
   ../../src/eos/eos_ideal.cpp
   ../../src/eos/eos_polytropic.cpp
   ../../src/eos/eos_marshak.cpp
+  ../../src/io/restart.cpp
+  ../../src/io/tables.cpp
   ../../src/math/linear_algebra.cpp
   ../../src/math/quadrature.cpp
   ../../src/basis/nodal_basis.cpp
@@ -28,6 +31,7 @@ add_executable( unit_tests
   ../../src/pgen/lua_validator.cpp
   ../../src/pgen/problem_in.cpp
   ../../src/interface/params.cpp
+  ../../src/interface/state.cpp
   test_parser.cpp
   test_legendre.cpp
   test_paczynski.cpp
@@ -42,6 +46,8 @@ target_link_libraries( unit_tests
     Catch2::Catch2
     sol2::sol2
     ${LUA_LIBRARIES}
+    ${HDF5_C_LIBRARIES}
+    ${HDF5_LIBRARIES}
     kokkos
     Kokkos::kokkoskernels
     spiner::spiner
