@@ -1,9 +1,16 @@
 #include <cfenv>
 #include <csignal>
+#include <cstdlib>
+#include <cstring>
 #include <expected>
 #include <filesystem>
+#include <format>
+#include <iostream>
+#include <memory>
 #include <print>
+#include <span>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 

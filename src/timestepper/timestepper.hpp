@@ -12,7 +12,6 @@
 
 #include <vector>
 
-#include "basic_types.hpp"
 #include "geometry/grid.hpp"
 #include "kokkos_types.hpp"
 #include "limiters/slope_limiter.hpp"
@@ -23,6 +22,8 @@ namespace athelas {
 class MeshState;
 class PackageManager;
 class ProblemIn;
+struct IndexRange;
+struct TimeStepInfo;
 
 class TimeStepper {
 

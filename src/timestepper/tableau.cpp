@@ -9,6 +9,9 @@
  * TODO(astrobarker): add order, effective cfl to tableaus
  */
 
+#include <cmath>
+#include <numbers>
+#include <string>
 #include <unordered_map>
 
 #include "timestepper/tableau.hpp"

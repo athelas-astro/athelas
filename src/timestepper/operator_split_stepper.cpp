@@ -1,10 +1,10 @@
 #include "timestepper/operator_split_stepper.hpp"
-#include "eos/eos_variant.hpp"
+#include "basic_types.hpp"
 #include "geometry/grid.hpp"
+#include "interface/packages_base.hpp"
+#include "interface/state.hpp"
 
 namespace athelas {
-
-using eos::EOS;
 
 /**
  * @brief Operator split timestep

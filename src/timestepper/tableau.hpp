@@ -9,6 +9,8 @@
 
 #pragma once
 
+#include <string>
+
 #include "kokkos_types.hpp"
 
 namespace athelas {
