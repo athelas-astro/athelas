@@ -25,12 +25,16 @@ TimeStepper::TimeStepper(const ProblemIn *pin, GridStructure *grid)
       nStages_(integrator_.num_stages), tOrder_(integrator_.explicit_order),
       SumVar_U_("SumVar_U", mSize_, pin->param()->get<int>("basis.nnodes"),
                 nvars_evolved_),
-      grid_s_(nStages_ + 1, GridStructure(pin)),
-      x_l_sumvar_("x_l_sumvar_", nStages_ + 1, mSize_ + 1) {}
+      grid_s_(), x_l_sumvar_("x_l_sumvar_", nStages_ + 1, mSize_ + 1) {
+  grid_s_.reserve(nStages_ + 1);
+  for (int iS = 0; iS <= nStages_; ++iS) {
+    grid_s_.emplace_back(pin);
+  }
+}
 
 void TimeStepper::seed_stage_grids(const GridStructure &grid) {
   for (int iS = 0; iS < nStages_; ++iS) {
-    grid_s_[iS] = grid;
+    grid_s_[iS].copy_from(grid);
   }
 }
 
@@ -65,7 +69,7 @@ void TimeStepper::accumulate_grid_motion(MeshState &mesh_state, int sum_stage,
 void TimeStepper::update_stage_grid(const GridStructure &grid, int grid_stage,
                                     int sum_stage) {
   auto x_l_sumvar = Kokkos::subview(x_l_sumvar_, sum_stage, Kokkos::ALL);
-  grid_s_[grid_stage] = grid;
+  grid_s_[grid_stage].copy_from(grid);
   grid_s_[grid_stage].update_grid(x_l_sumvar);
 }
 
@@ -149,11 +153,10 @@ void TimeStepper::update_fluid_explicit(PackageManager *pkgs,
 
     accumulate_grid_motion(mesh_state, 0, iS, dt_b_ex, ib,
                            "Timestepper :: EX :: Finalize grid");
-    update_stage_grid(grid, iS, 0);
   }
+  grid.update_grid(Kokkos::subview(x_l_sumvar_, 0, Kokkos::ALL));
 
   auto sd0 = mesh_state(0);
-  grid = grid_s_[nStages_ - 1];
   apply_slope_limiter(sl_hydro, u0, grid, sd0.fluid_basis(), sd0.eos());
   bel::apply_bound_enforcing_limiter(sd0, grid);
 
@@ -254,11 +257,10 @@ void TimeStepper::update_rad_hydro_imex(
 
     accumulate_grid_motion(mesh_state, 0, iS, dt_b, ib,
                            "Timestepper :: IMEX :: Finalize grid");
-    update_stage_grid(grid, iS, 0);
   }
+  grid.update_grid(Kokkos::subview(x_l_sumvar_, 0, Kokkos::ALL));
 
   auto sd0 = mesh_state(0);
-  grid = grid_s_[nStages_ - 1];
   apply_slope_limiter(sl_hydro, u0, grid, fluid_basis, eos);
   apply_slope_limiter(sl_rad, u0, grid, rad_basis, eos);
   bel::apply_bound_enforcing_limiter(sd0, grid);

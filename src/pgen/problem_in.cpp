@@ -186,7 +186,7 @@ ProblemIn::ProblemIn(
   // get_or calls below simply return their defaults.
   //  sol::table fluid_lim = fluid_limiter_block.value_or(lua_.create_table());
 
-  const bool limit_fluid = fluid_limiter_block.get_or("do_limiter", true);
+  const bool limit_fluid = fluid_limiter_block.get_or("enabled", true);
   params_->add("fluid.limiter.enabled", limit_fluid);
 
   const std::string fluid_limiter_type =
@@ -334,7 +334,7 @@ ProblemIn::ProblemIn(
     sol::optional<sol::table> rad_limiter_block = radiation["limiter"];
     sol::table rad_lim = rad_limiter_block.value_or(lua_.create_table());
 
-    const bool limit_rad = rad_lim.get_or("do_limiter", true);
+    const bool limit_rad = rad_lim.get_or("enabled", true);
     params_->add("radiation.limiter.enabled", limit_rad);
 
     const std::string rad_limiter_type =

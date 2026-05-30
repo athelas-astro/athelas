@@ -54,7 +54,7 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
               0.5 * V0 * V0;
         }
 
-        uPF(i, q, vars::prim::Rho) = D0;
+        uPF(i, q + 1, vars::prim::Rho) = D0;
       });
 
   // Fill density in guard cells

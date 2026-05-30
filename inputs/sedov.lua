@@ -27,6 +27,10 @@ config.physics = {
   engine = false,
 }
 
+config.time = {
+  integrator = "EX_SSPRK33",
+}
+
 config.basis = {
   nnodes = 3,
 }
@@ -48,8 +52,9 @@ config.output = {
 }
 
 config.fluid = {
+  riemann = "hll_lagrangian",
   limiter = {
-    do_limiter = true,
+    enabled = true,
     type = "minmod",
     b_tvd = 1.0,
     m_tvb = 0.0,
@@ -64,10 +69,6 @@ config.fluid = {
 config.gravity = {
   model = "constant",
   gval = 1.0,
-}
-
-config.time = {
-  integrator = "EX_SSPRK22",
 }
 
 config.eos = {

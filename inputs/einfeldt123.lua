@@ -19,7 +19,7 @@ config.basis.nnodes = 3
 config.time.integrator = "EX_SSPRK54"
 
 config.fluid.limiter = {
-  do_limiter = true,
+  enabled = true,
   type = "minmod",
   m_tvb = 5.0,
   b_tvd = 1.0,

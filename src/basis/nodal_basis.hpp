@@ -12,12 +12,13 @@ class NodalBasis {
  public:
   /**
    * @brief Constructor
-   * @param uPF Primitive variables (nodal representation)
+   * @param uCF Conserved variables (nodal); the mass matrix takes density from
+   *            the specific volume
    * @param grid Grid structure
    * @param nN Number of nodes
    * @param nElements Number of elements
    */
-  NodalBasis(const AthelasArray3D<double> uPF, GridStructure *grid,
+  NodalBasis(const AthelasArray3D<double> uCF, GridStructure *grid,
              const int nN, const int nElements);
 
   /**
@@ -131,7 +132,7 @@ class NodalBasis {
   AthelasArray2D<double> inv_vandermonde_;
 
   /** @brief Initialize all basis quantities */
-  void initialize_basis(AthelasArray3D<double> uPF, const GridStructure *grid);
+  void initialize_basis(AthelasArray3D<double> uCF, const GridStructure *grid);
 
   /** @brief Build differentiation matrix */
   void build_differentiation_matrix();
@@ -140,7 +141,8 @@ class NodalBasis {
   void build_vandermonde_matrices();
 
   /** @brief Compute diagonal mass matrix. */
-  void compute_mass_matrix(const GridStructure *grid);
+  void compute_mass_matrix(AthelasArray3D<double> uCF,
+                           const GridStructure *grid);
 
   /** @brief Evaluate Lagrange polynomial L_j at point xi */
   static auto lagrange_polynomial(int j, double xi,

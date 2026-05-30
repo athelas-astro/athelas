@@ -62,7 +62,7 @@ config.output = {
 
 config.fluid = {
   limiter = {
-    do_limiter = true,
+    enabled = true,
     type = "minmod",
     m_tvb = 0.5,
     b_tvd = 1.0,

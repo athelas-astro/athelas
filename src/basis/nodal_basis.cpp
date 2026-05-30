@@ -4,7 +4,7 @@
 
 namespace athelas::basis {
 
-NodalBasis::NodalBasis(AthelasArray3D<double> uPF, GridStructure *grid,
+NodalBasis::NodalBasis(AthelasArray3D<double> uCF, GridStructure *grid,
                        const int nN, const int nElements)
     : nX_(nElements), nNodes_(nN), nodes_("quadrature nodes", nN),
       weights_("quadrature weights", nN),
@@ -19,7 +19,7 @@ NodalBasis::NodalBasis(AthelasArray3D<double> uPF, GridStructure *grid,
   Kokkos::deep_copy(nodes_, grid->nodes());
   Kokkos::deep_copy(weights_, grid->weights());
 
-  initialize_basis(uPF, grid);
+  initialize_basis(uCF, grid);
 }
 
 [[nodiscard]] auto NodalBasis::phi() const noexcept -> AthelasArray3D<double> {
@@ -249,7 +249,7 @@ void NodalBasis::modal_to_nodal(AthelasArray3D<double> ucf,
 /**
  * @brief Initialize datastructures for the basis.
  */
-void NodalBasis::initialize_basis(const AthelasArray3D<double> uPF,
+void NodalBasis::initialize_basis(const AthelasArray3D<double> uCF,
                                   const GridStructure *grid) {
 
   const int ilo = 1;
@@ -293,29 +293,32 @@ void NodalBasis::initialize_basis(const AthelasArray3D<double> uPF,
   Kokkos::deep_copy(phi_, phi_h);
   Kokkos::deep_copy(dphi_, dphi_h);
 
-  compute_mass_matrix(grid);
+  compute_mass_matrix(uCF, grid);
   fill_guard_cells(grid);
 }
 
 /**
  * @brief Compute diagonal mass matrix
- * M_qq = w_q dm
+ * M_jj = w_j * dr * sqrt_gm_j * rho_j  (per-node mass = integral of phi_j dm)
  * NOTE: This is constant in time on an element.
  */
-void NodalBasis::compute_mass_matrix(const GridStructure *grid) {
+void NodalBasis::compute_mass_matrix(const AthelasArray3D<double> uCF,
+                                     const GridStructure *grid) {
 
   const int ilo = 1;
   const int ihi = grid->get_ihi();
 
   auto weights = grid->weights();
-  auto mass = grid->mass();
+  auto dr = grid->widths();
+  auto sqrt_gm = grid->sqrt_gm();
 
   auto mass_h = Kokkos::create_mirror_view(mass_matrix_);
   auto inv_mass_h = Kokkos::create_mirror_view(inv_mass_matrix_);
 
   for (int i = ilo; i <= ihi; ++i) {
     for (int j = 0; j < nNodes_; j++) {
-      const double M_jj = weights(j) * mass(i);
+      const double rho = 1.0 / uCF(i, j, vars::cons::SpecificVolume);
+      const double M_jj = weights(j) * dr(i) * sqrt_gm(i, j + 1) * rho;
 
       mass_h(i, j) = M_jj;
       inv_mass_h(i, j) = 1.0 / M_jj;
