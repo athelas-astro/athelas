@@ -52,7 +52,6 @@ config.output = {
 }
 
 config.fluid = {
-  riemann = "hll_lagrangian",
   limiter = {
     enabled = true,
     type = "minmod",

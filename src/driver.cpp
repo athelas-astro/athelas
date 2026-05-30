@@ -317,15 +317,14 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
                  time_, restart_info_.last_cycle, dt_);
   }
 
-  // Basis construction is identical for both paths once u_cf is in place
-  // (pgen-populated or restart-loaded). The nodal mass matrix needs the
-  // per-node density, which it derives from the conserved specific volume.
-  auto cons = mesh_state_(0).get_field("u_cf");
+  // Basis construction is identical for both paths once u_pf is in place
+  // (pgen-populated or restart-loaded).
+  auto prims = mesh_state_(0).get_field("u_pf");
   mesh_state_.setup_fluid_basis(
-      std::make_unique<NodalBasis>(cons, &grid_, nnodes, nx));
+      std::make_unique<NodalBasis>(prims, &grid_, nnodes, nx));
   if (rad_active) {
     mesh_state_.setup_rad_basis(
-        std::make_unique<NodalBasis>(cons, &grid_, nnodes, nx));
+        std::make_unique<NodalBasis>(prims, &grid_, nnodes, nx));
   }
 
   // post_init_work recomputes grid mass / center-of-mass and applies the
