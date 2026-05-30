@@ -2,17 +2,18 @@ local config = {}
 
 config.problem = {
   name = "smooth_flow",
-  t_end = 0.5,
+  t_end = 0.15,
   nlim = -1,
   geometry = "planar",
-  xl = 0.0,
+  xl = -1.0,
   xr = 1.0,
-  cfl = 0.5,
-  nx = 128,
+  cfl = 0.1,
+  nx = 2048,
   grid_type = "uniform",
 
   params = {
-    amp = 0.99999999999999,
+    amp = 0.1,
+    -- amp = 0.99999999999999,
   },
 }
 
@@ -25,8 +26,12 @@ config.physics = {
   engine = false,
 }
 
+config.time = {
+  integrator = "EX_SSPRK33",
+}
+
 config.basis = {
-  nnodes = 2,
+  nnodes = 3,
 }
 
 config.bc = {
@@ -37,28 +42,23 @@ config.bc = {
 }
 
 config.output = {
+  -- dt_fixed = 1.0e-10,
   ncycle_out = 100,
-  dt_hdf5 = 0.1,
+  -- dt_hdf5 = 0.1,
   history = {
-    fn = config.problem.name .. "hst",
+    fn = config.problem.name .. ".hst",
   },
 }
 
 config.fluid = {
   limiter = {
-    tci_opt = false,
-    tci_val = 0.1,
-    characteristic = true,
-    gamma_i = 0.8,
+    enabled = false,
   },
-}
-
-config.time = {
-  integrator = "EX_SSPRK22",
 }
 
 config.eos = {
   type = "ideal",
+  gamma = 3.0,
 }
 
 return config

@@ -56,7 +56,7 @@ config.output = {
 
 config.fluid = {
   limiter = {
-    do_limiter = true,
+    enabled = true,
     type = "minmod",
     m_tvb = 0.0,
     b_tvd = 1.0,
@@ -69,7 +69,7 @@ config.fluid = {
 config.radiation = {
   discretization = "explicit",
   limiter = {
-    do_limiter = true,
+    enabled = true,
     type = "minmod",
     m_tvb = 0.0,
     b_tvd = 1.0,

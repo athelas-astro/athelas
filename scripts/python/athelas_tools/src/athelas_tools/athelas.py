@@ -111,7 +111,7 @@ class Athelas:
     # ----------------------
     self.time = float(f["info/time"][0])
     self.n_stages = int(f["info/n_stages"][0])
-    self.cycle = int(f["info/cycle"][0])
+    self.cycle = int(f["info/last_cycle"][0])
 
     self.params = read_hdf5_group(f["params"])
     self.geometry = self.params["problem.geometry"]

@@ -60,7 +60,7 @@ config.output = {
 
 config.fluid = {
   limiter = {
-    do_limiter = false,
+    enabled = false,
     tci_opt = false,
     tci_val = 0.1,
     characteristic = false,

@@ -138,6 +138,27 @@ void GridStructure::create_grid(const ProblemIn *pin) {
   }
 }
 
+void GridStructure::copy_from(const GridStructure &other) {
+  nElements_ = other.nElements_;
+  nNodes_ = other.nNodes_;
+  mSize_ = other.mSize_;
+  xL_ = other.xL_;
+  xR_ = other.xR_;
+  geometry_ = other.geometry_;
+  grid_type_ = other.grid_type_;
+
+  Kokkos::deep_copy(nodes_, other.nodes_);
+  Kokkos::deep_copy(weights_, other.weights_);
+  Kokkos::deep_copy(centers_, other.centers_);
+  Kokkos::deep_copy(widths_, other.widths_);
+  Kokkos::deep_copy(x_l_, other.x_l_);
+  Kokkos::deep_copy(mass_, other.mass_);
+  Kokkos::deep_copy(mass_r_, other.mass_r_);
+  Kokkos::deep_copy(center_of_mass_, other.center_of_mass_);
+  Kokkos::deep_copy(sqrt_gm_, other.sqrt_gm_);
+  Kokkos::deep_copy(grid_, other.grid_);
+}
+
 /**
  * @brief uniform mesh
  */

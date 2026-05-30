@@ -55,7 +55,7 @@ config.bc = {
 
 config.fluid = {
   limiter = {
-    do_limiter = true,
+    enabled = true,
     type = "minmod",
     m_tvb = 10.0,
     b_tvd = 1.0,

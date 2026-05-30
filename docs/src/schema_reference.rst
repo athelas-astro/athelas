@@ -249,7 +249,7 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - —
      - No
      - WENO right weight. Inferred from gamma_i if omitted.
-   * - ``do_limiter``
+   * - ``enabled``
      - bool
      - ``true``
      - No
@@ -690,7 +690,7 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - —
      - No
      - WENO right weight. Inferred from gamma_i if omitted.
-   * - ``do_limiter``
+   * - ``enabled``
      - bool
      - ``true``
      - No

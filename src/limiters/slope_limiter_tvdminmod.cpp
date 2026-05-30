@@ -24,7 +24,7 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
                                     const NodalBasis &basis, const EOS &eos) {
 
   // Do not apply for first order method or if we don't want to.
-  if (order_ == 1 || !do_limiter_) {
+  if (order_ == 1 || !enabled_) {
     return;
   }
 
@@ -155,7 +155,7 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U,
 
 // limited_cell_ accessor
 auto TVDMinmod::get_limited(const int i) const -> int {
-  return (!do_limiter_) ? 0 : limited_cell_(i);
+  return (!enabled_) ? 0 : limited_cell_(i);
 }
 
 auto TVDMinmod::limited() const -> AthelasArray1D<int> { return limited_cell_; }

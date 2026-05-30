@@ -1,5 +1,8 @@
 #pragma once
 
+#include <string>
+#include <utility>
+
 #include "Kokkos_Macros.hpp"
 #include "kokkos_types.hpp"
 #include "pgen/problem_in.hpp"
@@ -18,6 +21,7 @@ class GridStructure {
  public:
   explicit GridStructure(const ProblemIn *pin);
   GridStructure() = default;
+
   [[nodiscard]] auto centers(int iC) const -> double;
   [[nodiscard]] auto get_nodes(int nN) const -> double;
   [[nodiscard]] auto get_x_l() const noexcept -> double;
@@ -35,6 +39,7 @@ class GridStructure {
   void create_uniform_grid();
   void create_log_grid();
 
+  void copy_from(const GridStructure &other);
   void update_grid(AthelasArray1D<double> SData);
   void compute_mass(AthelasArray3D<double> ucf);
   void compute_mass_r(AthelasArray3D<double> ucf);

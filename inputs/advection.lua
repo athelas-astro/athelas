@@ -7,8 +7,8 @@ config.problem = {
   geometry = "planar",
   xl = 0.0,
   xr = 1.0,
-  cfl = 0.35,
-  nx = 128,
+  cfl = 0.2,
+  nx = 2048,
   grid_type = "uniform",
 
   params = {
@@ -18,7 +18,7 @@ config.problem = {
   },
 }
 
-config.physcs = {
+config.physics = {
   radiation = false,
   gravity = false,
   composition = false,
@@ -28,11 +28,11 @@ config.physcs = {
 }
 
 config.time = {
-  integrator = "EX_SSPRK33",
+  integrator = "EX_SSPRK54",
 }
 
 config.basis = {
-  nnodes = 3,
+  nnodes = 1,
 }
 
 config.bc = {

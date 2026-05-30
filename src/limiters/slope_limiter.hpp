@@ -35,12 +35,11 @@ class WENO : public SlopeLimiterBase<WENO> {
        const int order, const double gamma_i, const double gamma_l,
        const double gamma_r, const double weno_p, const bool characteristic,
        const bool tci_opt, const double tci_val)
-      : do_limiter_(enabled), order_(order), nvars_(vb.size()),
-        gamma_i_(gamma_i), gamma_l_(gamma_l), gamma_r_(gamma_r),
-        weno_p_(weno_p), characteristic_(characteristic), tci_opt_(tci_opt),
-        tci_val_(tci_val), vb_(vb),
-        modified_polynomial_("modified_polynomial", grid->n_elements() + 2,
-                             nvars_, order),
+      : enabled_(enabled), order_(order), nvars_(vb.size()), gamma_i_(gamma_i),
+        gamma_l_(gamma_l), gamma_r_(gamma_r), weno_p_(weno_p),
+        characteristic_(characteristic), tci_opt_(tci_opt), tci_val_(tci_val),
+        vb_(vb), modified_polynomial_("modified_polynomial",
+                                      grid->n_elements() + 2, nvars_, order),
         u_k_("modal coefficients", grid->n_elements() + 2, order, vb.size()),
         D_("TCI", grid->n_elements() + 2),
         limited_cell_("LimitedCell", grid->n_elements() + 2) {
@@ -61,7 +60,7 @@ class WENO : public SlopeLimiterBase<WENO> {
   [[nodiscard]] auto limited() const -> AthelasArray1D<int>;
 
  private:
-  bool do_limiter_{};
+  bool enabled_{};
   int order_{};
   int nvars_{};
   double gamma_i_{};
@@ -99,7 +98,7 @@ class TVDMinmod : public SlopeLimiterBase<TVDMinmod> {
   TVDMinmod(const bool enabled, const GridStructure *grid, IndexRange &vb,
             const int order, const double b_tvd, const double m_tvb,
             const bool characteristic, const bool tci_opt, const double tci_val)
-      : do_limiter_(enabled), order_(order), nvars_(vb.size()), b_tvd_(b_tvd),
+      : enabled_(enabled), order_(order), nvars_(vb.size()), b_tvd_(b_tvd),
         m_tvb_(m_tvb), characteristic_(characteristic), tci_opt_(tci_opt),
         tci_val_(tci_val), vb_(vb),
         u_k_("modal coefficients", grid->n_elements() + 2, order, nvars_),
@@ -122,7 +121,7 @@ class TVDMinmod : public SlopeLimiterBase<TVDMinmod> {
   [[nodiscard]] auto limited() const -> AthelasArray1D<int>;
 
  private:
-  bool do_limiter_{};
+  bool enabled_{};
   int order_{};
   int nvars_{};
   double b_tvd_{};

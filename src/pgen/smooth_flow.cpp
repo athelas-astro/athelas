@@ -29,9 +29,9 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: SmoothFlow (1)", DevExecSpace(), ib.s,
       ib.e, KOKKOS_LAMBDA(const int i) {
-        for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
+        for (int iNodeX = 0; iNodeX < nNodes; iNodeX++) {
           const double x = grid->node_coordinate(i, iNodeX);
-          uPF(i, iNodeX, vars::prim::Rho) =
+          uPF(i, iNodeX + 1, vars::prim::Rho) =
               (1.0 + amp * sin(constants::PI * x));
         }
       });

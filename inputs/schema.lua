@@ -162,7 +162,7 @@ schema.eos = {
 -- -------------------------
 schema.fluid = {
   limiter = {
-    do_limiter = {
+    enabled = {
       type = "bool",
       default = true,
       doc = "Enable slope limiter for fluid.",
@@ -252,7 +252,7 @@ schema.radiation = {
     },
   },
   limiter = {
-    do_limiter = {
+    enabled = {
       type = "bool",
       default = true,
       doc = "Enable slope limiter for radiation.",
