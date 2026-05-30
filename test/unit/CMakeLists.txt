@@ -26,7 +26,7 @@ add_executable( unit_tests
   ../../src/math/linear_algebra.cpp
   ../../src/math/quadrature.cpp
   ../../src/basis/nodal_basis.cpp
-  ../../src/geometry/grid.cpp
+  ../../src/geometry/mesh.cpp
   ../../src/timestepper/tableau.cpp
   ../../src/pgen/lua_validator.cpp
   ../../src/pgen/problem_in.cpp
