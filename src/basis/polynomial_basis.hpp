@@ -2,7 +2,7 @@
 
 #include "Kokkos_Macros.hpp"
 #include "basic_types.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "kokkos_types.hpp"
 
 namespace athelas::basis {
@@ -20,31 +20,29 @@ using BasisFuncType = double(int, double, double);
 
 class ModalBasis {
  public:
-  ModalBasis(AthelasArray3D<double> uCF, GridStructure *grid, int pOrder,
-             int nN, int nElements, bool density_weight);
+  ModalBasis(AthelasArray3D<double> uCF, Mesh *mesh, int pOrder, int nN,
+             int nElements, bool density_weight);
   static auto taylor(int order, double eta, double eta_c) -> double;
   static auto d_taylor(int order, double eta, double eta_c) -> double;
   auto ortho(int order, int ix, int i_eta, double eta, double eta_c,
-             const AthelasArray3D<double> uCF, const GridStructure *grid,
+             const AthelasArray3D<double> uCF, const Mesh *mesh,
              bool derivative_option) -> double;
   auto inner_product(int m, int n, int ix, double eta_c,
-                     AthelasArray3D<double> uPF,
-                     const GridStructure *grid) const -> double;
+                     AthelasArray3D<double> uPF, const Mesh *mesh) const
+      -> double;
   auto inner_product(int n, int ix, double eta_c, AthelasArray3D<double> uPF,
-                     const GridStructure *grid) const -> double;
-  void initialize_taylor_basis(AthelasArray3D<double> U, GridStructure *grid);
-  void initialize_basis(const AthelasArray3D<double> uPF,
-                        const GridStructure *grid);
+                     const Mesh *mesh) const -> double;
+  void initialize_taylor_basis(AthelasArray3D<double> U, Mesh *mesh);
+  void initialize_basis(const AthelasArray3D<double> uPF, const Mesh *mesh);
   void check_orthogonality(const AthelasArray3D<double> uPF,
-                           const GridStructure *grid) const;
+                           const Mesh *mesh) const;
   [[nodiscard]] auto basis_eval(AthelasArray3D<double> U, int ix, int q,
                                 int i_eta) const -> double;
   [[nodiscard]] auto basis_eval(AthelasArray2D<double> U, int ix, int q,
                                 int i_eta) const -> double;
   [[nodiscard]] auto basis_eval(AthelasArray1D<double> U, int ix,
                                 int i_eta) const -> double;
-  void compute_mass_matrix(const AthelasArray3D<double> uPF,
-                           const GridStructure *grid);
+  void compute_mass_matrix(const AthelasArray3D<double> uPF, const Mesh *mesh);
 
   [[nodiscard]] auto phi() const noexcept -> AthelasArray3D<double>;
   [[nodiscard]] auto get_d_phi(int ix, int i_eta, int k) const -> double;
@@ -56,14 +54,12 @@ class ModalBasis {
 
   // L2 projection from nodal to modal representation
   void project_nodal_to_modal(
-      AthelasArray3D<double> uCF, AthelasArray3D<double> uPF,
-      GridStructure *grid, int q, int ix,
-      const std::function<double(double, int, int)> &nodal_func) const;
+      AthelasArray3D<double> uCF, AthelasArray3D<double> uPF, Mesh *mesh, int q,
+      int ix, const std::function<double(double, int, int)> &nodal_func) const;
 
   // L2 projection from nodal to modal representation for all cells
   void project_nodal_to_modal_all_cells(
-      AthelasArray3D<double> uCF, AthelasArray3D<double> uPF,
-      GridStructure *grid, int q,
+      AthelasArray3D<double> uCF, AthelasArray3D<double> uPF, Mesh *mesh, int q,
       const std::function<double(double, int, int)> &nodal_func) const;
 
   static auto legendre(int n, double x) -> double;
@@ -152,24 +148,23 @@ auto basis_eval(AthelasArray3D<double> phi, AthelasArray1D<double> U,
  * -----------
  * uCF: conserved fields (modal representation)
  * uPF: primitive fields (nodal representation)
- * grid: grid structure
+ * mesh: mesh structure
  * q: conserved field index
  * ix: cell index
  * nodal_func: function that takes x coordinate and returns nodal value
  **/
 KOKKOS_INLINE_FUNCTION
 void ModalBasis::project_nodal_to_modal(
-    AthelasArray3D<double> uCF, AthelasArray3D<double> uPF, GridStructure *grid,
-    int q, int ix,
-    const std::function<double(double, int, int)> &nodal_func) const {
+    AthelasArray3D<double> uCF, AthelasArray3D<double> uPF, Mesh *mesh, int q,
+    int ix, const std::function<double(double, int, int)> &nodal_func) const {
   // Clear existing modal coefficients
   for (int k = 0; k < order_; k++) {
     uCF(ix, k, q) = 0.0;
   }
 
-  const auto dr = grid->widths();
-  const auto weights = grid->weights();
-  const auto sqrt_gm = grid->sqrt_gm();
+  const auto dr = mesh->widths();
+  const auto weights = mesh->weights();
+  const auto sqrt_gm = mesh->sqrt_gm();
 
   // Compute L2 projection: <nodal_func, phi_k> / <phi_k, phi_k>
   for (int k = 0; k < order_; k++) {
@@ -178,7 +173,7 @@ void ModalBasis::project_nodal_to_modal(
 
     // Compute <nodal_func, phi_k> using quadrature
     for (int iN = 0; iN < nNodes_; iN++) {
-      const double X = grid->node_coordinate(ix, iN);
+      const double X = mesh->node_coordinate(ix, iN);
       const double nodal_val = nodal_func(X, ix, iN);
       const double rho = density_weight_ ? uPF(ix, iN + 1, 0) : 1.0;
 

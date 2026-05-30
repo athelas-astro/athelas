@@ -61,8 +61,8 @@ auto Driver::execute() -> int {
 
   // some startup io
   auto sd0 = mesh_state_(0);
-  manager_->fill_derived(sd0, grid_, dt_info);
-  print_simulation_parameters(grid_, pin_.get());
+  manager_->fill_derived(sd0, mesh_state_.mesh(), dt_info);
+  print_simulation_parameters(mesh_state_.mesh(), pin_.get());
   // Initial dump has file index 0 and is followed by initial history entry
   // 0 on the next line, so all "last_*" counters land at 0 here — restart
   // from this dump then resumes at cycle/h5/hist = 1, matching a fresh-run
@@ -73,8 +73,9 @@ auto Driver::execute() -> int {
                    .last_out_h5 = 0,
                    .last_out_hist = 0};
   if (!restart_) {
-    write_output(mesh_state_, grid_, &sl_hydro_, pin_.get(), info, 0);
-    history_->write(mesh_state_, grid_, time_);
+    write_output(mesh_state_, mesh_state_.mesh(), &sl_hydro_, pin_.get(), info,
+                 0);
+    history_->write(mesh_state_, mesh_state_.mesh(), time_);
   }
 
   // --- Evolution loop ---
@@ -92,8 +93,9 @@ auto Driver::execute() -> int {
     dt_info.cycle = cycle;
 
     if (!fixed_dt) {
-      dt_ = std::min(manager_->min_timestep(mesh_state_(0), grid_, dt_info),
-                     dt_ * dt_growth_frac);
+      dt_ = std::min(
+          manager_->min_timestep(mesh_state_(0), mesh_state_.mesh(), dt_info),
+          dt_ * dt_growth_frac);
     } else {
       dt_ = pin_->param()->get<double>("output.dt_fixed");
     }
@@ -108,11 +110,12 @@ auto Driver::execute() -> int {
 
     // This logic could probably be cleaner..
     if (!rad_active) {
-      ssprk_.step(manager_.get(), mesh_state_, grid_, dt_info, &sl_hydro_);
+      ssprk_.step(manager_.get(), mesh_state_, mesh_state_.mesh(), dt_info,
+                  &sl_hydro_);
     } else {
       try {
-        ssprk_.step_imex(manager_.get(), mesh_state_, grid_, dt_info,
-                         &sl_hydro_, &sl_rad_);
+        ssprk_.step_imex(manager_.get(), mesh_state_, mesh_state_.mesh(),
+                         dt_info, &sl_hydro_, &sl_rad_);
       } catch (const AthelasError &e) {
         std::cerr << e.what() << "\n";
         return AthelasExitCodes::FAILURE;
@@ -130,7 +133,8 @@ auto Driver::execute() -> int {
       dt_info.dt_coef_implicit = dt_;
       dt_info.dt_coef = dt_;
       dt_info.stage = 0;
-      split_stepper_->step(split_manager_.get(), mesh_state_, grid_, dt_info);
+      split_stepper_->step(split_manager_.get(), mesh_state_,
+                           mesh_state_.mesh(), dt_info);
     }
 
     time_ += dt_;
@@ -143,7 +147,7 @@ auto Driver::execute() -> int {
 
     // Write state, other io
     if (time_ >= i_out_h5 * dt_hdf5) {
-      manager_->fill_derived(sd0, grid_, dt_info);
+      manager_->fill_derived(sd0, mesh_state_.mesh(), dt_info);
       // History is checked AFTER the HDF5 dump, so i_out_hist here is still
       // the pre-history-fire value. Record the index of the most-recently-
       // written history entry so restart's "next = recorded + 1" rule works
@@ -160,13 +164,14 @@ auto Driver::execute() -> int {
               .last_cycle = cycle,
               .last_out_h5 = i_out_h5,
               .last_out_hist = last_out_hist};
-      write_output(mesh_state_, grid_, &sl_hydro_, pin_.get(), info, i_out_h5);
+      write_output(mesh_state_, mesh_state_.mesh(), &sl_hydro_, pin_.get(),
+                   info, i_out_h5);
       i_out_h5 += 1;
     }
 
     // history
     if (time_ >= i_out_hist * pin_->param()->get<double>("output.hist_dt")) {
-      history_->write(mesh_state_, grid_, time_);
+      history_->write(mesh_state_, mesh_state_.mesh(), time_);
       i_out_hist += 1;
     }
 
@@ -181,7 +186,7 @@ auto Driver::execute() -> int {
     ++cycle;
   }
 
-  manager_->fill_derived(sd0, grid_, dt_info);
+  manager_->fill_derived(sd0, mesh_state_.mesh(), dt_info);
   // Loop variables are post-increment here ("next-pending"). Normalize to the
   // "last completed" SimInfo convention so restart-from-_final (with extended
   // tf or nlim) doesn't skip a cycle / HDF5 / history index.
@@ -190,7 +195,8 @@ auto Driver::execute() -> int {
           .last_cycle = cycle - 1,
           .last_out_h5 = i_out_h5 - 1,
           .last_out_hist = i_out_hist - 1};
-  write_output(mesh_state_, grid_, &sl_hydro_, pin_.get(), info, -1);
+  write_output(mesh_state_, mesh_state_.mesh(), &sl_hydro_, pin_.get(), info,
+               -1);
 
   return AthelasExitCodes::SUCCESS;
 }
@@ -263,12 +269,12 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   // auto info = mesh_state_.field_info();
 
   if (!restart_) {
-    initialize_fields(mesh_state_, &grid_, pin);
+    initialize_fields(mesh_state_, &mesh_state_.mesh(), pin);
     auto cons = mesh_state_(0).get_field("u_cf");
-    bc::fill_ghost_zones<3>(cons, &grid_, bcs_.get(), {0, 2});
-    grid_.compute_mass(cons);
+    bc::fill_ghost_zones<3>(cons, &mesh_state_.mesh(), bcs_.get(), {0, 2});
+    mesh_state_.mesh().compute_mass(cons);
   } else {
-    // Restart path: rebuild MeshState/grid from the .ath file rather than the
+    // Restart path: rebuild MeshState/mesh from the .ath file rather than the
     // problem generator. Composition / ionization wiring must happen before
     // fields are loaded and before any package queries comps()/ion_state().
     io::RestartReader reader(restart_filename_);
@@ -309,7 +315,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
     }
 
     io::load_fields_from_h5(mesh_state_, reader);
-    io::load_grid_from_h5(grid_, reader);
+    io::load_grid_from_h5(mesh_state_.mesh(), reader);
 
     time_ = restart_info_.time;
     dt_ = restart_info_.dt;
@@ -321,13 +327,13 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   // (pgen-populated or restart-loaded).
   auto prims = mesh_state_(0).get_field("u_pf");
   mesh_state_.setup_fluid_basis(
-      std::make_unique<NodalBasis>(prims, &grid_, nnodes, nx));
+      std::make_unique<NodalBasis>(prims, &mesh_state_.mesh(), nnodes, nx));
   if (rad_active) {
     mesh_state_.setup_rad_basis(
-        std::make_unique<NodalBasis>(prims, &grid_, nnodes, nx));
+        std::make_unique<NodalBasis>(prims, &mesh_state_.mesh(), nnodes, nx));
   }
 
-  // post_init_work recomputes grid mass / center-of-mass and applies the
+  // post_init_work recomputes mesh mass / center-of-mass and applies the
   // mass-cut adjustment. For restart those values came from the .ath file
   // and must not be re-derived (mass cut would double-count, and recomputing
   // would slightly perturb a checkpointed state).
@@ -396,12 +402,12 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   }
   if (thermal_engine_active) {
     if (!pin->param()->get<bool>("physics.engine.thermal.split")) {
-      manager_->add_package(
-          ThermalEnginePackage{pin, sd0, &grid_, n_stages, pkg_active});
+      manager_->add_package(ThermalEnginePackage{pin, sd0, &mesh_state_.mesh(),
+                                                 n_stages, pkg_active});
     } else {
       split = true;
-      split_manager_->add_package(
-          ThermalEnginePackage{pin, sd0, &grid_, n_stages, pkg_active});
+      split_manager_->add_package(ThermalEnginePackage{
+          pin, sd0, &mesh_state_.mesh(), n_stages, pkg_active});
     }
   }
   // TODO(astrobarker): [split, geometry] Could add option to split.. not
@@ -433,13 +439,14 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   // checkpointed state.
   if (!restart_) {
     auto ucf = sd0.get_field("u_cf");
-    bc::fill_ghost_zones<3>(ucf, &grid_, bcs_.get(), {0, 2});
+    bc::fill_ghost_zones<3>(ucf, &mesh_state_.mesh(), bcs_.get(), {0, 2});
     if (rad_active) {
-      bc::fill_ghost_zones<2>(ucf, &grid_, bcs_.get(), {3, 4});
+      bc::fill_ghost_zones<2>(ucf, &mesh_state_.mesh(), bcs_.get(), {3, 4});
     }
     auto cons = sd0.get_field("u_cf");
-    apply_slope_limiter(&sl_hydro_, cons, grid_, sd0.fluid_basis(), sd0.eos());
-    bel::apply_bound_enforcing_limiter(sd0, grid_);
+    apply_slope_limiter(&sl_hydro_, cons, mesh_state_.mesh(), sd0.fluid_basis(),
+                        sd0.eos());
+    bel::apply_bound_enforcing_limiter(sd0, mesh_state_.mesh());
   }
 
   // --- Add history outputs ---
@@ -480,7 +487,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
 /**
  * @brief Perform post initialization checks, calculations
  * Currently:
- * - Call grid's compute enclosed mass.
+ * - Call mesh's compute enclosed mass.
  * - If composition is enabled
  *   - Compute inv_atomic_mass
  * - If ionization if enabled
@@ -493,11 +500,11 @@ void Driver::post_init_work() {
   const bool comps_active = mesh_state_.enabled("composition");
   const bool ionization_active = mesh_state_.enabled("ionization");
 
-  static const IndexRange ib(grid_.domain<Domain::Interior>());
+  static const IndexRange ib(mesh_state_.mesh().domain<Domain::Interior>());
 
-  grid_.compute_mass(cons);
-  grid_.compute_mass_r(cons);
-  grid_.compute_center_of_mass(cons);
+  mesh_state_.mesh().compute_mass(cons);
+  mesh_state_.mesh().compute_mass_r(cons);
+  mesh_state_.mesh().compute_center_of_mass(cons);
 
   // If we are doing some kind of mass cut, that mass needs to be included
   // in the enclosed mass.
@@ -505,8 +512,8 @@ void Driver::post_init_work() {
   if (do_mass_cut) {
     const auto mc =
         pin_->param()->get<double>("problem.params.mass_cut"); // in M_{\odot}
-    auto menc = grid_.enclosed_mass();
-    const int nNodes = grid_.n_nodes();
+    auto menc = mesh_state_.mesh().enclosed_mass();
+    const int nNodes = mesh_state_.mesh().n_nodes();
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "post_init_work :: Adjust enclosed mass",
         DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
@@ -588,7 +595,7 @@ void Driver::post_step_work() {
   auto sd0 = mesh_state_(0);
   const bool rad_active = pin_->param()->get<bool>("physics.radiation.enabled");
   try {
-    check_state(sd0, grid_.get_ihi(), rad_active);
+    check_state(sd0, mesh_state_.mesh().get_ihi(), rad_active);
   } catch (const AthelasError &e) {
     std::cerr << e.what() << "\n";
     std::println("!!! Bad State found, writing _final_ output file ...");
@@ -597,7 +604,8 @@ void Driver::post_step_work() {
                            .last_cycle = -1,
                            .last_out_h5 = -1,
                            .last_out_hist = -1};
-    write_output(mesh_state_, grid_, &sl_hydro_, pin_.get(), info, -1);
+    write_output(mesh_state_, mesh_state_.mesh(), &sl_hydro_, pin_.get(), info,
+                 -1);
   }
 #endif
 } // post_step_work

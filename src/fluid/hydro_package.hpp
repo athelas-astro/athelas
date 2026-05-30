@@ -9,7 +9,7 @@
 
 #include "basic_types.hpp"
 #include "bc/boundary_conditions_base.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "pgen/problem_in.hpp"
 
@@ -22,7 +22,7 @@ class HydroPackage {
   HydroPackage(const ProblemIn * /*pin*/, int n_stages, int order,
                BoundaryConditions *bcs, double cfl, int nx, bool active = true);
 
-  void update_explicit(const StageData &stage_data, const GridStructure &grid,
+  void update_explicit(const StageData &stage_data, const Mesh &mesh,
                        const TimeStepInfo &dt_info) const;
 
   void apply_delta(AthelasArray3D<double> lhs,
@@ -30,11 +30,10 @@ class HydroPackage {
 
   void zero_delta() const noexcept;
 
-  void fluid_divergence(const StageData &stage_data, const GridStructure &grid,
+  void fluid_divergence(const StageData &stage_data, const Mesh &mesh,
                         int stage) const;
 
-  [[nodiscard]] auto min_timestep(const StageData &stage_data,
-                                  const GridStructure &grid,
+  [[nodiscard]] auto min_timestep(const StageData &stage_data, const Mesh &mesh,
                                   const TimeStepInfo & /*dt_info*/) const
       -> double;
 
@@ -42,7 +41,7 @@ class HydroPackage {
 
   [[nodiscard]] auto is_active() const noexcept -> bool;
 
-  void fill_derived(StageData &stage_data, const GridStructure &grid,
+  void fill_derived(StageData &stage_data, const Mesh &mesh,
                     const TimeStepInfo & /*dt_info*/) const;
 
   void set_active(bool active);

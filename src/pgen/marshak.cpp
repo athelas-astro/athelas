@@ -3,7 +3,7 @@
 #include <cmath>
 
 #include "basic_types.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 #include "utils/constants.hpp"
@@ -13,7 +13,7 @@ namespace athelas::pgen::marshak {
 /**
  * @brief Initialize radiating shock
  **/
-void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
+void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "marshak",
                    "Marshak requires marshak eos!");
 
@@ -23,8 +23,8 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   auto uCF = mesh_state(0).get_field("u_cf");
   auto uPF = mesh_state(0).get_field("u_pf");
 
-  const int nNodes = grid->n_nodes();
-  static const IndexRange ib(grid->domain<Domain::Interior>());
+  const int nNodes = mesh->n_nodes();
+  static const IndexRange ib(mesh->domain<Domain::Interior>());
   const IndexRange qb(nNodes);
 
   auto su_olson_energy = [&](const double alpha, const double T) {

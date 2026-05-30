@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 #include "utils/constants.hpp"
@@ -12,15 +12,15 @@ namespace athelas::pgen::smooth_flow {
 /**
  * @brief Initialize smooth flow test problem
  **/
-void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
+void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Smooth flow requires ideal gas eos!");
 
   auto uCF = mesh_state(0).get_field("u_cf");
   auto uPF = mesh_state(0).get_field("u_pf");
 
-  static const int nNodes = grid->n_nodes();
-  static const IndexRange ib(grid->domain<Domain::Interior>());
+  static const int nNodes = mesh->n_nodes();
+  static const IndexRange ib(mesh->domain<Domain::Interior>());
   const IndexRange qb(nNodes);
 
   const auto amp =
@@ -30,7 +30,7 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: SmoothFlow (1)", DevExecSpace(), ib.s,
       ib.e, KOKKOS_LAMBDA(const int i) {
         for (int iNodeX = 0; iNodeX < nNodes; iNodeX++) {
-          const double x = grid->node_coordinate(i, iNodeX);
+          const double x = mesh->node_coordinate(i, iNodeX);
           uPF(i, iNodeX + 1, vars::prim::Rho) =
               (1.0 + amp * sin(constants::PI * x));
         }
@@ -51,7 +51,7 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Pgen :: SmoothFlow (2)", DevExecSpace(), ib.s,
       ib.e, nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int node) {
-        const double x = grid->node_coordinate(i, node);
+        const double x = mesh->node_coordinate(i, node);
         uCF(i, node, vars::cons::SpecificVolume) =
             1.0 / density_func(x, i, node);
         uCF(i, node, vars::cons::Velocity) = velocity_func(x, i, node);

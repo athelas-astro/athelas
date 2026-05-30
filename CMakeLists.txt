@@ -164,7 +164,7 @@ set( ATHELAS_SOURCES
   "src/radiation/imex_radhydro_package.cpp"
   "src/radiation/implicit_moments_package.cpp"
   "src/geometry/geometry_package.cpp"
-  "src/geometry/grid.cpp"
+  "src/geometry/mesh.cpp"
   "src/gravity/gravity_package.cpp"
   "src/io/io.cpp"
   "src/io/restart.cpp"

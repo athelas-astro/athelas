@@ -1,7 +1,7 @@
 #pragma once
 
 #include "eos/eos_variant.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 
 namespace athelas {
@@ -15,7 +15,7 @@ class HydrostaticEquilibrium {
   HydrostaticEquilibrium(double rho_c, double p_threshold, double k, double n)
       : rho_c_(rho_c), p_threshold_(p_threshold), k_(k), n_(n) {}
 
-  void solve(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin);
+  void solve(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin);
 
  private:
   double rho_c_; // central density

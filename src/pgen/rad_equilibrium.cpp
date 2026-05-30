@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 
@@ -11,7 +11,7 @@ namespace athelas::pgen::rad_equilibrium {
 /**
  * Initialize equilibrium rad test
  **/
-void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
+void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   const bool rad_active = pin->param()->get<bool>("physics.radiation.enabled");
   athelas_requires(rad_active,
                    "Radiation equilibriation requires radiation enabled!");
@@ -21,8 +21,8 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   auto uCF = mesh_state(0).get_field("u_cf");
   auto uPF = mesh_state(0).get_field("u_pf");
 
-  static const int nNodes = grid->n_nodes();
-  static const IndexRange ib(grid->domain<Domain::Interior>());
+  static const int nNodes = mesh->n_nodes();
+  static const IndexRange ib(mesh->domain<Domain::Interior>());
   const IndexRange qb(nNodes);
 
   const auto V0 = pin->param()->get<double>("problem.params.v0", 0.0);

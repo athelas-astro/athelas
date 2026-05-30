@@ -14,7 +14,7 @@
 
 #include "basic_types.hpp"
 #include "concepts/packages.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 
 namespace athelas {
@@ -39,10 +39,10 @@ class PackageWrapper {
   }
 
   // Explicit update
-  void update_explicit(const StageData &stage_data, const GridStructure &grid,
+  void update_explicit(const StageData &stage_data, const Mesh &mesh,
                        const TimeStepInfo &dt_info) {
     if (package_->has_explicit()) {
-      package_->update_explicit(stage_data, grid, dt_info);
+      package_->update_explicit(stage_data, mesh, dt_info);
     }
   }
 
@@ -52,9 +52,9 @@ class PackageWrapper {
    * u^i = R^i + dt a_ii S(u^i)
    **/
   void update_implicit(const StageData &stage_data, AthelasArray3D<double> dU,
-                       const GridStructure &grid, const TimeStepInfo &dt_info) {
+                       const Mesh &mesh, const TimeStepInfo &dt_info) {
     if (package_->has_implicit()) {
-      package_->update_implicit(stage_data, dU, grid, dt_info);
+      package_->update_implicit(stage_data, dU, mesh, dt_info);
     }
   }
 
@@ -72,19 +72,18 @@ class PackageWrapper {
     }
   }
 
-  [[nodiscard]] auto min_timestep(const StageData &stage_data,
-                                  const GridStructure &grid,
+  [[nodiscard]] auto min_timestep(const StageData &stage_data, const Mesh &mesh,
                                   const TimeStepInfo &dt_info) const -> double {
     if (package_->is_active()) {
-      return package_->min_timestep(stage_data, grid, dt_info);
+      return package_->min_timestep(stage_data, mesh, dt_info);
     }
     return std::numeric_limits<double>::max();
   }
 
-  void fill_derived(StageData &stage_data, const GridStructure &grid,
+  void fill_derived(StageData &stage_data, const Mesh &mesh,
                     const TimeStepInfo &dt_info) const {
     if (package_->is_active()) {
-      package_->fill_derived(stage_data, grid, dt_info);
+      package_->fill_derived(stage_data, mesh, dt_info);
     }
   }
 
@@ -104,20 +103,19 @@ class PackageWrapper {
  private:
   struct PackageConcept {
     virtual ~PackageConcept() = default;
-    virtual void update_explicit(const StageData &, const GridStructure &,
+    virtual void update_explicit(const StageData &, const Mesh &,
                                  const TimeStepInfo &) = 0;
     virtual void update_implicit(const StageData &, AthelasArray3D<double>,
-                                 const GridStructure &,
-                                 const TimeStepInfo &) = 0;
+                                 const Mesh &, const TimeStepInfo &) = 0;
     virtual void apply_delta(AthelasArray3D<double>,
                              const TimeStepInfo &) const = 0;
     virtual void zero_delta() const noexcept = 0;
     [[nodiscard]] virtual auto min_timestep(const StageData &stage_data,
-                                            const GridStructure &grid,
+                                            const Mesh &mesh,
                                             const TimeStepInfo &dt_info) const
         -> double = 0;
 
-    virtual void fill_derived(StageData &stage_data, const GridStructure &grid,
+    virtual void fill_derived(StageData &stage_data, const Mesh &mesh,
                               const TimeStepInfo &dt_info) const = 0;
 
     [[nodiscard]] virtual auto name() const noexcept -> std::string_view = 0;
@@ -133,18 +131,18 @@ class PackageWrapper {
     // Get original package
     auto get_package() -> T & { return package_; }
 
-    void update_explicit(const StageData &stage_data, const GridStructure &grid,
+    void update_explicit(const StageData &stage_data, const Mesh &mesh,
                          const TimeStepInfo &dt_info) override {
       if constexpr (has_explicit_update_v<T>) {
-        package_.update_explicit(stage_data, grid, dt_info);
+        package_.update_explicit(stage_data, mesh, dt_info);
       }
     }
 
     void update_implicit(const StageData &stage_data, AthelasArray3D<double> dU,
-                         const GridStructure &grid,
+                         const Mesh &mesh,
                          const TimeStepInfo &dt_info) override {
       if constexpr (has_implicit_update_v<T>) {
-        package_.update_implicit(stage_data, dU, grid, dt_info);
+        package_.update_implicit(stage_data, dU, mesh, dt_info);
       }
     }
 
@@ -156,15 +154,15 @@ class PackageWrapper {
     void zero_delta() const noexcept override { package_.zero_delta(); }
 
     [[nodiscard]] auto min_timestep(const StageData &stage_data,
-                                    const GridStructure &grid,
+                                    const Mesh &mesh,
                                     const TimeStepInfo &dt_info) const
         -> double override {
-      return package_.min_timestep(stage_data, grid, dt_info);
+      return package_.min_timestep(stage_data, mesh, dt_info);
     }
 
-    void fill_derived(StageData &stage_data, const GridStructure &grid,
+    void fill_derived(StageData &stage_data, const Mesh &mesh,
                       const TimeStepInfo &dt_info) const override {
-      package_.fill_derived(stage_data, grid, dt_info);
+      package_.fill_derived(stage_data, mesh, dt_info);
     }
 
     [[nodiscard]] auto name() const noexcept -> std::string_view override {
@@ -208,20 +206,20 @@ class PackageManager {
     all_packages_.push_back(std::move(wrapper));
   }
 
-  void update_explicit(const StageData &stage_data, const GridStructure &grid,
+  void update_explicit(const StageData &stage_data, const Mesh &mesh,
                        const TimeStepInfo &dt_info) {
     for (auto *pkg : explicit_packages_) {
       if (pkg->is_active()) {
-        pkg->update_explicit(stage_data, grid, dt_info);
+        pkg->update_explicit(stage_data, mesh, dt_info);
       }
     }
   }
 
   void update_implicit(const StageData &stage_data, AthelasArray3D<double> dU,
-                       const GridStructure &grid, const TimeStepInfo &dt_info) {
+                       const Mesh &mesh, const TimeStepInfo &dt_info) {
     for (auto *pkg : implicit_packages_) {
       if (pkg->is_active()) {
-        pkg->update_implicit(stage_data, dU, grid, dt_info);
+        pkg->update_implicit(stage_data, dU, mesh, dt_info);
       }
     }
   }
@@ -243,29 +241,28 @@ class PackageManager {
     }
   }
 
-  [[nodiscard]] auto min_timestep(const StageData &stage_data,
-                                  const GridStructure &grid,
+  [[nodiscard]] auto min_timestep(const StageData &stage_data, const Mesh &mesh,
                                   const TimeStepInfo &dt_info) const -> double {
     double min_dt = std::numeric_limits<double>::max();
     // TODO(astrobarker): loop over all_packages_
     for (auto *pkg : explicit_packages_) {
       if (pkg->is_active()) {
-        min_dt = std::min(min_dt, pkg->min_timestep(stage_data, grid, dt_info));
+        min_dt = std::min(min_dt, pkg->min_timestep(stage_data, mesh, dt_info));
       }
     }
     for (auto *pkg : implicit_packages_) {
       if (pkg->is_active()) {
-        min_dt = std::min(min_dt, pkg->min_timestep(stage_data, grid, dt_info));
+        min_dt = std::min(min_dt, pkg->min_timestep(stage_data, mesh, dt_info));
       }
     }
     return min_dt;
   }
 
-  void fill_derived(StageData &stage_data, const GridStructure &grid,
+  void fill_derived(StageData &stage_data, const Mesh &mesh,
                     const TimeStepInfo &dt_info) const {
     for (const auto &pkg : all_packages_) {
       if (pkg->is_active()) {
-        pkg->fill_derived(stage_data, grid, dt_info);
+        pkg->fill_derived(stage_data, mesh, dt_info);
       }
     }
   }

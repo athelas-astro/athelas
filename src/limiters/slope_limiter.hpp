@@ -31,30 +31,30 @@ namespace athelas {
 class WENO : public SlopeLimiterBase<WENO> {
  public:
   WENO() = default;
-  WENO(const bool enabled, const GridStructure *grid, IndexRange &vb,
-       const int order, const double gamma_i, const double gamma_l,
-       const double gamma_r, const double weno_p, const bool characteristic,
-       const bool tci_opt, const double tci_val)
+  WENO(const bool enabled, const Mesh *mesh, IndexRange &vb, const int order,
+       const double gamma_i, const double gamma_l, const double gamma_r,
+       const double weno_p, const bool characteristic, const bool tci_opt,
+       const double tci_val)
       : enabled_(enabled), order_(order), nvars_(vb.size()), gamma_i_(gamma_i),
         gamma_l_(gamma_l), gamma_r_(gamma_r), weno_p_(weno_p),
         characteristic_(characteristic), tci_opt_(tci_opt), tci_val_(tci_val),
         vb_(vb), modified_polynomial_("modified_polynomial",
-                                      grid->n_elements() + 2, nvars_, order),
-        u_k_("modal coefficients", grid->n_elements() + 2, order, vb.size()),
-        D_("TCI", grid->n_elements() + 2),
-        limited_cell_("LimitedCell", grid->n_elements() + 2) {
+                                      mesh->n_elements() + 2, nvars_, order),
+        u_k_("modal coefficients", mesh->n_elements() + 2, order, vb.size()),
+        D_("TCI", mesh->n_elements() + 2),
+        limited_cell_("LimitedCell", mesh->n_elements() + 2) {
     if (characteristic) {
-      R_ = AthelasArray3D<double>("R Matrix", grid->n_elements() + 2, nvars_,
+      R_ = AthelasArray3D<double>("R Matrix", mesh->n_elements() + 2, nvars_,
                                   nvars_);
-      R_inv_ = AthelasArray3D<double>("invR Matrix", grid->n_elements() + 2,
+      R_inv_ = AthelasArray3D<double>("invR Matrix", mesh->n_elements() + 2,
                                       nvars_, nvars_);
-      U_c_T_ = AthelasArray2D<double>("U_c_T", grid->n_elements() + 2, nvars_);
-      w_c_T_ = AthelasArray2D<double>("w_c_T", grid->n_elements() + 2, nvars_);
-      mult_ = AthelasArray2D<double>("Mult", grid->n_elements() + 2, nvars_);
+      U_c_T_ = AthelasArray2D<double>("U_c_T", mesh->n_elements() + 2, nvars_);
+      w_c_T_ = AthelasArray2D<double>("w_c_T", mesh->n_elements() + 2, nvars_);
+      mult_ = AthelasArray2D<double>("Mult", mesh->n_elements() + 2, nvars_);
     }
   }
 
-  void apply_slope_limiter(AthelasArray3D<double> U, const GridStructure &grid,
+  void apply_slope_limiter(AthelasArray3D<double> U, const Mesh &mesh,
                            const basis::NodalBasis &basis, const eos::EOS &eos);
   [[nodiscard]] auto get_limited(int ix) const -> int;
   [[nodiscard]] auto limited() const -> AthelasArray1D<int>;
@@ -95,27 +95,27 @@ class WENO : public SlopeLimiterBase<WENO> {
 class TVDMinmod : public SlopeLimiterBase<TVDMinmod> {
  public:
   TVDMinmod() = default;
-  TVDMinmod(const bool enabled, const GridStructure *grid, IndexRange &vb,
+  TVDMinmod(const bool enabled, const Mesh *mesh, IndexRange &vb,
             const int order, const double b_tvd, const double m_tvb,
             const bool characteristic, const bool tci_opt, const double tci_val)
       : enabled_(enabled), order_(order), nvars_(vb.size()), b_tvd_(b_tvd),
         m_tvb_(m_tvb), characteristic_(characteristic), tci_opt_(tci_opt),
         tci_val_(tci_val), vb_(vb),
-        u_k_("modal coefficients", grid->n_elements() + 2, order, nvars_),
-        D_("TCI", grid->n_elements() + 2),
-        limited_cell_("LimitedCell", grid->n_elements() + 2) {
+        u_k_("modal coefficients", mesh->n_elements() + 2, order, nvars_),
+        D_("TCI", mesh->n_elements() + 2),
+        limited_cell_("LimitedCell", mesh->n_elements() + 2) {
 
     if (characteristic) {
-      R_ = AthelasArray3D<double>("R Matrix", grid->n_elements() + 2, nvars_,
+      R_ = AthelasArray3D<double>("R Matrix", mesh->n_elements() + 2, nvars_,
                                   nvars_);
-      R_inv_ = AthelasArray3D<double>("invR Matrix", grid->n_elements() + 2,
+      R_inv_ = AthelasArray3D<double>("invR Matrix", mesh->n_elements() + 2,
                                       nvars_, nvars_);
-      U_c_T_ = AthelasArray2D<double>("U_c_T", grid->n_elements() + 2, nvars_);
-      w_c_T_ = AthelasArray2D<double>("w_c_T", grid->n_elements() + 2, nvars_);
-      mult_ = AthelasArray2D<double>("Mult", grid->n_elements() + 2, nvars_);
+      U_c_T_ = AthelasArray2D<double>("U_c_T", mesh->n_elements() + 2, nvars_);
+      w_c_T_ = AthelasArray2D<double>("w_c_T", mesh->n_elements() + 2, nvars_);
+      mult_ = AthelasArray2D<double>("Mult", mesh->n_elements() + 2, nvars_);
     }
   }
-  void apply_slope_limiter(AthelasArray3D<double> U, const GridStructure &grid,
+  void apply_slope_limiter(AthelasArray3D<double> U, const Mesh &mesh,
                            const basis::NodalBasis &basis, const eos::EOS &eos);
   [[nodiscard]] auto get_limited(int ix) const -> int;
   [[nodiscard]] auto limited() const -> AthelasArray1D<int>;
@@ -153,7 +153,7 @@ class TVDMinmod : public SlopeLimiterBase<TVDMinmod> {
 class Unlimited : public SlopeLimiterBase<Unlimited> {
  public:
   Unlimited() = default;
-  void apply_slope_limiter(AthelasArray3D<double> U, const GridStructure &grid,
+  void apply_slope_limiter(AthelasArray3D<double> U, const Mesh &mesh,
                            const basis::NodalBasis &basis, const eos::EOS &eos);
   [[nodiscard]] auto get_limited(int ix) const -> int;
   [[nodiscard]] auto limited() const -> AthelasArray1D<int>;
@@ -166,12 +166,12 @@ using SlopeLimiter = std::variant<WENO, TVDMinmod, Unlimited>;
 
 // std::visit functions
 inline void apply_slope_limiter(SlopeLimiter *limiter, AthelasArray3D<double> U,
-                                const GridStructure &grid,
+                                const Mesh &mesh,
                                 const basis::NodalBasis &basis,
                                 const eos::EOS &eos) {
   std::visit(
-      [&U, &grid, &basis, &eos](auto &limiter) {
-        limiter.apply_slope_limiter(U, grid, basis, eos);
+      [&U, &mesh, &basis, &eos](auto &limiter) {
+        limiter.apply_slope_limiter(U, mesh, basis, eos);
       },
       *limiter);
 }

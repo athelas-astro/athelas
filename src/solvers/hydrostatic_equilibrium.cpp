@@ -1,7 +1,7 @@
 #include "Kokkos_Core.hpp"
 
 #include "composition/composition.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
@@ -22,15 +22,15 @@ auto HydrostaticEquilibrium::rhs(const double mass_enc, const double p,
   return -G * mass_enc * rho / (r * r);
 }
 
-void HydrostaticEquilibrium::solve(MeshState &mesh_state, GridStructure *grid,
+void HydrostaticEquilibrium::solve(MeshState &mesh_state, Mesh *mesh,
                                    ProblemIn *pin) {
   auto uAF = mesh_state(0).get_field("u_af");
   auto sd0 = mesh_state(0);
 
   static constexpr int ilo = 1;
-  const int ihi = grid->get_ihi();
-  const int nNodes = grid->n_nodes();
-  const double rmax = grid->get_x_r();
+  const int ihi = mesh->get_ihi();
+  const int nNodes = mesh->n_nodes();
+  const double rmax = mesh->get_x_r();
   const double dr = rmax / ihi;
   // Subtely: do we associate rho_c_ with the inner boundary or first nodal
   // point?
@@ -43,18 +43,18 @@ void HydrostaticEquilibrium::solve(MeshState &mesh_state, GridStructure *grid,
   const auto &eos = mesh_state.eos();
   const double p_c = pressure_from_conserved(eos, rho_c_, vel, energy, lambda);
 
-  const double r_c = grid->node_coordinate(ilo, 0);
+  const double r_c = mesh->node_coordinate(ilo, 0);
   double m_enc = (constants::FOURPI / 3.0) * (r_c * r_c * r_c) * rho_c_;
 
   // host data
   auto h_uAF = Kokkos::create_mirror_view(uAF);
 
-  const int size = grid->n_elements() * (nNodes + 2) + 2 * (nNodes + 2);
+  const int size = mesh->n_elements() * (nNodes + 2) + 2 * (nNodes + 2);
   AthelasArray1D<double> d_r("host radius", size);
   std::vector<double> pressure(1);
   std::vector<double> radius(1);
-  auto x_l = grid->x_l();
-  auto r = grid->nodal_grid();
+  auto x_l = mesh->x_l();
+  auto r = mesh->nodal_grid();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Solvers :: Hydrostatic :: copy grid",
       DevExecSpace(), 1, ihi, KOKKOS_LAMBDA(const int i) {
@@ -103,17 +103,17 @@ void HydrostaticEquilibrium::solve(MeshState &mesh_state, GridStructure *grid,
   std::println("# Free-fall time = {:.5e}",
                1.0 / std::sqrt(constants::G_GRAV * rho_c_));
 
-  // update domain boundary and grid
+  // update domain boundary and mesh
   auto &xr = pin->param()->get_mutable_ref<double>("problem.xr");
   xr = radius.back();
   // this is awful
-  // TODO(astrobarker): when cleaning up grid, get this
-  auto newgrid = GridStructure(pin);
-  *grid = newgrid;
+  // TODO(astrobarker): when cleaning up mesh, get this
+  auto newgrid = Mesh(pin);
+  *mesh = newgrid;
 
   // refill host radius array
-  auto r_new = grid->nodal_grid();
-  auto x_l_new = grid->x_l();
+  auto r_new = mesh->nodal_grid();
+  auto x_l_new = mesh->x_l();
   auto node_r_h = Kokkos::create_mirror_view(r_new);
   auto x_l_h = Kokkos::create_mirror_view(x_l_new);
   for (int i = 1; i <= ihi; ++i) {
@@ -123,7 +123,7 @@ void HydrostaticEquilibrium::solve(MeshState &mesh_state, GridStructure *grid,
     }
   }
 
-  // now we have to interpolate onto our grid
+  // now we have to interpolate onto our mesh
   for (int ix = 1; ix <= ihi; ++ix) {
     for (int q = 0; q < nNodes + 2; ++q) {
       const double rq = h_r(ix * (nNodes + 2) + q);

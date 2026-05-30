@@ -17,10 +17,10 @@ enum class Interface { Left, Right };
 
 enum class Boundary { Interior, Exterior };
 
-class GridStructure {
+class Mesh {
  public:
-  explicit GridStructure(const ProblemIn *pin);
-  GridStructure() = default;
+  explicit Mesh(const ProblemIn *pin);
+  Mesh() = default;
 
   [[nodiscard]] auto centers(int iC) const -> double;
   [[nodiscard]] auto get_nodes(int nN) const -> double;
@@ -39,7 +39,7 @@ class GridStructure {
   void create_uniform_grid();
   void create_log_grid();
 
-  void copy_from(const GridStructure &other);
+  void copy_from(const Mesh &other);
   void update_grid(AthelasArray1D<double> SData);
   void compute_mass(AthelasArray3D<double> ucf);
   void compute_mass_r(AthelasArray3D<double> ucf);

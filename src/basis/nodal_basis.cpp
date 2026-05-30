@@ -4,8 +4,8 @@
 
 namespace athelas::basis {
 
-NodalBasis::NodalBasis(AthelasArray3D<double> uPF, GridStructure *grid,
-                       const int nN, const int nElements)
+NodalBasis::NodalBasis(AthelasArray3D<double> uPF, Mesh *mesh, const int nN,
+                       const int nElements)
     : nX_(nElements), nNodes_(nN), nodes_("quadrature nodes", nN),
       weights_("quadrature weights", nN),
       phi_("phi_", nElements + 2, nN + 2, nN),
@@ -16,10 +16,10 @@ NodalBasis::NodalBasis(AthelasArray3D<double> uPF, GridStructure *grid,
       vandermonde_("vandermonde", nN, nN),
       inv_vandermonde_("inverse vandermonde", nN, nN) {
 
-  Kokkos::deep_copy(nodes_, grid->nodes());
-  Kokkos::deep_copy(weights_, grid->weights());
+  Kokkos::deep_copy(nodes_, mesh->nodes());
+  Kokkos::deep_copy(weights_, mesh->weights());
 
-  initialize_basis(uPF, grid);
+  initialize_basis(uPF, mesh);
 }
 
 [[nodiscard]] auto NodalBasis::phi() const noexcept -> AthelasArray3D<double> {
@@ -250,11 +250,11 @@ void NodalBasis::modal_to_nodal(AthelasArray3D<double> ucf,
  * @brief Initialize datastructures for the basis.
  */
 void NodalBasis::initialize_basis(const AthelasArray3D<double> uPF,
-                                  const GridStructure *grid) {
+                                  const Mesh *mesh) {
 
   const int ilo = 1;
-  const int ihi = grid->get_ihi();
-  const auto nodes = grid->nodes();
+  const int ihi = mesh->get_ihi();
+  const auto nodes = mesh->nodes();
 
   build_differentiation_matrix();
   build_vandermonde_matrices();
@@ -293,8 +293,8 @@ void NodalBasis::initialize_basis(const AthelasArray3D<double> uPF,
   Kokkos::deep_copy(phi_, phi_h);
   Kokkos::deep_copy(dphi_, dphi_h);
 
-  compute_mass_matrix(grid);
-  fill_guard_cells(grid);
+  compute_mass_matrix(mesh);
+  fill_guard_cells(mesh);
 }
 
 /**
@@ -302,13 +302,13 @@ void NodalBasis::initialize_basis(const AthelasArray3D<double> uPF,
  * M_qq = w_q dm
  * NOTE: This is constant in time on an element.
  */
-void NodalBasis::compute_mass_matrix(const GridStructure *grid) {
+void NodalBasis::compute_mass_matrix(const Mesh *mesh) {
 
   const int ilo = 1;
-  const int ihi = grid->get_ihi();
+  const int ihi = mesh->get_ihi();
 
-  auto weights = grid->weights();
-  auto mass = grid->mass();
+  auto weights = mesh->weights();
+  auto mass = mesh->mass();
 
   auto mass_h = Kokkos::create_mirror_view(mass_matrix_);
   auto inv_mass_h = Kokkos::create_mirror_view(inv_mass_matrix_);
@@ -326,10 +326,10 @@ void NodalBasis::compute_mass_matrix(const GridStructure *grid) {
   Kokkos::deep_copy(inv_mass_matrix_, inv_mass_h);
 }
 
-void NodalBasis::fill_guard_cells(const GridStructure *grid) {
+void NodalBasis::fill_guard_cells(const Mesh *mesh) {
 
   const int ilo = 1;
-  const int ihi = grid->get_ihi();
+  const int ihi = mesh->get_ihi();
   const int n_eta = nNodes_ + 2;
 
   auto phi_h = Kokkos::create_mirror_view(phi_);

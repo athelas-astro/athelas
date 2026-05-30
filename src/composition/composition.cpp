@@ -1,7 +1,7 @@
 #include "composition/composition.hpp"
 #include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
 #include "loop_layout.hpp"

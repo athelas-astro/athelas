@@ -13,7 +13,7 @@
 #include <string_view>
 #include <unordered_map>
 
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "pgen/advection.hpp"
 #include "pgen/ejecta_csm.hpp"
@@ -41,11 +41,10 @@ namespace athelas {
 /**
  * Initialize the mesh_state for various problems.
  **/
-void initialize_fields(MeshState &mesh_state, GridStructure *grid,
-                       ProblemIn *pin) {
+void initialize_fields(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   std::print("# Running problem generator... ");
 
-  using init_fn = void (*)(MeshState &, GridStructure *, ProblemIn *);
+  using init_fn = void (*)(MeshState &, Mesh *, ProblemIn *);
   static const std::unordered_map<std::string_view, init_fn> pgen_registry = {
       {"supernova", &pgen::progenitor::init},
       {"shocktube", &pgen::shocktube::init},
@@ -72,7 +71,7 @@ void initialize_fields(MeshState &mesh_state, GridStructure *grid,
   if (it == pgen_registry.end()) {
     throw_athelas_error("Please choose a valid problem_name!");
   }
-  it->second(mesh_state, grid, pin);
+  it->second(mesh_state, mesh, pin);
 
   std::println(" .. complete!\n");
 }

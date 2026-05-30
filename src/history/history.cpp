@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "history/history.hpp"
 #include "interface/state.hpp"
 
@@ -14,8 +14,7 @@ namespace athelas {
 
 using basis::NodalBasis;
 
-using QuantityFunction =
-    std::function<double(const MeshState &, const GridStructure &)>;
+using QuantityFunction = std::function<double(const MeshState &, const Mesh &)>;
 
 HistoryOutput::HistoryOutput(const std::string &filename,
                              const std::string &output_dir, const bool enabled)
@@ -45,8 +44,8 @@ void HistoryOutput::add_quantity(const std::string &name,
   quantity_names_.push_back(name);
 }
 
-void HistoryOutput::write(const MeshState &mesh_state,
-                          const GridStructure &grid, double time) {
+void HistoryOutput::write(const MeshState &mesh_state, const Mesh &mesh,
+                          double time) {
   if (!enabled_) {
     return;
   }
@@ -68,7 +67,7 @@ void HistoryOutput::write(const MeshState &mesh_state,
   Kokkos::Profiling::pushRegion("IO");
   Kokkos::Profiling::pushRegion("History");
   for (const auto &name : quantity_names_) {
-    const double value = quantities_[name](mesh_state, grid);
+    const double value = quantities_[name](mesh_state, mesh);
     file_ << std::format(" {:.15e}", value);
   }
   Kokkos::Profiling::popRegion();

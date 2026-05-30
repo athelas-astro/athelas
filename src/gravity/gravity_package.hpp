@@ -9,7 +9,7 @@
 
 #include "basic_types.hpp"
 #include "bc/boundary_conditions_base.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "pgen/problem_in.hpp"
 
@@ -26,11 +26,11 @@ class GravityPackage {
   GravityPackage(const ProblemIn *pin, const std::string &model, double gval,
                  double cfl, int n_stages, bool active = true);
 
-  void update_explicit(const StageData &stage_data, const GridStructure &grid,
+  void update_explicit(const StageData &stage_data, const Mesh &mesh,
                        const TimeStepInfo &dt_info) const;
 
   template <GravityModel Model>
-  void gravity_update(AthelasArray3D<double> ucf, const GridStructure &grid,
+  void gravity_update(AthelasArray3D<double> ucf, const Mesh &mesh,
                       int stage) const;
 
   void apply_delta(AthelasArray3D<double> lhs,
@@ -39,7 +39,7 @@ class GravityPackage {
   void zero_delta() const noexcept;
 
   [[nodiscard]] auto min_timestep(const StageData & /*state*/,
-                                  const GridStructure & /*grid*/,
+                                  const Mesh & /*mesh*/,
                                   const TimeStepInfo & /*dt_info*/) const
       -> double;
 
@@ -47,7 +47,7 @@ class GravityPackage {
 
   [[nodiscard]] auto is_active() const noexcept -> bool;
 
-  void fill_derived(StageData &stage_data, const GridStructure &grid,
+  void fill_derived(StageData &stage_data, const Mesh &mesh,
                     const TimeStepInfo &dt_info) const;
 
   void set_active(bool active);

@@ -2,7 +2,7 @@
 
 #include "bc/boundary_conditions.hpp"
 #include "eos/eos_variant.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 
@@ -11,7 +11,7 @@ namespace athelas::pgen::ni_decay {
 /**
  * Initialize ni_decay test
  **/
-void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
+void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   const bool composition_active =
       pin->param()->get<bool>("physics.composition.enabled");
   const bool ni_decay_active =
@@ -28,9 +28,9 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   auto uPF = mesh_state(0).get_field("u_pf");
   auto uAF = mesh_state(0).get_field("u_af");
 
-  static const int nNodes = grid->n_nodes();
+  static const int nNodes = mesh->n_nodes();
   static const int order = nNodes;
-  static const IndexRange ib(grid->domain<Domain::Interior>());
+  static const IndexRange ib(mesh->domain<Domain::Interior>());
   const IndexRange qb(nNodes);
 
   const auto temperature =
@@ -51,7 +51,7 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   const double sie = constants::k_B * temperature / (gm1 * mu * constants::m_p);
 
   std::shared_ptr<atom::CompositionData> comps =
-      std::make_shared<atom::CompositionData>(grid->n_elements() + 2, order,
+      std::make_shared<atom::CompositionData>(mesh->n_elements() + 2, order,
                                               ncomps);
   auto mass_fractions = mesh_state.mass_fractions("u_cf");
   auto charges = comps->charge();

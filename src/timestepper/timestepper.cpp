@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/packages_base.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
@@ -18,30 +18,30 @@ namespace athelas {
  * The constructor creates the necessary data structures for time evolution.
  * Lots of structures used in discretizations live here.
  **/
-TimeStepper::TimeStepper(const ProblemIn *pin, GridStructure *grid)
-    : nvars_evolved_(nvars_evolved(pin)), mSize_(grid->n_elements() + 2),
+TimeStepper::TimeStepper(const ProblemIn *pin, Mesh *mesh)
+    : nvars_evolved_(nvars_evolved(pin)), mSize_(mesh->n_elements() + 2),
       integrator_(
           create_tableau(pin->param()->get<MethodID>("time.integrator"))),
       nStages_(integrator_.num_stages), tOrder_(integrator_.explicit_order),
       SumVar_U_("SumVar_U", mSize_, pin->param()->get<int>("basis.nnodes"),
                 nvars_evolved_),
-      grid_s_(), x_l_sumvar_("x_l_sumvar_", nStages_ + 1, mSize_ + 1) {
-  grid_s_.reserve(nStages_ + 1);
+      mesh_s_(), x_l_sumvar_("x_l_sumvar_", nStages_ + 1, mSize_ + 1) {
+  mesh_s_.reserve(nStages_ + 1);
   for (int iS = 0; iS <= nStages_; ++iS) {
-    grid_s_.emplace_back(pin);
+    mesh_s_.emplace_back(pin);
   }
 }
 
-void TimeStepper::seed_stage_grids(const GridStructure &grid) {
+void TimeStepper::seed_stage_meshes(const Mesh &mesh) {
   for (int iS = 0; iS < nStages_; ++iS) {
-    grid_s_[iS].copy_from(grid);
+    mesh_s_[iS].copy_from(mesh);
   }
 }
 
 void TimeStepper::reset_stage_sumvar(int stage, AthelasArray3D<double> u0,
                                      const IndexRange &ib, const IndexRange &qb,
                                      const IndexRange &vb, const char *label) {
-  auto left_interface = grid_s_[stage].x_l();
+  auto left_interface = mesh_s_[stage].x_l();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, label, DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
       KOKKOS_CLASS_LAMBDA(const int i, const int q) {
@@ -66,31 +66,29 @@ void TimeStepper::accumulate_grid_motion(MeshState &mesh_state, int sum_stage,
       });
 }
 
-void TimeStepper::update_stage_grid(const GridStructure &grid, int grid_stage,
+void TimeStepper::update_stage_mesh(const Mesh &mesh, int mesh_stage,
                                     int sum_stage) {
   auto x_l_sumvar = Kokkos::subview(x_l_sumvar_, sum_stage, Kokkos::ALL);
-  grid_s_[grid_stage].copy_from(grid);
-  grid_s_[grid_stage].update_grid(x_l_sumvar);
+  mesh_s_[mesh_stage].copy_from(mesh);
+  mesh_s_[mesh_stage].update_grid(x_l_sumvar);
 }
 
-void TimeStepper::step(PackageManager *pkgs, MeshState &mesh_state,
-                       GridStructure &grid, TimeStepInfo &dt_info,
-                       SlopeLimiter *sl_hydro) {
+void TimeStepper::step(PackageManager *pkgs, MeshState &mesh_state, Mesh &mesh,
+                       TimeStepInfo &dt_info, SlopeLimiter *sl_hydro) {
   // hydro explicit update
-  update_fluid_explicit(pkgs, mesh_state, grid, dt_info, sl_hydro);
+  update_fluid_explicit(pkgs, mesh_state, mesh, dt_info, sl_hydro);
 }
 
 void TimeStepper::update_fluid_explicit(PackageManager *pkgs,
-                                        MeshState &mesh_state,
-                                        GridStructure &grid,
+                                        MeshState &mesh_state, Mesh &mesh,
                                         TimeStepInfo &dt_info,
                                         SlopeLimiter *sl_hydro) {
   const int nvars = mesh_state.nvars("u_cf");
-  const IndexRange ib(grid.domain<Domain::Entire>());
-  const IndexRange qb(grid.n_nodes());
+  const IndexRange ib(mesh.domain<Domain::Entire>());
+  const IndexRange qb(mesh.n_nodes());
   const IndexRange vb(nvars);
 
-  seed_stage_grids(grid);
+  seed_stage_meshes(mesh);
 
   const double t = dt_info.t;
   const double dt = dt_info.dt;
@@ -130,15 +128,15 @@ void TimeStepper::update_fluid_explicit(PackageManager *pkgs,
           }
         });
 
-    update_stage_grid(grid, iS, iS);
+    update_stage_mesh(mesh, iS, iS);
 
-    apply_slope_limiter(sl_hydro, u, grid_s_[iS], fluid_basis, eos);
-    bel::apply_bound_enforcing_limiter(stage_data, grid_s_[iS]);
+    apply_slope_limiter(sl_hydro, u, mesh_s_[iS], fluid_basis, eos);
+    bel::apply_bound_enforcing_limiter(stage_data, mesh_s_[iS]);
 
     dt_info.stage = iS;
     dt_info.t = t + integrator_.explicit_tableau.c_i(iS) * dt;
-    pkgs->fill_derived(stage_data, grid_s_[iS], dt_info);
-    pkgs->update_explicit(stage_data, grid_s_[iS], dt_info);
+    pkgs->fill_derived(stage_data, mesh_s_[iS], dt_info);
+    pkgs->update_explicit(stage_data, mesh_s_[iS], dt_info);
   } // end outer loop
 
   // --- Final U^n update ---
@@ -154,33 +152,35 @@ void TimeStepper::update_fluid_explicit(PackageManager *pkgs,
     accumulate_grid_motion(mesh_state, 0, iS, dt_b_ex, ib,
                            "Timestepper :: EX :: Finalize grid");
   }
-  grid.update_grid(Kokkos::subview(x_l_sumvar_, 0, Kokkos::ALL));
+  mesh.update_grid(Kokkos::subview(x_l_sumvar_, 0, Kokkos::ALL));
 
   auto sd0 = mesh_state(0);
-  apply_slope_limiter(sl_hydro, u0, grid, sd0.fluid_basis(), sd0.eos());
-  bel::apply_bound_enforcing_limiter(sd0, grid);
+  apply_slope_limiter(sl_hydro, u0, mesh, sd0.fluid_basis(), sd0.eos());
+  bel::apply_bound_enforcing_limiter(sd0, mesh);
 
   pkgs->zero_delta();
 }
 
 void TimeStepper::step_imex(PackageManager *pkgs, MeshState &mesh_state,
-                            GridStructure &grid, TimeStepInfo &dt_info,
+                            Mesh &mesh, TimeStepInfo &dt_info,
                             SlopeLimiter *sl_hydro, SlopeLimiter *sl_rad) {
 
-  update_rad_hydro_imex(pkgs, mesh_state, grid, dt_info, sl_hydro, sl_rad);
+  update_rad_hydro_imex(pkgs, mesh_state, mesh, dt_info, sl_hydro, sl_rad);
 }
 
-void TimeStepper::update_rad_hydro_imex(
-    PackageManager *pkgs, MeshState &mesh_state, GridStructure &grid,
-    TimeStepInfo &dt_info, SlopeLimiter *sl_hydro, SlopeLimiter *sl_rad) {
-  const int nnodes = grid.n_nodes();
+void TimeStepper::update_rad_hydro_imex(PackageManager *pkgs,
+                                        MeshState &mesh_state, Mesh &mesh,
+                                        TimeStepInfo &dt_info,
+                                        SlopeLimiter *sl_hydro,
+                                        SlopeLimiter *sl_rad) {
+  const int nnodes = mesh.n_nodes();
 
   const int nvars = mesh_state.nvars("u_cf");
-  const IndexRange ib(grid.domain<Domain::Entire>());
+  const IndexRange ib(mesh.domain<Domain::Entire>());
   const IndexRange qb(nnodes);
   const IndexRange vb(nvars);
 
-  seed_stage_grids(grid);
+  seed_stage_meshes(mesh);
 
   const double t = dt_info.t;
   const double dt = dt_info.dt;
@@ -214,13 +214,13 @@ void TimeStepper::update_rad_hydro_imex(
                              "Timestepper :: IMEX :: Update grid");
     } // End inner loop
 
-    update_stage_grid(grid, iS, iS);
+    update_stage_mesh(mesh, iS, iS);
 
     // set U_s (stage data)
     Kokkos::deep_copy(u, SumVar_U_);
 
     // Seems to be necessary when doing explicit transport.
-    apply_slope_limiter(sl_rad, u, grid_s_[iS], rad_basis, eos);
+    apply_slope_limiter(sl_rad, u, mesh_s_[iS], rad_basis, eos);
 
     Kokkos::deep_copy(SumVar_U_, u);
 
@@ -230,19 +230,19 @@ void TimeStepper::update_rad_hydro_imex(
     dt_info.dt_coef = dt * integrator_.implicit_tableau.a_ij(iS, iS);
 
     // Need a fill derived?
-    // pkgs->fill_derived(stage_data, grid_s_[iS], dt_info);
+    // pkgs->fill_derived(stage_data, mesh_s_[iS], dt_info);
     if (dt_info.dt_coef != 0.0) {
-      pkgs->update_implicit(stage_data, SumVar_U_, grid_s_[iS], dt_info);
+      pkgs->update_implicit(stage_data, SumVar_U_, mesh_s_[iS], dt_info);
     }
 
-    apply_slope_limiter(sl_hydro, u, grid_s_[iS], fluid_basis, eos);
-    apply_slope_limiter(sl_rad, u, grid_s_[iS], rad_basis, eos);
-    bel::apply_bound_enforcing_limiter(stage_data, grid_s_[iS]);
-    bel::apply_bound_enforcing_limiter_rad(stage_data, grid_s_[iS]);
+    apply_slope_limiter(sl_hydro, u, mesh_s_[iS], fluid_basis, eos);
+    apply_slope_limiter(sl_rad, u, mesh_s_[iS], rad_basis, eos);
+    bel::apply_bound_enforcing_limiter(stage_data, mesh_s_[iS]);
+    bel::apply_bound_enforcing_limiter_rad(stage_data, mesh_s_[iS]);
 
     dt_info.stage = iS;
-    pkgs->fill_derived(stage_data, grid_s_[iS], dt_info);
-    pkgs->update_explicit(stage_data, grid_s_[iS], dt_info);
+    pkgs->fill_derived(stage_data, mesh_s_[iS], dt_info);
+    pkgs->update_explicit(stage_data, mesh_s_[iS], dt_info);
   } // end outer loop
 
   for (int iS = 0; iS < nStages_; ++iS) {
@@ -258,19 +258,25 @@ void TimeStepper::update_rad_hydro_imex(
     accumulate_grid_motion(mesh_state, 0, iS, dt_b, ib,
                            "Timestepper :: IMEX :: Finalize grid");
   }
-  grid.update_grid(Kokkos::subview(x_l_sumvar_, 0, Kokkos::ALL));
+  mesh.update_grid(Kokkos::subview(x_l_sumvar_, 0, Kokkos::ALL));
 
   auto sd0 = mesh_state(0);
-  apply_slope_limiter(sl_hydro, u0, grid, fluid_basis, eos);
-  apply_slope_limiter(sl_rad, u0, grid, rad_basis, eos);
-  bel::apply_bound_enforcing_limiter(sd0, grid);
-  bel::apply_bound_enforcing_limiter_rad(sd0, grid);
+  apply_slope_limiter(sl_hydro, u0, mesh, fluid_basis, eos);
+  apply_slope_limiter(sl_rad, u0, mesh, rad_basis, eos);
+  bel::apply_bound_enforcing_limiter(sd0, mesh);
+  bel::apply_bound_enforcing_limiter_rad(sd0, mesh);
 
   pkgs->zero_delta();
 }
 
 [[nodiscard]] auto TimeStepper::n_stages() const noexcept -> int {
   return integrator_.num_stages;
+}
+
+// TEMPORARY: see header. Remove when mesh_s_ leaves TimeStepper.
+[[nodiscard]] auto TimeStepper::compute_n_stages(const ProblemIn *pin) -> int {
+  return create_tableau(pin->param()->get<MethodID>("time.integrator"))
+      .num_stages;
 }
 
 // Computes number of evolved vars.

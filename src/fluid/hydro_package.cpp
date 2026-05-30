@@ -8,7 +8,7 @@
 #include "eos/eos_variant.hpp"
 #include "fluid/fluid_utilities.hpp"
 #include "fluid/hydro_package.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
 #include "loop_layout.hpp"
@@ -28,7 +28,7 @@ HydroPackage::HydroPackage(const ProblemIn * /*pin*/, int n_stages, int order,
       delta_("hydro :: delta", n_stages, nx_ + 2, order, 3) {}
 
 void HydroPackage::update_explicit(const StageData &stage_data,
-                                   const GridStructure &grid,
+                                   const Mesh &mesh,
                                    const TimeStepInfo &dt_info) const {
   const int stage = dt_info.stage;
   auto ucf = stage_data.get_field("u_cf");
@@ -37,12 +37,12 @@ void HydroPackage::update_explicit(const StageData &stage_data,
 
   const auto &basis = stage_data.fluid_basis();
 
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  static const IndexRange qb(grid.n_nodes());
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  static const IndexRange qb(mesh.n_nodes());
   static const IndexRange vb(NUM_VARS_);
 
   // --- Apply BC ---
-  bc::fill_ghost_zones<3>(ucf, &grid, bcs_, {0, 2});
+  bc::fill_ghost_zones<3>(ucf, &mesh, bcs_, {0, 2});
   if (stage_data.enabled("composition")) {
     static const IndexRange vb_comps(
         std::make_pair(NUM_VARS_, stage_data.nvars("u_cf") - 1));
@@ -50,7 +50,7 @@ void HydroPackage::update_explicit(const StageData &stage_data,
   }
 
   // --- Fluid Increment : Divergence ---
-  fluid_divergence(stage_data, grid, stage);
+  fluid_divergence(stage_data, mesh, stage);
 
   // --- Dvbide update by mass mastrix ---
   const auto inv_mkk = basis.inv_mass_matrix();
@@ -67,8 +67,7 @@ void HydroPackage::update_explicit(const StageData &stage_data,
 // Compute the dvbergence of the flux term for the update
 // TODO(astrobarker): dont pass in stage
 void HydroPackage::fluid_divergence(const StageData &stage_data,
-                                    const GridStructure &grid,
-                                    const int stage) const {
+                                    const Mesh &mesh, const int stage) const {
   auto ucf = stage_data.get_field("u_cf");
   auto uaf = stage_data.get_field("u_af");
   auto facedata = stage_data.get_field<AthelasArray2D<double>>("facedata");
@@ -77,10 +76,10 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
 
   const auto &basis = stage_data.fluid_basis();
 
-  const auto &nNodes = grid.n_nodes();
+  const auto &nNodes = mesh.n_nodes();
   const auto &order = basis.order();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  static const IndexRange qb(grid.n_nodes());
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  static const IndexRange qb(mesh.n_nodes());
   static const IndexRange vb(NUM_VARS_);
 
   static const int idx_tau = stage_data.var_index("u_cf", "tau");
@@ -89,9 +88,9 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
   static const int idx_pre = stage_data.var_index("u_af", "pressure");
   static const int idx_cs = stage_data.var_index("u_af", "sound speed");
 
-  auto x_l = grid.x_l();
-  auto sqrt_gm = grid.sqrt_gm();
-  auto weights = grid.weights();
+  auto x_l = mesh.x_l();
+  auto sqrt_gm = mesh.sqrt_gm();
+  auto weights = mesh.weights();
 
   auto phi = basis.phi();
   auto dphis = basis.dphi();
@@ -216,17 +215,16 @@ void HydroPackage::zero_delta() const noexcept {
 /**
  * @brief explicit hydrodynamic timestep restriction
  **/
-auto HydroPackage::min_timestep(const StageData &stage_data,
-                                const GridStructure &grid,
+auto HydroPackage::min_timestep(const StageData &stage_data, const Mesh &mesh,
                                 const TimeStepInfo &dt_info) const -> double {
   static constexpr double MAX_DT = std::numeric_limits<double>::max();
   static constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
 
   auto uaf = stage_data.get_field("u_af");
 
-  static const int nnodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  auto dr = grid.widths();
+  static const int nnodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  auto dr = mesh.widths();
 
   double dt_out = 0.0;
   athelas::par_reduce(
@@ -257,8 +255,7 @@ auto HydroPackage::min_timestep(const StageData &stage_data,
  * It would be nice to write an inner, templated on IonzationPhysics
  * function that deals with this. Has less duplicated code.
  */
-void HydroPackage::fill_derived(StageData &stage_data,
-                                const GridStructure &grid,
+void HydroPackage::fill_derived(StageData &stage_data, const Mesh &mesh,
                                 const TimeStepInfo & /*dt_info*/) const {
   using eos::EOSLambda;
 
@@ -266,21 +263,21 @@ void HydroPackage::fill_derived(StageData &stage_data,
   auto uPF = stage_data.get_field("u_pf");
   auto uAF = stage_data.get_field("u_af");
 
-  const int nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Entire>());
+  const int nNodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Entire>());
   static const bool ionization_enabled = stage_data.enabled("ionization");
 
   const auto &basis = stage_data.fluid_basis();
 
   // --- Apply BC ---
-  bc::fill_ghost_zones<3>(ucf, &grid, bcs_, {0, 2});
+  bc::fill_ghost_zones<3>(ucf, &mesh, bcs_, {0, 2});
 
   if (stage_data.enabled("composition")) {
     // composition boundary condition
     static const IndexRange vb_comps(
         std::make_pair(NUM_VARS_, stage_data.nvars("u_cf") - 1));
     bc::fill_ghost_zones_composition(ucf, vb_comps);
-    atom::fill_derived_comps<Domain::Entire>(stage_data, &grid);
+    atom::fill_derived_comps<Domain::Entire>(stage_data, &mesh);
   }
 
   const auto &eos = stage_data.eos();
@@ -294,12 +291,12 @@ void HydroPackage::fill_derived(StageData &stage_data,
     if (ionization_state->solver() == atom::SahaSolver::Linear) {
       atom::compute_temperature_with_saha<
           Domain::Entire, eos::EOSInversion::Sie, atom::SahaSolver::Linear>(
-          stage_data, grid);
+          stage_data, mesh);
     }
     if (ionization_state->solver() == atom::SahaSolver::Log) {
       atom::compute_temperature_with_saha<
           Domain::Entire, eos::EOSInversion::Sie, atom::SahaSolver::Log>(
-          stage_data, grid);
+          stage_data, mesh);
     }
   } else {
     athelas::par_for(

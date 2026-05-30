@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "limiters/slope_limiter.hpp"
 #include "pgen/problem_in.hpp"
@@ -91,13 +91,11 @@ auto h5_predtype() -> H5::PredType {
   }
 }
 
-void write_output(const MeshState &mesh_state, GridStructure &mesh,
-                  ProblemIn *pin, const std::string &filename,
-                  const SimInfo &info);
+void write_output(const MeshState &mesh_state, Mesh &mesh, ProblemIn *pin,
+                  const std::string &filename, const SimInfo &info);
 
-void write_output(const MeshState &mesh_state, GridStructure &grid,
-                  SlopeLimiter *SL, ProblemIn *pin, const SimInfo &info,
-                  int i_write);
+void write_output(const MeshState &mesh_state, Mesh &mesh, SlopeLimiter *SL,
+                  ProblemIn *pin, const SimInfo &info, int i_write);
 
-void print_simulation_parameters(GridStructure &grid, ProblemIn *pin);
+void print_simulation_parameters(Mesh &mesh, ProblemIn *pin);
 } // namespace athelas::io

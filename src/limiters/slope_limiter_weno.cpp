@@ -1,4 +1,4 @@
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "kokkos_abstraction.hpp"
 #include "limiters/characteristic_decomposition.hpp"
 #include "limiters/slope_limiter.hpp"
@@ -18,8 +18,7 @@ using namespace vars::modes;
  * Apply the slope limiter. We use a compact stencil WENO-Z limiter
  * H. Zhu 2020, simple, high-order compact WENO RKDG slope limiter
  **/
-void WENO::apply_slope_limiter(AthelasArray3D<double> U,
-                               const GridStructure &grid,
+void WENO::apply_slope_limiter(AthelasArray3D<double> U, const Mesh &mesh,
                                const NodalBasis &basis, const EOS &eos) {
 
   // Do not apply for first order method or if we don't want to.
@@ -27,15 +26,15 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U,
     return;
   }
 
-  static const IndexRange ib(grid.domain<Domain::Interior>());
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
   static constexpr int ilo = 1;
-  static const int &ihi = grid.get_ihi();
+  static const int &ihi = mesh.get_ihi();
 
   const auto nvars = nvars_;
 
   // --- Apply troubled cell indicator ---
   if (tci_opt_) {
-    detect_troubled_cells(U, D_, grid, basis, vb_);
+    detect_troubled_cells(U, D_, mesh, basis, vb_);
   }
 
   // --- Map to modal basis ---
@@ -74,7 +73,7 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U,
         }); // par i
   } // end map to characteristics
 
-  const auto dr = grid.widths();
+  const auto dr = mesh.widths();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: WENO", DevExecSpace(), ib.s,
       ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
@@ -92,11 +91,11 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U,
                               dr(i + 1), gamma_i_, gamma_l_, gamma_r_, i, v);
 
             const double beta_l = smoothness_indicator(modified_polynomial_i,
-                                                       grid, 0, v); // i - 1
+                                                       mesh, 0, v); // i - 1
             const double beta_i =
-                smoothness_indicator(modified_polynomial_i, grid, 1, v); // i
+                smoothness_indicator(modified_polynomial_i, mesh, 1, v); // i
             const double beta_r = smoothness_indicator(modified_polynomial_i,
-                                                       grid, 2, v); // i + 1
+                                                       mesh, 2, v); // i + 1
             const double tau = weno_tau(beta_l, beta_i, beta_r);
 
             // nonlinear weights w
@@ -149,7 +148,7 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U,
         }); // par_for i
   } // end map from characteristics
 
-  // conservative_correction(u_k_, U, grid, nvars);
+  // conservative_correction(u_k_, U, mesh, nvars);
 
   // --- Project back onto nodal basis ---
   basis.modal_to_nodal(U, u_k_, vb_);

@@ -4,7 +4,7 @@
 #include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "constants.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
@@ -33,10 +33,9 @@ auto element_number_density(const double mass_frac,
  * TODO(astrobarker): Explore hierarchical parallelism for inner loops
  */
 template <Domain MeshDomain>
-void fill_derived_comps(StageData &stage_data,
-                        const GridStructure *const grid) {
-  static const auto &nnodes = grid->n_nodes();
-  static const IndexRange ib(grid->domain<MeshDomain>());
+void fill_derived_comps(StageData &stage_data, const Mesh *const mesh) {
+  static const auto &nnodes = mesh->n_nodes();
+  static const IndexRange ib(mesh->domain<MeshDomain>());
   static const IndexRange qb(nnodes + 2);
 
   const auto &basis = stage_data.fluid_basis();
@@ -164,10 +163,9 @@ auto fill_derived_ionization(const AthelasArray3D<double> phi,
  * If this changes then the inner looping needs to be optimized.
  */
 template <Domain MeshDomain>
-void fill_derived_ionization(StageData &stage_data,
-                             const GridStructure *const grid) {
-  static const auto &nnodes = grid->n_nodes();
-  static const IndexRange ib(grid->domain<MeshDomain>());
+void fill_derived_ionization(StageData &stage_data, const Mesh *const mesh) {
+  static const auto &nnodes = mesh->n_nodes();
+  static const IndexRange ib(mesh->domain<MeshDomain>());
   static const IndexRange qb(nnodes + 2);
 
   auto ucf = stage_data.get_field("u_cf");

@@ -8,7 +8,7 @@
 
 #include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "gravity/gravity_package.hpp"
 #include "kokkos_abstraction.hpp"
 #include "loop_layout.hpp"
@@ -37,31 +37,30 @@ GravityPackage::GravityPackage(const ProblemIn *pin, const std::string &model,
 }
 
 void GravityPackage::update_explicit(const StageData &stage_data,
-                                     const GridStructure &grid,
+                                     const Mesh &mesh,
                                      const TimeStepInfo &dt_info) const {
   const auto stage = dt_info.stage;
   auto ucf = stage_data.get_field("u_cf");
 
-  static const IndexRange ib(grid.domain<Domain::Interior>());
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
 
   if (model_ == GravityModel::Spherical) {
-    gravity_update<GravityModel::Spherical>(ucf, grid, stage);
+    gravity_update<GravityModel::Spherical>(ucf, mesh, stage);
   } else [[unlikely]] {
-    gravity_update<GravityModel::Constant>(ucf, grid, stage);
+    gravity_update<GravityModel::Constant>(ucf, mesh, stage);
   }
 }
 
 template <GravityModel Model>
 void GravityPackage::gravity_update(AthelasArray3D<double> ucf,
-                                    const GridStructure &grid,
-                                    const int stage) const {
+                                    const Mesh &mesh, const int stage) const {
   using basis::basis_eval;
-  static const int nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
+  static const int nNodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
   static const IndexRange qb(nNodes);
 
-  auto r = grid.nodal_grid();
-  auto enclosed_mass = grid.enclosed_mass();
+  auto r = mesh.nodal_grid();
+  auto enclosed_mass = mesh.enclosed_mass();
 
   const double gval = gval_;
   // This can probably be simplified.
@@ -134,7 +133,7 @@ void GravityPackage::zero_delta() const noexcept {
  **/
 KOKKOS_FUNCTION
 auto GravityPackage::min_timestep(const StageData & /*stage_data*/,
-                                  const GridStructure &grid,
+                                  const Mesh &mesh,
                                   const TimeStepInfo & /*dt_info*/) const
     -> double {
   // static constexpr double MAX_DT = std::numeric_limits<double>::max() /
@@ -142,10 +141,10 @@ auto GravityPackage::min_timestep(const StageData & /*stage_data*/,
   static constexpr double MAX_DT = std::numeric_limits<double>::max();
   static constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
 
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  auto dr = grid.widths();
-  auto r = grid.centers();
-  auto m = grid.enclosed_mass();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  auto dr = mesh.widths();
+  auto r = mesh.centers();
+  auto m = mesh.enclosed_mass();
 
   double dt_out = 0.0;
   athelas::par_reduce(
@@ -166,7 +165,7 @@ auto GravityPackage::min_timestep(const StageData & /*stage_data*/,
 }
 
 void GravityPackage::fill_derived(StageData & /*stage_data*/,
-                                  const GridStructure & /*grid*/,
+                                  const Mesh & /*mesh*/,
                                   const TimeStepInfo & /*dt_info*/) const {}
 
 [[nodiscard]] KOKKOS_FUNCTION auto GravityPackage::name() const noexcept

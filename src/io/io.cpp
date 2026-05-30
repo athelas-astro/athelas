@@ -12,7 +12,7 @@
 #include "H5Cpp.h"
 
 #include "build_info.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "limiters/slope_limiter.hpp"
 
 namespace athelas {
@@ -25,9 +25,9 @@ namespace io {
  * Write to standard output some initialization info
  * for the current simulation.
  **/
-void print_simulation_parameters(GridStructure &grid, ProblemIn *pin) {
-  const int nX = grid.n_elements();
-  const int nNodes = grid.n_nodes();
+void print_simulation_parameters(Mesh &mesh, ProblemIn *pin) {
+  const int nX = mesh.n_elements();
+  const int nNodes = mesh.n_nodes();
   // NOTE: If I properly support more bases again, adjust here.
   const bool rad_enabled = pin->param()->get<bool>("physics.radiation.enabled");
   const bool gravity_enabled =
@@ -50,8 +50,8 @@ void print_simulation_parameters(GridStructure &grid, ProblemIn *pin) {
   std::println("# --- Grid Parameters --- ");
   std::println("# Mesh Elements  : {}", nX);
   std::println("# Number Nodes   : {}", nNodes);
-  std::println("# Lower Boundary : {}", grid.get_x_l());
-  std::println("# Upper Boundary : {}", grid.get_x_r());
+  std::println("# Lower Boundary : {}", mesh.get_x_l());
+  std::println("# Upper Boundary : {}", mesh.get_x_r());
   std::println("");
 
   std::println("# --- Physics Parameters --- ");
@@ -345,9 +345,8 @@ class HDF5Writer {
   }
 };
 
-void write_output(const MeshState &mesh_state, GridStructure &mesh,
-                  ProblemIn *pin, const std::string &filename,
-                  const SimInfo &info) {
+void write_output(const MeshState &mesh_state, Mesh &mesh, ProblemIn *pin,
+                  const std::string &filename, const SimInfo &info) {
   HDF5Writer writer(filename);
 
   // Create structure
@@ -523,9 +522,8 @@ auto generate_filename(const std::string &problem_name,
 /**
  * @brief write to hdf5
  */
-void write_output(const MeshState &mesh_state, GridStructure &grid,
-                  SlopeLimiter *SL, ProblemIn *pin, const SimInfo &info,
-                  int i_write) {
+void write_output(const MeshState &mesh_state, Mesh &mesh, SlopeLimiter *SL,
+                  ProblemIn *pin, const SimInfo &info, int i_write) {
   Kokkos::Profiling::pushRegion("IO");
   Kokkos::Profiling::pushRegion("HDF5");
   Kokkos::Profiling::pushRegion("Out");
@@ -537,7 +535,7 @@ void write_output(const MeshState &mesh_state, GridStructure &grid,
   std::string filename =
       generate_filename(problem_name, output_dir, i_write, max_digits);
 
-  write_output(mesh_state, grid, pin, filename, info);
+  write_output(mesh_state, mesh, pin, filename, info);
 
   Kokkos::Profiling::popRegion();
   Kokkos::Profiling::popRegion();

@@ -8,7 +8,7 @@
  *
  * Mass fractions are renormalized. This helps to maintain
  * conservation. Errors can be accumulated 1) in the construction of the
- * profile, 2) in the interpolation from the progenitor grid to Athelas's grid,
+ * profile, 2) in the interpolation from the progenitor mesh to Athelas's mesh,
  * and 3) when Ni56 is placed by hand.
  *
  * NOTE: Currently injected ni56 is distributed uniformly out to a
@@ -31,7 +31,7 @@
 #include "constants.hpp"
 #include "eos/eos_variant.hpp"
 #include "error.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "io/parser.hpp"
 #include "kokkos_abstraction.hpp"
@@ -43,7 +43,7 @@ namespace athelas::pgen::progenitor {
 /**
  * @brief Initialize supernova progenitor
  **/
-void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
+void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   using math::interp::find_closest_cell;
   using math::interp::linterp;
   // If we ever add columns to the hydro profile, change this.
@@ -103,9 +103,9 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
         "input profile. If not, bad things may happen.");
   }
 
-  static const int nNodes = grid->n_nodes();
-  static const int nx = grid->n_elements();
-  static const IndexRange ib(grid->domain<Domain::Interior>());
+  static const int nNodes = mesh->n_nodes();
+  static const int nx = mesh->n_elements();
+  static const IndexRange ib(mesh->domain<Domain::Interior>());
 
   auto uCF = mesh_state(0).get_field("u_cf");
   auto uAF = mesh_state(0).get_field("u_af");
@@ -208,15 +208,15 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
     }
   }
 
-  // --- Rebuild the grid after making the mass cut. ---
+  // --- Rebuild the mesh after making the mass cut. ---
   auto &xl = pin->param()->get_mutable_ref<double>("problem.xl");
   auto &xr = pin->param()->get_mutable_ref<double>("problem.xr");
   xl = r_cut;
   xr = rstar;
-  auto newgrid = GridStructure(pin);
-  *grid = newgrid;
+  auto newgrid = Mesh(pin);
+  *mesh = newgrid;
 
-  auto r = grid->nodal_grid();
+  auto r = mesh->nodal_grid();
 
   // --- Interpolate density, pressure, temperature at nodes & interfaces. ---
   athelas::par_for(
@@ -382,7 +382,7 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
     }
   }
 
-  // --- Interpolate mass fractions onto our grid. ---
+  // --- Interpolate mass fractions onto our mesh. ---
   // TODO(astrobarker): this can be device side.
   auto mass_fractions_h =
       Kokkos::create_mirror_view(mesh_state.mass_fractions("u_cf"));
@@ -407,7 +407,7 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
 
   std::shared_ptr<atom::IonizationState> ionization_state =
       std::make_shared<atom::IonizationState>(
-          grid->n_elements() + 2, nNodes, ncomps, max_charge + 1, saha_ncomps,
+          mesh->n_elements() + 2, nNodes, ncomps, max_charge + 1, saha_ncomps,
           fn_ionization, fn_deg,
           pin->param()->get<std::string>("ionization.solver"));
 
@@ -489,12 +489,12 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
         }
       });
 
-  // We go ahead and form the basis here now that the grid is constructed.
+  // We go ahead and form the basis here now that the mesh is constructed.
   // I don't particularly like this pattern, but as it stands the basis is
   // needed in the Saha solves to come.
-  grid->compute_mass(uCF);
+  mesh->compute_mass(uCF);
   auto fluid_basis_tmp = std::make_unique<basis::NodalBasis>(
-      uPF, grid, nNodes, pin->param()->get<int>("problem.nx"));
+      uPF, mesh, nNodes, pin->param()->get<int>("problem.nx"));
   mesh_state.setup_fluid_basis(std::move(fluid_basis_tmp));
 
   // There is one subtelty that must be taken care of:
@@ -526,7 +526,7 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
 
   // Compute necessary terms for using the Paczynski eos
   auto sd0 = mesh_state(0);
-  atom::fill_derived_comps<Domain::Interior>(sd0, grid);
+  atom::fill_derived_comps<Domain::Interior>(sd0, mesh);
 
   // Perform an eos inversion using the progenitor pressure for
   // the updated temperature. It is coupled to a Saha solver for the
@@ -534,12 +534,12 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   if (ionization_state->solver() == atom::SahaSolver::Linear) {
     atom::compute_temperature_with_saha<Domain::Interior,
                                         eos::EOSInversion::Pressure,
-                                        atom::SahaSolver::Linear>(sd0, *grid);
+                                        atom::SahaSolver::Linear>(sd0, *mesh);
   }
   if (ionization_state->solver() == atom::SahaSolver::Log) {
     atom::compute_temperature_with_saha<
         Domain::Interior, eos::EOSInversion::Pressure, atom::SahaSolver::Log>(
-        sd0, *grid);
+        sd0, *mesh);
   }
 
   auto number_density = comps->number_density();

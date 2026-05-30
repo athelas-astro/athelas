@@ -2,7 +2,7 @@
 
 #include "basis/polynomial_basis.hpp"
 #include "eos/eos_variant.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 
@@ -11,7 +11,7 @@ namespace athelas::pgen::rad_wave {
 /**
  * @brief Initialize radiation wave test
  **/
-void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
+void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin,
           const eos::EOS *eos, basis::ModalBasis * /*fluid_basis = nullptr*/,
           basis::ModalBasis * /*radiation_basis = nullptr*/) {
   const bool rad_active = pin->param()->get<bool>("physics.radiation.enabled");
@@ -22,8 +22,8 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   auto uCF = mesh_state(0).get_field("u_cf");
   auto uPF = mesh_state(0).get_field("u_pf");
 
-  static const int nNodes = grid->n_nodes();
-  static const IndexRange ib(grid->domain<Domain::Interior>());
+  static const int nNodes = mesh->n_nodes();
+  static const IndexRange ib(mesh->domain<Domain::Interior>());
   const IndexRange qb(nNodes);
 
   [[maybe_unused]] const auto lambda =
@@ -43,7 +43,7 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: RadWave (1)", DevExecSpace(), ib.s,
       ib.e, KOKKOS_LAMBDA(const int i) {
         const int k = 0;
-        [[maybe_unused]] const double X1 = grid->centers(i);
+        [[maybe_unused]] const double X1 = mesh->centers(i);
 
         uCF(i, k, vars::cons::SpecificVolume) = 1.0 / rho0;
         uCF(i, k, vars::cons::Velocity) = 0.0;

@@ -5,7 +5,7 @@
 
 /**
  * @class RadialGridIndexer
- * @brief Handles indexing conversion between 2D radial grid coordinates and
+ * @brief Handles indexing conversion between 2D radial mesh coordinates and
  * flattened indices
  */
 class RadialGridIndexer {
@@ -16,7 +16,7 @@ class RadialGridIndexer {
 
  public:
   /**
-   * @brief Construct indexer for radial grid
+   * @brief Construct indexer for radial mesh
    * @param nx Number of radial cells (must be > 0)
    * @param nnodes Number of quadrature points per cell (must be > 0)
    */
@@ -27,7 +27,7 @@ class RadialGridIndexer {
   }
 
   /**
-   * @brief Convert 2D grid coordinates to flattened index
+   * @brief Convert 2D mesh coordinates to flattened index
    * @param ix Cell index [0, nx)
    * @param in Node index within cell [0, nnodes)
    * @return Flattened index [0, nx * nnodes)
@@ -40,7 +40,7 @@ class RadialGridIndexer {
   }
 
   /**
-   * @brief Convert flattened index to 2D grid coordinates
+   * @brief Convert flattened index to 2D mesh coordinates
    * @param i_flat Flattened index [0, nx * nnodes)
    * @return std::tuple<int, int> containing (ix, in)
    */

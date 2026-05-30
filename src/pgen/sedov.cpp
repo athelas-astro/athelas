@@ -3,7 +3,7 @@
 #include <cmath>
 
 #include "eos/eos_variant.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 
@@ -12,17 +12,17 @@ namespace athelas::pgen::sedov {
 /**
  * @brief Initialize sedov blast wave
  **/
-void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
+void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Sedov requires ideal gas eos!");
 
   auto uCF = mesh_state(0).get_field("u_cf");
   auto uPF = mesh_state(0).get_field("u_pf");
 
-  static const int nNodes = grid->n_nodes();
-  static const IndexRange ib(grid->domain<Domain::Interior>());
+  static const int nNodes = mesh->n_nodes();
+  static const IndexRange ib(mesh->domain<Domain::Interior>());
   static const IndexRange qb(nNodes);
-  auto left_interface = grid->x_l();
+  auto left_interface = mesh->x_l();
 
   const auto D0 = pin->param()->get<double>("problem.params.rho0", 1.0);
   const auto V0 = pin->param()->get<double>("problem.params.v0", 0.0);

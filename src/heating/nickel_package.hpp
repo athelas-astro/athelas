@@ -6,7 +6,7 @@
 #include "basis/polynomial_basis.hpp"
 #include "bc/boundary_conditions_base.hpp"
 #include "compdata.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "pgen/problem_in.hpp"
 #include "utils/constants.hpp"
@@ -41,12 +41,12 @@ class NickelHeatingPackage {
   NickelHeatingPackage(const ProblemIn *pin, const Params *indexer,
                        int n_stages, int nq, bool active = true);
 
-  void update_explicit(const StageData &stage_data, const GridStructure &grid,
+  void update_explicit(const StageData &stage_data, const Mesh &mesh,
                        const TimeStepInfo &dt_info);
 
   template <NiHeatingModel Model>
   void ni_update(const StageData &stage_data, atom::CompositionData *comps,
-                 const GridStructure &grid, const TimeStepInfo &dt_info) const;
+                 const Mesh &mesh, const TimeStepInfo &dt_info) const;
 
   void apply_delta(AthelasArray3D<double> lhs,
                    const TimeStepInfo &dt_info) const;
@@ -108,7 +108,7 @@ class NickelHeatingPackage {
   }
 
   [[nodiscard]] auto min_timestep(const StageData & /*stage_data*/,
-                                  const GridStructure & /*grid*/,
+                                  const Mesh & /*mesh*/,
                                   const TimeStepInfo & /*dt_info*/) const
       -> double;
 
@@ -116,7 +116,7 @@ class NickelHeatingPackage {
 
   [[nodiscard]] auto is_active() const noexcept -> bool;
 
-  void fill_derived(StageData &stage_data, const GridStructure &grid,
+  void fill_derived(StageData &stage_data, const Mesh &mesh,
                     const TimeStepInfo &dt_info) const;
 
   void set_active(bool active);

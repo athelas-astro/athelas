@@ -2,8 +2,8 @@
 #include "basic_types.hpp"
 #include "compdata.hpp"
 #include "constants.hpp"
-#include "geometry/grid.hpp"
 #include "geometry/grid_indexer.hpp"
+#include "geometry/mesh.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
 #include "loop_layout.hpp"
@@ -39,14 +39,14 @@ NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,
 }
 
 void NickelHeatingPackage::update_explicit(const StageData &stage_data,
-                                           const GridStructure &grid,
+                                           const Mesh &mesh,
                                            const TimeStepInfo &dt_info) {
   auto *comps = stage_data.comps();
 
   if (model_ == NiHeatingModel::Jeffery) {
-    ni_update<NiHeatingModel::Jeffery>(stage_data, comps, grid, dt_info);
+    ni_update<NiHeatingModel::Jeffery>(stage_data, comps, mesh, dt_info);
   } else {
-    ni_update<NiHeatingModel::FullTrapping>(stage_data, comps, grid, dt_info);
+    ni_update<NiHeatingModel::FullTrapping>(stage_data, comps, mesh, dt_info);
   }
 }
 
@@ -56,11 +56,10 @@ void NickelHeatingPackage::update_explicit(const StageData &stage_data,
  */
 template <NiHeatingModel Model>
 void NickelHeatingPackage::ni_update(const StageData &stage_data,
-                                     CompositionData *comps,
-                                     const GridStructure &grid,
+                                     CompositionData *comps, const Mesh &mesh,
                                      const TimeStepInfo &dt_info) const {
-  static const int nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
+  static const int nNodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
   static const IndexRange qb(nNodes);
 
   const int stage = dt_info.stage;
@@ -72,8 +71,8 @@ void NickelHeatingPackage::ni_update(const StageData &stage_data,
   static const auto ind_ni = species_indexer->get<int>("ni56");
   static const auto ind_co = species_indexer->get<int>("co56");
 
-  auto dm = grid.mass();
-  auto weights = grid.weights();
+  auto dm = mesh.mass();
+  auto weights = mesh.weights();
   const auto &basis = stage_data.fluid_basis();
   auto inv_mqq = basis.inv_mass_matrix();
   athelas::par_for(
@@ -155,7 +154,7 @@ void NickelHeatingPackage::zero_delta() const noexcept {
  * lifetime / 10. I doubt that this will ever be needed.
  **/
 auto NickelHeatingPackage::min_timestep(const StageData & /*stage_data*/,
-                                        const GridStructure & /*grid*/,
+                                        const Mesh & /*mesh*/,
                                         const TimeStepInfo & /*dt_info*/) const
     -> double {
   static constexpr double MAX_DT = TAU_NI_ / 10.0;
@@ -163,8 +162,7 @@ auto NickelHeatingPackage::min_timestep(const StageData & /*stage_data*/,
   return dt_out;
 }
 
-void NickelHeatingPackage::fill_derived(StageData &stage_data,
-                                        const GridStructure &grid,
+void NickelHeatingPackage::fill_derived(StageData &stage_data, const Mesh &mesh,
                                         const TimeStepInfo &dt_info) const {
 
   if (model_ != NiHeatingModel::Jeffery) {
@@ -188,11 +186,11 @@ void NickelHeatingPackage::fill_derived(StageData &stage_data,
 
   const auto ye = stage_data.comps()->ye();
 
-  const int nnodes = grid.n_nodes();
-  const int nx = grid.n_elements();
+  const int nnodes = mesh.n_nodes();
+  const int nx = mesh.n_elements();
   static const RadialGridIndexer grid_indexer(nx, nnodes);
-  auto coords = grid.nodal_grid();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
+  auto coords = mesh.nodal_grid();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
   static const IndexRange qb(nnodes);
 
   const int nangles = tau_gamma_.extent(2); // TODO(astrobarker): make runtime!
@@ -202,9 +200,9 @@ void NickelHeatingPackage::fill_derived(StageData &stage_data,
       constants::PI; // Perhaps make this not go into the excised region
   const double th_min = th_max / 4.0;
   const double dtheta = (th_max - th_min) / (nangles);
-  const double r_outer = grid.get_x_r();
+  const double r_outer = mesh.get_x_r();
   const double r_outer2 = r_outer * r_outer;
-  auto centers = grid.centers();
+  auto centers = mesh.centers();
 
   const std::size_t scratch_size = 0;
   const int scratch_level = 1;

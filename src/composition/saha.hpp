@@ -8,7 +8,7 @@
 #include "constants.hpp"
 #include "eos.hpp"
 #include "eos/eos_variant.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
@@ -250,7 +250,7 @@ void saha_solve_log(AthelasArray1D<double> ionization_states, const int Z,
  * Word of warning: the code here is a gold medalist in index gymnastics.
  */
 template <Domain MeshDomain, SahaSolver SolverType>
-void solve_saha_ionization(StageData &stage_data, const GridStructure &grid) {
+void solve_saha_ionization(StageData &stage_data, const Mesh &mesh) {
   using basis::basis_eval;
 
   auto ucf = stage_data.get_field("u_cf");
@@ -275,7 +275,7 @@ void solve_saha_ionization(StageData &stage_data, const GridStructure &grid) {
   const auto ion_data = atomic_data->ion_data();
   const auto species_offsets = atomic_data->offsets();
 
-  const auto &nNodes = grid.n_nodes();
+  const auto &nNodes = mesh.n_nodes();
   assert(ionization_fractions.extent(2) <=
          static_cast<std::size_t>(std::numeric_limits<int>::max()));
   const auto &ncomps_saha = ionization_states->ncomps();
@@ -284,7 +284,7 @@ void solve_saha_ionization(StageData &stage_data, const GridStructure &grid) {
   static const bool has_neuts = species_indexer->contains("neut");
   static const int start_elem = (has_neuts) ? 1 : 0;
   static const int end_elem = (has_neuts) ? ncomps_saha : ncomps_saha - 1;
-  static const IndexRange ib(grid.domain<MeshDomain>());
+  static const IndexRange ib(mesh.domain<MeshDomain>());
   static const IndexRange nb(nNodes + 2);
   static const IndexRange eb(std::make_pair(start_elem, end_elem));
 
@@ -600,12 +600,11 @@ auto temperature_residual(const double temperature, const double rho,
 }
 
 template <Domain MeshDomain, eos::EOSInversion Inversion, SahaSolver SolverType>
-void compute_temperature_with_saha(StageData &stage_data,
-                                   const GridStructure &grid) {
+void compute_temperature_with_saha(StageData &stage_data, const Mesh &mesh) {
   using root_finders::RegulaFalsiAlgorithm, root_finders::FixedPointAlgorithm,
       root_finders::AAFixedPointAlgorithm;
-  static const auto &nnodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<MeshDomain>());
+  static const auto &nnodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<MeshDomain>());
   static const IndexRange qb(nnodes + 2);
 
   auto ucf = stage_data.get_field("u_cf");

@@ -2,12 +2,12 @@
 
 namespace athelas {
 class MeshState;
-class GridStructure;
+class Mesh;
 class ProblemIn;
 } // namespace athelas
 
 namespace athelas::pgen::rad_advection {
 
-void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin);
+void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin);
 
 } // namespace athelas::pgen::rad_advection

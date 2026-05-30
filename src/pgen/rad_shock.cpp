@@ -3,7 +3,7 @@
 #include <cmath>
 
 #include "eos/eos_variant.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 #include "utils/constants.hpp"
@@ -13,7 +13,7 @@ namespace athelas::pgen::rad_shock {
 /**
  * @brief Initialize radiating shock
  **/
-void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
+void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   const bool rad_active = pin->param()->get<bool>("physics.radiation.enabled");
   athelas_requires(rad_active, "Radiative shock requires radiation enabled!");
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
@@ -22,8 +22,8 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   auto uCF = mesh_state(0).get_field("u_cf");
   auto uPF = mesh_state(0).get_field("u_pf");
 
-  static const int nNodes = grid->n_nodes();
-  static const IndexRange ib(grid->domain<Domain::Interior>());
+  static const int nNodes = mesh->n_nodes();
+  static const IndexRange ib(mesh->domain<Domain::Interior>());
   const IndexRange qb(nNodes);
 
   const auto V_L = pin->param()->get<double>("problem.params.vL", 5.19e7);
@@ -47,7 +47,7 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Pgen :: RadShock", DevExecSpace(), ib.s, ib.e,
       qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
-        const double X1 = grid->centers(i);
+        const double X1 = mesh->centers(i);
 
         if (X1 <= x_d) {
           uCF(i, q, vars::cons::SpecificVolume) = 1.0 / rhoL;

@@ -7,7 +7,7 @@
 #include "H5Cpp.h"
 
 #include "composition/compdata.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "io/io.hpp"
 #include "utils/error.hpp"
@@ -119,14 +119,14 @@ auto load_info_from_h5(const RestartReader &reader) -> SimInfo {
   };
 }
 
-void load_grid_from_h5(GridStructure &grid, const RestartReader &reader) {
-  reader.read_view(grid.widths(), "/mesh/dr");
-  reader.read_view(grid.centers(), "/mesh/r");
-  reader.read_view(grid.x_l(), "/mesh/x_l");
-  reader.read_view(grid.nodal_grid(), "/mesh/r_q");
-  reader.read_view(grid.enclosed_mass(), "/mesh/enclosed_mass");
-  reader.read_view(grid.mass(), "/mesh/dm");
-  reader.read_view(grid.sqrt_gm(), "/mesh/sqrt_gm");
+void load_grid_from_h5(Mesh &mesh, const RestartReader &reader) {
+  reader.read_view(mesh.widths(), "/mesh/dr");
+  reader.read_view(mesh.centers(), "/mesh/r");
+  reader.read_view(mesh.x_l(), "/mesh/x_l");
+  reader.read_view(mesh.nodal_grid(), "/mesh/r_q");
+  reader.read_view(mesh.enclosed_mass(), "/mesh/enclosed_mass");
+  reader.read_view(mesh.mass(), "/mesh/dm");
+  reader.read_view(mesh.sqrt_gm(), "/mesh/sqrt_gm");
 }
 
 namespace {

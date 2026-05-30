@@ -3,7 +3,7 @@
 #include "Kokkos_Macros.hpp"
 #include "basic_types.hpp"
 #include "bc/boundary_conditions_base.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/params.hpp"
 #include "interface/state.hpp"
 #include "pgen/problem_in.hpp"
@@ -13,8 +13,7 @@ namespace athelas::radiation {
 
 void radiation_source_implicit(const StageData &stage_data,
                                AthelasArray3D<double> R,
-                               AthelasArray4D<double> delta,
-                               const GridStructure &grid,
+                               AthelasArray4D<double> delta, const Mesh &mesh,
                                const TimeStepInfo &dt_info);
 
 using bc::BoundaryConditions;
@@ -80,7 +79,7 @@ class ImplicitRadiationMomentsPackage {
                                   bool active = true);
 
   void update_implicit(const StageData &stage_data,
-                       AthelasArray3D<double> ustar, const GridStructure &grid,
+                       AthelasArray3D<double> ustar, const Mesh &mesh,
                        const TimeStepInfo &dt_info);
 
   // Compute the implicit-transport residual b_out = -R(U), where
@@ -90,7 +89,7 @@ class ImplicitRadiationMomentsPackage {
   // from U after applying ghost-zone BCs to U.
   void evaluate_residual(AthelasArray2D<double> b_out, AthelasArray3D<double> U,
                          AthelasArray3D<double> ustar,
-                         const StageData &stage_data, const GridStructure &grid,
+                         const StageData &stage_data, const Mesh &mesh,
                          double dt_aii);
 
   void apply_delta(AthelasArray3D<double> lhs,
@@ -99,7 +98,7 @@ class ImplicitRadiationMomentsPackage {
   void zero_delta() const noexcept;
 
   [[nodiscard]] auto min_timestep(const StageData & /*stage_data*/,
-                                  const GridStructure &grid,
+                                  const Mesh &mesh,
                                   const TimeStepInfo & /*dt_info*/) const
       -> double;
 
@@ -107,7 +106,7 @@ class ImplicitRadiationMomentsPackage {
 
   [[nodiscard]] auto is_active() const noexcept -> bool;
 
-  void fill_derived(StageData &stage_data, const GridStructure &grid,
+  void fill_derived(StageData &stage_data, const Mesh &mesh,
                     const TimeStepInfo &dt_info) const;
 
   void set_active(bool active);

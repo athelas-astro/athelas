@@ -1,17 +1,17 @@
 #pragma once
 
 #include "Kokkos_Macros.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "limiters/slope_limiter.hpp"
 #include "math/utils.hpp"
 
 namespace athelas {
 
 void conservative_correction(AthelasArray3D<double> u_k,
-                             AthelasArray3D<double> ucf,
-                             const GridStructure &grid, int nv);
+                             AthelasArray3D<double> ucf, const Mesh &mesh,
+                             int nv);
 
-auto initialize_slope_limiter(std::string field, const GridStructure *grid,
+auto initialize_slope_limiter(std::string field, const Mesh *mesh,
                               const ProblemIn *pin, IndexRange vars)
     -> SlopeLimiter;
 
@@ -38,7 +38,7 @@ auto barth_jespersen(double U_v_L, double U_v_R, double U_c_L, double U_c_T,
                      double U_c_R, double alpha) -> double;
 
 void detect_troubled_cells(const AthelasArray3D<double> U,
-                           AthelasArray1D<double> D, const GridStructure &grid,
+                           AthelasArray1D<double> D, const Mesh &mesh,
                            const basis::NodalBasis &basis,
                            const IndexRange &vb);
 
@@ -146,8 +146,7 @@ void modify_polynomial(AthelasArray3D<double> U,
 
 KOKKOS_FUNCTION
 auto smoothness_indicator(AthelasArray2D<double> modified_polynomial,
-                          const GridStructure &grid, int poly_idx, int v)
-    -> double;
+                          const Mesh &mesh, int poly_idx, int v) -> double;
 
 auto non_linear_weight(double gamma, double beta, double tau, double weno_p,
                        double eps) -> double;
