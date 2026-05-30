@@ -2,7 +2,7 @@
 
 #include "basic_types.hpp"
 #include "bc/boundary_conditions_base.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "pgen/problem_in.hpp"
 #include "radiation/rad_utilities.hpp"
@@ -11,8 +11,7 @@ namespace athelas::radiation {
 
 void radiation_source_implicit(const StageData &stage_data,
                                AthelasArray3D<double> R,
-                               AthelasArray4D<double> delta,
-                               const GridStructure &grid,
+                               AthelasArray4D<double> delta, const Mesh &mesh,
                                const TimeStepInfo &dt_info);
 
 using bc::BoundaryConditions;
@@ -23,21 +22,21 @@ class RadHydroPackage {
                   BoundaryConditions *bcs, double cfl, int nx,
                   bool active = true);
 
-  void update_explicit(const StageData &stage_data, const GridStructure &grid,
+  void update_explicit(const StageData &stage_data, const Mesh &mesh,
                        const TimeStepInfo &dt_info) const;
   void update_implicit(const StageData &stage_data, AthelasArray3D<double> R,
-                       const GridStructure &grid, const TimeStepInfo &dt_info);
+                       const Mesh &mesh, const TimeStepInfo &dt_info);
 
   void apply_delta(AthelasArray3D<double> lhs,
                    const TimeStepInfo &dt_info) const;
 
   void zero_delta() const noexcept;
 
-  void radhydro_divergence(const StageData &stage_data,
-                           const GridStructure &grid, int stage) const;
+  void radhydro_divergence(const StageData &stage_data, const Mesh &mesh,
+                           int stage) const;
 
   [[nodiscard]] auto min_timestep(const StageData & /*stage_data*/,
-                                  const GridStructure &grid,
+                                  const Mesh &mesh,
                                   const TimeStepInfo & /*dt_info*/) const
       -> double;
 
@@ -45,7 +44,7 @@ class RadHydroPackage {
 
   [[nodiscard]] auto is_active() const noexcept -> bool;
 
-  void fill_derived(StageData &stage_data, const GridStructure &grid,
+  void fill_derived(StageData &stage_data, const Mesh &mesh,
                     const TimeStepInfo &dt_info) const;
 
   void set_active(bool active);

@@ -5,7 +5,7 @@
 #include "atom/atom.hpp"
 #include "bc/boundary_conditions_base.hpp"
 #include "eos/eos_variant.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "history/history.hpp"
 #include "interface/packages_base.hpp"
 #include "io/io.hpp"
@@ -37,16 +37,17 @@ class Driver {
         bcs_(std::make_unique<BoundaryConditions>(
             bc::make_boundary_conditions(pin.get()))),
         time_(0.0), dt_(pin_->param()->get<double>("output.dt_init")),
-        t_end_(pin->param()->get<double>("problem.tf")), grid_(pin.get()),
-        sl_hydro_(initialize_slope_limiter("fluid", &grid_, pin.get(), {0, 2})),
-        sl_rad_(initialize_slope_limiter("radiation", &grid_, pin.get(),
-                                         {3, 4})), // update
-        ssprk_(pin.get(), &grid_),
+        t_end_(pin->param()->get<double>("problem.tf")),
+        mesh_state_(pin.get(), TimeStepper::compute_n_stages(pin.get())),
+        sl_hydro_(initialize_slope_limiter("fluid", &mesh_state_.mesh(),
+                                           pin.get(), {0, 2})),
+        sl_rad_(initialize_slope_limiter("radiation", &mesh_state_.mesh(),
+                                         pin.get(), {3, 4})), // update
+        ssprk_(pin.get(), &mesh_state_.mesh()),
         history_(std::make_unique<HistoryOutput>(
             pin->param()->get<std::string>("output.hist_fn"),
             pin->param()->get<std::string>("output.dir"),
-            pin->param()->get<bool>("output.history_enabled"))),
-        mesh_state_(pin.get(), ssprk_.n_stages()) {
+            pin->param()->get<bool>("output.history_enabled"))) {
     initialize(pin.get());
   }
 
@@ -76,8 +77,8 @@ class Driver {
   double dt_;
   double t_end_;
 
-  // core bits
-  GridStructure grid_;
+  // core simulation state (owns the mesh)
+  MeshState mesh_state_;
 
   // slope limiters
   SlopeLimiter sl_hydro_;
@@ -90,8 +91,6 @@ class Driver {
 
   // history
   std::unique_ptr<HistoryOutput> history_;
-
-  MeshState mesh_state_;
 }; // class Driver
 
 } // namespace athelas

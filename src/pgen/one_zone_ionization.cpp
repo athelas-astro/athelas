@@ -5,7 +5,7 @@
 #include "composition/composition.hpp"
 #include "composition/saha.hpp"
 #include "eos/eos_variant.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 
@@ -14,7 +14,7 @@ namespace athelas::pgen::one_zone_ionization {
 /**
  * Initialize one_zone_ionization test
  **/
-void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
+void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   const bool ionization_active =
       pin->param()->get<bool>("physics.ionization.enabled");
   const int saha_ncomps =
@@ -37,8 +37,8 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   auto uAF = mesh_state(0).get_field("u_af");
   auto sd0 = mesh_state(0);
 
-  static const IndexRange ib(grid->domain<Domain::Interior>());
-  static const int nNodes = grid->n_nodes();
+  static const IndexRange ib(mesh->domain<Domain::Interior>());
+  static const int nNodes = mesh->n_nodes();
 
   const auto temperature =
       pin->param()->get<double>("problem.params.temperature", 5800); // K
@@ -55,11 +55,11 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   }
 
   std::shared_ptr<atom::CompositionData> comps =
-      std::make_shared<atom::CompositionData>(grid->n_elements() + 2, nNodes,
+      std::make_shared<atom::CompositionData>(mesh->n_elements() + 2, nNodes,
                                               ncomps);
   std::shared_ptr<atom::IonizationState> ionization_state =
       std::make_shared<atom::IonizationState>(
-          grid->n_elements() + 2, nNodes, ncomps, 7, saha_ncomps, fn_ionization,
+          mesh->n_elements() + 2, nNodes, ncomps, 7, saha_ncomps, fn_ionization,
           fn_deg, pin->param()->get<std::string>("ionization.solver"));
   auto mass_fractions = mesh_state.mass_fractions("u_cf");
   auto charges = comps->charge();
@@ -130,10 +130,10 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
         }
       });
 
-  // atom::fill_derived_comps<Domain::Interior>(sd0, grid);
+  // atom::fill_derived_comps<Domain::Interior>(sd0, mesh);
   // atom::solve_saha_ionization<Domain::Interior, atom::SahaSolver::Linear>(
-  //     sd0, *grid);
-  // atom::fill_derived_ionization<Domain::Interior>(sd0, grid);
+  //     sd0, *mesh);
+  // atom::fill_derived_ionization<Domain::Interior>(sd0, mesh);
   //  composition boundary condition
   static const IndexRange vb_comps(std::make_pair(3, 3 + ncomps - 1));
   bc::fill_ghost_zones_composition(uCF, vb_comps);

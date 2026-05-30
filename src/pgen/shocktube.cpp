@@ -1,7 +1,7 @@
 #include "pgen/shocktube.hpp"
 
 #include "eos/eos_variant.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 #include "loop_layout.hpp"
@@ -11,15 +11,15 @@ namespace athelas::pgen::shocktube {
 /**
  * @brief Initialize shock tube
  **/
-void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
+void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Shock tube requires ideal gas eos!");
 
   auto uCF = mesh_state(0).get_field("u_cf");
   auto uPF = mesh_state(0).get_field("u_pf");
 
-  static const IndexRange ib(grid->domain<Domain::Interior>());
-  static const int nNodes = grid->n_nodes();
+  static const IndexRange ib(mesh->domain<Domain::Interior>());
+  static const int nNodes = mesh->n_nodes();
 
   const auto V_L = pin->param()->get<double>("problem.params.vL", 0.0);
   const auto V_R = pin->param()->get<double>("problem.params.vR", 0.0);
@@ -36,7 +36,7 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: ShockTube (1)", DevExecSpace(), ib.s,
       ib.e, KOKKOS_LAMBDA(const int i) {
-        const double X1 = grid->centers(i);
+        const double X1 = mesh->centers(i);
 
         if (X1 <= x_d) {
           for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
@@ -50,7 +50,7 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
       });
 
   static const IndexRange nb(nNodes);
-  auto r = grid->nodal_grid();
+  auto r = mesh->nodal_grid();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Pgen :: ShockTube", DevExecSpace(), ib.s, ib.e,
       nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int q) {

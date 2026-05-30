@@ -2,7 +2,7 @@
 
 #include "basis/polynomial_basis.hpp"
 #include "eos/eos_variant.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 
@@ -11,7 +11,7 @@ namespace athelas::pgen::gas_collapse {
 /**
  * @brief Initialize gas collapse
  **/
-void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
+void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin,
           const eos::EOS *eos, basis::ModalBasis * /*fluid_basis = nullptr*/) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Gas collapse requires ideal gas eos!");
@@ -19,8 +19,8 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
   auto uCF = mesh_state(0).get_field("u_cf");
   auto uPF = mesh_state(0).get_field("u_pf");
 
-  static const IndexRange ib(grid->domain<Domain::Interior>());
-  const int nNodes = grid->n_nodes();
+  static const IndexRange ib(mesh->domain<Domain::Interior>());
+  const int nNodes = mesh->n_nodes();
 
   const auto V0 = pin->param()->get<double>("problem.params.v0", 0.0);
   const auto rho0 = pin->param()->get<double>("problem.params.rho0", 1.0);

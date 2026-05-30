@@ -101,7 +101,7 @@ ProblemIn::ProblemIn(
   sol::optional<std::string> geom = problem["geometry"];
   params_->add("problem.geometry", *geom);
 
-  // TODO(astrobarker): move grid stuff into own section, not problem
+  // TODO(astrobarker): move mesh stuff into own section, not problem
   // Begs the question: what is "problem" and what is "grid"? xl and xr?
   sol::optional<std::string> grid_type = problem["grid_type"];
   params_->add("problem.grid_type", *grid_type);

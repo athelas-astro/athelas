@@ -4,7 +4,7 @@
 #include "basis/polynomial_basis.hpp"
 #include "compdata.hpp"
 #include "constants.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
 #include "loop_layout.hpp"
@@ -26,13 +26,12 @@ using utilities::to_lower;
  */
 ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
                                            const StageData &stage_data,
-                                           const GridStructure *grid,
-                                           const int n_stages,
+                                           const Mesh *mesh, const int n_stages,
                                            const bool active)
     : active_(active), mend_idx_(1) {
 
   const int nx = pin->param()->get<int>("problem.nx");
-  const int nq = grid->n_nodes();
+  const int nq = mesh->n_nodes();
   delta_ =
       AthelasArray4D<double>("thermal engine delta", n_stages, nx + 2, nq, 1);
 
@@ -47,7 +46,7 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
           constants::M_sun;
 
   // Find index of mass spread
-  auto mass_enc_h = Kokkos::create_mirror_view(grid->enclosed_mass());
+  auto mass_enc_h = Kokkos::create_mirror_view(mesh->enclosed_mass());
   const double m_start = mass_enc_h(mstart_, 0);
   mend_ += m_start;
   const int nnodes = pin->param()->get<int>("basis.nnodes");
@@ -69,8 +68,8 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
   // Now we need to compute the actual deposition energy
   // If we specify an asymptotic explosion energy then offset by
   // the model's total energy
-  auto mcell = grid->mass();
-  auto menc = grid->enclosed_mass();
+  auto mcell = mesh->mass();
+  auto menc = mesh->enclosed_mass();
   if (mode_ == "direct") {
     energy_dep_ = energy_target_;
   } else {
@@ -83,8 +82,8 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
     const auto &basis = stage_data.fluid_basis();
     auto phi = basis.phi();
     auto ucf = stage_data.get_field("u_cf");
-    auto r = grid->nodal_grid();
-    auto weights = grid->weights();
+    auto r = mesh->nodal_grid();
+    auto weights = mesh->weights();
     double total_energy = 0.0;
     athelas::par_reduce(
         DEFAULT_LOOP_PATTERN, "ThermalEngine :: Total energy", DevExecSpace(),
@@ -117,7 +116,7 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
 
   // integral for b_coeff_
   double b_int = 0.0;
-  auto weights = grid->weights();
+  auto weights = mesh->weights();
   athelas::par_reduce(
       DEFAULT_FLAT_LOOP_PATTERN, "ThermalEngine :: b integral", DevExecSpace(),
       1, mend_idx_,
@@ -132,22 +131,22 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
 }
 
 void ThermalEnginePackage::update_explicit(const StageData &stage_data,
-                                           const GridStructure &grid,
+                                           const Mesh &mesh,
                                            const TimeStepInfo &dt_info) {
   const auto time = dt_info.t;
   const auto &basis = stage_data.fluid_basis();
-  static const auto &nnodes = grid.n_nodes();
+  static const auto &nnodes = mesh.n_nodes();
   static const IndexRange qb(nnodes);
-  static const IndexRange ib(grid.domain<Domain::Interior>());
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
 
   const auto stage = dt_info.stage;
   auto ucf = stage_data.get_field("u_cf");
 
   const IndexRange ib_dep(std::make_pair(1, mend_idx_));
-  auto weights = grid.weights();
-  auto dr = grid.widths();
-  auto mass = grid.mass();
-  auto menc = grid.enclosed_mass();
+  auto weights = mesh.weights();
+  auto dr = mesh.widths();
+  auto mass = mesh.mass();
+  auto menc = mesh.enclosed_mass();
   auto phi = basis.phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "ThermalEngine :: Update", DevExecSpace(),
@@ -214,7 +213,7 @@ void ThermalEnginePackage::zero_delta() const noexcept {
  * The actual heating restriction is prohibitively expensive.
  **/
 auto ThermalEnginePackage::min_timestep(const StageData & /*stage_data*/,
-                                        const GridStructure & /*grid*/,
+                                        const Mesh & /*mesh*/,
                                         const TimeStepInfo & /*dt_info*/) const
     -> double {
   static constexpr double inv_n_steps = 1.0 / 5000.0;
@@ -225,8 +224,7 @@ auto ThermalEnginePackage::min_timestep(const StageData & /*stage_data*/,
  * @brief ThermalEngine fill derived
  * No-op.
  */
-void ThermalEnginePackage::fill_derived(StageData &stage_data,
-                                        const GridStructure &grid,
+void ThermalEnginePackage::fill_derived(StageData &stage_data, const Mesh &mesh,
                                         const TimeStepInfo &dt_info) const {}
 
 [[nodiscard]] KOKKOS_FUNCTION auto ThermalEnginePackage::name() const noexcept

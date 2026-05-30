@@ -1,6 +1,6 @@
 #include "geometry/geometry_package.hpp"
 #include "basic_types.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
 #include "loop_layout.hpp"
@@ -25,20 +25,20 @@ GeometryPackage::GeometryPackage(const ProblemIn *pin, const int n_stages,
 }
 
 void GeometryPackage::update_explicit(const StageData &stage_data,
-                                      const GridStructure &grid,
+                                      const Mesh &mesh,
                                       const TimeStepInfo &dt_info) {
-  static const int nNodes = grid.n_nodes();
+  static const int nNodes = mesh.n_nodes();
   static const IndexRange qb(nNodes);
-  static const IndexRange ib(grid.domain<Domain::Interior>());
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
 
   auto uaf = stage_data.get_field("u_af");
   auto upf = stage_data.get_field("u_pf");
   auto ucf = stage_data.get_field("u_cf");
   const auto stage = dt_info.stage;
 
-  auto r = grid.nodal_grid();
-  auto dr = grid.widths();
-  auto w = grid.weights();
+  auto r = mesh.nodal_grid();
+  auto dr = mesh.widths();
+  auto w = mesh.weights();
   const auto &basis = stage_data.fluid_basis();
   auto inv_mkk = basis.inv_mass_matrix();
   athelas::par_for(
@@ -123,7 +123,7 @@ void GeometryPackage::zero_delta() const noexcept {
  * We do not enforce a timestep restriction from geometry sources.
  **/
 auto GeometryPackage::min_timestep(const StageData & /*state*/,
-                                   const GridStructure & /*grid*/,
+                                   const Mesh & /*mesh*/,
                                    const TimeStepInfo & /*dt_info*/) const
     -> double {
   static constexpr double MAX_DT = std::numeric_limits<double>::max();
@@ -135,8 +135,7 @@ auto GeometryPackage::min_timestep(const StageData & /*state*/,
  * @brief geometry package fill derived.
  * no-op at present
  */
-void GeometryPackage::fill_derived(StageData & /*state*/,
-                                   const GridStructure & /*grid*/,
+void GeometryPackage::fill_derived(StageData & /*state*/, const Mesh & /*mesh*/,
                                    const TimeStepInfo & /*dt_info*/) const {}
 
 [[nodiscard]] auto GeometryPackage::name() const noexcept -> std::string_view {

@@ -3,21 +3,21 @@
 #include <cmath>
 
 #include "eos/eos_variant.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 
 namespace athelas::pgen::ejecta_csm {
 
-void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
+void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Ejecta CSM requires ideal gas eos!");
 
   auto uCF = mesh_state(0).get_field("u_cf");
   auto uPF = mesh_state(0).get_field("u_pf");
 
-  static const int nNodes = grid->n_nodes();
-  static const IndexRange ib(grid->domain<Domain::Interior>());
+  static const int nNodes = mesh->n_nodes();
+  static const IndexRange ib(mesh->domain<Domain::Interior>());
   static const IndexRange qb(nNodes);
 
   const auto rstar = pin->param()->get<double>("problem.params.rstar", 0.01);
@@ -31,7 +31,7 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   const double gm1 = gamma - 1.0;
 
   // We use cell centers for setting up the profile to avoid intense gradients.
-  auto r = grid->centers();
+  auto r = mesh->centers();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: EjectaCSM (1)", DevExecSpace(), ib.s,
       ib.e, KOKKOS_LAMBDA(const int i) {

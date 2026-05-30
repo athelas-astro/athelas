@@ -6,7 +6,7 @@
  *
  * @details Inverse of the writer in io.cpp. Reads scalars, vectors, and
  * Kokkos views back from an athelas .ath checkpoint and provides high-level
- * helpers to repopulate the grid, field arrays, composition, and ionization
+ * helpers to repopulate the mesh, field arrays, composition, and ionization
  * state.
  */
 
@@ -18,7 +18,7 @@
 #include "H5Cpp.h"
 
 #include "composition/compdata.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "io/io.hpp"
 #include "kokkos_types.hpp"
@@ -103,10 +103,10 @@ class RestartReader {
 auto load_info_from_h5(const RestartReader &reader) -> SimInfo;
 
 /**
- * @brief Overwrite grid arrays (centers, widths, x_l, mass, mass_r, sqrt_gm,
- * nodal grid) from /mesh.
+ * @brief Overwrite mesh arrays (centers, widths, x_l, mass, mass_r, sqrt_gm,
+ * nodal mesh) from /mesh.
  */
-void load_grid_from_h5(GridStructure &grid, const RestartReader &reader);
+void load_grid_from_h5(Mesh &mesh, const RestartReader &reader);
 
 /**
  * @brief Repopulate registered field arrays from /fields (stage 0 for staged

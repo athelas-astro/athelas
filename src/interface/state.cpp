@@ -60,10 +60,14 @@ auto StageData::mass_fractions(const std::string &name) const
   return parent_->rad_basis();
 }
 
+[[nodiscard]] auto StageData::mesh() const -> const Mesh & {
+  return parent_->mesh();
+}
+
 // --- MeshState ---
 
 MeshState::MeshState(const ProblemIn *const pin, const int nstages)
-    : params_(std::make_unique<Params>()), nstages_(nstages) {
+    : mesh_(pin), params_(std::make_unique<Params>()), nstages_(nstages) {
 
   const bool composition_enabled =
       pin->param()->get<bool>("physics.composition.enabled");

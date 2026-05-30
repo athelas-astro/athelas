@@ -17,7 +17,7 @@
 #include "basic_types.hpp"
 #include "basis/nodal_basis.hpp"
 #include "bc/boundary_conditions_base.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "kokkos_abstraction.hpp"
 #include "loop_layout.hpp"
 
@@ -43,11 +43,11 @@ void fill_ghost_zones_composition(AthelasArray3D<double> U,
  * between rad and fluid bcs is needed.
  **/
 template <int N> // N = 3 for fluid, N = 2 for rad...
-void fill_ghost_zones(AthelasArray3D<double> U, const GridStructure *grid,
+void fill_ghost_zones(AthelasArray3D<double> U, const Mesh *mesh,
                       BoundaryConditions *bcs,
                       const std::tuple<int, int> &vars) {
 
-  const int nX = grid->n_elements();
+  const int nX = mesh->n_elements();
 
   auto this_bc = get_bc_data<N>(bcs);
 

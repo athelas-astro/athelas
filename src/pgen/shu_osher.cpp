@@ -3,7 +3,7 @@
 #include <cmath>
 
 #include "eos/eos_variant.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 
@@ -12,15 +12,15 @@ namespace athelas::pgen::shu_osher {
 /**
  * @brief Initialize Shu Osher hydro test
  **/
-void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
+void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Shu Osher requires ideal gas eos!");
 
   auto uCF = mesh_state(0).get_field("u_cf");
   auto uPF = mesh_state(0).get_field("u_pf");
 
-  static const IndexRange ib(grid->domain<Domain::Interior>());
-  static const int nNodes = grid->n_nodes();
+  static const IndexRange ib(mesh->domain<Domain::Interior>());
+  static const int nNodes = mesh->n_nodes();
 
   const auto V0 = pin->param()->get<double>("problem.params.v0", 2.629369);
   const auto D_L = pin->param()->get<double>("problem.params.rhoL", 3.857143);
@@ -35,7 +35,7 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: ShuOsher (1)", DevExecSpace(), ib.s,
       ib.e, KOKKOS_LAMBDA(const int i) {
-        const double X1 = grid->centers(i);
+        const double X1 = mesh->centers(i);
 
         if (X1 <= -4.0) {
           // Left state: constant values
@@ -45,7 +45,7 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
         } else {
           // Right state: sinusoidal density
           for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
-            const double x = grid->node_coordinate(i, iNodeX);
+            const double x = mesh->node_coordinate(i, iNodeX);
             uPF(i, iNodeX, vars::prim::Rho) = (1.0 + 0.2 * sin(5.0 * x));
           }
         }
@@ -73,7 +73,7 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   };
 
   static const IndexRange qb(nNodes);
-  auto r = grid->nodal_grid();
+  auto r = mesh->nodal_grid();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Pgen :: ShuOsher", DevExecSpace(), ib.s, ib.e,
       qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {

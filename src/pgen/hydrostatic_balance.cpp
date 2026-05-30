@@ -3,7 +3,7 @@
 #include <cmath>
 
 #include "eos/eos_variant.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 #include "solvers/hydrostatic_equilibrium.hpp"
@@ -13,7 +13,7 @@ namespace athelas::pgen::hydrostatic_balance {
 /**
  * @brief Initialize hydrostatic balance self gravity test
  **/
-void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
+void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "polytropic",
                    "Hydrostatic balance requires polytropic eos!");
 
@@ -21,8 +21,8 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   auto uPF = mesh_state(0).get_field("u_pf");
   auto uAF = mesh_state(0).get_field("u_af");
 
-  static const IndexRange ib(grid->domain<Domain::Interior>());
-  const int nNodes = grid->n_nodes();
+  static const IndexRange ib(mesh->domain<Domain::Interior>());
+  const int nNodes = mesh->n_nodes();
 
   const auto rho_c = pin->param()->get<double>("problem.params.rho_c", 1.0e8);
   const auto p_thresh =
@@ -42,7 +42,7 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   auto solver = HydrostaticEquilibrium(rho_c, p_thresh,
                                        pin->param()->get<double>("eos.k"),
                                        pin->param()->get<double>("eos.n"));
-  solver.solve(mesh_state, grid, pin);
+  solver.solve(mesh_state, mesh, pin);
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: HydrostaticBalance (1)",

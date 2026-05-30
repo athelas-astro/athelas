@@ -9,7 +9,7 @@
 #include "composition/saha.hpp"
 #include "eos/eos_variant.hpp"
 #include "fluid/fluid_utilities.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "kokkos_abstraction.hpp"
 #include "loop_layout.hpp"
 #include "pgen/problem_in.hpp"
@@ -22,14 +22,13 @@ using fluid::numerical_flux_gudonov_positivity;
 
 void radiation_source_implicit(const StageData &stage_data,
                                AthelasArray3D<double> R,
-                               AthelasArray4D<double> delta,
-                               const GridStructure &grid,
+                               AthelasArray4D<double> delta, const Mesh &mesh,
                                const TimeStepInfo &dt_info) {
   // TODO(astrobarker) handle separate fluid and rad orders
   const auto &rad_basis = stage_data.rad_basis();
   const auto &fluid_basis = stage_data.fluid_basis();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  static const IndexRange qb(grid.n_nodes());
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  static const IndexRange qb(mesh.n_nodes());
 
   static const bool ionization_enabled = stage_data.enabled("ionization");
 
@@ -43,9 +42,9 @@ void radiation_source_implicit(const StageData &stage_data,
   auto phi_fluid = fluid_basis.phi();
   auto inv_mkk = fluid_basis.inv_mass_matrix();
   auto inv_mkk_rad = rad_basis.inv_mass_matrix();
-  auto dr = grid.widths();
-  auto weights = grid.weights();
-  auto sqrt_gm = grid.sqrt_gm();
+  auto dr = mesh.widths();
+  auto weights = mesh.weights();
+  auto sqrt_gm = mesh.sqrt_gm();
 
   constexpr int NUM_VARS = 5;
   if (ionization_enabled) {
@@ -170,23 +169,23 @@ RadHydroPackage::RadHydroPackage(const ProblemIn *pin, int n_stages, int nq,
       delta_im_("radhydro delta implicit", n_stages, nx + 2, nq, 4) {}
 
 void RadHydroPackage::update_explicit(const StageData &stage_data,
-                                      const GridStructure &grid,
+                                      const Mesh &mesh,
                                       const TimeStepInfo &dt_info) const {
   // TODO(astrobarker) handle separate fluid and rad orders
   const auto &basis = stage_data.fluid_basis();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  static const IndexRange qb(grid.n_nodes());
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  static const IndexRange qb(mesh.n_nodes());
   static const IndexRange vb(NUM_VARS_);
 
   const auto stage = dt_info.stage;
   auto ucf = stage_data.get_field("u_cf");
 
   // --- Apply BC ---
-  bc::fill_ghost_zones<2>(ucf, &grid, bcs_, {3, 4});
-  bc::fill_ghost_zones<3>(ucf, &grid, bcs_, {0, 2});
+  bc::fill_ghost_zones<2>(ucf, &mesh, bcs_, {3, 4});
+  bc::fill_ghost_zones<3>(ucf, &mesh, bcs_, {0, 2});
 
   // --- radiation Increment : Divergence ---
-  radhydro_divergence(stage_data, grid, stage);
+  radhydro_divergence(stage_data, mesh, stage);
 
   // --- Divide update by mass matrix ---
   auto inv_mqq = basis.inv_mass_matrix();
@@ -202,10 +201,10 @@ void RadHydroPackage::update_explicit(const StageData &stage_data,
 
 void RadHydroPackage::update_implicit(const StageData &stage_data,
                                       AthelasArray3D<double> R,
-                                      const GridStructure &grid,
+                                      const Mesh &mesh,
                                       const TimeStepInfo &dt_info) {
   // compute radiation-matter coupling sources implicitly with Newton-Raphson.
-  radiation_source_implicit(stage_data, R, delta_im_, grid, dt_info);
+  radiation_source_implicit(stage_data, R, delta_im_, mesh, dt_info);
 }
 
 /**
@@ -270,7 +269,7 @@ void RadHydroPackage::zero_delta() const noexcept {
 // Compute the divergence of the flux term for the update
 // TODO(astrobarker): dont pass in stage
 void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
-                                          const GridStructure &grid,
+                                          const Mesh &mesh,
                                           const int stage) const {
   using fluid::FluidRiemannState;
   auto ucf = stage_data.get_field("u_cf");
@@ -280,11 +279,11 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
   const auto &rad_basis = stage_data.rad_basis();
   const auto &fluid_basis = stage_data.fluid_basis();
 
-  const auto &nNodes = grid.n_nodes();
+  const auto &nNodes = mesh.n_nodes();
   static constexpr int ilo = 1;
-  static const auto &ihi = grid.get_ihi();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  static const IndexRange qb(grid.n_nodes());
+  static const auto &ihi = mesh.get_ihi();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  static const IndexRange qb(mesh.n_nodes());
   static const IndexRange vb(NUM_VARS_);
 
   static const int idx_tau = stage_data.var_index("u_cf", "tau");
@@ -296,8 +295,8 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
   static const int idx_radflux = stage_data.var_index("u_cf", "rad_momentum");
   static const int idx_vstar = stage_data.var_index("facedata", "vstar");
 
-  auto sqrt_gm = grid.sqrt_gm();
-  auto weights = grid.weights();
+  auto sqrt_gm = mesh.sqrt_gm();
+  auto weights = mesh.weights();
 
   auto phi_rad = rad_basis.phi();
   auto phi_fluid = fluid_basis.phi();
@@ -449,15 +448,15 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
  * @brief explicit radiation hydrodynamic timestep restriction
  **/
 auto RadHydroPackage::min_timestep(const StageData & /*stage_data*/,
-                                   const GridStructure &grid,
+                                   const Mesh &mesh,
                                    const TimeStepInfo & /*dt_info*/) const
     -> double {
   static constexpr double MAX_DT = std::numeric_limits<double>::max();
   static constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
 
-  static const IndexRange ib(grid.domain<Domain::Interior>());
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
 
-  const auto dr = grid.widths();
+  const auto dr = mesh.widths();
 
   double dt_out = 0.0;
   athelas::par_reduce(
@@ -485,8 +484,7 @@ auto RadHydroPackage::min_timestep(const StageData & /*stage_data*/,
  * It would be nice to write an inner, templated on IonzationPhysics
  * function that deals with this. Has less duplicated code.
  */
-void RadHydroPackage::fill_derived(StageData &stage_data,
-                                   const GridStructure &grid,
+void RadHydroPackage::fill_derived(StageData &stage_data, const Mesh &mesh,
                                    const TimeStepInfo &dt_info) const {
   auto uCF = stage_data.get_field("u_cf");
   auto uPF = stage_data.get_field("u_pf");
@@ -496,15 +494,15 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
 
   const auto &eos = stage_data.eos();
 
-  const int nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Entire>());
+  const int nNodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Entire>());
   static const bool ionization_enabled = stage_data.enabled("ionization");
 
   auto phi_fluid = fluid_basis.phi();
 
   // --- Apply BC ---
-  bc::fill_ghost_zones<2>(uCF, &grid, bcs_, {3, 4});
-  bc::fill_ghost_zones<3>(uCF, &grid, bcs_, {0, 2});
+  bc::fill_ghost_zones<2>(uCF, &mesh, bcs_, {3, 4});
+  bc::fill_ghost_zones<3>(uCF, &mesh, bcs_, {0, 2});
 
   if (stage_data.enabled("composition")) {
     static constexpr int nvars = 5; // non-comps
@@ -512,7 +510,7 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
     static const IndexRange vb_comps(
         std::make_pair(nvars, stage_data.nvars("u_cf") - 1));
     bc::fill_ghost_zones_composition(uCF, vb_comps);
-    atom::fill_derived_comps<Domain::Entire>(stage_data, &grid);
+    atom::fill_derived_comps<Domain::Entire>(stage_data, &mesh);
   }
 
   // First we get the temperature from the density and specific internal
@@ -524,12 +522,12 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
     if (ionization_state->solver() == atom::SahaSolver::Linear) {
       atom::compute_temperature_with_saha<
           Domain::Entire, eos::EOSInversion::Sie, atom::SahaSolver::Linear>(
-          stage_data, grid);
+          stage_data, mesh);
     }
     if (ionization_state->solver() == atom::SahaSolver::Log) {
       atom::compute_temperature_with_saha<
           Domain::Entire, eos::EOSInversion::Sie, atom::SahaSolver::Log>(
-          stage_data, grid);
+          stage_data, mesh);
     }
   } else {
     athelas::par_for(

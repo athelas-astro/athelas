@@ -4,7 +4,7 @@
 
 namespace athelas {
 class MeshState;
-class GridStructure;
+class Mesh;
 class ProblemIn;
 } // namespace athelas
 
@@ -14,7 +14,7 @@ class ModalBasis;
 
 namespace athelas::pgen::gas_collapse {
 
-void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin,
+void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin,
           const eos::EOS *eos, basis::ModalBasis *fluid_basis = nullptr);
 
 } // namespace athelas::pgen::gas_collapse

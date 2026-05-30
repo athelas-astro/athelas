@@ -4,7 +4,7 @@
 #include <limits>
 
 #include "basic_types.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
 #include "limiters/slope_limiter.hpp"
@@ -17,9 +17,9 @@ namespace athelas {
 using basis::NodalBasis;
 using eos::EOS;
 
-auto initialize_slope_limiter(const std::string field,
-                              const GridStructure *grid, const ProblemIn *pin,
-                              IndexRange vb) -> SlopeLimiter {
+auto initialize_slope_limiter(const std::string field, const Mesh *mesh,
+                              const ProblemIn *pin, IndexRange vb)
+    -> SlopeLimiter {
   const auto enabled =
       pin->param()->get<bool>(field + ".limiter.enabled", false);
   const auto type =
@@ -28,7 +28,7 @@ auto initialize_slope_limiter(const std::string field,
   if (enabled) {
     if (utilities::to_lower(type) == "minmod") {
       S_Limiter =
-          TVDMinmod(enabled, grid, vb, pin->param()->get<int>("basis.nnodes"),
+          TVDMinmod(enabled, mesh, vb, pin->param()->get<int>("basis.nnodes"),
                     pin->param()->get<double>(field + ".limiter.b_tvd"),
                     pin->param()->get<double>(field + ".limiter.m_tvb"),
                     pin->param()->get<bool>(field + ".limiter.characteristic"),
@@ -36,7 +36,7 @@ auto initialize_slope_limiter(const std::string field,
                     pin->param()->get<double>(field + ".limiter.tci_val"));
     } else {
       S_Limiter =
-          WENO(enabled, grid, vb, pin->param()->get<int>("basis.nnodes"),
+          WENO(enabled, mesh, vb, pin->param()->get<int>("basis.nnodes"),
                pin->param()->get<double>(field + ".limiter.gamma_i"),
                pin->param()->get<double>(field + ".limiter.gamma_l"),
                pin->param()->get<double>(field + ".limiter.gamma_r"),
@@ -53,15 +53,15 @@ auto initialize_slope_limiter(const std::string field,
 }
 
 void conservative_correction(AthelasArray3D<double> u_k,
-                             AthelasArray3D<double> ucf,
-                             const GridStructure &grid, const int nv) {
-  auto nodes = grid.nodes();
-  auto weights = grid.weights();
-  auto sqrt_gm = grid.sqrt_gm();
+                             AthelasArray3D<double> ucf, const Mesh &mesh,
+                             const int nv) {
+  auto nodes = mesh.nodes();
+  auto weights = mesh.weights();
+  auto sqrt_gm = mesh.sqrt_gm();
 
   static const int nq = static_cast<int>(nodes.size());
   static const int order = nq;
-  static const IndexRange ib(grid.domain<Domain::Interior>());
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
   const IndexRange vb(nv);
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "SlopeLimiter :: Conservative Correction",
@@ -146,9 +146,9 @@ auto barth_jespersen(double U_v_L, double U_v_R, double U_c_L, double U_c_T,
  * neighbor projections.
  **/
 void detect_troubled_cells(AthelasArray3D<double> U, AthelasArray1D<double> D,
-                           const GridStructure &grid, const NodalBasis &basis,
+                           const Mesh &mesh, const NodalBasis &basis,
                            const IndexRange &vb) {
-  static const IndexRange ib(grid.domain<Domain::Interior>());
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: TCI :: Zero", DevExecSpace(),
       ib.s, ib.e, KOKKOS_LAMBDA(const int i) { D(i) = 0.0; });
@@ -156,9 +156,9 @@ void detect_troubled_cells(AthelasArray3D<double> U, AthelasArray1D<double> D,
   // Cell averages by extrapolating L and R neighbors into current cell
 
   auto phi = basis.phi();
-  auto widths = grid.widths();
-  auto weights = grid.weights();
-  auto mass = grid.mass();
+  auto widths = mesh.widths();
+  auto weights = mesh.weights();
+  auto mass = mesh.mass();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: TCI", DevExecSpace(), ib.s,
       ib.e, KOKKOS_LAMBDA(const int i) {
@@ -240,14 +240,14 @@ void modify_polynomial(AthelasArray3D<double> U,
 // TODO(astrobarker): pass in views remove accessors
 KOKKOS_FUNCTION
 auto smoothness_indicator(AthelasArray2D<double> modified_polynomial,
-                          const GridStructure &grid, const int poly_idx,
-                          const int /*q*/) -> double {
+                          const Mesh &mesh, const int poly_idx, const int /*q*/)
+    -> double {
   const int num_modes = static_cast<int>(modified_polynomial.extent(1));
 
-  auto dr = grid.widths();
-  auto weights = grid.weights();
-  auto nodes = grid.nodes();
-  auto r = grid.nodal_grid();
+  auto dr = mesh.widths();
+  auto weights = mesh.weights();
+  auto nodes = mesh.nodes();
+  auto r = mesh.nodal_grid();
 
   double beta = 0.0;
 

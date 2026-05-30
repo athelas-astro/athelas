@@ -1,7 +1,7 @@
 #include "pgen/moving_contact.hpp"
 
 #include "eos/eos_variant.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 
@@ -10,15 +10,15 @@ namespace athelas::pgen::moving_contact {
 /**
  * @brief Initialize moving contact discontinuity test
  **/
-void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
+void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Moving contact requires ideal gas eos!");
 
   auto uCF = mesh_state(0).get_field("u_cf");
   auto uPF = mesh_state(0).get_field("u_pf");
 
-  const int nNodes = grid->n_nodes();
-  static const IndexRange ib(grid->domain<Domain::Interior>());
+  const int nNodes = mesh->n_nodes();
+  static const IndexRange ib(mesh->domain<Domain::Interior>());
   const IndexRange qb(nNodes);
 
   const auto V0 = pin->param()->get<double>("problem.params.v0", 0.1);
@@ -34,7 +34,7 @@ void init(MeshState &mesh_state, GridStructure *grid, ProblemIn *pin) {
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Pgen :: MovingContact (1)", DevExecSpace(), ib.s,
       ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
-        const double X1 = grid->centers(i);
+        const double X1 = mesh->centers(i);
 
         if (X1 <= 0.5) {
           uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D_L;

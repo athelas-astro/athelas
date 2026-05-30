@@ -3,7 +3,7 @@
 #include <functional>
 
 #include "basic_types.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "kokkos_types.hpp"
 
 namespace athelas::basis {
@@ -13,12 +13,12 @@ class NodalBasis {
   /**
    * @brief Constructor
    * @param uPF Primitive variables (nodal representation)
-   * @param grid Grid structure
+   * @param mesh Grid structure
    * @param nN Number of nodes
    * @param nElements Number of elements
    */
-  NodalBasis(const AthelasArray3D<double> uPF, GridStructure *grid,
-             const int nN, const int nElements);
+  NodalBasis(const AthelasArray3D<double> uPF, Mesh *mesh, const int nN,
+             const int nElements);
 
   /**
    * @brief Lagrange basis values L_j(eta_i)
@@ -87,8 +87,7 @@ class NodalBasis {
    * @details Just evaluates nodal_func at nodes
    */
   void project_nodal_to_modal_all_cells(
-      AthelasArray3D<double> uCF, AthelasArray3D<double> uPF,
-      GridStructure *grid, int q,
+      AthelasArray3D<double> uCF, AthelasArray3D<double> uPF, Mesh *mesh, int q,
       const std::function<double(double, int, int)> &nodal_func) const;
 
   // === Nodal-specific methods ===
@@ -131,7 +130,7 @@ class NodalBasis {
   AthelasArray2D<double> inv_vandermonde_;
 
   /** @brief Initialize all basis quantities */
-  void initialize_basis(AthelasArray3D<double> uPF, const GridStructure *grid);
+  void initialize_basis(AthelasArray3D<double> uPF, const Mesh *mesh);
 
   /** @brief Build differentiation matrix */
   void build_differentiation_matrix();
@@ -140,7 +139,7 @@ class NodalBasis {
   void build_vandermonde_matrices();
 
   /** @brief Compute diagonal mass matrix. */
-  void compute_mass_matrix(const GridStructure *grid);
+  void compute_mass_matrix(const Mesh *mesh);
 
   /** @brief Evaluate Lagrange polynomial L_j at point xi */
   static auto lagrange_polynomial(int j, double xi,
@@ -151,7 +150,7 @@ class NodalBasis {
                                     AthelasArray1D<double> nodes) -> double;
 
   /** @brief Fill guard cells (mirror interior) */
-  void fill_guard_cells(const GridStructure *grid);
+  void fill_guard_cells(const Mesh *mesh);
 };
 
 template <Interface Face>

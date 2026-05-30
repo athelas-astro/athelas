@@ -7,6 +7,7 @@
 #include "basis/nodal_basis.hpp"
 #include "composition/compdata.hpp"
 #include "eos/eos_variant.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/params.hpp"
 #include "kokkos_types.hpp"
 #include "opacity/opac_variant.hpp"
@@ -123,6 +124,9 @@ class StageData {
   [[nodiscard]] auto fluid_basis() const -> const basis::NodalBasis &;
   [[nodiscard]] auto rad_basis() const -> const basis::NodalBasis &;
 
+  // Shared mesh, forwarded from the parent MeshState (one mesh, two paths).
+  [[nodiscard]] auto mesh() const -> const Mesh &;
+
  private:
   int stage_;
   const MeshState *parent_;
@@ -200,7 +204,8 @@ class MeshState {
   [[nodiscard]] auto rad_basis() const -> const basis::NodalBasis &;
 
   [[nodiscard]] auto params() noexcept -> Params * { return params_.get(); }
-  // auto mesh() noexcept -> Mesh* { return mesh_.get(); }
+  [[nodiscard]] auto mesh() noexcept -> Mesh & { return mesh_; }
+  [[nodiscard]] auto mesh() const noexcept -> const Mesh & { return mesh_; }
 
   template <typename T>
   [[nodiscard]] auto get_field(const std::string &name) const -> T {
@@ -350,7 +355,7 @@ class MeshState {
     return T(name, dims...);
   }
 
-  // TODO(astrobarker) [MeshState] fold in mesh
+  Mesh mesh_;
   std::unique_ptr<Params> params_;
   std::unordered_map<std::string, FieldMetadata> metadata_;
 

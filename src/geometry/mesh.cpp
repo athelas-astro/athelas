@@ -1,10 +1,10 @@
 /**
- * @file grid.cpp
+ * @file mesh.cpp
  * --------------
  *
  * @brief Class for holding the spatial grid.
  *
- * @details This class GridStructure holds key pieces of the grid:
+ * @details This class Mesh holds key pieces of the grid:
  *          - nx
  *          - nnodes
  *          - weights
@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "basic_types.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
 #include "loop_layout.hpp"
@@ -28,7 +28,7 @@
 
 namespace athelas {
 
-GridStructure::GridStructure(const ProblemIn *pin)
+Mesh::Mesh(const ProblemIn *pin)
     : nElements_(pin->param()->get<int>("problem.nx")),
       nNodes_(pin->param()->get<int>("basis.nnodes")), mSize_(nElements_ + 2),
       xL_(pin->param()->get<double>("problem.xl")),
@@ -62,19 +62,19 @@ GridStructure::GridStructure(const ProblemIn *pin)
 }
 
 // Return cell center
-auto GridStructure::centers(int iC) const -> double { return centers_(iC); }
+auto Mesh::centers(int iC) const -> double { return centers_(iC); }
 
 // Return given quadrature node
-auto GridStructure::get_nodes(int nN) const -> double { return nodes_(nN); }
+auto Mesh::get_nodes(int nN) const -> double { return nodes_(nN); }
 
 // Accessor for xL
-auto GridStructure::get_x_l() const noexcept -> double { return xL_; }
+auto Mesh::get_x_l() const noexcept -> double { return xL_; }
 
 // Accessor for xR
-auto GridStructure::get_x_r() const noexcept -> double { return xR_; }
+auto Mesh::get_x_r() const noexcept -> double { return xR_; }
 
 // Accessor for SqrtGm
-auto GridStructure::get_sqrt_gm(const double X) const -> double {
+auto Mesh::get_sqrt_gm(const double X) const -> double {
   if (geometry_ == "spherical") [[likely]] {
     return X * X;
   }
@@ -83,28 +83,28 @@ auto GridStructure::get_sqrt_gm(const double X) const -> double {
 
 // Return nNodes_
 KOKKOS_FUNCTION
-auto GridStructure::n_nodes() const noexcept -> int { return nNodes_; }
+auto Mesh::n_nodes() const noexcept -> int { return nNodes_; }
 
 // Return nElements_
 KOKKOS_FUNCTION
-auto GridStructure::n_elements() const noexcept -> int { return nElements_; }
+auto Mesh::n_elements() const noexcept -> int { return nElements_; }
 
 // Return first physical zone
 KOKKOS_FUNCTION
-auto GridStructure::get_ilo() noexcept -> int { return 1; }
+auto Mesh::get_ilo() noexcept -> int { return 1; }
 
 // Return last physical zone
 KOKKOS_FUNCTION
-auto GridStructure::get_ihi() const noexcept -> int { return nElements_; }
+auto Mesh::get_ihi() const noexcept -> int { return nElements_; }
 
 // Return true if in spherical symmetry
 KOKKOS_FUNCTION
-auto GridStructure::do_geometry() const noexcept -> bool {
+auto Mesh::do_geometry() const noexcept -> bool {
   return geometry_ == "spherical";
 }
 
 // grid creation logic
-void GridStructure::create_grid(const ProblemIn *pin) {
+void Mesh::create_grid(const ProblemIn *pin) {
   if (utilities::to_lower(grid_type_) == "uniform") {
     create_uniform_grid();
   } else if (utilities::to_lower(grid_type_) == "logarithmic") {
@@ -138,7 +138,7 @@ void GridStructure::create_grid(const ProblemIn *pin) {
   }
 }
 
-void GridStructure::copy_from(const GridStructure &other) {
+void Mesh::copy_from(const Mesh &other) {
   nElements_ = other.nElements_;
   nNodes_ = other.nNodes_;
   mSize_ = other.mSize_;
@@ -162,7 +162,7 @@ void GridStructure::copy_from(const GridStructure &other) {
 /**
  * @brief uniform mesh
  */
-void GridStructure::create_uniform_grid() {
+void Mesh::create_uniform_grid() {
 
   const int ilo = 1; // first real zone
   const int ihi = nElements_; // last real zone
@@ -219,7 +219,7 @@ void GridStructure::create_uniform_grid() {
  * Sets up logarithmic mesh with cell centers:
  * x_i = x_l * (x_r / x_l)^(i/(nx - 1))
  */
-void GridStructure::create_log_grid() {
+void Mesh::create_log_grid() {
 
   const int ilo = 1; // first real zone
   const int ihi = nElements_; // last real zone
@@ -280,7 +280,7 @@ void GridStructure::create_log_grid() {
  * Compute cell masses
  **/
 KOKKOS_FUNCTION
-void GridStructure::compute_mass(AthelasArray3D<double> ucf) {
+void Mesh::compute_mass(AthelasArray3D<double> ucf) {
   const int nNodes_ = n_nodes();
   const int ilo = get_ilo();
   const int ihi = get_ihi();
@@ -318,7 +318,7 @@ void GridStructure::compute_mass(AthelasArray3D<double> ucf) {
  * it should be refactored.
  **/
 KOKKOS_FUNCTION
-void GridStructure::compute_mass_r(AthelasArray3D<double> ucf) {
+void Mesh::compute_mass_r(AthelasArray3D<double> ucf) {
   const int nNodes_ = n_nodes();
   const int ilo = get_ilo();
   const int ihi = get_ihi();
@@ -367,8 +367,7 @@ void GridStructure::compute_mass_r(AthelasArray3D<double> ucf) {
 }
 
 KOKKOS_FUNCTION
-auto GridStructure::enclosed_mass(const int ix, const int q) const noexcept
-    -> double {
+auto Mesh::enclosed_mass(const int ix, const int q) const noexcept -> double {
   return mass_r_(ix, q);
 }
 
@@ -376,7 +375,7 @@ auto GridStructure::enclosed_mass(const int ix, const int q) const noexcept
  * Compute cell centers of masses reference coordinates
  **/
 KOKKOS_FUNCTION
-void GridStructure::compute_center_of_mass(AthelasArray3D<double> ucf) {
+void Mesh::compute_center_of_mass(AthelasArray3D<double> ucf) {
   const int nNodes_ = n_nodes();
   const int ilo = get_ilo();
   const int ihi = get_ihi();
@@ -409,7 +408,7 @@ void GridStructure::compute_center_of_mass(AthelasArray3D<double> ucf) {
  * Update grid coordinates using interface velocities.
  **/
 KOKKOS_FUNCTION
-void GridStructure::update_grid(const AthelasArray1D<double> SData) {
+void Mesh::update_grid(const AthelasArray1D<double> SData) {
 
   const int ilo = get_ilo();
   const int ihi = get_ihi();
@@ -452,45 +451,40 @@ void GridStructure::update_grid(const AthelasArray1D<double> SData) {
 
 // Access by (element, node)
 KOKKOS_FUNCTION
-auto GridStructure::operator()(int i, int j) -> double & { return grid_(i, j); }
+auto Mesh::operator()(int i, int j) -> double & { return grid_(i, j); }
 
 KOKKOS_FUNCTION
-auto GridStructure::operator()(int i, int j) const -> double {
-  return grid_(i, j);
-}
+auto Mesh::operator()(int i, int j) const -> double { return grid_(i, j); }
 
-[[nodiscard]] auto GridStructure::widths() const -> AthelasArray1D<double> {
+[[nodiscard]] auto Mesh::widths() const -> AthelasArray1D<double> {
   return widths_;
 }
-[[nodiscard]] auto GridStructure::weights() const -> AthelasArray1D<double> {
+[[nodiscard]] auto Mesh::weights() const -> AthelasArray1D<double> {
   return weights_;
 }
-[[nodiscard]] auto GridStructure::nodes() const -> AthelasArray1D<double> {
+[[nodiscard]] auto Mesh::nodes() const -> AthelasArray1D<double> {
   return nodes_;
 }
-[[nodiscard]] auto GridStructure::x_l() const -> AthelasArray1D<double> {
-  return x_l_;
-}
-[[nodiscard]] auto GridStructure::mass() const -> AthelasArray1D<double> {
+[[nodiscard]] auto Mesh::x_l() const -> AthelasArray1D<double> { return x_l_; }
+[[nodiscard]] auto Mesh::mass() const -> AthelasArray1D<double> {
   return mass_;
 }
-[[nodiscard]] auto GridStructure::enclosed_mass() const
-    -> AthelasArray2D<double> {
+[[nodiscard]] auto Mesh::enclosed_mass() const -> AthelasArray2D<double> {
   return mass_r_;
 }
-[[nodiscard]] auto GridStructure::centers() const -> AthelasArray1D<double> {
+[[nodiscard]] auto Mesh::centers() const -> AthelasArray1D<double> {
   return centers_;
 }
-[[nodiscard]] auto GridStructure::centers() -> AthelasArray1D<double> {
+[[nodiscard]] auto Mesh::centers() -> AthelasArray1D<double> {
   return centers_;
 }
-[[nodiscard]] auto GridStructure::nodal_grid() -> AthelasArray2D<double> {
+[[nodiscard]] auto Mesh::nodal_grid() -> AthelasArray2D<double> {
   return grid_;
 }
-[[nodiscard]] auto GridStructure::nodal_grid() const -> AthelasArray2D<double> {
+[[nodiscard]] auto Mesh::nodal_grid() const -> AthelasArray2D<double> {
   return grid_;
 }
-[[nodiscard]] auto GridStructure::sqrt_gm() const -> AthelasArray2D<double> {
+[[nodiscard]] auto Mesh::sqrt_gm() const -> AthelasArray2D<double> {
   return sqrt_gm_;
 }
 

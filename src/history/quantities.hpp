@@ -9,7 +9,7 @@
  */
 
 #include "basic_types.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 #include "loop_layout.hpp"
@@ -19,17 +19,17 @@
 namespace athelas::analysis {
 
 inline auto total_gravitational_energy(const MeshState &mesh_state,
-                                       const GridStructure &grid) -> double {
+                                       const Mesh &mesh) -> double {
   using basis::basis_eval;
-  const auto &nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  auto weights = grid.weights();
-  auto enclosed_mass = grid.enclosed_mass();
-  auto mass_cell = grid.mass();
-  auto r = grid.nodal_grid();
+  const auto &nNodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  auto weights = mesh.weights();
+  auto enclosed_mass = mesh.enclosed_mass();
+  auto mass_cell = mesh.mass();
+  auto r = mesh.nodal_grid();
   auto u = mesh_state(0).get_field("u_cf");
 
-  const bool do_geometry = grid.do_geometry();
+  const bool do_geometry = mesh.do_geometry();
 
   double output = 0.0;
   athelas::par_reduce(
@@ -54,14 +54,14 @@ inline auto total_gravitational_energy(const MeshState &mesh_state,
 
 // Perhaps the below will be more optimal by calculating
 // with cell mass
-inline auto total_fluid_energy(const MeshState &mesh_state,
-                               const GridStructure &grid) -> double {
+inline auto total_fluid_energy(const MeshState &mesh_state, const Mesh &mesh)
+    -> double {
   using basis::basis_eval;
-  const auto &nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  const auto dr = grid.widths();
-  auto weights = grid.weights();
-  auto mcell = grid.mass();
+  const auto &nNodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  const auto dr = mesh.widths();
+  auto weights = mesh.weights();
+  auto mcell = mesh.mass();
 
   auto u = mesh_state(0).get_field("u_cf");
 
@@ -78,20 +78,20 @@ inline auto total_fluid_energy(const MeshState &mesh_state,
       },
       Kokkos::Sum<double>(output));
 
-  if (grid.do_geometry()) {
+  if (mesh.do_geometry()) {
     output *= constants::FOURPI;
   }
   return output;
 }
 
-inline auto total_fluid_momentum(const MeshState &mesh_state,
-                                 const GridStructure &grid) -> double {
+inline auto total_fluid_momentum(const MeshState &mesh_state, const Mesh &mesh)
+    -> double {
   using basis::basis_eval;
-  const auto &nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  auto dr = grid.widths();
-  auto sqrt_gm = grid.sqrt_gm();
-  auto weights = grid.weights();
+  const auto &nNodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  auto dr = mesh.widths();
+  auto sqrt_gm = mesh.sqrt_gm();
+  auto weights = mesh.weights();
 
   auto u = mesh_state(0).get_field("u_cf");
 
@@ -110,20 +110,20 @@ inline auto total_fluid_momentum(const MeshState &mesh_state,
       },
       Kokkos::Sum<double>(output));
 
-  if (grid.do_geometry()) {
+  if (mesh.do_geometry()) {
     output *= constants::FOURPI;
   }
   return output;
 }
 
-inline auto total_internal_energy(const MeshState &mesh_state,
-                                  const GridStructure &grid) -> double {
+inline auto total_internal_energy(const MeshState &mesh_state, const Mesh &mesh)
+    -> double {
   using basis::basis_eval;
-  const auto &nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  auto dr = grid.widths();
-  auto sqrt_gm = grid.sqrt_gm();
-  auto weights = grid.weights();
+  const auto &nNodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  auto dr = mesh.widths();
+  auto sqrt_gm = mesh.sqrt_gm();
+  auto weights = mesh.weights();
 
   auto u = mesh_state(0).get_field("u_cf");
 
@@ -143,21 +143,21 @@ inline auto total_internal_energy(const MeshState &mesh_state,
       },
       Kokkos::Sum<double>(output));
 
-  if (grid.do_geometry()) {
+  if (mesh.do_geometry()) {
     output *= constants::FOURPI;
   }
   return output;
 }
 
-inline auto total_kinetic_energy(const MeshState &mesh_state,
-                                 const GridStructure &grid) -> double {
+inline auto total_kinetic_energy(const MeshState &mesh_state, const Mesh &mesh)
+    -> double {
   using basis::basis_eval;
-  const auto &nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  auto dr = grid.widths();
-  auto mass = grid.mass();
-  auto sqrt_gm = grid.sqrt_gm();
-  auto weights = grid.weights();
+  const auto &nNodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  auto dr = mesh.widths();
+  auto mass = mesh.mass();
+  auto sqrt_gm = mesh.sqrt_gm();
+  auto weights = mesh.weights();
 
   auto phi = mesh_state.fluid_basis().phi();
   auto u = mesh_state(0).get_field("u_cf");
@@ -176,20 +176,20 @@ inline auto total_kinetic_energy(const MeshState &mesh_state,
       },
       Kokkos::Sum<double>(output));
 
-  if (grid.do_geometry()) {
+  if (mesh.do_geometry()) {
     output *= constants::FOURPI;
   }
   return output;
 }
 
 // This total_energy is only radiation
-inline auto total_rad_energy(const MeshState &mesh_state,
-                             const GridStructure &grid) -> double {
+inline auto total_rad_energy(const MeshState &mesh_state, const Mesh &mesh)
+    -> double {
   using basis::basis_eval;
-  const auto &nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  auto dm = grid.widths();
-  auto weights = grid.weights();
+  const auto &nNodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  auto dm = mesh.widths();
+  auto weights = mesh.weights();
 
   auto u = mesh_state(0).get_field("u_cf");
 
@@ -206,20 +206,20 @@ inline auto total_rad_energy(const MeshState &mesh_state,
       },
       Kokkos::Sum<double>(output));
 
-  if (grid.do_geometry()) {
+  if (mesh.do_geometry()) {
     output *= constants::FOURPI;
   }
   return output;
 }
 
-inline auto total_rad_momentum(const MeshState &mesh_state,
-                               const GridStructure &grid) -> double {
+inline auto total_rad_momentum(const MeshState &mesh_state, const Mesh &mesh)
+    -> double {
   using basis::basis_eval;
-  const auto &nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  auto dr = grid.widths();
-  auto sqrt_gm = grid.sqrt_gm();
-  auto weights = grid.weights();
+  const auto &nNodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  auto dr = mesh.widths();
+  auto sqrt_gm = mesh.sqrt_gm();
+  auto weights = mesh.weights();
 
   auto phi_rad = mesh_state.rad_basis().phi();
   auto u = mesh_state(0).get_field("u_cf");
@@ -238,7 +238,7 @@ inline auto total_rad_momentum(const MeshState &mesh_state,
       },
       Kokkos::Sum<double>(output));
 
-  if (grid.do_geometry()) {
+  if (mesh.do_geometry()) {
     output *= constants::FOURPI;
   }
   return output / (constants::c_cgs * constants::c_cgs);
@@ -246,43 +246,43 @@ inline auto total_rad_momentum(const MeshState &mesh_state,
 
 // This total_energy is all sources
 // NOTE: Pattern is somewhat suboptimal
-inline auto total_energy(const MeshState &mesh_state, const GridStructure &grid)
+inline auto total_energy(const MeshState &mesh_state, const Mesh &mesh)
     -> double {
   // Probably could be optimized, but it is history..
-  double output = total_fluid_energy(mesh_state, grid);
+  double output = total_fluid_energy(mesh_state, mesh);
 
   const bool radiation_enabled = mesh_state.enabled("radiation");
   if (radiation_enabled) {
-    output += total_rad_energy(mesh_state, grid);
+    output += total_rad_energy(mesh_state, mesh);
   }
 
   const bool gravity_enabled = mesh_state.enabled("gravity");
   if (gravity_enabled) {
-    output += total_gravitational_energy(mesh_state, grid);
+    output += total_gravitational_energy(mesh_state, mesh);
   }
   return output;
 }
 
-inline auto total_momentum(const MeshState &mesh_state,
-                           const GridStructure &grid) -> double {
-  double output = total_fluid_momentum(mesh_state, grid);
+inline auto total_momentum(const MeshState &mesh_state, const Mesh &mesh)
+    -> double {
+  double output = total_fluid_momentum(mesh_state, mesh);
 
   // Probably could be optimized, but it is history..
   const bool radiation_enabled = mesh_state.enabled("radiation");
   if (radiation_enabled) {
-    output += total_rad_momentum(mesh_state, grid);
+    output += total_rad_momentum(mesh_state, mesh);
   }
   return output;
 }
 
-inline auto total_mass(const MeshState &mesh_state, const GridStructure &grid)
+inline auto total_mass(const MeshState &mesh_state, const Mesh &mesh)
     -> double {
   using basis::basis_eval;
-  const auto &nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  auto dr = grid.widths();
-  auto sqrt_gm = grid.sqrt_gm();
-  auto weights = grid.weights();
+  const auto &nNodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  auto dr = mesh.widths();
+  auto sqrt_gm = mesh.sqrt_gm();
+  auto weights = mesh.weights();
 
   auto phi = mesh_state.fluid_basis().phi();
   auto prims = mesh_state(0).get_field("u_pf");
@@ -301,7 +301,7 @@ inline auto total_mass(const MeshState &mesh_state, const GridStructure &grid)
       },
       Kokkos::Sum<double>(output));
 
-  if (grid.do_geometry()) {
+  if (mesh.do_geometry()) {
     output *= constants::FOURPI;
   }
   return output;
@@ -309,14 +309,13 @@ inline auto total_mass(const MeshState &mesh_state, const GridStructure &grid)
 
 // TODO(astrobarker): surely there is a non-invasive way to combine
 // these total_mass_x. Would need to pass in either index or string for indexer
-inline auto total_mass_ni56(const MeshState &mesh_state,
-                            const GridStructure &grid) {
+inline auto total_mass_ni56(const MeshState &mesh_state, const Mesh &mesh) {
   using basis::basis_eval;
-  const auto &nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  auto dr = grid.widths();
-  auto sqrt_gm = grid.sqrt_gm();
-  auto weights = grid.weights();
+  const auto &nNodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  auto dr = mesh.widths();
+  auto sqrt_gm = mesh.sqrt_gm();
+  auto weights = mesh.weights();
 
   auto phi = mesh_state.fluid_basis().phi();
   auto u = mesh_state(0).get_field("u_cf");
@@ -340,20 +339,19 @@ inline auto total_mass_ni56(const MeshState &mesh_state,
       },
       Kokkos::Sum<double>(output));
 
-  if (grid.do_geometry()) {
+  if (mesh.do_geometry()) {
     output *= constants::FOURPI;
   }
   return output;
 }
 
-inline auto total_mass_co56(const MeshState &mesh_state,
-                            const GridStructure &grid) {
+inline auto total_mass_co56(const MeshState &mesh_state, const Mesh &mesh) {
   using basis::basis_eval;
-  const auto &nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  auto dr = grid.widths();
-  auto sqrt_gm = grid.sqrt_gm();
-  auto weights = grid.weights();
+  const auto &nNodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  auto dr = mesh.widths();
+  auto sqrt_gm = mesh.sqrt_gm();
+  auto weights = mesh.weights();
 
   auto phi = mesh_state.fluid_basis().phi();
   auto u = mesh_state(0).get_field("u_cf");
@@ -377,20 +375,19 @@ inline auto total_mass_co56(const MeshState &mesh_state,
       },
       Kokkos::Sum<double>(output));
 
-  if (grid.do_geometry()) {
+  if (mesh.do_geometry()) {
     output *= constants::FOURPI;
   }
   return output;
 }
 
-inline auto total_mass_fe56(const MeshState &mesh_state,
-                            const GridStructure &grid) {
+inline auto total_mass_fe56(const MeshState &mesh_state, const Mesh &mesh) {
   using basis::basis_eval;
-  const auto &nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  auto dr = grid.widths();
-  auto sqrt_gm = grid.sqrt_gm();
-  auto weights = grid.weights();
+  const auto &nNodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  auto dr = mesh.widths();
+  auto sqrt_gm = mesh.sqrt_gm();
+  auto weights = mesh.weights();
 
   auto phi = mesh_state.fluid_basis().phi();
   auto u = mesh_state(0).get_field("u_cf");
@@ -414,7 +411,7 @@ inline auto total_mass_fe56(const MeshState &mesh_state,
       },
       Kokkos::Sum<double>(output));
 
-  if (grid.do_geometry()) {
+  if (mesh.do_geometry()) {
     output *= constants::FOURPI;
   }
   return output;

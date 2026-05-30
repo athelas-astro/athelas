@@ -30,7 +30,7 @@
 #include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "eos/eos_variant.hpp"
-#include "grid.hpp"
+#include "geometry/mesh.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
 #include "limiters/bound_enforcing_limiter.hpp"
@@ -58,16 +58,16 @@ using math::utils::ratio;
  *   - Cell average tau_avg > 0
  *   - Density limiter applied before dependent limiters
  */
-void limit_density(StageData &stage_data, const GridStructure &grid) {
+void limit_density(StageData &stage_data, const Mesh &mesh) {
   constexpr static double EPSILON = 1.0e-30; // maybe make this smarter
 
   const auto &basis = stage_data.fluid_basis();
   const int order = basis.order();
 
   auto U = stage_data.get_field("u_cf");
-  auto sqrt_gm = grid.sqrt_gm();
-  auto weights = grid.weights();
-  auto widths = grid.widths();
+  auto sqrt_gm = mesh.sqrt_gm();
+  auto weights = mesh.weights();
+  auto widths = mesh.widths();
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit density", DevExecSpace(), 1,
@@ -118,7 +118,7 @@ void limit_density(StageData &stage_data, const GridStructure &grid) {
  * minimal admissible theta.
  */
 template <IonizationPhysics Ionization>
-void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
+void limit_internal_energy(StageData &stage_data, const Mesh &mesh) {
   const auto &basis = stage_data.fluid_basis();
   const auto &eos = stage_data.eos();
   const int order = basis.order();
@@ -135,9 +135,9 @@ void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
   }
 
   auto U = stage_data.get_field("u_cf");
-  auto sqrt_gm = grid.sqrt_gm();
-  auto weights = grid.weights();
-  auto widths = grid.widths();
+  auto sqrt_gm = mesh.sqrt_gm();
+  auto weights = mesh.weights();
+  auto widths = mesh.widths();
 
   auto phi = basis.phi();
   athelas::par_for(
@@ -212,16 +212,15 @@ void limit_internal_energy(StageData &stage_data, const GridStructure &grid) {
  * @brief Apply bound enforcing limiters for fluid variables
  *
  * @param stage_data The stage data containing solution arrays
- * @param grid The grid structure with geometric information
+ * @param mesh The mesh structure with geometric information
  */
-void apply_bound_enforcing_limiter(StageData &stage_data,
-                                   const GridStructure &grid) {
+void apply_bound_enforcing_limiter(StageData &stage_data, const Mesh &mesh) {
   if (stage_data.fluid_basis().order() > 1) {
-    limit_density(stage_data, grid);
+    limit_density(stage_data, mesh);
     if (stage_data.enabled("ionization")) {
-      limit_internal_energy<IonizationPhysics::Active>(stage_data, grid);
+      limit_internal_energy<IonizationPhysics::Active>(stage_data, mesh);
     } else {
-      limit_internal_energy<IonizationPhysics::Inactive>(stage_data, grid);
+      limit_internal_energy<IonizationPhysics::Inactive>(stage_data, mesh);
     }
   }
 }
@@ -230,15 +229,15 @@ void apply_bound_enforcing_limiter(StageData &stage_data,
  * @brief Apply bound enforcing limiters for radiation variables
  *
  * @param stage_data The stage data containing solution arrays
- * @param grid The grid structure with geometric information
+ * @param mesh The mesh structure with geometric information
  */
 void apply_bound_enforcing_limiter_rad(StageData &stage_data,
-                                       const GridStructure &grid) {
+                                       const Mesh &mesh) {
   if (stage_data.rad_basis().order() == 1) {
     return;
   }
-  limit_rad_energy(stage_data, grid);
-  // limit_rad_momentum(stage_data, grid);
+  limit_rad_energy(stage_data, mesh);
+  // limit_rad_momentum(stage_data, mesh);
 }
 
 /**
@@ -250,16 +249,16 @@ void apply_bound_enforcing_limiter_rad(StageData &stage_data,
  *
  * where theta is computed once per cell from the minimum nodal value.
  */
-void limit_rad_energy(StageData &stage_data, const GridStructure &grid) {
+void limit_rad_energy(StageData &stage_data, const Mesh &mesh) {
   constexpr static double EPSILON = 1.0e-13; // maybe make this smarter
 
   const auto &basis = stage_data.rad_basis();
   const int order = basis.order();
 
   auto U = stage_data.get_field("u_cf");
-  auto sqrt_gm = grid.sqrt_gm();
-  auto weights = grid.weights();
-  auto widths = grid.widths();
+  auto sqrt_gm = mesh.sqrt_gm();
+  auto weights = mesh.weights();
+  auto widths = mesh.widths();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit rad energy", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
@@ -307,16 +306,16 @@ void limit_rad_energy(StageData &stage_data, const GridStructure &grid) {
  *
  * Should be applied after radiation energy positivity.
  */
-void limit_rad_momentum(StageData &stage_data, const GridStructure &grid) {
+void limit_rad_momentum(StageData &stage_data, const Mesh &mesh) {
   constexpr static double c = constants::c_cgs;
 
   const auto &basis = stage_data.rad_basis();
   const int order = basis.order();
 
   auto U = stage_data.get_field("u_cf");
-  auto sqrt_gm = grid.sqrt_gm();
-  auto weights = grid.weights();
-  auto widths = grid.widths();
+  auto sqrt_gm = mesh.sqrt_gm();
+  auto weights = mesh.weights();
+  auto widths = mesh.widths();
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit rad momentum", DevExecSpace(), 1,

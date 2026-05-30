@@ -7,7 +7,7 @@
 #include "basis/polynomial_basis.hpp"
 #include "bc/boundary_conditions.hpp"
 #include "eos/eos_variant.hpp"
-#include "geometry/grid.hpp"
+#include "geometry/mesh.hpp"
 #include "kokkos_abstraction.hpp"
 #include "loop_layout.hpp"
 #include "math/difference.hpp"
@@ -85,11 +85,11 @@ ImplicitRadiationMomentsPackage::ImplicitRadiationMomentsPackage(
 
 void ImplicitRadiationMomentsPackage::evaluate_residual(
     AthelasArray2D<double> b_out, AthelasArray3D<double> U,
-    AthelasArray3D<double> ustar, const StageData &stage_data,
-    const GridStructure &grid, const double dt_aii) {
+    AthelasArray3D<double> ustar, const StageData &stage_data, const Mesh &mesh,
+    const double dt_aii) {
   const auto &basis = stage_data.fluid_basis();
-  const int nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
+  const int nNodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
 
   static const int idx_tau = stage_data.var_index("u_cf", "tau");
   static const int idx_vel = stage_data.var_index("u_cf", "vel");
@@ -108,9 +108,9 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
   auto dphi = basis.dphi();
   auto mkk = basis.mass_matrix();
   auto inv_mkk = basis.inv_mass_matrix();
-  auto dr = grid.widths();
-  auto weights = grid.weights();
-  auto sqrt_gm = grid.sqrt_gm();
+  auto dr = mesh.widths();
+  auto weights = mesh.weights();
+  auto sqrt_gm = mesh.sqrt_gm();
 
   constexpr double c = constants::c_cgs;
   constexpr double c2 = c * c;
@@ -138,8 +138,8 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
   }
 
   // Apply BC to U (so face states at boundary faces see the right ghosts)
-  bc::fill_ghost_zones<2>(U, &grid, bcs_, {3, 4});
-  bc::fill_ghost_zones<3>(U, &grid, bcs_, {0, 2});
+  bc::fill_ghost_zones<2>(U, &mesh, bcs_, {3, 4});
+  bc::fill_ghost_zones<3>(U, &mesh, bcs_, {0, 2});
 
   // Face states: faces_.u_f_l = U at right edge of cell i-1, faces_.u_f_r = U
   // at left edge of cell i. Indices on second axis: 0 = tau, 1 = E_specific, 2
@@ -270,16 +270,16 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
 }
 
 void ImplicitRadiationMomentsPackage::update_implicit(
-    const StageData &stage_data, AthelasArray3D<double> ustar,
-    const GridStructure &grid, const TimeStepInfo &dt_info) {
+    const StageData &stage_data, AthelasArray3D<double> ustar, const Mesh &mesh,
+    const TimeStepInfo &dt_info) {
   using bc::BcType;
   using math::difference::finite_difference;
   using math::linalg::ThomasScratch, math::linalg::block_thomas_solve;
   using math::utils::sgn;
 
   const auto &basis = stage_data.fluid_basis();
-  const int nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Interior>());
+  const int nNodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
   static const IndexRange qb(nNodes);
 
   auto ucf = stage_data.get_field("u_cf");
@@ -299,9 +299,9 @@ void ImplicitRadiationMomentsPackage::update_implicit(
   auto dphi = basis.dphi();
   auto mkk = basis.mass_matrix();
   auto inv_mkk = basis.inv_mass_matrix();
-  auto dr = grid.widths();
-  auto weights = grid.weights();
-  auto sqrt_gm = grid.sqrt_gm();
+  auto dr = mesh.widths();
+  auto weights = mesh.weights();
+  auto sqrt_gm = mesh.sqrt_gm();
 
   const auto &eos = stage_data.eos();
   const auto &opac = stage_data.opac();
@@ -360,10 +360,10 @@ void ImplicitRadiationMomentsPackage::update_implicit(
   constexpr double c = constants::c_cgs;
   constexpr double c2 = c * c;
 
-  bc::fill_ghost_zones<2>(ucf, &grid, bcs_, {3, 4});
-  bc::fill_ghost_zones<3>(ucf, &grid, bcs_, {0, 2});
-  bc::fill_ghost_zones<2>(ustar, &grid, bcs_, {3, 4});
-  bc::fill_ghost_zones<3>(ustar, &grid, bcs_, {0, 2});
+  bc::fill_ghost_zones<2>(ucf, &mesh, bcs_, {3, 4});
+  bc::fill_ghost_zones<3>(ucf, &mesh, bcs_, {0, 2});
+  bc::fill_ghost_zones<2>(ustar, &mesh, bcs_, {3, 4});
+  bc::fill_ghost_zones<3>(ustar, &mesh, bcs_, {0, 2});
 
   int iter = 0;
   double norm_resid = 1.0;
@@ -394,7 +394,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
 
     // Compute residual (also fills faces_.u_f_l, faces_.u_f_r, faces_.flux_num
     // used below).
-    evaluate_residual(solver_.b, newton_.u_rad_work, ustar, stage_data, grid,
+    evaluate_residual(solver_.b, newton_.u_rad_work, ustar, stage_data, mesh,
                       dt_aii);
 
     athelas::par_for(
@@ -602,7 +602,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
         });
 
     const auto rad_bcs = get_bc_data<2>(bcs_);
-    static const int nblocks = grid.n_elements();
+    static const int nblocks = mesh.n_elements();
     static const int i_inner_face = 1;
     static const int i_outer_face = nblocks + 1;
     static const int i_inner_cell = ib.s; // first interior cell
@@ -856,7 +856,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
 
       // Trial residual.
       evaluate_residual(newton_.ls_b_trial, newton_.u_rad_trial, ustar,
-                        stage_data, grid, dt_aii);
+                        stage_data, mesh, dt_aii);
       const double F_trial = math::linalg::newton_norm_l2(newton_.ls_b_trial,
                                                           sqrt_gm, dr, weights);
       const double F_trial_sq = F_trial * F_trial;
@@ -988,7 +988,7 @@ void ImplicitRadiationMomentsPackage::zero_delta() const noexcept {
  * @brief implicit radiation moments timestep restriction
  **/
 auto ImplicitRadiationMomentsPackage::min_timestep(
-    const StageData &stage_data, const GridStructure &grid,
+    const StageData &stage_data, const Mesh &mesh,
     const TimeStepInfo &dt_info) const -> double {
   constexpr double MAX_DT = std::numeric_limits<double>::max();
   constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
@@ -998,8 +998,8 @@ auto ImplicitRadiationMomentsPackage::min_timestep(
   static const int idx_er = stage_data.var_index("u_cf", "rad_energy");
   static const int idx_fr = stage_data.var_index("u_cf", "rad_momentum");
 
-  static const IndexRange ib(grid.domain<Domain::Interior>());
-  static const IndexRange qb(grid.n_nodes());
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  static const IndexRange qb(mesh.n_nodes());
 
   const auto max_frac_change_e = params_.get<double>("max_fractional_change_e");
   const auto max_change_f = params_.get<double>("max_change_f");
@@ -1051,7 +1051,7 @@ auto ImplicitRadiationMomentsPackage::min_timestep(
  * TODO(astrobarker): extend
  */
 void ImplicitRadiationMomentsPackage::fill_derived(
-    StageData &stage_data, const GridStructure &grid,
+    StageData &stage_data, const Mesh &mesh,
     const TimeStepInfo & /*dt_info*/) const {
   return;
   // NOTE: When we actually use this, remove the above.
@@ -1061,13 +1061,13 @@ void ImplicitRadiationMomentsPackage::fill_derived(
 
   const auto &fluid_basis = stage_data.fluid_basis();
 
-  const int nNodes = grid.n_nodes();
-  static const IndexRange ib(grid.domain<Domain::Entire>());
+  const int nNodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Entire>());
 
   auto phi = fluid_basis.phi();
 
   // --- Apply BC ---
-  bc::fill_ghost_zones<2>(ucf, &grid, bcs_, {3, 4});
+  bc::fill_ghost_zones<2>(ucf, &mesh, bcs_, {3, 4});
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "ImplicitMoments :: fill derived",
