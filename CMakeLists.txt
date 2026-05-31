@@ -175,6 +175,7 @@ set( ATHELAS_SOURCES
   "src/limiters/slope_limiter_unlimited.cpp"
   "src/limiters/slope_limiter_utilities.cpp"
   "src/limiters/slope_limiter_tvdminmod.cpp"
+  "src/limiters/slope_limiter_moment.cpp"
   "src/limiters/slope_limiter_weno.cpp"
   "src/opacity/opac_constant.cpp"
   "src/opacity/opac_powerlaw.cpp"

@@ -34,6 +34,14 @@ auto initialize_slope_limiter(const std::string field, const Mesh *mesh,
                     pin->param()->get<bool>(field + ".limiter.characteristic"),
                     pin->param()->get<bool>(field + ".limiter.tci_enabled"),
                     pin->param()->get<double>(field + ".limiter.tci_val"));
+    } else if (utilities::to_lower(type) == "moment") {
+      S_Limiter = MomentLimiter(
+          enabled, mesh, vb, pin->param()->get<int>("basis.nnodes"),
+          pin->param()->get<double>(field + ".limiter.b_tvd"),
+          pin->param()->get<double>(field + ".limiter.m_tvb"),
+          pin->param()->get<bool>(field + ".limiter.characteristic"),
+          pin->param()->get<bool>(field + ".limiter.tci_enabled"),
+          pin->param()->get<double>(field + ".limiter.tci_val"));
     } else {
       S_Limiter =
           WENO(enabled, mesh, vb, pin->param()->get<int>("basis.nnodes"),
