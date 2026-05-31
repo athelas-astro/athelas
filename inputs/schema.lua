@@ -170,7 +170,7 @@ schema.fluid = {
     type = {
       type = "string",
       default = "minmod",
-      doc = "Limiter type. Options: 'minmod', 'weno [experimental]'.",
+      doc = "Limiter type. Options: 'minmod', 'moment', 'weno [experimental]'.",
     },
     b_tvd = {
       type = "double",
@@ -260,7 +260,7 @@ schema.radiation = {
     type = {
       type = "string",
       default = "minmod",
-      doc = "Limiter type. Options: 'minmod', 'weno'.",
+      doc = "Limiter type. Options: 'minmod', 'moment', 'weno [experimental]'.",
     },
     b_tvd = {
       type = "double",

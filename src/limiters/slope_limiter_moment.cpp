@@ -27,14 +27,7 @@ using namespace vars::modes;
  *                     a_j ( u(i+1,j-1) - u(i,j-1) ),
  *                     a_j ( u(i,j-1) - u(i-1,j-1) ) )
  *
- * The cascade stops as soon as a mode is left unchanged (smooth enough). The
- * cell average (j=0) is never touched, so the scheme is conservative.
- *
- * For un-normalized Legendre coefficients (what nodal_to_modal produces here)
- * the inter-mode factor is a_j = 1 / (2 (2j-1)). We reuse the TVDMinmod slope
- * construction (physical neighbor slopes + scale = 0.5*dr) which already
- * supplies the 1/2 and the moving-mesh dr handling; the only extra factor is
- * 1/(2j-1). At j=1 this reduces exactly to the TVDMinmod slope step.
+ * The cascade stops as soon as a mode is left unchanged.
  **/
 void MomentLimiter::apply_slope_limiter(AthelasArray3D<double> U,
                                         const Mesh &mesh,
@@ -115,8 +108,8 @@ void MomentLimiter::apply_slope_limiter(AthelasArray3D<double> U,
         if (D_(i) > tci_val_ || !tci_opt_) {
           // Element-width factors. Neighbor differences are formed as physical
           // slopes (divide by inter-centroid distance) and scaled by the half
-          // width, exactly as in TVDMinmod -- this is what keeps the limiter
-          // correct on the moving Lagrangian mesh.
+          // width which keeps the limiter correct on the moving 
+          // Lagrangian mesh.
           const double scale = 0.5 * dr(i);
           const double dist_p = 0.5 * (dr(i) + dr(i + 1));
           const double dist_m = 0.5 * (dr(i) + dr(i - 1));
@@ -139,9 +132,8 @@ void MomentLimiter::apply_slope_limiter(AthelasArray3D<double> U,
                   MINMOD_B(a_k, b_tvd_ * inv * scale * d_p,
                            b_tvd_ * inv * scale * d_m, dr(i), m_tvb_);
 
-              // If this mode was changed, the cell is troubled: limit it and
-              // descend to the next lower mode. Otherwise stop -- the higher
-              // modes are acceptable and we keep everything below.
+              // If this mode was changed, limit it and descend to the next 
+              // lower mode. Otherwise terminate.
               if (std::abs(new_mode - a_k) > sl_threshold_ * std::abs(a_k)) {
                 u_k_(i, k, v) = new_mode;
                 limited_cell_(i) = 1;
