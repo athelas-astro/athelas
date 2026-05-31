@@ -270,8 +270,9 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
 }
 
 void ImplicitRadiationMomentsPackage::update_implicit(
-    const StageData &stage_data, AthelasArray3D<double> ustar, const Mesh &mesh,
+    const StageData &stage_data, AthelasArray3D<double> ustar,
     const TimeStepInfo &dt_info) {
+  const auto &mesh = stage_data.mesh();
   using bc::BcType;
   using math::difference::finite_difference;
   using math::linalg::ThomasScratch, math::linalg::block_thomas_solve;
@@ -988,8 +989,8 @@ void ImplicitRadiationMomentsPackage::zero_delta() const noexcept {
  * @brief implicit radiation moments timestep restriction
  **/
 auto ImplicitRadiationMomentsPackage::min_timestep(
-    const StageData &stage_data, const Mesh &mesh,
-    const TimeStepInfo &dt_info) const -> double {
+    const StageData &stage_data, const TimeStepInfo &dt_info) const -> double {
+  const auto &mesh = stage_data.mesh();
   constexpr double MAX_DT = std::numeric_limits<double>::max();
   constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
   constexpr double EPS = 1.0e-10;
@@ -1051,8 +1052,8 @@ auto ImplicitRadiationMomentsPackage::min_timestep(
  * TODO(astrobarker): extend
  */
 void ImplicitRadiationMomentsPackage::fill_derived(
-    StageData &stage_data, const Mesh &mesh,
-    const TimeStepInfo & /*dt_info*/) const {
+    StageData &stage_data, const TimeStepInfo & /*dt_info*/) const {
+  const auto &mesh = stage_data.mesh();
   return;
   // NOTE: When we actually use this, remove the above.
   auto ucf = stage_data.get_field("u_cf");

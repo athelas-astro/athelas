@@ -26,7 +26,7 @@ class GravityPackage {
   GravityPackage(const ProblemIn *pin, const std::string &model, double gval,
                  double cfl, int n_stages, bool active = true);
 
-  void update_explicit(const StageData &stage_data, const Mesh &mesh,
+  void update_explicit(const StageData &stage_data,
                        const TimeStepInfo &dt_info) const;
 
   template <GravityModel Model>
@@ -38,8 +38,7 @@ class GravityPackage {
 
   void zero_delta() const noexcept;
 
-  [[nodiscard]] auto min_timestep(const StageData & /*state*/,
-                                  const Mesh & /*mesh*/,
+  [[nodiscard]] auto min_timestep(const StageData &stage_data,
                                   const TimeStepInfo & /*dt_info*/) const
       -> double;
 
@@ -47,8 +46,7 @@ class GravityPackage {
 
   [[nodiscard]] auto is_active() const noexcept -> bool;
 
-  void fill_derived(StageData &stage_data, const Mesh &mesh,
-                    const TimeStepInfo &dt_info) const;
+  void fill_derived(StageData &stage_data, const TimeStepInfo &dt_info) const;
 
   void set_active(bool active);
 

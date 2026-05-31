@@ -39,8 +39,8 @@ NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,
 }
 
 void NickelHeatingPackage::update_explicit(const StageData &stage_data,
-                                           const Mesh &mesh,
                                            const TimeStepInfo &dt_info) {
+  const auto &mesh = stage_data.mesh();
   auto *comps = stage_data.comps();
 
   if (model_ == NiHeatingModel::Jeffery) {
@@ -154,7 +154,6 @@ void NickelHeatingPackage::zero_delta() const noexcept {
  * lifetime / 10. I doubt that this will ever be needed.
  **/
 auto NickelHeatingPackage::min_timestep(const StageData & /*stage_data*/,
-                                        const Mesh & /*mesh*/,
                                         const TimeStepInfo & /*dt_info*/) const
     -> double {
   static constexpr double MAX_DT = TAU_NI_ / 10.0;
@@ -162,8 +161,9 @@ auto NickelHeatingPackage::min_timestep(const StageData & /*stage_data*/,
   return dt_out;
 }
 
-void NickelHeatingPackage::fill_derived(StageData &stage_data, const Mesh &mesh,
+void NickelHeatingPackage::fill_derived(StageData &stage_data,
                                         const TimeStepInfo &dt_info) const {
+  const auto &mesh = stage_data.mesh();
 
   if (model_ != NiHeatingModel::Jeffery) {
     return;

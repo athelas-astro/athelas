@@ -25,8 +25,8 @@ GeometryPackage::GeometryPackage(const ProblemIn *pin, const int n_stages,
 }
 
 void GeometryPackage::update_explicit(const StageData &stage_data,
-                                      const Mesh &mesh,
                                       const TimeStepInfo &dt_info) {
+  const auto &mesh = stage_data.mesh();
   static const int nNodes = mesh.n_nodes();
   static const IndexRange qb(nNodes);
   static const IndexRange ib(mesh.domain<Domain::Interior>());
@@ -123,7 +123,6 @@ void GeometryPackage::zero_delta() const noexcept {
  * We do not enforce a timestep restriction from geometry sources.
  **/
 auto GeometryPackage::min_timestep(const StageData & /*state*/,
-                                   const Mesh & /*mesh*/,
                                    const TimeStepInfo & /*dt_info*/) const
     -> double {
   static constexpr double MAX_DT = std::numeric_limits<double>::max();
@@ -135,7 +134,7 @@ auto GeometryPackage::min_timestep(const StageData & /*state*/,
  * @brief geometry package fill derived.
  * no-op at present
  */
-void GeometryPackage::fill_derived(StageData & /*state*/, const Mesh & /*mesh*/,
+void GeometryPackage::fill_derived(StageData & /*state*/,
                                    const TimeStepInfo & /*dt_info*/) const {}
 
 [[nodiscard]] auto GeometryPackage::name() const noexcept -> std::string_view {

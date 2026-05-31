@@ -61,13 +61,17 @@ auto StageData::mass_fractions(const std::string &name) const
 }
 
 [[nodiscard]] auto StageData::mesh() const -> const Mesh & {
-  return parent_->mesh();
+  if (stage_ == 0) {
+    return parent_->mesh();
+  }
+  return parent_->mesh_stage();
 }
 
 // --- MeshState ---
 
 MeshState::MeshState(const ProblemIn *const pin, const int nstages)
-    : mesh_(pin), params_(std::make_unique<Params>()), nstages_(nstages) {
+    : mesh_(pin), mesh_stage_(pin), params_(std::make_unique<Params>()),
+      nstages_(nstages) {
 
   const bool composition_enabled =
       pin->param()->get<bool>("physics.composition.enabled");
