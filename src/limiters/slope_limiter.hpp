@@ -165,8 +165,8 @@ class MomentLimiter : public SlopeLimiterBase<MomentLimiter> {
         m_tvb_(m_tvb), characteristic_(characteristic), tci_opt_(tci_opt),
         tci_val_(tci_val), vb_(vb),
         u_k_("modal coefficients", mesh->n_elements() + 2, order, nvars_),
-        u_k_unlimited_("unlimited modal coefficients",
-                       mesh->n_elements() + 2, order, nvars_),
+        u_k_unlimited_("unlimited modal coefficients", mesh->n_elements() + 2,
+                       order, nvars_),
         D_("TCI", mesh->n_elements() + 2),
         limited_cell_("LimitedCell", mesh->n_elements() + 2) {
 
