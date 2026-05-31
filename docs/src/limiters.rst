@@ -1,19 +1,3 @@
-.. [Shu1987] Shu, C.-W. (1987).
-   `TVB uniformly high-order schemes for conservation laws
-   <https://doi.org/10.1090/S0025-5718-1987-0890256-5>`__.
-   Mathematics of Computation, 49(179), 105-121.
-
-.. [CS1989] Cockburn, B., & Shu, C.-W. (1989).
-   `TVB Runge-Kutta local projection discontinuous Galerkin finite element
-   method for conservation laws II: General framework
-   <https://doi.org/10.1090/S0025-5718-1989-0983311-4>`__.
-   Mathematics of Computation, 52(186), 411-435.
-
-.. [Kri2007] Krivodonova, L. (2007).
-   `Limiters for high-order discontinuous Galerkin methods
-   <https://doi.org/10.1016/j.jcp.2007.05.011>`__.
-   Journal of Computational Physics, 226(1), 879-896.
-
 Slope Limiters
 ==============
 
@@ -37,7 +21,7 @@ Available limiters
 
 ``moment`` -- hierarchical moment limiter
    Limits from the highest mode downward and stops as soon as a mode is
-   left unchanged, so it leaves resolved smooth data alone while 
+   left unchanged, so it leaves resolved smooth data alone while
    still controlling oscillations at discontinuities.
 
 ``weno`` -- WENO
@@ -53,10 +37,12 @@ The TVD minmod limiter
 ----------------------
 
 The minmod limiter is the total-variation-diminishing slope limiter of the
-Runge-Kutta DG framework of Cockburn & Shu [CS1989]_, with the TVB
-relaxation of Shu [Shu1987]_. Writing the cell average as
-:math:`\bar{u}_i = u_i^{(0)}` and the slope coefficient as :math:`u_i^{(1)}`,
-the limited slope on a non-uniform mesh is
+Runge-Kutta DG framework of `Cockburn & Shu (1989)
+<https://doi.org/10.1090/S0025-5718-1989-0983311-4>`__, with the TVB
+relaxation of `Shu (1987)
+<https://doi.org/10.1090/S0025-5718-1987-0890256-5>`__. Writing the cell
+average as :math:`\bar{u}_i = u_i^{(0)}` and the slope coefficient as
+:math:`u_i^{(1)}`, the limited slope on a non-uniform mesh is
 
 .. math::
 
@@ -97,9 +83,10 @@ Lagrangian mesh, where neighboring zones generally do not have equal widths.
 The hierarchical moment limiter
 -------------------------------
 
-The moment limiter follows Krivodonova [Kri2007]_. Writing the solution on a
-cell as an expansion in Legendre modes :math:`u_i = \sum_k u_i^{(k)} P_k`, it
-limits the coefficients from the highest mode down to the slope :math:`k = 1`,
+The moment limiter follows `Krivodonova (2007)
+<https://doi.org/10.1016/j.jcp.2007.05.011>`__. Writing the solution on a cell
+as an expansion in Legendre modes :math:`u_i = \sum_k u_i^{(k)} P_k`, it limits
+the coefficients from the highest mode down to the slope :math:`k = 1`,
 comparing mode :math:`k` against the differences of the *next-lower* mode in
 the neighboring cells:
 
