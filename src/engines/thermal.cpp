@@ -131,8 +131,8 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
 }
 
 void ThermalEnginePackage::update_explicit(const StageData &stage_data,
-                                           const Mesh &mesh,
                                            const TimeStepInfo &dt_info) {
+  const auto &mesh = stage_data.mesh();
   const auto time = dt_info.t;
   const auto &basis = stage_data.fluid_basis();
   static const auto &nnodes = mesh.n_nodes();
@@ -213,7 +213,6 @@ void ThermalEnginePackage::zero_delta() const noexcept {
  * The actual heating restriction is prohibitively expensive.
  **/
 auto ThermalEnginePackage::min_timestep(const StageData & /*stage_data*/,
-                                        const Mesh & /*mesh*/,
                                         const TimeStepInfo & /*dt_info*/) const
     -> double {
   static constexpr double inv_n_steps = 1.0 / 5000.0;
@@ -224,8 +223,8 @@ auto ThermalEnginePackage::min_timestep(const StageData & /*stage_data*/,
  * @brief ThermalEngine fill derived
  * No-op.
  */
-void ThermalEnginePackage::fill_derived(StageData &stage_data, const Mesh &mesh,
-                                        const TimeStepInfo &dt_info) const {}
+void ThermalEnginePackage::fill_derived(
+    StageData & /*stage_data*/, const TimeStepInfo & /*dt_info*/) const {}
 
 [[nodiscard]] KOKKOS_FUNCTION auto ThermalEnginePackage::name() const noexcept
     -> std::string_view {

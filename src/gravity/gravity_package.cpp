@@ -37,8 +37,8 @@ GravityPackage::GravityPackage(const ProblemIn *pin, const std::string &model,
 }
 
 void GravityPackage::update_explicit(const StageData &stage_data,
-                                     const Mesh &mesh,
                                      const TimeStepInfo &dt_info) const {
+  const auto &mesh = stage_data.mesh();
   const auto stage = dt_info.stage;
   auto ucf = stage_data.get_field("u_cf");
 
@@ -132,10 +132,10 @@ void GravityPackage::zero_delta() const noexcept {
  * @brief Gravitational timestep restriction
  **/
 KOKKOS_FUNCTION
-auto GravityPackage::min_timestep(const StageData & /*stage_data*/,
-                                  const Mesh &mesh,
+auto GravityPackage::min_timestep(const StageData &stage_data,
                                   const TimeStepInfo & /*dt_info*/) const
     -> double {
+  const auto &mesh = stage_data.mesh();
   // static constexpr double MAX_DT = std::numeric_limits<double>::max() /
   // 100.0; static constexpr double dt_out = MAX_DT; return dt_out;
   static constexpr double MAX_DT = std::numeric_limits<double>::max();
@@ -165,7 +165,6 @@ auto GravityPackage::min_timestep(const StageData & /*stage_data*/,
 }
 
 void GravityPackage::fill_derived(StageData & /*stage_data*/,
-                                  const Mesh & /*mesh*/,
                                   const TimeStepInfo & /*dt_info*/) const {}
 
 [[nodiscard]] KOKKOS_FUNCTION auto GravityPackage::name() const noexcept

@@ -169,8 +169,8 @@ RadHydroPackage::RadHydroPackage(const ProblemIn *pin, int n_stages, int nq,
       delta_im_("radhydro delta implicit", n_stages, nx + 2, nq, 4) {}
 
 void RadHydroPackage::update_explicit(const StageData &stage_data,
-                                      const Mesh &mesh,
                                       const TimeStepInfo &dt_info) const {
+  const auto &mesh = stage_data.mesh();
   // TODO(astrobarker) handle separate fluid and rad orders
   const auto &basis = stage_data.fluid_basis();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
@@ -201,8 +201,8 @@ void RadHydroPackage::update_explicit(const StageData &stage_data,
 
 void RadHydroPackage::update_implicit(const StageData &stage_data,
                                       AthelasArray3D<double> R,
-                                      const Mesh &mesh,
                                       const TimeStepInfo &dt_info) {
+  const auto &mesh = stage_data.mesh();
   // compute radiation-matter coupling sources implicitly with Newton-Raphson.
   radiation_source_implicit(stage_data, R, delta_im_, mesh, dt_info);
 }
@@ -447,10 +447,10 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
 /**
  * @brief explicit radiation hydrodynamic timestep restriction
  **/
-auto RadHydroPackage::min_timestep(const StageData & /*stage_data*/,
-                                   const Mesh &mesh,
+auto RadHydroPackage::min_timestep(const StageData &stage_data,
                                    const TimeStepInfo & /*dt_info*/) const
     -> double {
+  const auto &mesh = stage_data.mesh();
   static constexpr double MAX_DT = std::numeric_limits<double>::max();
   static constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
 
@@ -484,8 +484,9 @@ auto RadHydroPackage::min_timestep(const StageData & /*stage_data*/,
  * It would be nice to write an inner, templated on IonzationPhysics
  * function that deals with this. Has less duplicated code.
  */
-void RadHydroPackage::fill_derived(StageData &stage_data, const Mesh &mesh,
+void RadHydroPackage::fill_derived(StageData &stage_data,
                                    const TimeStepInfo &dt_info) const {
+  const auto &mesh = stage_data.mesh();
   auto uCF = stage_data.get_field("u_cf");
   auto uPF = stage_data.get_field("u_pf");
   auto uAF = stage_data.get_field("u_af");

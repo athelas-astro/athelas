@@ -41,7 +41,7 @@ class NickelHeatingPackage {
   NickelHeatingPackage(const ProblemIn *pin, const Params *indexer,
                        int n_stages, int nq, bool active = true);
 
-  void update_explicit(const StageData &stage_data, const Mesh &mesh,
+  void update_explicit(const StageData &stage_data,
                        const TimeStepInfo &dt_info);
 
   template <NiHeatingModel Model>
@@ -108,7 +108,6 @@ class NickelHeatingPackage {
   }
 
   [[nodiscard]] auto min_timestep(const StageData & /*stage_data*/,
-                                  const Mesh & /*mesh*/,
                                   const TimeStepInfo & /*dt_info*/) const
       -> double;
 
@@ -116,8 +115,7 @@ class NickelHeatingPackage {
 
   [[nodiscard]] auto is_active() const noexcept -> bool;
 
-  void fill_derived(StageData &stage_data, const Mesh &mesh,
-                    const TimeStepInfo &dt_info) const;
+  void fill_derived(StageData &stage_data, const TimeStepInfo &dt_info) const;
 
   void set_active(bool active);
 

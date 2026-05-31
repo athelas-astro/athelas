@@ -22,10 +22,10 @@ class RadHydroPackage {
                   BoundaryConditions *bcs, double cfl, int nx,
                   bool active = true);
 
-  void update_explicit(const StageData &stage_data, const Mesh &mesh,
+  void update_explicit(const StageData &stage_data,
                        const TimeStepInfo &dt_info) const;
   void update_implicit(const StageData &stage_data, AthelasArray3D<double> R,
-                       const Mesh &mesh, const TimeStepInfo &dt_info);
+                       const TimeStepInfo &dt_info);
 
   void apply_delta(AthelasArray3D<double> lhs,
                    const TimeStepInfo &dt_info) const;
@@ -35,8 +35,7 @@ class RadHydroPackage {
   void radhydro_divergence(const StageData &stage_data, const Mesh &mesh,
                            int stage) const;
 
-  [[nodiscard]] auto min_timestep(const StageData & /*stage_data*/,
-                                  const Mesh &mesh,
+  [[nodiscard]] auto min_timestep(const StageData &stage_data,
                                   const TimeStepInfo & /*dt_info*/) const
       -> double;
 
@@ -44,8 +43,7 @@ class RadHydroPackage {
 
   [[nodiscard]] auto is_active() const noexcept -> bool;
 
-  void fill_derived(StageData &stage_data, const Mesh &mesh,
-                    const TimeStepInfo &dt_info) const;
+  void fill_derived(StageData &stage_data, const TimeStepInfo &dt_info) const;
 
   void set_active(bool active);
 

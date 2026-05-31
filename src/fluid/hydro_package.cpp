@@ -28,8 +28,8 @@ HydroPackage::HydroPackage(const ProblemIn * /*pin*/, int n_stages, int order,
       delta_("hydro :: delta", n_stages, nx_ + 2, order, 3) {}
 
 void HydroPackage::update_explicit(const StageData &stage_data,
-                                   const Mesh &mesh,
                                    const TimeStepInfo &dt_info) const {
+  const auto &mesh = stage_data.mesh();
   const int stage = dt_info.stage;
   auto ucf = stage_data.get_field("u_cf");
 
@@ -215,8 +215,9 @@ void HydroPackage::zero_delta() const noexcept {
 /**
  * @brief explicit hydrodynamic timestep restriction
  **/
-auto HydroPackage::min_timestep(const StageData &stage_data, const Mesh &mesh,
+auto HydroPackage::min_timestep(const StageData &stage_data,
                                 const TimeStepInfo &dt_info) const -> double {
+  const auto &mesh = stage_data.mesh();
   static constexpr double MAX_DT = std::numeric_limits<double>::max();
   static constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
 
@@ -255,8 +256,9 @@ auto HydroPackage::min_timestep(const StageData &stage_data, const Mesh &mesh,
  * It would be nice to write an inner, templated on IonzationPhysics
  * function that deals with this. Has less duplicated code.
  */
-void HydroPackage::fill_derived(StageData &stage_data, const Mesh &mesh,
+void HydroPackage::fill_derived(StageData &stage_data,
                                 const TimeStepInfo & /*dt_info*/) const {
+  const auto &mesh = stage_data.mesh();
   using eos::EOSLambda;
 
   auto ucf = stage_data.get_field("u_cf");

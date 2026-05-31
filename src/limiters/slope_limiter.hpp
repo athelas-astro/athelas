@@ -24,6 +24,7 @@
 #include <variant>
 
 #include "eos/eos_variant.hpp"
+#include "interface/state.hpp"
 #include "limiters/slope_limiter_base.hpp"
 
 namespace athelas {
@@ -165,13 +166,16 @@ class Unlimited : public SlopeLimiterBase<Unlimited> {
 using SlopeLimiter = std::variant<WENO, TVDMinmod, Unlimited>;
 
 // std::visit functions
+// The mesh for the limiter is taken from the stage data (canonical mesh for
+// stage 0, the active stage's work buffer otherwise). The basis is passed
+// explicitly since the caller selects fluid vs. radiation.
 inline void apply_slope_limiter(SlopeLimiter *limiter, AthelasArray3D<double> U,
-                                const Mesh &mesh,
+                                const StageData &stage_data,
                                 const basis::NodalBasis &basis,
                                 const eos::EOS &eos) {
   std::visit(
-      [&U, &mesh, &basis, &eos](auto &limiter) {
-        limiter.apply_slope_limiter(U, mesh, basis, eos);
+      [&U, &stage_data, &basis, &eos](auto &limiter) {
+        limiter.apply_slope_limiter(U, stage_data.mesh(), basis, eos);
       },
       *limiter);
 }

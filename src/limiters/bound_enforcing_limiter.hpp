@@ -10,8 +10,8 @@ template <IonizationPhysics Ionization>
 void limit_internal_energy(StageData &stage_data, const Mesh &mesh);
 void limit_rad_energy(StageData &stage_data, const Mesh &mesh);
 void limit_rad_momentum(StageData &stage_data, const Mesh &mesh);
-void apply_bound_enforcing_limiter(StageData &stage_data, const Mesh &mesh);
-void apply_bound_enforcing_limiter_rad(StageData &stage_data, const Mesh &mesh);
+void apply_bound_enforcing_limiter(StageData &stage_data);
+void apply_bound_enforcing_limiter_rad(StageData &stage_data);
 auto compute_theta_state(AthelasArray3D<double> U, AthelasArray3D<double>,
                          double theta, int q, int ix, int iN) -> double;
 auto target_func(double theta, double min_e, AthelasArray3D<double> U,

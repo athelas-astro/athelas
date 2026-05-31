@@ -37,13 +37,12 @@ class Driver {
         bcs_(std::make_unique<BoundaryConditions>(
             bc::make_boundary_conditions(pin.get()))),
         time_(0.0), dt_(pin_->param()->get<double>("output.dt_init")),
-        t_end_(pin->param()->get<double>("problem.tf")),
-        mesh_state_(pin.get(), TimeStepper::compute_n_stages(pin.get())),
+        t_end_(pin->param()->get<double>("problem.tf")), ssprk_(pin.get()),
+        mesh_state_(pin.get(), ssprk_.n_stages()),
         sl_hydro_(initialize_slope_limiter("fluid", &mesh_state_.mesh(),
                                            pin.get(), {0, 2})),
         sl_rad_(initialize_slope_limiter("radiation", &mesh_state_.mesh(),
                                          pin.get(), {3, 4})), // update
-        ssprk_(pin.get(), &mesh_state_.mesh()),
         history_(std::make_unique<HistoryOutput>(
             pin->param()->get<std::string>("output.hist_fn"),
             pin->param()->get<std::string>("output.dir"),
@@ -77,17 +76,17 @@ class Driver {
   double dt_;
   double t_end_;
 
+  // timesteppers
+  TimeStepper ssprk_;
+  std::unique_ptr<OperatorSplitStepper> split_stepper_;
+  bool operator_split_physics_ = false;
+
   // core simulation state (owns the mesh)
   MeshState mesh_state_;
 
   // slope limiters
   SlopeLimiter sl_hydro_;
   SlopeLimiter sl_rad_;
-
-  // timesteppers
-  TimeStepper ssprk_;
-  std::unique_ptr<OperatorSplitStepper> split_stepper_;
-  bool operator_split_physics_ = false;
 
   // history
   std::unique_ptr<HistoryOutput> history_;

@@ -214,7 +214,8 @@ void limit_internal_energy(StageData &stage_data, const Mesh &mesh) {
  * @param stage_data The stage data containing solution arrays
  * @param mesh The mesh structure with geometric information
  */
-void apply_bound_enforcing_limiter(StageData &stage_data, const Mesh &mesh) {
+void apply_bound_enforcing_limiter(StageData &stage_data) {
+  const auto &mesh = stage_data.mesh();
   if (stage_data.fluid_basis().order() > 1) {
     limit_density(stage_data, mesh);
     if (stage_data.enabled("ionization")) {
@@ -231,8 +232,8 @@ void apply_bound_enforcing_limiter(StageData &stage_data, const Mesh &mesh) {
  * @param stage_data The stage data containing solution arrays
  * @param mesh The mesh structure with geometric information
  */
-void apply_bound_enforcing_limiter_rad(StageData &stage_data,
-                                       const Mesh &mesh) {
+void apply_bound_enforcing_limiter_rad(StageData &stage_data) {
+  const auto &mesh = stage_data.mesh();
   if (stage_data.rad_basis().order() == 1) {
     return;
   }

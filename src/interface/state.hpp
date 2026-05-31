@@ -124,7 +124,8 @@ class StageData {
   [[nodiscard]] auto fluid_basis() const -> const basis::NodalBasis &;
   [[nodiscard]] auto rad_basis() const -> const basis::NodalBasis &;
 
-  // Shared mesh, forwarded from the parent MeshState (one mesh, two paths).
+  // Mesh for this RK stage. Stage 0 is the canonical mesh; later
+  // stages get a work buffer. See MeshState::mesh()/mesh_stage().
   [[nodiscard]] auto mesh() const -> const Mesh &;
 
  private:
@@ -204,8 +205,19 @@ class MeshState {
   [[nodiscard]] auto rad_basis() const -> const basis::NodalBasis &;
 
   [[nodiscard]] auto params() noexcept -> Params * { return params_.get(); }
+
+  // Canonical (between-step / stage-0) mesh, holding x_l^n.
   [[nodiscard]] auto mesh() noexcept -> Mesh & { return mesh_; }
   [[nodiscard]] auto mesh() const noexcept -> const Mesh & { return mesh_; }
+
+  // Single work buffer for the currently-active RK stage (stage >= 1). The
+  // timestepper rebuilds it from the canonical mesh each stage; a stage mesh is
+  // fully determined by the canonical mesh plus that stage's interface
+  // positions, so one buffer suffices.
+  [[nodiscard]] auto mesh_stage() noexcept -> Mesh & { return mesh_stage_; }
+  [[nodiscard]] auto mesh_stage() const noexcept -> const Mesh & {
+    return mesh_stage_;
+  }
 
   template <typename T>
   [[nodiscard]] auto get_field(const std::string &name) const -> T {
@@ -355,7 +367,8 @@ class MeshState {
     return T(name, dims...);
   }
 
-  Mesh mesh_;
+  Mesh mesh_; // canonical mesh == stage 0
+  Mesh mesh_stage_; // work buffer for the active stage (>= 1)
   std::unique_ptr<Params> params_;
   std::unordered_map<std::string, FieldMetadata> metadata_;
 

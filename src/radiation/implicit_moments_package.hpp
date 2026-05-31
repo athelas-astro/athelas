@@ -79,7 +79,7 @@ class ImplicitRadiationMomentsPackage {
                                   bool active = true);
 
   void update_implicit(const StageData &stage_data,
-                       AthelasArray3D<double> ustar, const Mesh &mesh,
+                       AthelasArray3D<double> ustar,
                        const TimeStepInfo &dt_info);
 
   // Compute the implicit-transport residual b_out = -R(U), where
@@ -97,8 +97,7 @@ class ImplicitRadiationMomentsPackage {
 
   void zero_delta() const noexcept;
 
-  [[nodiscard]] auto min_timestep(const StageData & /*stage_data*/,
-                                  const Mesh &mesh,
+  [[nodiscard]] auto min_timestep(const StageData &stage_data,
                                   const TimeStepInfo & /*dt_info*/) const
       -> double;
 
@@ -106,8 +105,7 @@ class ImplicitRadiationMomentsPackage {
 
   [[nodiscard]] auto is_active() const noexcept -> bool;
 
-  void fill_derived(StageData &stage_data, const Mesh &mesh,
-                    const TimeStepInfo &dt_info) const;
+  void fill_derived(StageData &stage_data, const TimeStepInfo &dt_info) const;
 
   void set_active(bool active);
 

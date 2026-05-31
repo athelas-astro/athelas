@@ -2,7 +2,6 @@
 
 namespace athelas {
 
-class Mesh;
 class MeshState;
 class PackageManager;
 struct TimeStepInfo;
@@ -20,7 +19,7 @@ class OperatorSplitStepper {
   OperatorSplitStepper() = default;
 
   static void step(PackageManager *pkgs, MeshState &mesh_state,
-                   const Mesh &mesh, TimeStepInfo &dt_info);
+                   TimeStepInfo &dt_info);
 };
 
 } // namespace athelas

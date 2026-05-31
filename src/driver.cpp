@@ -61,7 +61,7 @@ auto Driver::execute() -> int {
 
   // some startup io
   auto sd0 = mesh_state_(0);
-  manager_->fill_derived(sd0, mesh_state_.mesh(), dt_info);
+  manager_->fill_derived(sd0, dt_info);
   print_simulation_parameters(mesh_state_.mesh(), pin_.get());
   // Initial dump has file index 0 and is followed by initial history entry
   // 0 on the next line, so all "last_*" counters land at 0 here — restart
@@ -93,9 +93,8 @@ auto Driver::execute() -> int {
     dt_info.cycle = cycle;
 
     if (!fixed_dt) {
-      dt_ = std::min(
-          manager_->min_timestep(mesh_state_(0), mesh_state_.mesh(), dt_info),
-          dt_ * dt_growth_frac);
+      dt_ = std::min(manager_->min_timestep(mesh_state_(0), dt_info),
+                     dt_ * dt_growth_frac);
     } else {
       dt_ = pin_->param()->get<double>("output.dt_fixed");
     }
@@ -110,12 +109,11 @@ auto Driver::execute() -> int {
 
     // This logic could probably be cleaner..
     if (!rad_active) {
-      ssprk_.step(manager_.get(), mesh_state_, mesh_state_.mesh(), dt_info,
-                  &sl_hydro_);
+      ssprk_.step(manager_.get(), mesh_state_, dt_info, &sl_hydro_);
     } else {
       try {
-        ssprk_.step_imex(manager_.get(), mesh_state_, mesh_state_.mesh(),
-                         dt_info, &sl_hydro_, &sl_rad_);
+        ssprk_.step_imex(manager_.get(), mesh_state_, dt_info, &sl_hydro_,
+                         &sl_rad_);
       } catch (const AthelasError &e) {
         std::cerr << e.what() << "\n";
         return AthelasExitCodes::FAILURE;
@@ -133,8 +131,7 @@ auto Driver::execute() -> int {
       dt_info.dt_coef_implicit = dt_;
       dt_info.dt_coef = dt_;
       dt_info.stage = 0;
-      split_stepper_->step(split_manager_.get(), mesh_state_,
-                           mesh_state_.mesh(), dt_info);
+      split_stepper_->step(split_manager_.get(), mesh_state_, dt_info);
     }
 
     time_ += dt_;
@@ -147,7 +144,7 @@ auto Driver::execute() -> int {
 
     // Write state, other io
     if (time_ >= i_out_h5 * dt_hdf5) {
-      manager_->fill_derived(sd0, mesh_state_.mesh(), dt_info);
+      manager_->fill_derived(sd0, dt_info);
       // History is checked AFTER the HDF5 dump, so i_out_hist here is still
       // the pre-history-fire value. Record the index of the most-recently-
       // written history entry so restart's "next = recorded + 1" rule works
@@ -186,7 +183,7 @@ auto Driver::execute() -> int {
     ++cycle;
   }
 
-  manager_->fill_derived(sd0, mesh_state_.mesh(), dt_info);
+  manager_->fill_derived(sd0, dt_info);
   // Loop variables are post-increment here ("next-pending"). Normalize to the
   // "last completed" SimInfo convention so restart-from-_final (with extended
   // tf or nlim) doesn't skip a cycle / HDF5 / history index.
@@ -444,9 +441,8 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
       bc::fill_ghost_zones<2>(ucf, &mesh_state_.mesh(), bcs_.get(), {3, 4});
     }
     auto cons = sd0.get_field("u_cf");
-    apply_slope_limiter(&sl_hydro_, cons, mesh_state_.mesh(), sd0.fluid_basis(),
-                        sd0.eos());
-    bel::apply_bound_enforcing_limiter(sd0, mesh_state_.mesh());
+    apply_slope_limiter(&sl_hydro_, cons, sd0, sd0.fluid_basis(), sd0.eos());
+    bel::apply_bound_enforcing_limiter(sd0);
   }
 
   // --- Add history outputs ---
