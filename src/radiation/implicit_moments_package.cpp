@@ -91,16 +91,22 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
   const int nNodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
 
-  static const int idx_tau = stage_data.var_index("u_cf", "tau");
-  static const int idx_vel = stage_data.var_index("u_cf", "vel");
-  static const int idx_ener = stage_data.var_index("u_cf", "fluid_energy");
-  static const int idx_er = stage_data.var_index("u_cf", "rad_energy");
-  static const int idx_fr = stage_data.var_index("u_cf", "rad_momentum");
-  static const int idx_vstar = stage_data.var_index("facedata", "vstar");
+  static const int idx_tau = stage_data.var_index("evolved", "specific_volume");
+  static const int idx_vel = stage_data.var_index("evolved", "velocity");
+  static const int idx_ener =
+      stage_data.var_index("evolved", "specific_total_fluid_energy");
+  static const int idx_er =
+      stage_data.var_index("evolved", "specific_radiation_energy");
+  static const int idx_fr =
+      stage_data.var_index("evolved", "specific_radiation_flux");
+  static const int idx_vstar =
+      stage_data.var_index("interface", "interface_velocity");
+  static const int idx_tgas =
+      stage_data.var_index("derived", "gas_temperature");
 
-  auto ucf = stage_data.get_field("u_cf");
-  auto uaf = stage_data.get_field("u_af");
-  auto facedata = stage_data.get_field<AthelasArray2D<double>>("facedata");
+  auto evolved = stage_data.get_field("evolved");
+  auto derived = stage_data.get_field("derived");
+  auto interface = stage_data.get_field<AthelasArray2D<double>>("interface");
   const auto &eos = stage_data.eos();
   const auto &opac = stage_data.opac();
 
@@ -163,7 +169,7 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
       DevExecSpace(), ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
         const double rho_L = 1.0 / faces_.u_f_l(i, 0);
         const double rho_R = 1.0 / faces_.u_f_r(i, 0);
-        const double vstar = facedata(i, idx_vstar);
+        const double vstar = interface(i, idx_vstar);
 
         const double E_L = faces_.u_f_l(i, 1) * rho_L;
         const double E_R = faces_.u_f_r(i, 1) * rho_R;
@@ -193,7 +199,7 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
       DEFAULT_LOOP_PATTERN, "ImplicitMoments :: residual :: assemble",
       DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
         const int blk = i - ib.s;
-        const double vstar = facedata(i, idx_vstar);
+        const double vstar = interface(i, idx_vstar);
 
         for (int q = 0; q < nNodes; ++q) {
           // Surface contribution.
@@ -208,7 +214,7 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
 
           // Volume contribution.
           for (int p = 0; p < nNodes; ++p) {
-            const double rho = 1.0 / ucf(i, p, idx_tau);
+            const double rho = 1.0 / evolved(i, p, idx_tau);
             const double e_rad = U(i, p, idx_er) * rho;
             const double f_rad = U(i, p, idx_fr) * rho;
             const double p_rad = compute_closure(e_rad, f_rad);
@@ -232,12 +238,12 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
             lambda.data[4] = sigma2(i, q + 1);
             lambda.data[5] = sigma3(i, q + 1);
             lambda.data[6] = e_ion_corr(i, q + 1);
-            lambda.data[7] = uaf(i, q + 1, vars::aux::Tgas);
+            lambda.data[7] = derived(i, q + 1, idx_tgas);
             X = bulk(i, q + 1, 0);
             Z = bulk(i, q + 1, 2);
           }
           const RadSourceInputs src_in{
-              .rho = 1.0 / ucf(i, q, idx_tau),
+              .rho = 1.0 / evolved(i, q, idx_tau),
               .e = U(i, q, idx_ener),
               .v = U(i, q, idx_vel),
               .erad = U(i, q, idx_er),
@@ -283,16 +289,22 @@ void ImplicitRadiationMomentsPackage::update_implicit(
   static const IndexRange ib(mesh.domain<Domain::Interior>());
   static const IndexRange qb(nNodes);
 
-  auto ucf = stage_data.get_field("u_cf");
-  auto uaf = stage_data.get_field("u_af");
-  auto facedata = stage_data.get_field<AthelasArray2D<double>>("facedata");
+  auto evolved = stage_data.get_field("evolved");
+  auto derived = stage_data.get_field("derived");
+  auto interface = stage_data.get_field<AthelasArray2D<double>>("interface");
 
-  static const int idx_tau = stage_data.var_index("u_cf", "tau");
-  static const int idx_vel = stage_data.var_index("u_cf", "vel");
-  static const int idx_ener = stage_data.var_index("u_cf", "fluid_energy");
-  static const int idx_er = stage_data.var_index("u_cf", "rad_energy");
-  static const int idx_fr = stage_data.var_index("u_cf", "rad_momentum");
-  static const int idx_vstar = stage_data.var_index("facedata", "vstar");
+  static const int idx_tau = stage_data.var_index("evolved", "specific_volume");
+  static const int idx_vel = stage_data.var_index("evolved", "velocity");
+  static const int idx_ener =
+      stage_data.var_index("evolved", "specific_total_fluid_energy");
+  static const int idx_er =
+      stage_data.var_index("evolved", "specific_radiation_energy");
+  static const int idx_fr =
+      stage_data.var_index("evolved", "specific_radiation_flux");
+  static const int idx_vstar =
+      stage_data.var_index("interface", "interface_velocity");
+  static const int idx_tgas =
+      stage_data.var_index("derived", "gas_temperature");
 
   const double dt_aii = dt_info.dt_coef;
 
@@ -361,8 +373,8 @@ void ImplicitRadiationMomentsPackage::update_implicit(
   constexpr double c = constants::c_cgs;
   constexpr double c2 = c * c;
 
-  bc::fill_ghost_zones<2>(ucf, &mesh, bcs_, {3, 4});
-  bc::fill_ghost_zones<3>(ucf, &mesh, bcs_, {0, 2});
+  bc::fill_ghost_zones<2>(evolved, &mesh, bcs_, {3, 4});
+  bc::fill_ghost_zones<3>(evolved, &mesh, bcs_, {0, 2});
   bc::fill_ghost_zones<2>(ustar, &mesh, bcs_, {3, 4});
   bc::fill_ghost_zones<3>(ustar, &mesh, bcs_, {0, 2});
 
@@ -404,7 +416,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
           // States at the interface i+1/2 (L is i, R is i+1)
           const double rho_L = 1.0 / faces_.u_f_l(i, 0);
           const double rho_R = 1.0 / faces_.u_f_r(i, 0);
-          const double vstar = facedata(i, idx_vstar);
+          const double vstar = interface(i, idx_vstar);
 
           // Radiation specific variables
           const double E_L = faces_.u_f_l(i, 1) * rho_L;
@@ -463,12 +475,12 @@ void ImplicitRadiationMomentsPackage::update_implicit(
               lambda.data[4] = sigma2(i, q + 1);
               lambda.data[5] = sigma3(i, q + 1);
               lambda.data[6] = e_ion_corr(i, q + 1);
-              lambda.data[7] = uaf(i, q + 1, vars::aux::Tgas);
+              lambda.data[7] = derived(i, q + 1, idx_tgas);
               X = bulk(i, q + 1, 0);
               Z = bulk(i, q + 1, 2);
             }
             const RadSourceInputs src_in{
-                .rho = 1.0 / ucf(i, q, idx_tau),
+                .rho = 1.0 / evolved(i, q, idx_tau),
                 .e = newton_.u_rad_work(i, q, idx_ener),
                 .v = newton_.u_rad_work(i, q, idx_vel),
                 .erad = newton_.u_rad_work(i, q, idx_er),
@@ -521,12 +533,12 @@ void ImplicitRadiationMomentsPackage::update_implicit(
           // Volume term - diagonal block
           // K_vol[q*2+v, p*2+w] = [D^T W]_{qp} * J_vol[v,w](x_p)
           // J_vol = rho[[-v, 1], [s^2, -v]] with s^2 = c^2 * chi
-          const double vstar = facedata(i, idx_vstar);
+          const double vstar = interface(i, idx_vstar);
           for (int q = 0; q < nNodes; ++q) {
             for (int v = 0; v < 2; ++v) {
               const int row = idx(q, v);
               for (int p = 0; p < nNodes; ++p) {
-                const double rhop = 1.0 / ucf(i, p, idx_tau);
+                const double rhop = 1.0 / evolved(i, p, idx_tau);
                 const double f = flux_factor(newton_.u_rad_work(i, p, idx_er),
                                              newton_.u_rad_work(i, p, idx_fr));
                 const double chi = eddington_factor(f);
@@ -612,8 +624,8 @@ void ImplicitRadiationMomentsPackage::update_implicit(
         DEFAULT_LOOP_PATTERN,
         "ImplicitMoments :: Assemble solver_mat :: boundaries", DevExecSpace(),
         0, 0, KOKKOS_CLASS_LAMBDA(const int) {
-          const double vstar_i = facedata(i_inner_face, idx_vstar);
-          const double vstar_o = facedata(i_outer_face, idx_vstar);
+          const double vstar_i = interface(i_inner_face, idx_vstar);
+          const double vstar_o = interface(i_outer_face, idx_vstar);
           const double rho_i = 1.0 / faces_.u_f_r(i_inner_face, 0);
           const double rho_o = 1.0 / faces_.u_f_l(i_outer_face, 0);
           const double gL_i = sqrt_gm(i_inner_cell, 0);
@@ -809,7 +821,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
             const double eg = newton_.u_rad_trial(i, q, idx_ener);
             const double vg = newton_.u_rad_trial(i, q, idx_vel);
             const double sie = eg - 0.5 * vg * vg;
-            const double rho = 1.0 / ucf(i, q, idx_tau);
+            const double rho = 1.0 / evolved(i, q, idx_tau);
             eos::EOSLambda lam_eos;
             if (ionization_enabled) {
               lam_eos.data[0] = number_density(i, q + 1);
@@ -819,7 +831,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
               lam_eos.data[4] = sigma2(i, q + 1);
               lam_eos.data[5] = sigma3(i, q + 1);
               lam_eos.data[6] = e_ion_corr(i, q + 1);
-              lam_eos.data[7] = uaf(i, q + 1, vars::aux::Tgas);
+              lam_eos.data[7] = derived(i, q + 1, idx_tgas);
             }
             const double emin =
                 ionization_enabled
@@ -995,9 +1007,11 @@ auto ImplicitRadiationMomentsPackage::min_timestep(
   constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
   constexpr double EPS = 1.0e-10;
 
-  auto ucf = stage_data.get_field("u_cf");
-  static const int idx_er = stage_data.var_index("u_cf", "rad_energy");
-  static const int idx_fr = stage_data.var_index("u_cf", "rad_momentum");
+  auto evolved = stage_data.get_field("evolved");
+  static const int idx_er =
+      stage_data.var_index("evolved", "specific_radiation_energy");
+  static const int idx_fr =
+      stage_data.var_index("evolved", "specific_radiation_flux");
 
   static const IndexRange ib(mesh.domain<Domain::Interior>());
   static const IndexRange qb(mesh.n_nodes());
@@ -1017,10 +1031,10 @@ auto ImplicitRadiationMomentsPackage::min_timestep(
         const double e_old = dt_cache_.e_rad_old(i, q);
         const double flux_old = dt_cache_.f_rad_old(i, q);
         const double f =
-            flux_factor(ucf(i, q, idx_er) + EPS, ucf(i, q, idx_fr));
+            flux_factor(evolved(i, q, idx_er) + EPS, evolved(i, q, idx_fr));
         const double f_old = flux_factor(e_old + EPS, flux_old);
         const double dt_e = dt_old * max_frac_change_e * (e_old + EPS) /
-                            (std::abs(ucf(i, q, idx_er) - e_old) + EPS);
+                            (std::abs(evolved(i, q, idx_er) - e_old) + EPS);
         const double dt_f = dt_old * max_change_f / (std::abs(f - f_old) + EPS);
         lmin = std::min({dt_e, dt_f, lmin});
       },
@@ -1035,8 +1049,8 @@ auto ImplicitRadiationMomentsPackage::min_timestep(
       DEFAULT_FLAT_LOOP_PATTERN, "ImplicitMoments :: cache old radiation vars",
       DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
       KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-        dt_cache_.e_rad_old(i, q) = ucf(i, q, idx_er);
-        dt_cache_.f_rad_old(i, q) = ucf(i, q, idx_fr);
+        dt_cache_.e_rad_old(i, q) = evolved(i, q, idx_er);
+        dt_cache_.f_rad_old(i, q) = evolved(i, q, idx_fr);
       });
 
   if (dt_info.cycle == 1) {
@@ -1056,9 +1070,8 @@ void ImplicitRadiationMomentsPackage::fill_derived(
   const auto &mesh = stage_data.mesh();
   return;
   // NOTE: When we actually use this, remove the above.
-  auto ucf = stage_data.get_field("u_cf");
-  auto upf = stage_data.get_field("u_pf");
-  auto uaf = stage_data.get_field("u_af");
+  auto evolved = stage_data.get_field("evolved");
+  auto derived = stage_data.get_field("derived");
 
   const auto &fluid_basis = stage_data.fluid_basis();
 
@@ -1068,19 +1081,19 @@ void ImplicitRadiationMomentsPackage::fill_derived(
   auto phi = fluid_basis.phi();
 
   // --- Apply BC ---
-  bc::fill_ghost_zones<2>(ucf, &mesh, bcs_, {3, 4});
+  bc::fill_ghost_zones<2>(evolved, &mesh, bcs_, {3, 4});
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "ImplicitMoments :: fill derived",
       DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
         for (int q = 0; q < nNodes + 2; ++q) {
           // const double rho =
-          //     1.0 / basis_eval(phi, ucf, i, vars::cons::SpecificVolume, q);
+          //     1.0 / basis_eval(phi, evolved, i, idx_tau, q);
 
           // const double e_rad =
-          //     basis_eval(phi, ucf, i, vars::cons::RadEnergy, q) * rho;
+          //     basis_eval(phi, evolved, i, idx_rad_energy, q) * rho;
           // const double flux_rad =
-          //     basis_eval(phi, ucf, i, vars::cons::RadFlux, q) * rho;
+          //     basis_eval(phi, evolved, i, idx_rad_flux, q) * rho;
 
           // const double flux_fact = flux_factor(e_rad, f_rad);
         }

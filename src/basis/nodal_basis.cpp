@@ -4,7 +4,7 @@
 
 namespace athelas::basis {
 
-NodalBasis::NodalBasis(AthelasArray3D<double> uPF, Mesh *mesh, const int nN,
+NodalBasis::NodalBasis(AthelasArray3D<double> derived, Mesh *mesh, const int nN,
                        const int nElements)
     : nX_(nElements), nNodes_(nN), nodes_("quadrature nodes", nN),
       weights_("quadrature weights", nN),
@@ -19,7 +19,7 @@ NodalBasis::NodalBasis(AthelasArray3D<double> uPF, Mesh *mesh, const int nN,
   Kokkos::deep_copy(nodes_, mesh->nodes());
   Kokkos::deep_copy(weights_, mesh->weights());
 
-  initialize_basis(uPF, mesh);
+  initialize_basis(derived, mesh);
 }
 
 [[nodiscard]] auto NodalBasis::phi() const noexcept -> AthelasArray3D<double> {
@@ -202,11 +202,11 @@ void NodalBasis::build_vandermonde_matrices() {
 
 /**
  * @brief Use the inverse Vandermonde to map a nodal basis to a modal one.
- * The IndexRange is for the variables in ucf that we are mapping.
+ * The IndexRange is for the variables in evolved that we are mapping.
  * The modal vector u_k_ loops from 0.
  */
 void NodalBasis::nodal_to_modal(AthelasArray3D<double> u_k,
-                                AthelasArray3D<double> ucf,
+                                AthelasArray3D<double> evolved,
                                 const IndexRange &vb) const {
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "nodal_to_modal", DevExecSpace(), 0,
@@ -215,7 +215,7 @@ void NodalBasis::nodal_to_modal(AthelasArray3D<double> u_k,
           for (int k = 0; k < nNodes_; ++k) {
             double sum = 0.0;
             for (int q = 0; q < nNodes_; ++q) {
-              sum += inv_vandermonde_(k, q) * ucf(i, q, v);
+              sum += inv_vandermonde_(k, q) * evolved(i, q, v);
             }
             u_k(i, k, v - vb.s) = sum;
           }
@@ -225,10 +225,10 @@ void NodalBasis::nodal_to_modal(AthelasArray3D<double> u_k,
 
 /**
  * @brief Use the Vandermonde to map a modal basis to a nodal one.
- * The IndexRange is for the variables in ucf that we are mapping.
+ * The IndexRange is for the variables in evolved that we are mapping.
  * The modal vector u_k_ loops from 0.
  */
-void NodalBasis::modal_to_nodal(AthelasArray3D<double> ucf,
+void NodalBasis::modal_to_nodal(AthelasArray3D<double> evolved,
                                 AthelasArray3D<double> u_k,
                                 const IndexRange &vb) const {
   athelas::par_for(
@@ -240,7 +240,7 @@ void NodalBasis::modal_to_nodal(AthelasArray3D<double> ucf,
             for (int k = 0; k < nNodes_; ++k) {
               sum += vandermonde_(q, k) * u_k(i, k, v - vb.s);
             }
-            ucf(i, q, v) = sum;
+            evolved(i, q, v) = sum;
           }
         }
       });
@@ -249,7 +249,7 @@ void NodalBasis::modal_to_nodal(AthelasArray3D<double> ucf,
 /**
  * @brief Initialize datastructures for the basis.
  */
-void NodalBasis::initialize_basis(const AthelasArray3D<double> uPF,
+void NodalBasis::initialize_basis(const AthelasArray3D<double> derived,
                                   const Mesh *mesh) {
 
   const int ilo = 1;

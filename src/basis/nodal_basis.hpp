@@ -12,12 +12,12 @@ class NodalBasis {
  public:
   /**
    * @brief Constructor
-   * @param uPF Primitive variables (nodal representation)
+   * @param derived Primitive variables (nodal representation)
    * @param mesh Grid structure
    * @param nN Number of nodes
    * @param nElements Number of elements
    */
-  NodalBasis(const AthelasArray3D<double> uPF, Mesh *mesh, const int nN,
+  NodalBasis(const AthelasArray3D<double> derived, Mesh *mesh, const int nN,
              const int nElements);
 
   /**
@@ -51,19 +51,20 @@ class NodalBasis {
 
   /**
    * @brief Project a nodal basis onto a modal representation
-   * The IndexRange is for the variables in ucf that we are mapping.
+   * The IndexRange is for the variables in evolved that we are mapping.
    * The modal vector u_k_ loops from 0.
    */
-  void nodal_to_modal(AthelasArray3D<double> u_k, AthelasArray3D<double> ucf,
+  void nodal_to_modal(AthelasArray3D<double> u_k,
+                      AthelasArray3D<double> evolved,
                       const IndexRange &vb) const;
 
   /**
    * @brief Project a modal basis onto a nodal representation
-   * The IndexRange is for the variables in ucf that we are mapping.
+   * The IndexRange is for the variables in evolved that we are mapping.
    * The modal vector u_k_ loops from 0.
    */
-  void modal_to_nodal(AthelasArray3D<double> ucf, AthelasArray3D<double> u_k,
-                      const IndexRange &vb) const;
+  void modal_to_nodal(AthelasArray3D<double> evolved,
+                      AthelasArray3D<double> u_k, const IndexRange &vb) const;
 
   // --- Evaluation methods (back compatibility) ---
 
@@ -87,7 +88,8 @@ class NodalBasis {
    * @details Just evaluates nodal_func at nodes
    */
   void project_nodal_to_modal_all_cells(
-      AthelasArray3D<double> uCF, AthelasArray3D<double> uPF, Mesh *mesh, int q,
+      AthelasArray3D<double> evolved, AthelasArray3D<double> derived,
+      Mesh *mesh, int q,
       const std::function<double(double, int, int)> &nodal_func) const;
 
   // === Nodal-specific methods ===
@@ -130,7 +132,7 @@ class NodalBasis {
   AthelasArray2D<double> inv_vandermonde_;
 
   /** @brief Initialize all basis quantities */
-  void initialize_basis(AthelasArray3D<double> uPF, const Mesh *mesh);
+  void initialize_basis(AthelasArray3D<double> derived, const Mesh *mesh);
 
   /** @brief Build differentiation matrix */
   void build_differentiation_matrix();

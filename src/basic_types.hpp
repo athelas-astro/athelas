@@ -13,26 +13,6 @@ constexpr int MAX_ORDER = 8; // maximum supported polynomial degree
 
 namespace vars {
 
-namespace cons {
-constexpr int SpecificVolume = 0;
-constexpr int Velocity = 1;
-constexpr int Energy = 2;
-constexpr int RadEnergy = 3;
-constexpr int RadFlux = 4;
-} // namespace cons
-
-namespace prim {
-constexpr int Rho = 0;
-constexpr int Momentum = 1;
-constexpr int Sie = 2;
-} // namespace prim
-
-namespace aux {
-constexpr int Pressure = 0;
-constexpr int Tgas = 1;
-constexpr int Cs = 2;
-} // namespace aux
-
 namespace modes {
 constexpr int CellAverage = 0;
 constexpr int Slope = 1;

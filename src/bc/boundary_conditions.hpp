@@ -72,6 +72,10 @@ KOKKOS_INLINE_FUNCTION void
 apply_bc(const BoundaryConditionsData<N> &bc, AthelasArray3D<double> U,
          const int v, const int ghost_cell, const int interior_cell,
          const int n_nodes) {
+  constexpr int idx_tau = 0;
+  constexpr int idx_rad_energy = 3;
+  constexpr int idx_rad_flux = 4;
+
   switch (bc.type) {
 
   case BcType::Outflow:
@@ -118,23 +122,22 @@ apply_bc(const BoundaryConditionsData<N> &bc, AthelasArray3D<double> U,
   case BcType::Marshak: {
 
     constexpr double c = constants::c_cgs;
-    const double Einc = bc.dirichlet_values[0] *
-                        U(interior_cell, 0, vars::cons::SpecificVolume);
+    const double Einc = bc.dirichlet_values[0] * U(interior_cell, 0, idx_tau);
 
     for (int i = 0; i < n_nodes; ++i) {
 
       const int i_ref = n_nodes - 1 - i;
 
-      if (v == vars::cons::RadEnergy) {
+      if (v == idx_rad_energy) {
 
         // Set incoming radiation energy to Einc
         U(ghost_cell, i, v) = Einc;
 
-      } else if (v == vars::cons::RadFlux) {
+      } else if (v == idx_rad_flux) {
 
-        const double E0 = U(interior_cell, i_ref, vars::cons::RadEnergy);
+        const double E0 = U(interior_cell, i_ref, idx_rad_energy);
 
-        const double F0 = U(interior_cell, i_ref, vars::cons::RadFlux);
+        const double F0 = U(interior_cell, i_ref, idx_rad_flux);
 
         // Marshak incoming flux
         U(ghost_cell, i, v) = 0.5 * c * Einc - 0.5 * (c * E0 + 2.0 * F0);

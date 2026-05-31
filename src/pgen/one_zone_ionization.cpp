@@ -32,9 +32,17 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(saha_ncomps == 3,
                    "One zone ionization requires [ionization.ncomps] = 3.");
 
-  auto uCF = mesh_state(0).get_field("u_cf");
-  auto uPF = mesh_state(0).get_field("u_pf");
-  auto uAF = mesh_state(0).get_field("u_af");
+  auto evolved = mesh_state(0).get_field("evolved");
+  auto derived = mesh_state(0).get_field("derived");
+
+  const int idx_tau = mesh_state(0).var_index("evolved", "specific_volume");
+  const int idx_ener =
+      mesh_state(0).var_index("evolved", "specific_total_fluid_energy");
+  const int idx_density = mesh_state(0).var_index("derived", "density");
+  const int idx_pressure = mesh_state(0).var_index("derived", "pressure");
+  const int idx_tgas = mesh_state(0).var_index("derived", "gas_temperature");
+  const int idx_sie =
+      mesh_state(0).var_index("derived", "specific_internal_energy");
   auto sd0 = mesh_state(0);
 
   static const IndexRange ib(mesh->domain<Domain::Interior>());
@@ -61,7 +69,7 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
       std::make_shared<atom::IonizationState>(
           mesh->n_elements() + 2, nNodes, ncomps, 7, saha_ncomps, fn_ionization,
           fn_deg, pin->param()->get<std::string>("ionization.solver"));
-  auto mass_fractions = mesh_state.mass_fractions("u_cf");
+  auto mass_fractions = mesh_state.mass_fractions("evolved");
   auto charges = comps->charge();
   auto neutrons = comps->neutron_number();
   auto inv_atomic_mass = comps->inverse_atomic_mass();
@@ -79,14 +87,14 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: OneZoneIonization :: nodal",
       DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
         for (int q = 0; q < nNodes; q++) {
-          uCF(i, q, vars::cons::SpecificVolume) = 1.0 / rho;
+          evolved(i, q, idx_tau) = 1.0 / rho;
           mass_fractions(i, q, i_H) = X_H;
           mass_fractions(i, q, i_He) = X_He;
           mass_fractions(i, q, i_C) = X_C;
         }
         for (int q = 0; q < nNodes + 2; q++) {
-          uPF(i, q, vars::prim::Rho) = rho;
-          uAF(i, q, vars::aux::Tgas) = temperature;
+          derived(i, q, idx_density) = rho;
+          derived(i, q, idx_tgas) = temperature;
 
           // Set Zbar assuming full ionization -- used as guess in Saha below.
           zbar(i, q, i_H) = 1;
@@ -115,18 +123,18 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
       DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
         eos::EOSLambda lambda;
         for (int q = 0; q < nNodes + 2; q++) {
-          uPF(i, q, vars::prim::Rho) = rho;
-          uAF(i, q, vars::aux::Tgas) = temperature;
+          derived(i, q, idx_density) = rho;
+          derived(i, q, idx_tgas) = temperature;
           if (eos_type == "paczynski") {
             atom::paczynski_terms(sd0, i, q, lambda.ptr());
           }
-          uAF(i, q, vars::aux::Pressure) = pressure_from_density_temperature(
+          derived(i, q, idx_pressure) = pressure_from_density_temperature(
               eos, rho, temperature, lambda.ptr());
-          uPF(i, q, vars::prim::Sie) = sie_from_density_pressure(
-              eos, rho, uAF(i, q, vars::aux::Pressure), lambda.ptr());
+          derived(i, q, idx_sie) = sie_from_density_pressure(
+              eos, rho, derived(i, q, idx_pressure), lambda.ptr());
         }
         for (int q = 0; q < nNodes; ++q) {
-          uCF(i, q, vars::cons::Energy) = uPF(i, q + 1, vars::prim::Sie);
+          evolved(i, q, idx_ener) = derived(i, q + 1, idx_sie);
         }
       });
 
@@ -136,21 +144,21 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   // atom::fill_derived_ionization<Domain::Interior>(sd0, mesh);
   //  composition boundary condition
   static const IndexRange vb_comps(std::make_pair(3, 3 + ncomps - 1));
-  bc::fill_ghost_zones_composition(uCF, vb_comps);
+  bc::fill_ghost_zones_composition(evolved, vb_comps);
 
   // Fill density and temperature in guard cells
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: OneZoneIonization (ghost)",
       DevExecSpace(), 0, ib.s - 1, KOKKOS_LAMBDA(const int i) {
         for (int iN = 0; iN < nNodes + 2; iN++) {
-          uPF(ib.s - 1 - i, iN, vars::prim::Rho) =
-              uPF(ib.s + i, (nNodes + 2) - iN - 1, vars::prim::Rho);
-          uPF(ib.e + 1 + i, iN, vars::prim::Rho) =
-              uPF(ib.e - i, (nNodes + 2) - iN - 1, vars::prim::Rho);
-          uAF(ib.s - 1 - i, iN, vars::aux::Tgas) =
-              uAF(ib.s + i, (nNodes + 2) - iN - 1, vars::aux::Tgas);
-          uAF(ib.e + 1 + i, iN, vars::aux::Tgas) =
-              uAF(ib.e - i, (nNodes + 2) - iN - 1, vars::aux::Tgas);
+          derived(ib.s - 1 - i, iN, idx_density) =
+              derived(ib.s + i, (nNodes + 2) - iN - 1, idx_density);
+          derived(ib.e + 1 + i, iN, idx_density) =
+              derived(ib.e - i, (nNodes + 2) - iN - 1, idx_density);
+          derived(ib.s - 1 - i, iN, idx_tgas) =
+              derived(ib.s + i, (nNodes + 2) - iN - 1, idx_tgas);
+          derived(ib.e + 1 + i, iN, idx_tgas) =
+              derived(ib.e - i, (nNodes + 2) - iN - 1, idx_tgas);
           zbar(ib.s - 1 - i, iN, i_H) =
               zbar(ib.s + i, (nNodes + 2) - iN - 1, i_H);
           zbar(ib.e + 1 + i, iN, i_H) =

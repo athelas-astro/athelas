@@ -38,7 +38,7 @@ class NickelTest(AthelasRegressionTest):
     varlist = [
       "mesh/r",
       "mesh/dr",
-      "fields/u_cf",
+      "fields/evolved",
       "composition/ye",
     ]
 

@@ -31,9 +31,9 @@ void HydroPackage::update_explicit(const StageData &stage_data,
                                    const TimeStepInfo &dt_info) const {
   const auto &mesh = stage_data.mesh();
   const int stage = dt_info.stage;
-  auto ucf = stage_data.get_field("u_cf");
+  auto evolved = stage_data.get_field("evolved");
 
-  auto uaf = stage_data.get_field("u_af");
+  auto derived = stage_data.get_field("derived");
 
   const auto &basis = stage_data.fluid_basis();
 
@@ -42,11 +42,11 @@ void HydroPackage::update_explicit(const StageData &stage_data,
   static const IndexRange vb(NUM_VARS_);
 
   // --- Apply BC ---
-  bc::fill_ghost_zones<3>(ucf, &mesh, bcs_, {0, 2});
+  bc::fill_ghost_zones<3>(evolved, &mesh, bcs_, {0, 2});
   if (stage_data.enabled("composition")) {
     static const IndexRange vb_comps(
-        std::make_pair(NUM_VARS_, stage_data.nvars("u_cf") - 1));
-    bc::fill_ghost_zones_composition(ucf, vb_comps);
+        std::make_pair(NUM_VARS_, stage_data.nvars("evolved") - 1));
+    bc::fill_ghost_zones_composition(evolved, vb_comps);
   }
 
   // --- Fluid Increment : Divergence ---
@@ -68,11 +68,12 @@ void HydroPackage::update_explicit(const StageData &stage_data,
 // TODO(astrobarker): dont pass in stage
 void HydroPackage::fluid_divergence(const StageData &stage_data,
                                     const Mesh &mesh, const int stage) const {
-  auto ucf = stage_data.get_field("u_cf");
-  auto uaf = stage_data.get_field("u_af");
-  auto facedata = stage_data.get_field<AthelasArray2D<double>>("facedata");
+  auto evolved = stage_data.get_field("evolved");
+  auto derived = stage_data.get_field("derived");
+  auto interface = stage_data.get_field<AthelasArray2D<double>>("interface");
 
-  static const int idx_vstar = stage_data.var_index("facedata", "vstar");
+  static const int idx_vstar =
+      stage_data.var_index("interface", "interface_velocity");
 
   const auto &basis = stage_data.fluid_basis();
 
@@ -82,11 +83,12 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
   static const IndexRange qb(mesh.n_nodes());
   static const IndexRange vb(NUM_VARS_);
 
-  static const int idx_tau = stage_data.var_index("u_cf", "tau");
-  static const int idx_vel = stage_data.var_index("u_cf", "vel");
-  static const int idx_ener = stage_data.var_index("u_cf", "fluid_energy");
-  static const int idx_pre = stage_data.var_index("u_af", "pressure");
-  static const int idx_cs = stage_data.var_index("u_af", "sound speed");
+  static const int idx_tau = stage_data.var_index("evolved", "specific_volume");
+  static const int idx_vel = stage_data.var_index("evolved", "velocity");
+  static const int idx_ener =
+      stage_data.var_index("evolved", "specific_total_fluid_energy");
+  static const int idx_pre = stage_data.var_index("derived", "pressure");
+  static const int idx_cs = stage_data.var_index("derived", "sound_speed");
 
   auto x_l = mesh.x_l();
   auto sqrt_gm = mesh.sqrt_gm();
@@ -102,8 +104,8 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
       DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Interface States", DevExecSpace(),
       ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
         for (int v = vb.s; v <= vb.e; ++v) {
-          u_f_l_(i, v) = basis.basis_eval(ucf, i - 1, v, nNodes + 1);
-          u_f_r_(i, v) = basis.basis_eval(ucf, i, v, 0);
+          u_f_l_(i, v) = basis.basis_eval(evolved, i - 1, v, nNodes + 1);
+          u_f_r_(i, v) = basis.basis_eval(evolved, i, v, 0);
         }
       });
 
@@ -111,11 +113,11 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
   par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Numerical Fluxes", DevExecSpace(),
       ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
-        const double P_L = uaf(i - 1, nNodes + 1, idx_pre);
-        const double Cs_L = uaf(i - 1, nNodes + 1, idx_cs);
+        const double P_L = derived(i - 1, nNodes + 1, idx_pre);
+        const double Cs_L = derived(i - 1, nNodes + 1, idx_cs);
 
-        const double P_R = uaf(i, 0, idx_pre);
-        const double Cs_R = uaf(i, 0, idx_cs);
+        const double P_R = derived(i, 0, idx_pre);
+        const double Cs_R = derived(i, 0, idx_cs);
 
         // --- Numerical Fluxes ---
 
@@ -133,15 +135,15 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
                                       .cs = Cs_R};
         const auto [flux_u, flux_p] =
             numerical_flux_gudonov_positivity(left, right);
-        facedata(i, idx_vstar) = flux_u;
+        interface(i, idx_vstar) = flux_u;
 
         dFlux_num_(i, idx_tau) = -flux_u;
         dFlux_num_(i, idx_vel) = flux_p;
         dFlux_num_(i, idx_ener) = flux_u * flux_p;
       });
 
-  facedata(0, idx_vstar) = facedata(1, idx_vstar);
-  facedata(ib.e + 2, idx_vstar) = facedata(ib.e + 1, idx_vstar);
+  interface(0, idx_vstar) = interface(1, idx_vstar);
+  interface(ib.e + 2, idx_vstar) = interface(ib.e + 1, idx_vstar);
 
   // --- Surface Term ---
   athelas::par_for(
@@ -164,8 +166,8 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
           double local_sum2 = 0.0;
           double local_sum3 = 0.0;
           for (int q = 0; q < nNodes; ++q) {
-            const double vel = ucf(i, q, idx_vel);
-            const double P = uaf(i, q + 1, idx_pre);
+            const double vel = evolved(i, q, idx_vel);
+            const double P = derived(i, q + 1, idx_pre);
             const auto [flux1, flux2, flux3] = flux_fluid(vel, P);
             const double w = weights(q);
             const double dphi = dphis(i, q + 1, p);
@@ -221,7 +223,8 @@ auto HydroPackage::min_timestep(const StageData &stage_data,
   static constexpr double MAX_DT = std::numeric_limits<double>::max();
   static constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
 
-  auto uaf = stage_data.get_field("u_af");
+  auto derived = stage_data.get_field("derived");
+  const int idx_cs = stage_data.var_index("derived", "sound_speed");
 
   static const int nnodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
@@ -233,9 +236,9 @@ auto HydroPackage::min_timestep(const StageData &stage_data,
       ib.e,
       KOKKOS_CLASS_LAMBDA(const int i, double &lmin) {
         // Find the max sound speed across the element including the interfaces
-        double Cs = uaf(i, 0, vars::aux::Cs);
+        double Cs = derived(i, 0, idx_cs);
         for (int q = 1; q <= nnodes; ++q) {
-          Cs = std::max(Cs, uaf(i, q, vars::aux::Cs));
+          Cs = std::max(Cs, derived(i, q, idx_cs));
         }
 
         const double dt = dr(i) / Cs;
@@ -261,9 +264,20 @@ void HydroPackage::fill_derived(StageData &stage_data,
   const auto &mesh = stage_data.mesh();
   using eos::EOSLambda;
 
-  auto ucf = stage_data.get_field("u_cf");
-  auto uPF = stage_data.get_field("u_pf");
-  auto uAF = stage_data.get_field("u_af");
+  auto evolved = stage_data.get_field("evolved");
+  auto derived = stage_data.get_field("derived");
+
+  const int idx_tau = stage_data.var_index("evolved", "specific_volume");
+  const int idx_vel = stage_data.var_index("evolved", "velocity");
+  const int idx_ener =
+      stage_data.var_index("evolved", "specific_total_fluid_energy");
+  const int idx_rho = stage_data.var_index("derived", "density");
+  const int idx_momentum = stage_data.var_index("derived", "momentum_density");
+  const int idx_sie =
+      stage_data.var_index("derived", "specific_internal_energy");
+  const int idx_pressure = stage_data.var_index("derived", "pressure");
+  const int idx_tgas = stage_data.var_index("derived", "gas_temperature");
+  const int idx_cs = stage_data.var_index("derived", "sound_speed");
 
   const int nNodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<Domain::Entire>());
@@ -272,13 +286,13 @@ void HydroPackage::fill_derived(StageData &stage_data,
   const auto &basis = stage_data.fluid_basis();
 
   // --- Apply BC ---
-  bc::fill_ghost_zones<3>(ucf, &mesh, bcs_, {0, 2});
+  bc::fill_ghost_zones<3>(evolved, &mesh, bcs_, {0, 2});
 
   if (stage_data.enabled("composition")) {
     // composition boundary condition
     static const IndexRange vb_comps(
-        std::make_pair(NUM_VARS_, stage_data.nvars("u_cf") - 1));
-    bc::fill_ghost_zones_composition(ucf, vb_comps);
+        std::make_pair(NUM_VARS_, stage_data.nvars("evolved") - 1));
+    bc::fill_ghost_zones_composition(evolved, vb_comps);
     atom::fill_derived_comps<Domain::Entire>(stage_data, &mesh);
   }
 
@@ -307,16 +321,14 @@ void HydroPackage::fill_derived(StageData &stage_data,
           EOSLambda lambda;
           ;
           for (int q = 0; q < nNodes + 2; ++q) {
-            const double rho =
-                1.0 / basis.basis_eval(ucf, i, vars::cons::SpecificVolume, q);
-            const double vel =
-                basis.basis_eval(ucf, i, vars::cons::Velocity, q);
-            const double emt = basis.basis_eval(ucf, i, vars::cons::Energy, q);
+            const double rho = 1.0 / basis.basis_eval(evolved, i, idx_tau, q);
+            const double vel = basis.basis_eval(evolved, i, idx_vel, q);
+            const double emt = basis.basis_eval(evolved, i, idx_ener, q);
             const double sie = emt - 0.5 * vel * vel;
-            uAF(i, q, vars::aux::Tgas) =
+            derived(i, q, idx_tgas) =
                 temperature_from_density_sie(eos, rho, sie, lambda.ptr());
-            uPF(i, q, vars::prim::Rho) = rho;
-            uPF(i, q, vars::prim::Momentum) = rho * vel;
+            derived(i, q, idx_rho) = rho;
+            derived(i, q, idx_momentum) = rho * vel;
           }
         });
   }
@@ -336,11 +348,9 @@ void HydroPackage::fill_derived(StageData &stage_data,
         DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Fill derived", DevExecSpace(),
         ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
           for (int q = 0; q < nNodes + 2; ++q) {
-            const double rho =
-                1.0 / basis.basis_eval(ucf, i, vars::cons::SpecificVolume, q);
-            const double vel =
-                basis.basis_eval(ucf, i, vars::cons::Velocity, q);
-            const double emt = basis.basis_eval(ucf, i, vars::cons::Energy, q);
+            const double rho = 1.0 / basis.basis_eval(evolved, i, idx_tau, q);
+            const double vel = basis.basis_eval(evolved, i, idx_vel, q);
+            const double emt = basis.basis_eval(evolved, i, idx_ener, q);
 
             const double momentum = rho * vel;
             const double sie = (emt - 0.5 * vel * vel);
@@ -355,19 +365,19 @@ void HydroPackage::fill_derived(StageData &stage_data,
             lambda.data[4] = sigma2(i, q);
             lambda.data[5] = sigma3(i, q);
             lambda.data[6] = e_ion_corr(i, q);
-            lambda.data[7] = uAF(i, q, vars::aux::Tgas);
-            const double t_gas = uAF(i, q, vars::aux::Tgas);
+            lambda.data[7] = derived(i, q, idx_tgas);
+            const double t_gas = derived(i, q, idx_tgas);
             const double pressure = pressure_from_density_temperature(
                 eos, rho, t_gas, lambda.ptr());
             const double cs = sound_speed_from_density_temperature_pressure(
                 eos, rho, t_gas, pressure, lambda.ptr());
 
-            uPF(i, q, vars::prim::Rho) = rho;
-            uPF(i, q, vars::prim::Momentum) = momentum;
-            uPF(i, q, vars::prim::Sie) = sie;
+            derived(i, q, idx_rho) = rho;
+            derived(i, q, idx_momentum) = momentum;
+            derived(i, q, idx_sie) = sie;
 
-            uAF(i, q, vars::aux::Pressure) = pressure;
-            uAF(i, q, vars::aux::Cs) = cs;
+            derived(i, q, idx_pressure) = pressure;
+            derived(i, q, idx_cs) = cs;
           }
         });
   } else {
@@ -375,26 +385,25 @@ void HydroPackage::fill_derived(StageData &stage_data,
         DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Fill derived", DevExecSpace(),
         ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
           for (int q = 0; q < nNodes + 2; ++q) {
-            const double rho = uPF(i, q, vars::prim::Rho);
-            const double vel =
-                basis.basis_eval(ucf, i, vars::cons::Velocity, q);
-            const double emt = basis.basis_eval(ucf, i, vars::cons::Energy, q);
+            const double rho = derived(i, q, idx_rho);
+            const double vel = basis.basis_eval(evolved, i, idx_vel, q);
+            const double emt = basis.basis_eval(evolved, i, idx_ener, q);
 
             const double sie = (emt - 0.5 * vel * vel);
 
             // This is probably not the cleanest logic, but setups with
             // ionization enabled and Paczynski disbled are an outlier.
             eos::EOSLambda lambda;
-            const double t_gas = uAF(i, q, vars::aux::Tgas);
+            const double t_gas = derived(i, q, idx_tgas);
             const double pressure = pressure_from_density_temperature(
                 eos, rho, t_gas, lambda.ptr());
             const double cs = sound_speed_from_density_temperature_pressure(
                 eos, rho, t_gas, pressure, lambda.ptr());
 
-            uPF(i, q, vars::prim::Sie) = sie;
+            derived(i, q, idx_sie) = sie;
 
-            uAF(i, q, vars::aux::Pressure) = pressure;
-            uAF(i, q, vars::aux::Cs) = cs;
+            derived(i, q, idx_pressure) = pressure;
+            derived(i, q, idx_cs) = cs;
           }
         });
   }

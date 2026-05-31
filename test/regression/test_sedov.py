@@ -38,7 +38,7 @@ class SedovBlastWaveTest(AthelasRegressionTest):
     varlist = [
       "mesh/r",
       "mesh/dr",
-      "fields/u_cf",
+      "fields/evolved",
     ]
 
     # Initialize the parent class with test-specific parameters

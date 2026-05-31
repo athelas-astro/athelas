@@ -15,8 +15,14 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Shock tube requires ideal gas eos!");
 
-  auto uCF = mesh_state(0).get_field("u_cf");
-  auto uPF = mesh_state(0).get_field("u_pf");
+  auto evolved = mesh_state(0).get_field("evolved");
+  auto derived = mesh_state(0).get_field("derived");
+
+  const int idx_tau = mesh_state(0).var_index("evolved", "specific_volume");
+  const int idx_vel = mesh_state(0).var_index("evolved", "velocity");
+  const int idx_ener =
+      mesh_state(0).var_index("evolved", "specific_total_fluid_energy");
+  const int idx_density = mesh_state(0).var_index("derived", "density");
 
   static const IndexRange ib(mesh->domain<Domain::Interior>());
   static const int nNodes = mesh->n_nodes();
@@ -40,11 +46,11 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
 
         if (X1 <= x_d) {
           for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
-            uPF(i, iNodeX, vars::prim::Rho) = D_L;
+            derived(i, iNodeX, idx_density) = D_L;
           }
         } else {
           for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
-            uPF(i, iNodeX, vars::prim::Rho) = D_R;
+            derived(i, iNodeX, idx_density) = D_R;
           }
         }
       });
@@ -56,17 +62,15 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
       nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int q) {
         const double x = r(i, q + 1);
         if (x <= x_d) {
-          uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D_L;
-          uCF(i, q, vars::cons::Velocity) = V_L;
-          uCF(i, q, vars::cons::Energy) =
-              (P_L / gm1) * uCF(i, q, vars::cons::SpecificVolume) +
-              0.5 * V_L * V_L;
+          evolved(i, q, idx_tau) = 1.0 / D_L;
+          evolved(i, q, idx_vel) = V_L;
+          evolved(i, q, idx_ener) =
+              (P_L / gm1) * evolved(i, q, idx_tau) + 0.5 * V_L * V_L;
         } else {
-          uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D_R;
-          uCF(i, q, vars::cons::Velocity) = V_R;
-          uCF(i, q, vars::cons::Energy) =
-              (P_R / gm1) * uCF(i, q, vars::cons::SpecificVolume) +
-              0.5 * V_R * V_R;
+          evolved(i, q, idx_tau) = 1.0 / D_R;
+          evolved(i, q, idx_vel) = V_R;
+          evolved(i, q, idx_ener) =
+              (P_R / gm1) * evolved(i, q, idx_tau) + 0.5 * V_R * V_R;
         }
       });
 }

@@ -13,7 +13,7 @@ void OperatorSplitStepper::step(PackageManager *pkgs, MeshState &mesh_state,
 
   static constexpr int stage = 0; // op split
   auto sd0 = mesh_state(stage);
-  auto U = sd0.get_field("u_cf");
+  auto U = sd0.get_field("evolved");
 
   dt_info.stage = stage;
   dt_info.dt_coef_implicit = dt_info.dt;

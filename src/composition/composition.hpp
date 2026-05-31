@@ -41,10 +41,10 @@ void fill_derived_comps(StageData &stage_data, const Mesh *const mesh) {
   const auto &basis = stage_data.fluid_basis();
   auto phi = basis.phi();
 
-  auto ucf = stage_data.get_field("u_cf");
+  auto evolved = stage_data.get_field("evolved");
   auto *const comps = stage_data.comps();
-  auto mass_fractions = stage_data.mass_fractions("u_cf");
-  auto mass_fractions_nodal = stage_data.get_field("x_q");
+  auto mass_fractions = stage_data.mass_fractions("evolved");
+  auto mass_fractions_nodal = stage_data.get_field("composition");
   auto species = comps->charge();
   auto inv_atomic_mass = comps->inverse_atomic_mass();
   auto ye = comps->ye();
@@ -168,9 +168,10 @@ void fill_derived_ionization(StageData &stage_data, const Mesh *const mesh) {
   static const IndexRange ib(mesh->domain<MeshDomain>());
   static const IndexRange qb(nnodes + 2);
 
-  auto ucf = stage_data.get_field("u_cf");
+  auto evolved = stage_data.get_field("evolved");
+  const int idx_tau = stage_data.var_index("evolved", "specific_volume");
   const auto *const comps = stage_data.comps();
-  const auto mass_fractions = stage_data.mass_fractions("u_cf");
+  const auto mass_fractions = stage_data.mass_fractions("evolved");
   const auto number_density = comps->number_density();
   const auto electron_number_density = comps->electron_number_density();
   const size_t num_species = comps->n_species();
@@ -198,8 +199,7 @@ void fill_derived_ionization(StageData &stage_data, const Mesh *const mesh) {
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Ionization :: fill derived", DevExecSpace(), ib.s,
       ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
-        const double rho =
-            1.0 / basis::basis_eval(phi, ucf, i, vars::cons::SpecificVolume, q);
+        const double rho = 1.0 / basis::basis_eval(phi, evolved, i, idx_tau, q);
         // This kernel is horrible.
         // Reduce the ionization based quantities sigma1-3, e_ion_corr
         ybar(i, q) = electron_number_density(i, q) / number_density(i, q) / rho;

@@ -16,8 +16,14 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Shu Osher requires ideal gas eos!");
 
-  auto uCF = mesh_state(0).get_field("u_cf");
-  auto uPF = mesh_state(0).get_field("u_pf");
+  auto evolved = mesh_state(0).get_field("evolved");
+  auto derived = mesh_state(0).get_field("derived");
+
+  const int idx_tau = mesh_state(0).var_index("evolved", "specific_volume");
+  const int idx_vel = mesh_state(0).var_index("evolved", "velocity");
+  const int idx_ener =
+      mesh_state(0).var_index("evolved", "specific_total_fluid_energy");
+  const int idx_density = mesh_state(0).var_index("derived", "density");
 
   static const IndexRange ib(mesh->domain<Domain::Interior>());
   static const int nNodes = mesh->n_nodes();
@@ -40,13 +46,13 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
         if (X1 <= -4.0) {
           // Left state: constant values
           for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
-            uPF(i, iNodeX, vars::prim::Rho) = D_L;
+            derived(i, iNodeX, idx_density) = D_L;
           }
         } else {
           // Right state: sinusoidal density
           for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
             const double x = mesh->node_coordinate(i, iNodeX);
-            uPF(i, iNodeX, vars::prim::Rho) = (1.0 + 0.2 * sin(5.0 * x));
+            derived(i, iNodeX, idx_density) = (1.0 + 0.2 * sin(5.0 * x));
           }
         }
       });
@@ -78,9 +84,9 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
       DEFAULT_LOOP_PATTERN, "Pgen :: ShuOsher", DevExecSpace(), ib.s, ib.e,
       qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
         const double x = r(i, q + 1);
-        uCF(i, q, vars::cons::SpecificVolume) = tau_func(x, i, q);
-        uCF(i, q, vars::cons::Velocity) = velocity_func(x, i, q);
-        uCF(i, q, vars::cons::Energy) = energy_func(x, i, q);
+        evolved(i, q, idx_tau) = tau_func(x, i, q);
+        evolved(i, q, idx_vel) = velocity_func(x, i, q);
+        evolved(i, q, idx_ener) = energy_func(x, i, q);
       });
 }
 

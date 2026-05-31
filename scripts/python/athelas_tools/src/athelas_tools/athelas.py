@@ -196,13 +196,13 @@ class Athelas:
     """
     # Ensure required physics exists
     self.require(
-      "rad_energy",
-      "rad_momentum",
+      "specific_radiation_energy",
+      "specific_radiation_flux",
       basis="radiation",
     )
 
-    E = self.get("rad_energy")
-    F = self.get("rad_momentum")
+    E = self.get("specific_radiation_energy")
+    F = self.get("specific_radiation_flux")
 
     return np.abs(F) / (consts.c.cgs.value * E)
 
@@ -335,7 +335,7 @@ class Athelas:
     Examples
     --------
     ds.require("density", "pressure")
-    ds.require(field="u_cf")
+    ds.require(field="evolved")
     ds.require(basis="radiation")
     ds.require(composition=True)
     """

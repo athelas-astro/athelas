@@ -64,21 +64,22 @@ void limit_density(StageData &stage_data, const Mesh &mesh) {
   const auto &basis = stage_data.fluid_basis();
   const int order = basis.order();
 
-  auto U = stage_data.get_field("u_cf");
+  auto U = stage_data.get_field("evolved");
   auto sqrt_gm = mesh.sqrt_gm();
   auto weights = mesh.weights();
   auto widths = mesh.widths();
+  constexpr int idx_tau = 0;
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit density", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
         // Compute cell average
-        const double avg = cell_average(U, sqrt_gm, weights, widths(i),
-                                        vars::cons::SpecificVolume, i);
+        const double avg =
+            cell_average(U, sqrt_gm, weights, widths(i), idx_tau, i);
         // Compute minimum in cell
         double u_min = avg;
         for (int q = 0; q < order; ++q) {
-          u_min = std::min(u_min, U(i, q, vars::cons::SpecificVolume));
+          u_min = std::min(u_min, U(i, q, idx_tau));
         }
 
         // Compute theta
@@ -93,10 +94,9 @@ void limit_density(StageData &stage_data, const Mesh &mesh) {
         // 4. Rescale polynomial
         if (theta < 1.0) {
           for (int q = 0; q < order; ++q) {
-            const double nodal = U(i, q, vars::cons::SpecificVolume);
+            const double nodal = U(i, q, idx_tau);
 
-            U(i, q, vars::cons::SpecificVolume) =
-                (1.0 - theta) * avg + theta * nodal;
+            U(i, q, idx_tau) = (1.0 - theta) * avg + theta * nodal;
           }
         }
       });
@@ -134,22 +134,25 @@ void limit_internal_energy(StageData &stage_data, const Mesh &mesh) {
     ye = comps->ye();
   }
 
-  auto U = stage_data.get_field("u_cf");
+  auto U = stage_data.get_field("evolved");
   auto sqrt_gm = mesh.sqrt_gm();
   auto weights = mesh.weights();
   auto widths = mesh.widths();
+  constexpr int idx_tau = 0;
+  constexpr int idx_vel = 1;
+  constexpr int idx_ener = 2;
 
   auto phi = basis.phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit internal energy", DevExecSpace(),
       1, U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
         // Compute cell-averaged conserved quantities for reconstruction
-        const double tau_avg = cell_average(U, sqrt_gm, weights, widths(i),
-                                            vars::cons::SpecificVolume, i);
-        const double v_avg = cell_average(U, sqrt_gm, weights, widths(i),
-                                          vars::cons::Velocity, i);
+        const double tau_avg =
+            cell_average(U, sqrt_gm, weights, widths(i), idx_tau, i);
+        const double v_avg =
+            cell_average(U, sqrt_gm, weights, widths(i), idx_vel, i);
         const double etot_avg =
-            cell_average(U, sqrt_gm, weights, widths(i), vars::cons::Energy, i);
+            cell_average(U, sqrt_gm, weights, widths(i), idx_ener, i);
 
         eos::EOSLambda lambda_avg;
         if constexpr (Ionization == IonizationPhysics::Active) {
@@ -161,10 +164,9 @@ void limit_internal_energy(StageData &stage_data, const Mesh &mesh) {
         // --- Compute global theta ---
         double theta_cell = 1.0;
         for (int q = 0; q <= order + 1; ++q) {
-          const double tau_q =
-              basis_eval(phi, U, i, vars::cons::SpecificVolume, q);
-          const double v_q = basis_eval(phi, U, i, vars::cons::Velocity, q);
-          const double E_q = basis_eval(phi, U, i, vars::cons::Energy, q);
+          const double tau_q = basis_eval(phi, U, i, idx_tau, q);
+          const double v_q = basis_eval(phi, U, i, idx_vel, q);
+          const double E_q = basis_eval(phi, U, i, idx_ener, q);
 
           const double rho_q = 1.0 / tau_q;
 
@@ -195,14 +197,11 @@ void limit_internal_energy(StageData &stage_data, const Mesh &mesh) {
         // --- Scale polynomials ---
         if (theta_cell < 1.0) {
           for (int q = 0; q < order; ++q) {
-            U(i, q, vars::cons::SpecificVolume) =
-                tau_avg +
-                theta_cell * (U(i, q, vars::cons::SpecificVolume) - tau_avg);
-            U(i, q, vars::cons::Velocity) =
-                v_avg + theta_cell * (U(i, q, vars::cons::Velocity) - v_avg);
-            U(i, q, vars::cons::Energy) =
-                etot_avg +
-                theta_cell * (U(i, q, vars::cons::Energy) - etot_avg);
+            U(i, q, idx_tau) =
+                tau_avg + theta_cell * (U(i, q, idx_tau) - tau_avg);
+            U(i, q, idx_vel) = v_avg + theta_cell * (U(i, q, idx_vel) - v_avg);
+            U(i, q, idx_ener) =
+                etot_avg + theta_cell * (U(i, q, idx_ener) - etot_avg);
           }
         }
       });
@@ -256,20 +255,22 @@ void limit_rad_energy(StageData &stage_data, const Mesh &mesh) {
   const auto &basis = stage_data.rad_basis();
   const int order = basis.order();
 
-  auto U = stage_data.get_field("u_cf");
+  auto U = stage_data.get_field("evolved");
   auto sqrt_gm = mesh.sqrt_gm();
   auto weights = mesh.weights();
   auto widths = mesh.widths();
+  constexpr int idx_rad_energy = 3;
+
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit rad energy", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
-        const double E_avg = cell_average(U, sqrt_gm, weights, widths(i),
-                                          vars::cons::RadEnergy, i);
+        const double E_avg =
+            cell_average(U, sqrt_gm, weights, widths(i), idx_rad_energy, i);
 
         // --- Compute minimum over cell ---
         double theta = 1.0;
         for (int q = 0; q < order; ++q) {
-          double E_q = U(i, q, vars::cons::RadEnergy);
+          double E_q = U(i, q, idx_rad_energy);
 
           // Solve for smallest admissible theta
           if (E_q < EPSILON) {
@@ -282,8 +283,8 @@ void limit_rad_energy(StageData &stage_data, const Mesh &mesh) {
         // --- Rescale ---
         if (theta < 1.0) {
           for (int q = 0; q < order; ++q) {
-            const double E_q = U(i, q, vars::cons::RadEnergy);
-            U(i, q, vars::cons::RadEnergy) = E_avg + theta * (E_q - E_avg);
+            const double E_q = U(i, q, idx_rad_energy);
+            U(i, q, idx_rad_energy) = E_avg + theta * (E_q - E_avg);
           }
         }
       });
@@ -313,25 +314,27 @@ void limit_rad_momentum(StageData &stage_data, const Mesh &mesh) {
   const auto &basis = stage_data.rad_basis();
   const int order = basis.order();
 
-  auto U = stage_data.get_field("u_cf");
+  auto U = stage_data.get_field("evolved");
   auto sqrt_gm = mesh.sqrt_gm();
   auto weights = mesh.weights();
   auto widths = mesh.widths();
+  constexpr int idx_rad_energy = 3;
+  constexpr int idx_rad_flux = 4;
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit rad momentum", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
-        const double E_avg = cell_average(U, sqrt_gm, weights, widths(i),
-                                          vars::cons::RadEnergy, i);
+        const double E_avg =
+            cell_average(U, sqrt_gm, weights, widths(i), idx_rad_energy, i);
 
-        const double F_avg = cell_average(U, sqrt_gm, weights, widths(i),
-                                          vars::cons::RadFlux, i);
+        const double F_avg =
+            cell_average(U, sqrt_gm, weights, widths(i), idx_rad_flux, i);
 
         // --- Compute theta ---
         double theta_cell = 1.0;
         for (int q = 0; q <= order; ++q) {
-          const double E_q = U(i, q, vars::cons::RadEnergy);
-          const double F_q = U(i, q, vars::cons::RadFlux);
+          const double E_q = U(i, q, idx_rad_energy);
+          const double F_q = U(i, q, idx_rad_flux);
 
           if (std::abs(F_q) > c * E_q) {
             const double s = math::utils::sgn(F_q);
@@ -351,11 +354,11 @@ void limit_rad_momentum(StageData &stage_data, const Mesh &mesh) {
         // --- Rescale polynomial. ---
         if (theta_cell < 1.0) {
           for (int q = 0; q <= order; ++q) {
-            U(i, q, vars::cons::RadEnergy) =
-                E_avg + theta_cell * (U(i, q, vars::cons::RadEnergy) - E_avg);
+            U(i, q, idx_rad_energy) =
+                E_avg + theta_cell * (U(i, q, idx_rad_energy) - E_avg);
 
-            U(i, q, vars::cons::RadFlux) =
-                F_avg + theta_cell * (U(i, q, vars::cons::RadFlux) - F_avg);
+            U(i, q, idx_rad_flux) =
+                F_avg + theta_cell * (U(i, q, idx_rad_flux) - F_avg);
           }
         }
       });

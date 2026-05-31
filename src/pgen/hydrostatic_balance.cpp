@@ -17,9 +17,14 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "polytropic",
                    "Hydrostatic balance requires polytropic eos!");
 
-  auto uCF = mesh_state(0).get_field("u_cf");
-  auto uPF = mesh_state(0).get_field("u_pf");
-  auto uAF = mesh_state(0).get_field("u_af");
+  auto evolved = mesh_state(0).get_field("evolved");
+  auto derived = mesh_state(0).get_field("derived");
+
+  const int idx_tau = mesh_state(0).var_index("evolved", "specific_volume");
+  const int idx_vel = mesh_state(0).var_index("evolved", "velocity");
+  const int idx_ener =
+      mesh_state(0).var_index("evolved", "specific_total_fluid_energy");
+  const int idx_density = mesh_state(0).var_index("derived", "density");
 
   static const IndexRange ib(mesh->domain<Domain::Interior>());
   const int nNodes = mesh->n_nodes();
@@ -48,27 +53,27 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: HydrostaticBalance (1)",
       DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
         for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
-          uPF(i, iNodeX, vars::prim::Rho) =
-              rho_from_p(uAF(i, iNodeX, vars::prim::Rho));
+          derived(i, iNodeX, idx_density) =
+              rho_from_p(derived(i, iNodeX, idx_density));
         }
       });
 
   auto tau_func = [&](double /*x*/, int ix, int iN) -> double {
-    return 1.0 / rho_from_p(uAF(ix, iN, 0));
+    return 1.0 / rho_from_p(derived(ix, iN, 0));
   };
   auto energy_func = [&](double /*x*/, int ix, int iN) -> double {
-    const double rho = rho_from_p(uAF(ix, iN, 0));
-    return (uAF(ix, iN, 0) / gm1) / rho;
+    const double rho = rho_from_p(derived(ix, iN, 0));
+    return (derived(ix, iN, 0) / gm1) / rho;
   };
 
   static const IndexRange qb(nNodes);
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Pgen :: HydrostaticBalance (2)", DevExecSpace(),
       ib.s, ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
-        const int iN = q + 1; // uAF interior index
-        uCF(i, q, vars::cons::SpecificVolume) = tau_func(0.0, i, iN);
-        uCF(i, q, vars::cons::Velocity) = 0.0;
-        uCF(i, q, vars::cons::Energy) = energy_func(0.0, i, iN);
+        const int iN = q + 1; // derived interior index
+        evolved(i, q, idx_tau) = tau_func(0.0, i, iN);
+        evolved(i, q, idx_vel) = 0.0;
+        evolved(i, q, idx_ener) = energy_func(0.0, i, iN);
       });
 }
 

@@ -20,8 +20,18 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   const bool rad_active = pin->param()->get<bool>("physics.radiation.enabled");
   athelas_requires(rad_active, "Marshak requires radiation enabled!");
 
-  auto uCF = mesh_state(0).get_field("u_cf");
-  auto uPF = mesh_state(0).get_field("u_pf");
+  auto evolved = mesh_state(0).get_field("evolved");
+  auto derived = mesh_state(0).get_field("derived");
+
+  const int idx_tau = mesh_state(0).var_index("evolved", "specific_volume");
+  const int idx_vel = mesh_state(0).var_index("evolved", "velocity");
+  const int idx_ener =
+      mesh_state(0).var_index("evolved", "specific_total_fluid_energy");
+  const int idx_rad_energy =
+      mesh_state(0).var_index("evolved", "specific_radiation_energy");
+  const int idx_rad_flux =
+      mesh_state(0).var_index("evolved", "specific_radiation_flux");
+  const int idx_density = mesh_state(0).var_index("derived", "density");
 
   const int nNodes = mesh->n_nodes();
   static const IndexRange ib(mesh->domain<Domain::Interior>());
@@ -45,13 +55,13 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Pgen :: Marshak", DevExecSpace(), ib.s, ib.e, qb.s,
       qb.e, KOKKOS_LAMBDA(const int i, const int q) {
-        uCF(i, q, vars::cons::SpecificVolume) = 1.0 / rho0;
-        uCF(i, q, vars::cons::Velocity) = V0;
-        uCF(i, q, vars::cons::Energy) = em_gas + 0.5 * V0 * V0;
-        uCF(i, q, vars::cons::RadEnergy) = e_rad / rho0;
-        uCF(i, q, vars::cons::RadFlux) = 0.0;
+        evolved(i, q, idx_tau) = 1.0 / rho0;
+        evolved(i, q, idx_vel) = V0;
+        evolved(i, q, idx_ener) = em_gas + 0.5 * V0 * V0;
+        evolved(i, q, idx_rad_energy) = e_rad / rho0;
+        evolved(i, q, idx_rad_flux) = 0.0;
 
-        uPF(i, q, vars::prim::Rho) = rho0;
+        derived(i, q, idx_density) = rho0;
       });
 }
 

@@ -43,8 +43,8 @@ class RestartSedovTest(unittest.TestCase):
       "mesh/enclosed_mass",
       "mesh/sqrt_gm",
       "mesh/r_q",
-      "fields/u_cf",
-      "fields/u_pf",
+      "fields/evolved",
+      "fields/derived",
     ]
     # Tolerance accounts for fp non-associativity in the restart-resumed
     # half of the integration; this is much tighter than the gold tests.

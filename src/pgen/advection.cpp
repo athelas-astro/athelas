@@ -18,8 +18,14 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
                    "Advection requires ideal gas eos!");
 
   // Smooth advection problem
-  auto uCF = mesh_state(0).get_field("u_cf");
-  auto uPF = mesh_state(0).get_field("u_pf");
+  auto evolved = mesh_state(0).get_field("evolved");
+  auto derived = mesh_state(0).get_field("derived");
+
+  const int idx_tau = mesh_state(0).var_index("evolved", "specific_volume");
+  const int idx_vel = mesh_state(0).var_index("evolved", "velocity");
+  const int idx_ener =
+      mesh_state(0).var_index("evolved", "specific_total_fluid_energy");
+  const int idx_density = mesh_state(0).var_index("derived", "density");
 
   static const IndexRange ib(mesh->domain<Domain::Interior>());
   static const int nNodes = mesh->n_nodes();
@@ -37,7 +43,7 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
       ib.e, KOKKOS_LAMBDA(const int i) {
         for (int iNodeX = 0; iNodeX < nNodes; iNodeX++) {
           const double x = mesh->node_coordinate(i, iNodeX);
-          uPF(i, iNodeX, vars::prim::Rho) =
+          derived(i, iNodeX, idx_density) =
               (2.0 + Amp * sin(2.0 * constants::PI * x));
         }
       });
@@ -59,10 +65,9 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
       DEFAULT_LOOP_PATTERN, "Pgen :: Advection (nodal)", DevExecSpace(), ib.s,
       ib.e, nb.s, nb.e, KOKKOS_LAMBDA(const int i, const int node) {
         const double x = mesh->node_coordinate(i, node);
-        uCF(i, node, vars::cons::SpecificVolume) =
-            1.0 / density_func(x, i, node);
-        uCF(i, node, vars::cons::Velocity) = velocity_func(x, i, node);
-        uCF(i, node, vars::cons::Energy) = energy_func(x, i, node);
+        evolved(i, node, idx_tau) = 1.0 / density_func(x, i, node);
+        evolved(i, node, idx_vel) = velocity_func(x, i, node);
+        evolved(i, node, idx_ener) = energy_func(x, i, node);
       });
 }
 

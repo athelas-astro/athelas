@@ -53,7 +53,7 @@ auto initialize_slope_limiter(const std::string field, const Mesh *mesh,
 }
 
 void conservative_correction(AthelasArray3D<double> u_k,
-                             AthelasArray3D<double> ucf, const Mesh &mesh,
+                             AthelasArray3D<double> evolved, const Mesh &mesh,
                              const int nv) {
   auto nodes = mesh.nodes();
   auto weights = mesh.weights();
@@ -79,7 +79,7 @@ void conservative_correction(AthelasArray3D<double> u_k,
         double avg = 0.0;
         for (int q = 0; q < nq; ++q) {
           const double dv = weights(q) * sqrt_gm(i, q + 1);
-          avg += ucf(i, q, v) * dv;
+          avg += evolved(i, q, v) * dv;
           vol += dv;
         }
 

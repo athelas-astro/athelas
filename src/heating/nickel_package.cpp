@@ -64,9 +64,9 @@ void NickelHeatingPackage::ni_update(const StageData &stage_data,
 
   const int stage = dt_info.stage;
 
-  auto ucf = stage_data.get_field("u_cf");
+  auto evolved = stage_data.get_field("evolved");
 
-  auto mass_fractions = stage_data.mass_fractions("u_cf");
+  auto mass_fractions = stage_data.mass_fractions("evolved");
   const auto *const species_indexer = comps->species_indexer();
   static const auto ind_ni = species_indexer->get<int>("ni56");
   static const auto ind_co = species_indexer->get<int>("co56");
@@ -78,8 +78,8 @@ void NickelHeatingPackage::ni_update(const StageData &stage_data,
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "NickelHeating :: Update", DevExecSpace(), ib.s,
       ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-        const double x_ni = ucf(i, q, ind_ni);
-        const double x_co = ucf(i, q, ind_co);
+        const double x_ni = evolved(i, q, ind_ni);
+        const double x_co = evolved(i, q, ind_co);
         const double f_dep = this->template deposition_function<Model>(i, q);
         const double source = ni_source(x_ni, x_co, f_dep);
         const double norm = weights(q) * dm(i) * inv_mqq(i, q);
@@ -91,8 +91,8 @@ void NickelHeatingPackage::ni_update(const StageData &stage_data,
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "NickelHeating :: Decay network", DevExecSpace(),
       ib.s, ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-        const double x_ni = ucf(i, q, ind_ni);
-        const double x_co = ucf(i, q, ind_co);
+        const double x_ni = evolved(i, q, ind_ni);
+        const double x_co = evolved(i, q, ind_co);
         const double rhs_ni = -LAMBDA_NI_ * x_ni;
         const double rhs_co = LAMBDA_NI_ * x_ni - LAMBDA_CO_ * x_co;
         const double rhs_fe = LAMBDA_CO_ * x_co;
@@ -114,11 +114,12 @@ void NickelHeatingPackage::apply_delta(AthelasArray3D<double> lhs,
   static const IndexRange qb(nq);
 
   const int stage = dt_info.stage;
+  constexpr int idx_ener = 2;
 
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Nickel :: Apply delta", DevExecSpace(), ib.s, ib.e,
       qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-        lhs(i, q, vars::cons::Energy) +=
+        lhs(i, q, idx_ener) +=
             dt_info.dt_coef * delta_(stage, i, q, pkg_vars::Energy);
         lhs(i, q, ind_ni_) +=
             dt_info.dt_coef * delta_(stage, i, q, pkg_vars::Nickel);
@@ -176,13 +177,13 @@ void NickelHeatingPackage::fill_derived(StageData &stage_data,
   // don't include that point on the array, so start from
   // outermost quadrature point
 
-  auto ucf = stage_data.get_field("u_cf");
+  auto evolved = stage_data.get_field("evolved");
   // hacky
   // if (stage == -1) {
-  //  ucf = stage_data.get_field("u_cf");
+  //  evolved = stage_data.get_field("evolved");
   //}
-  auto uPF = stage_data.get_field("u_pf");
-  auto uAF = stage_data.get_field("u_af");
+  auto derived = stage_data.get_field("derived");
+  const int idx_tau = stage_data.var_index("evolved", "specific_volume");
 
   const auto ye = stage_data.comps()->ye();
 
@@ -235,10 +236,10 @@ void NickelHeatingPackage::fill_derived(StageData &stage_data,
                 const double rx = l * dr;
                 const double rj = std::sqrt(ri2 + rx * rx + two_ri_cos * rx);
                 const int index = find_closest_cell(centers, rj, nx);
-                const double rho_interp = linterp(
-                    centers(index), centers(index + 1),
-                    1.0 / ucf(index, q, vars::cons::SpecificVolume),
-                    1.0 / ucf(index + 1, q, vars::cons::SpecificVolume), rj);
+                const double rho_interp =
+                    linterp(centers(index), centers(index + 1),
+                            1.0 / evolved(index, q, idx_tau),
+                            1.0 / evolved(index + 1, q, idx_tau), rj);
 
                 const double ye_interp =
                     linterp(centers(index), centers(index + 1), ye(index, 0),

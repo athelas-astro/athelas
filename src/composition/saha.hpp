@@ -253,13 +253,15 @@ template <Domain MeshDomain, SahaSolver SolverType>
 void solve_saha_ionization(StageData &stage_data, const Mesh &mesh) {
   using basis::basis_eval;
 
-  auto ucf = stage_data.get_field("u_cf");
-  auto uaf = stage_data.get_field("u_af");
+  auto evolved = stage_data.get_field("evolved");
+  auto derived = stage_data.get_field("derived");
+  const int idx_tau = stage_data.var_index("evolved", "specific_volume");
+  const int idx_tgas = stage_data.var_index("derived", "gas_temperature");
   const auto *const comps = stage_data.comps();
   auto *const ionization_states = stage_data.ionization_state();
   const auto *const atomic_data = ionization_states->atomic_data();
   auto ln_i = ionization_states->ln_i();
-  const auto mass_fractions = stage_data.mass_fractions("u_cf");
+  const auto mass_fractions = stage_data.mass_fractions("evolved");
   const auto species = comps->charge();
   const auto neutron_number = comps->neutron_number();
   auto inv_atomic_mass = comps->inverse_atomic_mass();
@@ -310,9 +312,8 @@ void solve_saha_ionization(StageData &stage_data, const Mesh &mesh) {
       KOKKOS_LAMBDA(athelas::team_mbr_t member, const int i, const int q) {
         ScratchPad1D<double> saha_factors(member.team_scratch(scratch_level),
                                           nstates_total);
-        const double rho =
-            1.0 / basis_eval(phi, ucf, i, vars::cons::SpecificVolume, q);
-        const double temperature = uaf(i, q, vars::aux::Tgas);
+        const double rho = 1.0 / basis_eval(phi, evolved, i, idx_tau, q);
+        const double temperature = derived(i, q, idx_tgas);
 
         // TODO(astrobarker): Profile; faster as hierarchical reduction?
         // This loop is over Saha species
@@ -384,8 +385,8 @@ struct CoupledSolverContent {
   using AA3D = AthelasArray3D<double>;
   using AA4D = AthelasArray4D<double>;
 
-  AA3D ucf;
-  AA3D uaf;
+  AA3D evolved;
+  AA3D derived;
   AA3D mass_fractions;
   AA3D mass_fractions_nodal;
   AA3D phi;
@@ -426,8 +427,8 @@ template <eos::EOSInversion Inversion, SahaSolver SolverType>
 auto temperature_residual(const double temperature, const double rho,
                           const eos::EOS &eos,
                           const CoupledSolverContent &content) -> double {
-  auto ucf = content.ucf;
-  auto uaf = content.uaf;
+  auto evolved = content.evolved;
+  auto derived = content.derived;
 
   auto phi = content.phi;
 
@@ -607,14 +608,20 @@ void compute_temperature_with_saha(StageData &stage_data, const Mesh &mesh) {
   static const IndexRange ib(mesh.domain<MeshDomain>());
   static const IndexRange qb(nnodes + 2);
 
-  auto ucf = stage_data.get_field("u_cf");
-  auto uaf = stage_data.get_field("u_af");
+  auto evolved = stage_data.get_field("evolved");
+  auto derived = stage_data.get_field("derived");
+  const int idx_tau = stage_data.var_index("evolved", "specific_volume");
+  const int idx_vel = stage_data.var_index("evolved", "velocity");
+  const int idx_ener =
+      stage_data.var_index("evolved", "specific_total_fluid_energy");
+  const int idx_pressure = stage_data.var_index("derived", "pressure");
+  const int idx_tgas = stage_data.var_index("derived", "gas_temperature");
   const auto &eos = stage_data.eos();
   const auto &basis = stage_data.fluid_basis();
 
   const auto *const comps = stage_data.comps();
-  auto mass_fractions = stage_data.mass_fractions("u_cf");
-  auto mass_fractions_nodal = stage_data.get_field("x_q");
+  auto mass_fractions = stage_data.mass_fractions("evolved");
+  auto mass_fractions_nodal = stage_data.get_field("composition");
   auto species = comps->charge();
   auto neutron_number = comps->neutron_number();
   auto inv_atomic_mass = comps->inverse_atomic_mass();
@@ -669,25 +676,22 @@ void compute_temperature_with_saha(StageData &stage_data, const Mesh &mesh) {
         ScratchPad1D<double> saha_factors(member.team_scratch(scratch_level),
                                           nstates_total);
 
-        const double rho =
-            1.0 / basis::basis_eval(phi, ucf, i, vars::cons::SpecificVolume, q);
-        const double temperature_guess = uaf(i, q, vars::aux::Tgas);
+        const double rho = 1.0 / basis::basis_eval(phi, evolved, i, idx_tau, q);
+        const double temperature_guess = derived(i, q, idx_tgas);
 
         double target_var = 0.0;
         if constexpr (Inversion == eos::EOSInversion::Pressure) {
-          target_var = uaf(i, q, vars::aux::Pressure);
+          target_var = derived(i, q, idx_pressure);
 
         } else {
-          const double vel =
-              basis::basis_eval(phi, ucf, i, vars::cons::Velocity, q);
-          const double emt =
-              basis::basis_eval(phi, ucf, i, vars::cons::Energy, q);
+          const double vel = basis::basis_eval(phi, evolved, i, idx_vel, q);
+          const double emt = basis::basis_eval(phi, evolved, i, idx_ener, q);
           target_var = emt - 0.5 * vel * vel;
         }
 
         // solver content
-        const CoupledSolverContent content{ucf,
-                                           uaf,
+        const CoupledSolverContent content{evolved,
+                                           derived,
                                            mass_fractions,
                                            mass_fractions_nodal,
                                            phi,
@@ -719,7 +723,7 @@ void compute_temperature_with_saha(StageData &stage_data, const Mesh &mesh) {
         const double res =
             solver.solve(temperature_residual<Inversion, SolverType>,
                          temperature_guess, rho, eos, content);
-        uaf(i, q, vars::aux::Tgas) = res;
+        derived(i, q, idx_tgas) = res;
       });
 }
 

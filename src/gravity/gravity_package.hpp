@@ -30,8 +30,8 @@ class GravityPackage {
                        const TimeStepInfo &dt_info) const;
 
   template <GravityModel Model>
-  void gravity_update(AthelasArray3D<double> ucf, const Mesh &mesh,
-                      int stage) const;
+  void gravity_update(AthelasArray3D<double> evolved, const Mesh &mesh,
+                      int stage, int idx_vel) const;
 
   void apply_delta(AthelasArray3D<double> lhs,
                    const TimeStepInfo &dt_info) const;

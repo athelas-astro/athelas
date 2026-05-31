@@ -24,9 +24,14 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Ni decay requires ideal gas eos!");
 
-  auto uCF = mesh_state(0).get_field("u_cf");
-  auto uPF = mesh_state(0).get_field("u_pf");
-  auto uAF = mesh_state(0).get_field("u_af");
+  auto evolved = mesh_state(0).get_field("evolved");
+  auto derived = mesh_state(0).get_field("derived");
+
+  const int idx_tau = mesh_state(0).var_index("evolved", "specific_volume");
+  const int idx_vel = mesh_state(0).var_index("evolved", "velocity");
+  const int idx_ener =
+      mesh_state(0).var_index("evolved", "specific_total_fluid_energy");
+  const int idx_density = mesh_state(0).var_index("derived", "density");
 
   static const int nNodes = mesh->n_nodes();
   static const int order = nNodes;
@@ -53,7 +58,7 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   std::shared_ptr<atom::CompositionData> comps =
       std::make_shared<atom::CompositionData>(mesh->n_elements() + 2, order,
                                               ncomps);
-  auto mass_fractions = mesh_state.mass_fractions("u_cf");
+  auto mass_fractions = mesh_state.mass_fractions("evolved");
   auto charges = comps->charge();
   auto neutrons = comps->neutron_number();
   auto ye = comps->ye();
@@ -65,13 +70,13 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Pgen :: NiDecay", DevExecSpace(), ib.s, ib.e, qb.s,
       qb.e, KOKKOS_LAMBDA(const int i, const int q) {
-        uCF(i, q, vars::cons::SpecificVolume) = tau;
-        uCF(i, q, vars::cons::Velocity) = vel;
-        uCF(i, q, vars::cons::Energy) = sie;
+        evolved(i, q, idx_tau) = tau;
+        evolved(i, q, idx_vel) = vel;
+        evolved(i, q, idx_ener) = sie;
 
         for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
-          uPF(i, iNodeX, vars::prim::Rho) = rho;
-          uAF(i, iNodeX, 1) = temperature;
+          derived(i, iNodeX, idx_density) = rho;
+          derived(i, iNodeX, 1) = temperature;
           ye(i, iNodeX) = 0.5;
         }
 
@@ -98,7 +103,7 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
 
   // composition boundary condition
   static const IndexRange vb_comps(std::make_pair(3, 3 + ncomps - 1));
-  bc::fill_ghost_zones_composition(uCF, vb_comps);
+  bc::fill_ghost_zones_composition(evolved, vb_comps);
 }
 
 } // namespace athelas::pgen::ni_decay

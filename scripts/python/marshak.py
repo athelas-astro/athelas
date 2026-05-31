@@ -5,7 +5,7 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 
-from athelas import Athelas
+from athelas_tools.athelas import Athelas
 
 plt.style.use("style.mplstyle")
 
@@ -27,11 +27,11 @@ def plot_marshak(chk):
 
   a = Athelas(fn)
   r = a.r
-  tau = a.get("tau")
+  tau = a.get("specific_volume")
   print(len(tau))
   rho = 1.0 / tau
-  vel = a.get("vel")
-  emT = a.get("fluid_energy")
+  vel = a.get("velocity")
+  emT = a.get("specific_total_fluid_energy")
   em = emT - 0.5 * vel * vel
   ev = em * rho
 
@@ -39,7 +39,7 @@ def plot_marshak(chk):
   T_g = np.power(4.0 * ev / alpha_so, 0.25)
 
   # rad
-  ev_r = a.get("rad_energy") * rho
+  ev_r = a.get("specific_radiation_energy") * rho
   #  print(ev_r)
   T_r = np.power(ev_r / a_rad, 0.25)
 

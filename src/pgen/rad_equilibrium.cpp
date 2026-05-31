@@ -18,8 +18,16 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Radiation equilibriation requires ideal gas eos!");
 
-  auto uCF = mesh_state(0).get_field("u_cf");
-  auto uPF = mesh_state(0).get_field("u_pf");
+  auto evolved = mesh_state(0).get_field("evolved");
+  auto derived = mesh_state(0).get_field("derived");
+
+  const int idx_tau = mesh_state(0).var_index("evolved", "specific_volume");
+  const int idx_vel = mesh_state(0).var_index("evolved", "velocity");
+  const int idx_ener =
+      mesh_state(0).var_index("evolved", "specific_total_fluid_energy");
+  const int idx_rad_energy =
+      mesh_state(0).var_index("evolved", "specific_radiation_energy");
+  const int idx_density = mesh_state(0).var_index("derived", "density");
 
   static const int nNodes = mesh->n_nodes();
   static const IndexRange ib(mesh->domain<Domain::Interior>());
@@ -39,12 +47,12 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Pgen :: RadEquilibrium", DevExecSpace(), ib.s,
       ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
-        uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D;
-        uCF(i, q, vars::cons::Velocity) = V0;
-        uCF(i, q, vars::cons::Energy) = Ev_gas / D;
-        uCF(i, q, vars::cons::RadEnergy) = Ev_rad / D;
+        evolved(i, q, idx_tau) = 1.0 / D;
+        evolved(i, q, idx_vel) = V0;
+        evolved(i, q, idx_ener) = Ev_gas / D;
+        evolved(i, q, idx_rad_energy) = Ev_rad / D;
 
-        uPF(i, q, vars::prim::Rho) = D;
+        derived(i, q, idx_density) = D;
       });
 }
 

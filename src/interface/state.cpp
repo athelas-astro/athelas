@@ -229,11 +229,11 @@ MeshState::get_comp_start_index(const std::string &field_name) const -> int {
     return -1;
   }
 
-  if (!metadata.var_map->has("comps_0")) {
+  if (!metadata.var_map->has("mass_fraction_0")) {
     return -1;
   }
 
-  return metadata.var_map->index("comps_0");
+  return metadata.var_map->index("mass_fraction_0");
 }
 
 [[nodiscard]] auto MeshState::mass_fractions(const std::string &field_name,
