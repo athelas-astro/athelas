@@ -150,6 +150,71 @@ class TVDMinmod : public SlopeLimiterBase<TVDMinmod> {
   AthelasArray1D<int> limited_cell_;
 };
 
+// Hierarchical moment limiter (Krivodonova 2007, JCP 226).
+// Limits the highest mode first and descends one mode at a time, stopping the
+// cascade as soon as a mode is left unchanged. The j=1 (slope) step reduces to
+// the TVDMinmod slope limiter, so the same b_tvd / m_tvb controls apply.
+class MomentLimiter : public SlopeLimiterBase<MomentLimiter> {
+ public:
+  MomentLimiter() = default;
+  MomentLimiter(const bool enabled, const Mesh *mesh, IndexRange &vb,
+                const int order, const double b_tvd, const double m_tvb,
+                const bool characteristic, const bool tci_opt,
+                const double tci_val)
+      : enabled_(enabled), order_(order), nvars_(vb.size()), b_tvd_(b_tvd),
+        m_tvb_(m_tvb), characteristic_(characteristic), tci_opt_(tci_opt),
+        tci_val_(tci_val), vb_(vb),
+        u_k_("modal coefficients", mesh->n_elements() + 2, order, nvars_),
+        u_k_unlimited_("unlimited modal coefficients", mesh->n_elements() + 2,
+                       order, nvars_),
+        D_("TCI", mesh->n_elements() + 2),
+        limited_cell_("LimitedCell", mesh->n_elements() + 2) {
+
+    if (characteristic) {
+      R_ = AthelasArray3D<double>("R Matrix", mesh->n_elements() + 2, nvars_,
+                                  nvars_);
+      R_inv_ = AthelasArray3D<double>("invR Matrix", mesh->n_elements() + 2,
+                                      nvars_, nvars_);
+      U_c_T_ = AthelasArray2D<double>("U_c_T", mesh->n_elements() + 2, nvars_);
+      w_c_T_ = AthelasArray2D<double>("w_c_T", mesh->n_elements() + 2, nvars_);
+      mult_ = AthelasArray2D<double>("Mult", mesh->n_elements() + 2, nvars_);
+    }
+  }
+  void apply_slope_limiter(AthelasArray3D<double> U, const Mesh &mesh,
+                           const basis::NodalBasis &basis, const eos::EOS &eos);
+  [[nodiscard]] auto get_limited(int ix) const -> int;
+  [[nodiscard]] auto limited() const -> AthelasArray1D<int>;
+
+ private:
+  bool enabled_{};
+  int order_{};
+  int nvars_{};
+  double b_tvd_{};
+  double m_tvb_{};
+  bool characteristic_{};
+  bool tci_opt_{};
+  double tci_val_{};
+  IndexRange vb_;
+
+  AthelasArray3D<double> R_;
+  AthelasArray3D<double> R_inv_;
+
+  // --- Slope limiter quantities ---
+
+  AthelasArray3D<double> u_k_;
+  AthelasArray3D<double> u_k_unlimited_;
+  AthelasArray2D<double> U_c_T_;
+
+  // characteristic forms
+  AthelasArray2D<double> w_c_T_;
+
+  // matrix mult scratch scape
+  AthelasArray2D<double> mult_;
+
+  AthelasArray1D<double> D_;
+  AthelasArray1D<int> limited_cell_;
+};
+
 // A default no-op limiter used when limiting is disabled.
 class Unlimited : public SlopeLimiterBase<Unlimited> {
  public:
@@ -163,7 +228,7 @@ class Unlimited : public SlopeLimiterBase<Unlimited> {
   AthelasArray1D<int> limited_cell_;
 };
 
-using SlopeLimiter = std::variant<WENO, TVDMinmod, Unlimited>;
+using SlopeLimiter = std::variant<WENO, TVDMinmod, MomentLimiter, Unlimited>;
 
 // std::visit functions
 // The mesh for the limiter is taken from the stage data (canonical mesh for

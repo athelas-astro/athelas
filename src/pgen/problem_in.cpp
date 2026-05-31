@@ -193,7 +193,8 @@ ProblemIn::ProblemIn(
       fluid_limiter_block.get_or<std::string>("type", "minmod");
   params_->add("fluid.limiter.type", fluid_limiter_type);
 
-  if (limit_fluid && fluid_limiter_type == "minmod") {
+  if (limit_fluid &&
+      (fluid_limiter_type == "minmod" || fluid_limiter_type == "moment")) {
     const double b_tvd = fluid_limiter_block.get_or("b_tvd", 1.0);
     params_->add("fluid.limiter.b_tvd", b_tvd);
     const double m_tvb = fluid_limiter_block.get_or("m_tvb", 0.0);
@@ -341,7 +342,8 @@ ProblemIn::ProblemIn(
         rad_lim.get_or<std::string>("type", "minmod");
     params_->add("radiation.limiter.type", rad_limiter_type);
 
-    if (limit_rad && rad_limiter_type == "minmod") {
+    if (limit_rad &&
+        (rad_limiter_type == "minmod" || rad_limiter_type == "moment")) {
       const double b_tvd = rad_lim.get_or("b_tvd", 1.0);
       params_->add("radiation.limiter.b_tvd", b_tvd);
       const double m_tvb = rad_lim.get_or("m_tvb", 0.0);
