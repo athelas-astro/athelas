@@ -30,7 +30,7 @@ namespace athelas::basis {
  * Constructor creates necessary matrices and bases, etc.
  * This has to be called after the problem is initialized.
  **/
-ModalBasis::ModalBasis(poly_basis basis, const AthelasArray3D<double> uPF,
+ModalBasis::ModalBasis(poly_basis basis, const AthelasArray3D<double> derived,
                        Mesh *mesh, const int pOrder, const int nN,
                        const int nElements, const bool density_weight)
     : nX_(nElements), order_(pOrder), nNodes_(nN),
@@ -41,9 +41,9 @@ ModalBasis::ModalBasis(poly_basis basis, const AthelasArray3D<double> uPF,
       phi_("phi_", nElements + 2, nN + 2, pOrder),
       dphi_("dphi_", nElements + 2, nN + 2, pOrder) {
   // --- Compute mesh quantities ---
-  mesh->compute_mass(uPF);
-  mesh->compute_mass_r(uPF); // Weird place for this to be but works
-  mesh->compute_center_of_mass(uPF);
+  mesh->compute_mass(derived);
+  mesh->compute_mass_r(derived); // Weird place for this to be but works
+  mesh->compute_center_of_mass(derived);
 
   if (basis == poly_basis::legendre) {
     func_ = legendre;
@@ -55,7 +55,7 @@ ModalBasis::ModalBasis(poly_basis basis, const AthelasArray3D<double> uPF,
     throw_athelas_error(" ! Bad behavior in ModalBasis constructor !");
   }
 
-  initialize_basis(uPF, mesh);
+  initialize_basis(derived, mesh);
 }
 
 /* --- taylor Methods --- */
@@ -180,7 +180,7 @@ auto ModalBasis::d_legendre_n(const int poly_order, const int deriv_order,
  **/
 auto ModalBasis::inner_product(const int m, const int n, const int ix,
                                const double eta_c,
-                               const AthelasArray3D<double> uPF,
+                               const AthelasArray3D<double> derived,
                                const Mesh *mesh) const -> double {
   const auto weights = mesh->weights();
   const auto nodes = mesh->nodes();
@@ -190,7 +190,7 @@ auto ModalBasis::inner_product(const int m, const int n, const int ix,
   double result = 0.0;
   for (int iN = 0; iN < nNodes_; iN++) {
     // include rho in integrand if necessary
-    const double rho = density_weight_ ? uPF(ix, iN + 1, vars::prim::Rho) : 1.0;
+    const double rho = density_weight_ ? derived(ix, iN + 1, idx_density) : 1.0;
     const double eta_q = nodes(iN);
     result += func_(n, eta_q, eta_c) * phi_(ix, iN + 1, m) * weights(iN) * rho *
               dr(ix) * sqrt_gm(ix, iN + 1);
@@ -207,7 +207,7 @@ auto ModalBasis::inner_product(const int m, const int n, const int ix,
  **/
 auto ModalBasis::inner_product(const int n, const int ix,
                                const double /*eta_c*/,
-                               const AthelasArray3D<double> uPF,
+                               const AthelasArray3D<double> derived,
                                const Mesh *mesh) const -> double {
   const auto weights = mesh->weights();
   const auto nodes = mesh->nodes();
@@ -217,7 +217,7 @@ auto ModalBasis::inner_product(const int n, const int ix,
   double result = 0.0;
   for (int iN = 0; iN < nNodes_; iN++) {
     // include rho in integrand if necessary
-    const double rho = density_weight_ ? uPF(ix, iN + 1, vars::prim::Rho) : 1.0;
+    const double rho = density_weight_ ? derived(ix, iN + 1, idx_density) : 1.0;
     result += phi_(ix, iN + 1, n) * phi_(ix, iN + 1, n) * weights(iN) * rho *
               dr(ix) * sqrt_gm(ix, iN + 1);
   }
@@ -228,7 +228,7 @@ auto ModalBasis::inner_product(const int n, const int ix,
 // Gram-Schmidt orthogonalization of basis
 auto ModalBasis::ortho(const int order, const int ix, const int i_eta,
                        const double eta, const double eta_c,
-                       const AthelasArray3D<double> uPF, const Mesh *mesh,
+                       const AthelasArray3D<double> derived, const Mesh *mesh,
                        bool const derivative_option) -> double {
 
   double result = 0.0;
@@ -244,8 +244,8 @@ auto ModalBasis::ortho(const int order, const int ix, const int i_eta,
 
   double phi_n = 0.0;
   for (int k = 0; k < order; k++) {
-    const double numerator = inner_product(k, order, ix, eta_c, uPF, mesh);
-    const double denominator = inner_product(k, ix, eta_c, uPF, mesh);
+    const double numerator = inner_product(k, order, ix, eta_c, derived, mesh);
+    const double denominator = inner_product(k, ix, eta_c, derived, mesh);
     // ? Can this be cleaned up?
     if (!derivative_option) {
       phi_n = phi_(ix, i_eta, k);
@@ -265,7 +265,7 @@ auto ModalBasis::ortho(const int order, const int ix, const int i_eta,
  * We store: (-0.5, {GL nodes}, 0.5) for a total of nNodes+2
  * TODO: Incorporate COM centering?
  **/
-void ModalBasis::initialize_basis(const AthelasArray3D<double> uPF,
+void ModalBasis::initialize_basis(const AthelasArray3D<double> derived,
                                   const Mesh *mesh) {
   static const int n_eta = nNodes_ + 2;
   static const int ilo = 1;
@@ -284,13 +284,15 @@ void ModalBasis::initialize_basis(const AthelasArray3D<double> uPF,
           eta = mesh->get_nodes(i_eta - 1);
         }
 
-        phi_(ix, i_eta, k) = ortho(k, ix, i_eta, eta, 0.0, uPF, mesh, false);
-        dphi_(ix, i_eta, k) = ortho(k, ix, i_eta, eta, 0.0, uPF, mesh, true);
+        phi_(ix, i_eta, k) =
+            ortho(k, ix, i_eta, eta, 0.0, derived, mesh, false);
+        dphi_(ix, i_eta, k) =
+            ortho(k, ix, i_eta, eta, 0.0, derived, mesh, true);
       }
     }
   }
-  // check_orthogonality(uPF, mesh);
-  compute_mass_matrix(uPF, mesh);
+  // check_orthogonality(derived, mesh);
+  compute_mass_matrix(derived, mesh);
 
   // === Fill Guard cells ===
 
@@ -319,7 +321,7 @@ void ModalBasis::initialize_basis(const AthelasArray3D<double> uPF,
  * The following checks orthogonality of basis functions on each cell.
  * Returns error if orthogonality is not met.
  **/
-void ModalBasis::check_orthogonality(const AthelasArray3D<double> uPF,
+void ModalBasis::check_orthogonality(const AthelasArray3D<double> derived,
                                      const Mesh *mesh) const {
 
   static const int ilo = 1;
@@ -336,7 +338,7 @@ void ModalBasis::check_orthogonality(const AthelasArray3D<double> uPF,
         for (int i_eta = 1; i_eta <= nNodes_; i_eta++) // loop over quadratures
         {
           const double rho =
-              density_weight_ ? uPF(ix, i_eta, vars::prim::Rho) : 1.0;
+              density_weight_ ? derived(ix, i_eta, idx_density) : 1.0;
           // Not using an inner_product function because their API is odd..
           result += phi_(ix, i_eta, k1) * phi_(ix, i_eta, k2) * rho *
                     weights(i_eta - 1) * dr(ix) * sqrt_gm(ix, i_eta);
@@ -363,7 +365,7 @@ void ModalBasis::check_orthogonality(const AthelasArray3D<double> uPF,
  * ? If so, how do I expand this ?
  * ? I would need to compute and store more GL nodes, weights ?
  **/
-void ModalBasis::compute_mass_matrix(const AthelasArray3D<double> uPF,
+void ModalBasis::compute_mass_matrix(const AthelasArray3D<double> derived,
                                      const Mesh *mesh) {
   static const int ilo = 1;
   static const int ihi = mesh->get_ihi();
@@ -379,7 +381,7 @@ void ModalBasis::compute_mass_matrix(const AthelasArray3D<double> uPF,
       for (int iN = 0; iN < nNodes_; iN++) {
         // include rho in integrand if necessary
         const double rho =
-            density_weight_ ? uPF(ix, iN + 1, vars::prim::Rho) : 1.0;
+            density_weight_ ? derived(ix, iN + 1, idx_density) : 1.0;
         result += phi_(ix, iN + 1, k) * phi_(ix, iN + 1, k) * weights(iN) *
                   dr(ix) * sqrt_gm(ix, iN + 1) * rho;
       }
@@ -455,21 +457,21 @@ auto ModalBasis::order() const noexcept -> int { return order_; }
  *
  * Parameters:
  * -----------
- * uCF: conserved fields (modal representation)
- * uPF: primitive fields (nodal representation)
+ * evolved: conserved fields (modal representation)
+ * derived: primitive fields (nodal representation)
  * mesh: mesh structure
  * q: conserved field index
  * nodal_func: function that takes x coordinate and returns nodal value
  **/
 void ModalBasis::project_nodal_to_modal_all_cells(
-    AthelasArray3D<double> uCF, AthelasArray3D<double> uPF, Mesh *mesh, int q,
-    const std::function<double(double, int, int)> &nodal_func) const {
+    AthelasArray3D<double> evolved, AthelasArray3D<double> derived, Mesh *mesh,
+    int q, const std::function<double(double, int, int)> &nodal_func) const {
   static const IndexRange ib(mesh->domain<Domain::Interior>());
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Basis :: Project modal to nodal (all)",
       DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
-        project_nodal_to_modal(uCF, uPF, mesh, q, i, nodal_func);
+        project_nodal_to_modal(evolved, derived, mesh, q, i, nodal_func);
       });
 }
 

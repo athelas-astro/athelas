@@ -18,8 +18,18 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Radiation advection requires ideal gas eos!");
 
-  auto uCF = mesh_state(0).get_field("u_cf");
-  auto uPF = mesh_state(0).get_field("u_pf");
+  auto evolved = mesh_state(0).get_field("evolved");
+  auto derived = mesh_state(0).get_field("derived");
+
+  const int idx_tau = mesh_state(0).var_index("evolved", "specific_volume");
+  const int idx_vel = mesh_state(0).var_index("evolved", "velocity");
+  const int idx_ener =
+      mesh_state(0).var_index("evolved", "specific_total_fluid_energy");
+  const int idx_rad_energy =
+      mesh_state(0).var_index("evolved", "specific_radiation_energy");
+  const int idx_rad_flux =
+      mesh_state(0).var_index("evolved", "specific_radiation_flux");
+  const int idx_density = mesh_state(0).var_index("derived", "density");
 
   static const int nNodes = mesh->n_nodes();
   static const IndexRange ib(mesh->domain<Domain::Interior>());
@@ -39,25 +49,25 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
       qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
         const double X1 = mesh->centers(i);
 
-        uCF(i, q, vars::cons::RadEnergy) =
+        evolved(i, q, idx_rad_energy) =
             amp *
             std::max(std::exp(-std::pow((X1 - 0.5) / width, 2.0) / 2.0),
                      1.0e-8) /
             D;
-        uCF(i, q, vars::cons::RadFlux) =
-            1.0 * constants::c_cgs * uCF(i, q, vars::cons::RadEnergy) / D;
+        evolved(i, q, idx_rad_flux) =
+            1.0 * constants::c_cgs * evolved(i, q, idx_rad_energy) / D;
 
         const double Trad =
-            std::pow(uCF(i, q, vars::cons::RadEnergy) * D / constants::a, 0.25);
+            std::pow(evolved(i, q, idx_rad_energy) * D / constants::a, 0.25);
         const double sie_fluid =
             constants::k_B * Trad / (gm1 * mu * constants::m_p);
-        uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D;
-        uCF(i, q, vars::cons::Velocity) = V0;
-        uCF(i, q, vars::cons::Energy) =
+        evolved(i, q, idx_tau) = 1.0 / D;
+        evolved(i, q, idx_vel) = V0;
+        evolved(i, q, idx_ener) =
             sie_fluid +
             0.5 * V0 * V0; // p0 / (gamma - 1.0) / D + 0.5 * V0 * V0;
 
-        uPF(i, q, vars::prim::Rho) = D;
+        derived(i, q, idx_density) = D;
       });
 }
 

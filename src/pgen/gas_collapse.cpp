@@ -16,8 +16,14 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin,
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Gas collapse requires ideal gas eos!");
 
-  auto uCF = mesh_state(0).get_field("u_cf");
-  auto uPF = mesh_state(0).get_field("u_pf");
+  auto evolved = mesh_state(0).get_field("evolved");
+  auto derived = mesh_state(0).get_field("derived");
+
+  const int idx_tau = mesh_state(0).var_index("evolved", "specific_volume");
+  const int idx_vel = mesh_state(0).var_index("evolved", "velocity");
+  const int idx_ener =
+      mesh_state(0).var_index("evolved", "specific_total_fluid_energy");
+  const int idx_density = mesh_state(0).var_index("derived", "density");
 
   static const IndexRange ib(mesh->domain<Domain::Interior>());
   const int nNodes = mesh->n_nodes();
@@ -34,14 +40,13 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin,
       ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
         const int k = 0;
 
-        uCF(i, k, vars::cons::SpecificVolume) =
-            rho0; // / rho0 * (1.0 / std::cosh(x / H));
-        uCF(i, k, vars::cons::Velocity) = V0;
-        uCF(i, k, vars::cons::Energy) =
-            (p0 / gm1) * uCF(i, k, vars::cons::SpecificVolume) + 0.5 * V0 * V0;
+        evolved(i, k, idx_tau) = rho0; // / rho0 * (1.0 / std::cosh(x / H));
+        evolved(i, k, idx_vel) = V0;
+        evolved(i, k, idx_ener) =
+            (p0 / gm1) * evolved(i, k, idx_tau) + 0.5 * V0 * V0;
 
         for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
-          uPF(i, iNodeX, vars::prim::Rho) = rho0;
+          derived(i, iNodeX, idx_density) = rho0;
         }
       });
 
@@ -50,8 +55,10 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin,
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: GasCollapse (ghost)", DevExecSpace(),
       0, ib.s - 1, KOKKOS_LAMBDA(const int i) {
         for (int iN = 0; iN < nNodes + 2; iN++) {
-          uPF(ib.s - 1 - i, iN, 0) = uPF(ib.s + i, (nNodes + 2) - iN - 1, 0);
-          uPF(ib.s + 1 + i, iN, 0) = uPF(ib.s - i, (nNodes + 2) - iN - 1, 0);
+          derived(ib.s - 1 - i, iN, 0) =
+              derived(ib.s + i, (nNodes + 2) - iN - 1, 0);
+          derived(ib.s + 1 + i, iN, 0) =
+              derived(ib.s - i, (nNodes + 2) - iN - 1, 0);
         }
       });
 }

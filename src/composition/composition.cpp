@@ -28,8 +28,9 @@ using basis::NodalBasis;
  */
 void paczynski_terms(const StageData &stage_data, const int ix, const int node,
                      double *lambda) {
-  const auto ucf = stage_data.get_field("u_cf");
-  const auto uaf = stage_data.get_field("u_af");
+  const auto evolved = stage_data.get_field("evolved");
+  const auto derived = stage_data.get_field("derived");
+  const int idx_tgas = stage_data.var_index("derived", "gas_temperature");
 
   const auto *const comps = stage_data.comps();
   const auto number_density = comps->number_density();
@@ -49,7 +50,7 @@ void paczynski_terms(const StageData &stage_data, const int ix, const int node,
   lambda[4] = sigma2(ix, node);
   lambda[5] = sigma3(ix, node);
   lambda[6] = e_ion_corr(ix, node);
-  lambda[7] = uaf(ix, node, vars::aux::Tgas);
+  lambda[7] = derived(ix, node, idx_tgas);
 }
 
 } // namespace athelas::atom

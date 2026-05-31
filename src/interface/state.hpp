@@ -158,9 +158,9 @@ class StageData {
  *
  * Access patterns:
  * - Stage-specific: `auto stage_data = mesh_state(stage)`
- *   - Then: `auto u = stage_data.get_field("u_cf")`
- * - Direct access: `mesh_state.get_field("u_pf")`
- * - Metadata: `static int rho_idx = mesh_state.var_index("u_pf", "density")`
+ *   - Then: `auto u = stage_data.get_field("evolved")`
+ * - Direct access: `mesh_state.get_field("derived")`
+ * - Metadata: `static int rho_idx = mesh_state.var_index("derived", "density")`
  */
 class MeshState {
  public:

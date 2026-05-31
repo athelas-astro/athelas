@@ -13,9 +13,8 @@ Holds the similation state at a given time.
 struct State
   time::Float64
 
-  uCF::Array{Float64,3}
-  uPF::Array{Float64,3}
-  uAF::Array{Float64,3}
+  evolved::Array{Float64,3}
+  derived::Array{Float64,3}
 
   SlopeLimiter::Array{Int64}
 end

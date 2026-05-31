@@ -14,8 +14,14 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Moving contact requires ideal gas eos!");
 
-  auto uCF = mesh_state(0).get_field("u_cf");
-  auto uPF = mesh_state(0).get_field("u_pf");
+  auto evolved = mesh_state(0).get_field("evolved");
+  auto derived = mesh_state(0).get_field("derived");
+
+  const int idx_tau = mesh_state(0).var_index("evolved", "specific_volume");
+  const int idx_vel = mesh_state(0).var_index("evolved", "velocity");
+  const int idx_ener =
+      mesh_state(0).var_index("evolved", "specific_total_fluid_energy");
+  const int idx_density = mesh_state(0).var_index("derived", "density");
 
   const int nNodes = mesh->n_nodes();
   static const IndexRange ib(mesh->domain<Domain::Interior>());
@@ -37,21 +43,19 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
         const double X1 = mesh->centers(i);
 
         if (X1 <= 0.5) {
-          uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D_L;
-          uCF(i, q, vars::cons::Velocity) = V0;
-          uCF(i, q, vars::cons::Energy) =
-              (P_L / gm1) * uCF(i, q, vars::cons::SpecificVolume) +
-              0.5 * V0 * V0;
+          evolved(i, q, idx_tau) = 1.0 / D_L;
+          evolved(i, q, idx_vel) = V0;
+          evolved(i, q, idx_ener) =
+              (P_L / gm1) * evolved(i, q, idx_tau) + 0.5 * V0 * V0;
 
-          uPF(i, q, vars::prim::Rho) = D_L;
+          derived(i, q, idx_density) = D_L;
         } else {
-          uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D_R;
-          uCF(i, q, vars::cons::Velocity) = V0;
-          uCF(i, q, vars::cons::Energy) =
-              (P_R / gm1) * uCF(i, q, vars::cons::SpecificVolume) +
-              0.5 * V0 * V0;
+          evolved(i, q, idx_tau) = 1.0 / D_R;
+          evolved(i, q, idx_vel) = V0;
+          evolved(i, q, idx_ener) =
+              (P_R / gm1) * evolved(i, q, idx_tau) + 0.5 * V0 * V0;
 
-          uPF(i, q, vars::prim::Rho) = D_R;
+          derived(i, q, idx_density) = D_R;
         }
       });
 }

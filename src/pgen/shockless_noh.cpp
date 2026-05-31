@@ -13,8 +13,14 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Shockless Noh requires ideal gas eos!");
 
-  auto uCF = mesh_state(0).get_field("u_cf");
-  auto uPF = mesh_state(0).get_field("u_pf");
+  auto evolved = mesh_state(0).get_field("evolved");
+  auto derived = mesh_state(0).get_field("derived");
+
+  const int idx_tau = mesh_state(0).var_index("evolved", "specific_volume");
+  const int idx_vel = mesh_state(0).var_index("evolved", "velocity");
+  const int idx_ener =
+      mesh_state(0).var_index("evolved", "specific_total_fluid_energy");
+  const int idx_density = mesh_state(0).var_index("derived", "density");
 
   static const int nNodes = mesh->n_nodes();
   static const IndexRange ib(mesh->domain<Domain::Interior>());
@@ -29,13 +35,12 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
       qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
         const double X1 = mesh->centers(i);
 
-        uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D;
-        uCF(i, q, vars::cons::Velocity) = -X1;
-        uCF(i, q, vars::cons::Energy) =
-            E_M + 0.5 * uCF(i, q, vars::cons::Velocity) *
-                      uCF(i, q, vars::cons::Velocity);
+        evolved(i, q, idx_tau) = 1.0 / D;
+        evolved(i, q, idx_vel) = -X1;
+        evolved(i, q, idx_ener) =
+            E_M + 0.5 * evolved(i, q, idx_vel) * evolved(i, q, idx_vel);
 
-        uPF(i, q, vars::prim::Rho) = D;
+        derived(i, q, idx_density) = D;
       });
 }
 

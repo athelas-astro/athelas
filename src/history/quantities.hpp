@@ -27,7 +27,6 @@ inline auto total_gravitational_energy(const MeshState &mesh_state,
   auto enclosed_mass = mesh.enclosed_mass();
   auto mass_cell = mesh.mass();
   auto r = mesh.nodal_grid();
-  auto u = mesh_state(0).get_field("u_cf");
 
   const bool do_geometry = mesh.do_geometry();
 
@@ -63,7 +62,9 @@ inline auto total_fluid_energy(const MeshState &mesh_state, const Mesh &mesh)
   auto weights = mesh.weights();
   auto mcell = mesh.mass();
 
-  auto u = mesh_state(0).get_field("u_cf");
+  auto u = mesh_state(0).get_field("evolved");
+  const int idx_ener =
+      mesh_state.var_index("evolved", "specific_total_fluid_energy");
 
   double output = 0.0;
   athelas::par_reduce(
@@ -72,7 +73,7 @@ inline auto total_fluid_energy(const MeshState &mesh_state, const Mesh &mesh)
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum += weights(q) * u(i, q, vars::cons::Energy);
+          local_sum += weights(q) * u(i, q, idx_ener);
         }
         lsum += local_sum * mcell(i);
       },
@@ -93,7 +94,9 @@ inline auto total_fluid_momentum(const MeshState &mesh_state, const Mesh &mesh)
   auto sqrt_gm = mesh.sqrt_gm();
   auto weights = mesh.weights();
 
-  auto u = mesh_state(0).get_field("u_cf");
+  auto u = mesh_state(0).get_field("evolved");
+  const int idx_tau = mesh_state.var_index("evolved", "specific_volume");
+  const int idx_vel = mesh_state.var_index("evolved", "velocity");
 
   double output = 0.0;
   athelas::par_reduce(
@@ -102,9 +105,8 @@ inline auto total_fluid_momentum(const MeshState &mesh_state, const Mesh &mesh)
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum += weights(q) * u(i, q, vars::cons::Velocity) /
-                       u(i, q, vars::cons::SpecificVolume) * sqrt_gm(i, q + 1) *
-                       weights(q);
+          local_sum += weights(q) * u(i, q, idx_vel) / u(i, q, idx_tau) *
+                       sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
       },
@@ -125,7 +127,11 @@ inline auto total_internal_energy(const MeshState &mesh_state, const Mesh &mesh)
   auto sqrt_gm = mesh.sqrt_gm();
   auto weights = mesh.weights();
 
-  auto u = mesh_state(0).get_field("u_cf");
+  auto u = mesh_state(0).get_field("evolved");
+  const int idx_tau = mesh_state.var_index("evolved", "specific_volume");
+  const int idx_vel = mesh_state.var_index("evolved", "velocity");
+  const int idx_ener =
+      mesh_state.var_index("evolved", "specific_total_fluid_energy");
 
   double output = 0.0;
   athelas::par_reduce(
@@ -134,10 +140,9 @@ inline auto total_internal_energy(const MeshState &mesh_state, const Mesh &mesh)
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double vel = u(i, q, vars::cons::Velocity);
-          local_sum += (u(i, q, vars::cons::Energy) - 0.5 * vel * vel) /
-                       u(i, q, vars::cons::SpecificVolume) * sqrt_gm(i, q + 1) *
-                       weights(q);
+          const double vel = u(i, q, idx_vel);
+          local_sum += (u(i, q, idx_ener) - 0.5 * vel * vel) /
+                       u(i, q, idx_tau) * sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
       },
@@ -160,7 +165,8 @@ inline auto total_kinetic_energy(const MeshState &mesh_state, const Mesh &mesh)
   auto weights = mesh.weights();
 
   auto phi = mesh_state.fluid_basis().phi();
-  auto u = mesh_state(0).get_field("u_cf");
+  auto u = mesh_state(0).get_field("evolved");
+  const int idx_vel = mesh_state.var_index("evolved", "velocity");
 
   double output = 0.0;
   athelas::par_reduce(
@@ -169,7 +175,7 @@ inline auto total_kinetic_energy(const MeshState &mesh_state, const Mesh &mesh)
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double vel = u(i, q, vars::cons::Velocity);
+          const double vel = u(i, q, idx_vel);
           local_sum += weights(q) * (0.5 * vel * vel);
         }
         lsum += local_sum * mass(i);
@@ -191,7 +197,9 @@ inline auto total_rad_energy(const MeshState &mesh_state, const Mesh &mesh)
   auto dm = mesh.widths();
   auto weights = mesh.weights();
 
-  auto u = mesh_state(0).get_field("u_cf");
+  auto u = mesh_state(0).get_field("evolved");
+  const int idx_rad_energy =
+      mesh_state.var_index("evolved", "specific_radiation_energy");
 
   double output = 0.0;
   athelas::par_reduce(
@@ -200,7 +208,7 @@ inline auto total_rad_energy(const MeshState &mesh_state, const Mesh &mesh)
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum += u(i, q, vars::cons::RadEnergy) * weights(q);
+          local_sum += u(i, q, idx_rad_energy) * weights(q);
         }
         lsum += local_sum * dm(i);
       },
@@ -222,7 +230,9 @@ inline auto total_rad_momentum(const MeshState &mesh_state, const Mesh &mesh)
   auto weights = mesh.weights();
 
   auto phi_rad = mesh_state.rad_basis().phi();
-  auto u = mesh_state(0).get_field("u_cf");
+  auto u = mesh_state(0).get_field("evolved");
+  const int idx_rad_flux =
+      mesh_state.var_index("evolved", "specific_radiation_flux");
 
   double output = 0.0;
   athelas::par_reduce(
@@ -231,8 +241,7 @@ inline auto total_rad_momentum(const MeshState &mesh_state, const Mesh &mesh)
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum +=
-              u(i, q, vars::cons::RadFlux) * sqrt_gm(i, q + 1) * weights(q);
+          local_sum += u(i, q, idx_rad_flux) * sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
       },
@@ -285,7 +294,8 @@ inline auto total_mass(const MeshState &mesh_state, const Mesh &mesh)
   auto weights = mesh.weights();
 
   auto phi = mesh_state.fluid_basis().phi();
-  auto prims = mesh_state(0).get_field("u_pf");
+  auto derived = mesh_state(0).get_field("derived");
+  const int idx_density = mesh_state.var_index("derived", "density");
 
   double output = 0.0;
   athelas::par_reduce(
@@ -295,7 +305,7 @@ inline auto total_mass(const MeshState &mesh_state, const Mesh &mesh)
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
           local_sum +=
-              prims(i, q + 1, vars::prim::Rho) * sqrt_gm(i, q + 1) * weights(q);
+              derived(i, q + 1, idx_density) * sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
       },
@@ -318,8 +328,9 @@ inline auto total_mass_ni56(const MeshState &mesh_state, const Mesh &mesh) {
   auto weights = mesh.weights();
 
   auto phi = mesh_state.fluid_basis().phi();
-  auto u = mesh_state(0).get_field("u_cf");
-  auto prims = mesh_state(0).get_field("u_pf");
+  auto evolved = mesh_state(0).get_field("evolved");
+  auto derived = mesh_state(0).get_field("derived");
+  const int idx_density = mesh_state.var_index("derived", "density");
 
   const auto *const species_indexer = mesh_state.comps()->species_indexer();
   const auto ind_x = species_indexer->get<int>("ni56");
@@ -331,8 +342,8 @@ inline auto total_mass_ni56(const MeshState &mesh_state, const Mesh &mesh) {
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double x_ni = u(i, q, ind_x);
-          local_sum += x_ni * prims(i, q + 1, vars::prim::Rho) *
+          const double x_ni = evolved(i, q, ind_x);
+          local_sum += x_ni * derived(i, q + 1, idx_density) *
                        sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
@@ -354,8 +365,9 @@ inline auto total_mass_co56(const MeshState &mesh_state, const Mesh &mesh) {
   auto weights = mesh.weights();
 
   auto phi = mesh_state.fluid_basis().phi();
-  auto u = mesh_state(0).get_field("u_cf");
-  auto prims = mesh_state(0).get_field("u_pf");
+  auto evolved = mesh_state(0).get_field("evolved");
+  auto derived = mesh_state(0).get_field("derived");
+  const int idx_density = mesh_state.var_index("derived", "density");
 
   const auto *const species_indexer = mesh_state.comps()->species_indexer();
   const auto ind_x = species_indexer->get<int>("co56");
@@ -367,8 +379,8 @@ inline auto total_mass_co56(const MeshState &mesh_state, const Mesh &mesh) {
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double x_co = u(i, q, ind_x);
-          local_sum += x_co * prims(i, q + 1, vars::prim::Rho) *
+          const double x_co = evolved(i, q, ind_x);
+          local_sum += x_co * derived(i, q + 1, idx_density) *
                        sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);
@@ -390,8 +402,9 @@ inline auto total_mass_fe56(const MeshState &mesh_state, const Mesh &mesh) {
   auto weights = mesh.weights();
 
   auto phi = mesh_state.fluid_basis().phi();
-  auto u = mesh_state(0).get_field("u_cf");
-  auto prims = mesh_state(0).get_field("u_pf");
+  auto evolved = mesh_state(0).get_field("evolved");
+  auto derived = mesh_state(0).get_field("derived");
+  const int idx_density = mesh_state.var_index("derived", "density");
 
   const auto *const species_indexer = mesh_state.comps()->species_indexer();
   const auto ind_x = species_indexer->get<int>("fe56");
@@ -403,8 +416,8 @@ inline auto total_mass_fe56(const MeshState &mesh_state, const Mesh &mesh) {
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double x_fe = u(i, q, ind_x);
-          local_sum += x_fe * prims(i, q + 1, vars::prim::Rho) *
+          const double x_fe = evolved(i, q, ind_x);
+          local_sum += x_fe * derived(i, q + 1, idx_density) *
                        sqrt_gm(i, q + 1) * weights(q);
         }
         lsum += local_sum * dr(i);

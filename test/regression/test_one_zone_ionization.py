@@ -44,7 +44,7 @@ class OneZoneIonizationTest(AthelasRegressionTest):
     varlist = [
       "mesh/r",
       "mesh/dr",
-      "fields/u_cf",
+      "fields/evolved",
       "ionization/ionization_fractions",
     ]
 

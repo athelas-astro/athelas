@@ -24,7 +24,7 @@ auto HydrostaticEquilibrium::rhs(const double mass_enc, const double p,
 
 void HydrostaticEquilibrium::solve(MeshState &mesh_state, Mesh *mesh,
                                    ProblemIn *pin) {
-  auto uAF = mesh_state(0).get_field("u_af");
+  auto derived = mesh_state(0).get_field("derived");
   auto sd0 = mesh_state(0);
 
   static constexpr int ilo = 1;
@@ -47,7 +47,7 @@ void HydrostaticEquilibrium::solve(MeshState &mesh_state, Mesh *mesh,
   double m_enc = (constants::FOURPI / 3.0) * (r_c * r_c * r_c) * rho_c_;
 
   // host data
-  auto h_uAF = Kokkos::create_mirror_view(uAF);
+  auto h_derived = Kokkos::create_mirror_view(derived);
 
   const int size = mesh->n_elements() * (nNodes + 2) + 2 * (nNodes + 2);
   AthelasArray1D<double> d_r("host radius", size);
@@ -130,11 +130,11 @@ void HydrostaticEquilibrium::solve(MeshState &mesh_state, Mesh *mesh,
       const int idx = find_closest_cell(radius, rq, radius.size());
       const double y = linterp(radius[idx], radius[idx + 1], pressure[idx],
                                pressure[idx + 1], rq);
-      h_uAF(ix, q, iP_) = y;
+      h_derived(ix, q, iP_) = y;
     }
   }
 
-  Kokkos::deep_copy(uAF, h_uAF);
+  Kokkos::deep_copy(derived, h_derived);
 }
 
 } // namespace athelas

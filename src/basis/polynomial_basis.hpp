@@ -20,21 +20,22 @@ using BasisFuncType = double(int, double, double);
 
 class ModalBasis {
  public:
-  ModalBasis(AthelasArray3D<double> uCF, Mesh *mesh, int pOrder, int nN,
+  ModalBasis(AthelasArray3D<double> evolved, Mesh *mesh, int pOrder, int nN,
              int nElements, bool density_weight);
   static auto taylor(int order, double eta, double eta_c) -> double;
   static auto d_taylor(int order, double eta, double eta_c) -> double;
   auto ortho(int order, int ix, int i_eta, double eta, double eta_c,
-             const AthelasArray3D<double> uCF, const Mesh *mesh,
+             const AthelasArray3D<double> evolved, const Mesh *mesh,
              bool derivative_option) -> double;
   auto inner_product(int m, int n, int ix, double eta_c,
-                     AthelasArray3D<double> uPF, const Mesh *mesh) const
+                     AthelasArray3D<double> derived, const Mesh *mesh) const
       -> double;
-  auto inner_product(int n, int ix, double eta_c, AthelasArray3D<double> uPF,
-                     const Mesh *mesh) const -> double;
+  auto inner_product(int n, int ix, double eta_c,
+                     AthelasArray3D<double> derived, const Mesh *mesh) const
+      -> double;
   void initialize_taylor_basis(AthelasArray3D<double> U, Mesh *mesh);
-  void initialize_basis(const AthelasArray3D<double> uPF, const Mesh *mesh);
-  void check_orthogonality(const AthelasArray3D<double> uPF,
+  void initialize_basis(const AthelasArray3D<double> derived, const Mesh *mesh);
+  void check_orthogonality(const AthelasArray3D<double> derived,
                            const Mesh *mesh) const;
   [[nodiscard]] auto basis_eval(AthelasArray3D<double> U, int ix, int q,
                                 int i_eta) const -> double;
@@ -42,7 +43,8 @@ class ModalBasis {
                                 int i_eta) const -> double;
   [[nodiscard]] auto basis_eval(AthelasArray1D<double> U, int ix,
                                 int i_eta) const -> double;
-  void compute_mass_matrix(const AthelasArray3D<double> uPF, const Mesh *mesh);
+  void compute_mass_matrix(const AthelasArray3D<double> derived,
+                           const Mesh *mesh);
 
   [[nodiscard]] auto phi() const noexcept -> AthelasArray3D<double>;
   [[nodiscard]] auto get_d_phi(int ix, int i_eta, int k) const -> double;
@@ -54,12 +56,14 @@ class ModalBasis {
 
   // L2 projection from nodal to modal representation
   void project_nodal_to_modal(
-      AthelasArray3D<double> uCF, AthelasArray3D<double> uPF, Mesh *mesh, int q,
-      int ix, const std::function<double(double, int, int)> &nodal_func) const;
+      AthelasArray3D<double> evolved, AthelasArray3D<double> derived,
+      Mesh *mesh, int q, int ix,
+      const std::function<double(double, int, int)> &nodal_func) const;
 
   // L2 projection from nodal to modal representation for all cells
   void project_nodal_to_modal_all_cells(
-      AthelasArray3D<double> uCF, AthelasArray3D<double> uPF, Mesh *mesh, int q,
+      AthelasArray3D<double> evolved, AthelasArray3D<double> derived,
+      Mesh *mesh, int q,
       const std::function<double(double, int, int)> &nodal_func) const;
 
   static auto legendre(int n, double x) -> double;
@@ -146,8 +150,8 @@ auto basis_eval(AthelasArray3D<double> phi, AthelasArray1D<double> U,
  *
  * Parameters:
  * -----------
- * uCF: conserved fields (modal representation)
- * uPF: primitive fields (nodal representation)
+ * evolved: conserved fields (modal representation)
+ * derived: primitive fields (nodal representation)
  * mesh: mesh structure
  * q: conserved field index
  * ix: cell index
@@ -155,11 +159,12 @@ auto basis_eval(AthelasArray3D<double> phi, AthelasArray1D<double> U,
  **/
 KOKKOS_INLINE_FUNCTION
 void ModalBasis::project_nodal_to_modal(
-    AthelasArray3D<double> uCF, AthelasArray3D<double> uPF, Mesh *mesh, int q,
-    int ix, const std::function<double(double, int, int)> &nodal_func) const {
+    AthelasArray3D<double> evolved, AthelasArray3D<double> derived, Mesh *mesh,
+    int q, int ix,
+    const std::function<double(double, int, int)> &nodal_func) const {
   // Clear existing modal coefficients
   for (int k = 0; k < order_; k++) {
-    uCF(ix, k, q) = 0.0;
+    evolved(ix, k, q) = 0.0;
   }
 
   const auto dr = mesh->widths();
@@ -175,13 +180,13 @@ void ModalBasis::project_nodal_to_modal(
     for (int iN = 0; iN < nNodes_; iN++) {
       const double X = mesh->node_coordinate(ix, iN);
       const double nodal_val = nodal_func(X, ix, iN);
-      const double rho = density_weight_ ? uPF(ix, iN + 1, 0) : 1.0;
+      const double rho = density_weight_ ? derived(ix, iN + 1, 0) : 1.0;
 
       numerator += nodal_val * phi_(ix, iN + 1, k) * weights(iN) * dr(ix) *
                    sqrt_gm(ix, iN + 1) * rho;
     }
 
-    uCF(ix, k, q) = numerator / denominator;
+    evolved(ix, k, q) = numerator / denominator;
   }
 }
 

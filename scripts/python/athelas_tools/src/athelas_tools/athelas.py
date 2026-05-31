@@ -335,7 +335,7 @@ class Athelas:
     Examples
     --------
     ds.require("density", "pressure")
-    ds.require(field="u_cf")
+    ds.require(field="evolved")
     ds.require(basis="radiation")
     ds.require(composition=True)
     """

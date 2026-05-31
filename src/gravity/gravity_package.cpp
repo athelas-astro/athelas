@@ -40,20 +40,22 @@ void GravityPackage::update_explicit(const StageData &stage_data,
                                      const TimeStepInfo &dt_info) const {
   const auto &mesh = stage_data.mesh();
   const auto stage = dt_info.stage;
-  auto ucf = stage_data.get_field("u_cf");
+  auto evolved = stage_data.get_field("evolved");
+  const int idx_vel = stage_data.var_index("evolved", "velocity");
 
   static const IndexRange ib(mesh.domain<Domain::Interior>());
 
   if (model_ == GravityModel::Spherical) {
-    gravity_update<GravityModel::Spherical>(ucf, mesh, stage);
+    gravity_update<GravityModel::Spherical>(evolved, mesh, stage, idx_vel);
   } else [[unlikely]] {
-    gravity_update<GravityModel::Constant>(ucf, mesh, stage);
+    gravity_update<GravityModel::Constant>(evolved, mesh, stage, idx_vel);
   }
 }
 
 template <GravityModel Model>
-void GravityPackage::gravity_update(AthelasArray3D<double> ucf,
-                                    const Mesh &mesh, const int stage) const {
+void GravityPackage::gravity_update(AthelasArray3D<double> evolved,
+                                    const Mesh &mesh, const int stage,
+                                    const int idx_vel) const {
   using basis::basis_eval;
   static const int nNodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
@@ -77,11 +79,11 @@ void GravityPackage::gravity_update(AthelasArray3D<double> ucf,
                 -constants::G_GRAV * enclosed_mass(i, q) / denom;
             delta_(stage, i, q, pkg_vars::Energy) =
                 delta_(stage, i, q, pkg_vars::Velocity) *
-                ucf(i, q, vars::cons::Velocity);
+                evolved(i, q, idx_vel);
           } else {
             delta_(stage, i, q, pkg_vars::Velocity) = -constants::G_GRAV * gval;
             delta_(stage, i, q, pkg_vars::Energy) =
-                -constants::G_GRAV * gval * ucf(i, q, vars::cons::Velocity);
+                -constants::G_GRAV * gval * evolved(i, q, idx_vel);
           }
         }
       });

@@ -65,7 +65,7 @@ class IonizationState {
 
 /**
  * @class CompositionData
- * TODO(astrobarker): probably moving mass fractions into ucf soon.
+ * TODO(astrobarker): probably moving mass fractions into evolved soon.
  */
 class CompositionData {
  public:

@@ -13,8 +13,14 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Ejecta CSM requires ideal gas eos!");
 
-  auto uCF = mesh_state(0).get_field("u_cf");
-  auto uPF = mesh_state(0).get_field("u_pf");
+  auto evolved = mesh_state(0).get_field("evolved");
+  auto derived = mesh_state(0).get_field("derived");
+
+  const int idx_tau = mesh_state(0).var_index("evolved", "specific_volume");
+  const int idx_vel = mesh_state(0).var_index("evolved", "velocity");
+  const int idx_ener =
+      mesh_state(0).var_index("evolved", "specific_total_fluid_energy");
+  const int idx_density = mesh_state(0).var_index("derived", "density");
 
   static const int nNodes = mesh->n_nodes();
   static const IndexRange ib(mesh->domain<Domain::Interior>());
@@ -38,10 +44,10 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
         const double x = r(i);
         for (int q = 0; q < nNodes + 2; q++) {
           if (x <= rstar) {
-            uPF(i, q, vars::prim::Rho) =
+            derived(i, q, idx_density) =
                 1.0 / (constants::FOURPI * rstar3 / 3.0);
           } else {
-            uPF(i, q, vars::prim::Rho) = 1.0;
+            derived(i, q, idx_density) = 1.0;
           }
         }
       });
@@ -55,16 +61,15 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
           const double rho = 1.0 / (constants::FOURPI * rstar3 / 3.0);
           const double pressure = (1.0e-5) * rho * vmax * vmax;
           const double vel = vmax * (X1 / rstar);
-          uCF(i, q, vars::cons::SpecificVolume) = 1.0 / rho;
-          uCF(i, q, vars::cons::Velocity) = vel;
-          uCF(i, q, vars::cons::Energy) =
-              (pressure / gm1 / rho) + 0.5 * vel * vel;
+          evolved(i, q, idx_tau) = 1.0 / rho;
+          evolved(i, q, idx_vel) = vel;
+          evolved(i, q, idx_ener) = (pressure / gm1 / rho) + 0.5 * vel * vel;
         } else {
           const double rho = 1.0;
           const double pressure = (1.0e-5) * rho * vmax * vmax;
-          uCF(i, q, vars::cons::SpecificVolume) = 1.0 / rho;
-          uCF(i, q, vars::cons::Velocity) = 0.0;
-          uCF(i, q, vars::cons::Energy) = (pressure / gm1 / rho);
+          evolved(i, q, idx_tau) = 1.0 / rho;
+          evolved(i, q, idx_vel) = 0.0;
+          evolved(i, q, idx_ener) = (pressure / gm1 / rho);
         }
       });
 }

@@ -209,7 +209,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
 
   const auto nx = pin_->param()->get<int>("problem.nx");
   const int nnodes = pin_->param()->get<int>("basis.nnodes");
-  // For nodal DG, u_cf is (ix, node, var); for modal, (ix, mode, var)
+  // For nodal DG, evolved is (ix, node, var); for modal, (ix, mode, var)
   const auto cfl =
       compute_cfl(pin_->param()->get<double>("problem.cfl"), nnodes);
   const bool rad_active = pin->param()->get<bool>("physics.radiation.enabled");
@@ -217,42 +217,46 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
       pin->param()->get<bool>("physics.composition.enabled");
 
   // --- Set up mesh state ---
-  // First set up the conserved fields.
+  // Field taxonomy:
+  // - evolved: timestep state advanced by physics packages.
+  // - derived: recomputed cell/node quantities used by physics and diagnostics.
+  // - interface: face-centered state used for fluxes and staged updates.
+  // - composition: nodal composition support data derived from evolved mass
+  //   fractions.
+  // First set up the evolved fields.
   // Composition var names can't be known yet, so they are just set to
   // mass_fraction_0, ...
-  int nvars_cons = 3;
-  std::vector<std::string> varnames_cons = {"specific_volume", "velocity",
-                                            "specific_total_fluid_energy"};
+  int nvars_evolved = 3;
+  std::vector<std::string> varnames_evolved = {"specific_volume", "velocity",
+                                               "specific_total_fluid_energy"};
   if (rad_active) {
-    nvars_cons += 2;
-    varnames_cons.emplace_back("specific_radiation_energy");
-    varnames_cons.emplace_back("specific_radiation_flux");
+    nvars_evolved += 2;
+    varnames_evolved.emplace_back("specific_radiation_energy");
+    varnames_evolved.emplace_back("specific_radiation_flux");
   }
   if (comps_active) {
     const auto ncomps = pin->param()->get<int>("composition.ncomps");
-    nvars_cons += ncomps;
+    nvars_evolved += ncomps;
     for (int i = 0; i < ncomps; ++i) {
       const auto str = "mass_fraction_" + std::to_string(i);
-      varnames_cons.emplace_back(str);
+      varnames_evolved.emplace_back(str);
     }
   }
-  mesh_state_.register_field("u_cf", DataPolicy::TwoCopy, "Conserved variables",
-                             varnames_cons, nx + 2, nnodes, nvars_cons);
+  mesh_state_.register_field("evolved", DataPolicy::TwoCopy,
+                             "Evolved variables", varnames_evolved, nx + 2,
+                             nnodes, nvars_evolved);
 
-  int nvars_aux = 3;
-  mesh_state_.register_field("u_af", DataPolicy::OneCopy, "Auxiliary variables",
-                             {"pressure", "gas_temperature", "sound_speed"},
-                             nx + 2, nnodes + 2, nvars_aux);
-  int nvars_prim = 3;
+  int nvars_derived = 6;
   mesh_state_.register_field(
-      "u_pf", DataPolicy::OneCopy, "Primitive variables",
-      {"density", "momentum_density", "specific_internal_energy"}, nx + 2,
-      nnodes + 2, nvars_prim);
+      "derived", DataPolicy::OneCopy, "Derived variables",
+      {"density", "momentum_density", "specific_internal_energy", "pressure",
+       "gas_temperature", "sound_speed"},
+      nx + 2, nnodes + 2, nvars_derived);
 
   if (comps_active) {
-    // TODO(astrobarker) [composition] Get rid of x_q nodal mass fractions
+    // TODO(astrobarker) [composition] Get rid of nodal mass fractions
     const auto ncomps = pin->param()->get<int>("composition.ncomps");
-    mesh_state_.register_field("x_q", DataPolicy::OneCopy,
+    mesh_state_.register_field("composition", DataPolicy::OneCopy,
                                "Nodal mass fractions", nx + 2, nnodes + 2,
                                ncomps);
 
@@ -261,17 +265,17 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
                                nnodes + 2, 3);
   }
 
-  mesh_state_.register_field("facedata", DataPolicy::Staged,
-                             "Misc variable face data", {"interface_velocity"},
+  mesh_state_.register_field("interface", DataPolicy::Staged,
+                             "Interface variables", {"interface_velocity"},
                              nx + 2 + 1, 1);
 
   // auto info = mesh_state_.field_info();
 
   if (!restart_) {
     initialize_fields(mesh_state_, &mesh_state_.mesh(), pin);
-    auto cons = mesh_state_(0).get_field("u_cf");
-    bc::fill_ghost_zones<3>(cons, &mesh_state_.mesh(), bcs_.get(), {0, 2});
-    mesh_state_.mesh().compute_mass(cons);
+    auto evolved = mesh_state_(0).get_field("evolved");
+    bc::fill_ghost_zones<3>(evolved, &mesh_state_.mesh(), bcs_.get(), {0, 2});
+    mesh_state_.mesh().compute_mass(evolved);
   } else {
     // Restart path: rebuild MeshState/mesh from the .ath file rather than the
     // problem generator. Composition / ionization wiring must happen before
@@ -322,14 +326,14 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
                  time_, restart_info_.last_cycle, dt_);
   }
 
-  // Basis construction is identical for both paths once u_pf is in place
+  // Basis construction is identical for both paths once derived is in place
   // (pgen-populated or restart-loaded).
-  auto prims = mesh_state_(0).get_field("u_pf");
+  auto derived = mesh_state_(0).get_field("derived");
   mesh_state_.setup_fluid_basis(
-      std::make_unique<NodalBasis>(prims, &mesh_state_.mesh(), nnodes, nx));
+      std::make_unique<NodalBasis>(derived, &mesh_state_.mesh(), nnodes, nx));
   if (rad_active) {
     mesh_state_.setup_rad_basis(
-        std::make_unique<NodalBasis>(prims, &mesh_state_.mesh(), nnodes, nx));
+        std::make_unique<NodalBasis>(derived, &mesh_state_.mesh(), nnodes, nx));
   }
 
   // post_init_work recomputes mesh mass / center-of-mass and applies the
@@ -437,13 +441,12 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   // came from the .ath file, so re-running the limiter would alter the
   // checkpointed state.
   if (!restart_) {
-    auto ucf = sd0.get_field("u_cf");
-    bc::fill_ghost_zones<3>(ucf, &mesh_state_.mesh(), bcs_.get(), {0, 2});
+    auto evolved = sd0.get_field("evolved");
+    bc::fill_ghost_zones<3>(evolved, &mesh_state_.mesh(), bcs_.get(), {0, 2});
     if (rad_active) {
-      bc::fill_ghost_zones<2>(ucf, &mesh_state_.mesh(), bcs_.get(), {3, 4});
+      bc::fill_ghost_zones<2>(evolved, &mesh_state_.mesh(), bcs_.get(), {3, 4});
     }
-    auto cons = sd0.get_field("u_cf");
-    apply_slope_limiter(&sl_hydro_, cons, sd0, sd0.fluid_basis(), sd0.eos());
+    apply_slope_limiter(&sl_hydro_, evolved, sd0, sd0.fluid_basis(), sd0.eos());
     bel::apply_bound_enforcing_limiter(sd0);
   }
 
@@ -494,15 +497,15 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
  */
 void Driver::post_init_work() {
   auto sd0 = mesh_state_(0);
-  auto cons = sd0.get_field("u_cf");
+  auto evolved = sd0.get_field("evolved");
   const bool comps_active = mesh_state_.enabled("composition");
   const bool ionization_active = mesh_state_.enabled("ionization");
 
   static const IndexRange ib(mesh_state_.mesh().domain<Domain::Interior>());
 
-  mesh_state_.mesh().compute_mass(cons);
-  mesh_state_.mesh().compute_mass_r(cons);
-  mesh_state_.mesh().compute_center_of_mass(cons);
+  mesh_state_.mesh().compute_mass(evolved);
+  mesh_state_.mesh().compute_mass_r(evolved);
+  mesh_state_.mesh().compute_center_of_mass(evolved);
 
   // If we are doing some kind of mass cut, that mass needs to be included
   // in the enclosed mass.

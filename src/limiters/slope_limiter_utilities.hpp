@@ -8,7 +8,7 @@
 namespace athelas {
 
 void conservative_correction(AthelasArray3D<double> u_k,
-                             AthelasArray3D<double> ucf, const Mesh &mesh,
+                             AthelasArray3D<double> evolved, const Mesh &mesh,
                              int nv);
 
 auto initialize_slope_limiter(std::string field, const Mesh *mesh,

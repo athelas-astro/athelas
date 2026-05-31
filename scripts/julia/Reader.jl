@@ -30,20 +30,12 @@ function Load_Output( fn::String )
   x1::Array{Float64,1} = fid["/Spatial Grid/Grid"][:]
   dr::Array{Float64,1} = fid["/Spatial Grid/Widths"][:]
 
-  uCF::Array{Float64,3} = zeros(order, nX, 3)
+  evolved::Array{Float64,3} = fid["/fields/evolved"][:, :, :]
+  derived::Array{Float64,3} = fid["/fields/derived"][:, :, :]
 
-  for i in 1:order
-    uCF[i, :, 1] = fid["/Conserved Fields/Specific Volume"][((i - 1) * nX + 1):(i * nX)]
-    uCF[i, :, 2] = fid["/Conserved Fields/Velocity"][((i - 1) * nX + 1):(i * nX)]
-    uCF[i, :, 3] = fid["/Conserved Fields/Specific Internal Energy"][((i - 1) * nX + 1):(i * nX)]
-  end
+  SlopeLimiter::Array{Int64,1} = zeros(Int64, nX)
 
-  SlopeLimiter::Array{Int64,1} = fid["/Diagnostic Fields/Limiter"][:]
-
-  uPF::Array{Float64,3} = zeros(order, nX, 3)
-  uAF::Array{Float64,3} = zeros(order, nX, 3)
-
-  state::State = State(time, uCF, uPF, uAF, SlopeLimiter)
+  state::State = State(time, evolved, derived, SlopeLimiter)
   grid ::GridType = GridType(x1,dr)
 
   close(fid)
@@ -79,9 +71,9 @@ em_array = Float64[]
     data, grid, order = Load_Output( "../build/" * fn )
 
     fig = Figure()
-    tau = data.uCF[1,:,1]
-    v = data.uCF[1,:,2]
-    em = data.uCF[1,:,3] .- 0.5 .* v .* v
+    tau = data.evolved[1,:,1]
+    v = data.evolved[1,:,2]
+    em = data.evolved[1,:,3] .- 0.5 .* v .* v
     println(v)
     em1 = em[1]
     #push!( time_array, data.time )

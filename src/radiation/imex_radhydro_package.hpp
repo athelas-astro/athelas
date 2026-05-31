@@ -72,10 +72,13 @@ class RadHydroPackage {
 
 template <IonizationPhysics Ionization, typename T, typename G>
 KOKKOS_INLINE_FUNCTION void
-newton_radhydro_fd(const double dt_a_ii, const double emin, T ustar, T uaf,
+newton_radhydro_fd(const double dt_a_ii, const double emin, T ustar, T derived,
                    const RadHydroSolverIonizationContent &content, G &scratch,
                    const eos::EOS &eos, const Opacity &opac,
-                   eos::EOSLambda lambda, const double dg_term) {
+                   eos::EOSLambda lambda, const double dg_term,
+                   const int idx_tau, const int idx_vel, const int idx_ener,
+                   const int idx_rad_energy, const int idx_rad_flux,
+                   const int idx_tgas) {
   constexpr double c = constants::c_cgs;
   constexpr double c2 = c * c;
   constexpr double inv_c2 = 1.0 / c2;
@@ -84,11 +87,11 @@ newton_radhydro_fd(const double dt_a_ii, const double emin, T ustar, T uaf,
   constexpr double alpha = 1.0e-4;
   constexpr int max_linesearch = 16;
 
-  const double vstar = ustar(vars::cons::Velocity);
-  const double rho = 1.0 / ustar(vars::cons::SpecificVolume);
-  const double e_star = ustar(vars::cons::Energy);
-  const double er_star = ustar(vars::cons::RadEnergy);
-  const double fr_star = ustar(vars::cons::RadFlux);
+  const double vstar = ustar(idx_vel);
+  const double rho = 1.0 / ustar(idx_tau);
+  const double e_star = ustar(idx_ener);
+  const double er_star = ustar(idx_rad_energy);
+  const double fr_star = ustar(idx_rad_flux);
   const double etot = e_star + er_star;
   const double m_tot = vstar + fr_star * inv_c2; // "total specific momentum"
   const double vscale = std::sqrt(2.0 * etot);
@@ -129,7 +132,7 @@ newton_radhydro_fd(const double dt_a_ii, const double emin, T ustar, T uaf,
       lambda.data[4] = sigma2;
       lambda.data[5] = sigma3;
       lambda.data[6] = e_ion_corr;
-      lambda.data[7] = uaf(vars::aux::Tgas);
+      lambda.data[7] = derived(idx_tgas);
     }
 
     // Build inputs struct for source evaluation
@@ -240,18 +243,20 @@ newton_radhydro_fd(const double dt_a_ii, const double emin, T ustar, T uaf,
   } // while not converged
 
   // Update conserved variables
-  scratch[vars::cons::Velocity] = v;
-  scratch[vars::cons::Energy] = std::max(e, emin);
-  scratch[vars::cons::RadEnergy] = etot - std::max(e, emin);
-  scratch[vars::cons::RadFlux] = c2 * (m_tot - v);
+  scratch[idx_vel] = v;
+  scratch[idx_ener] = std::max(e, emin);
+  scratch[idx_rad_energy] = etot - std::max(e, emin);
+  scratch[idx_rad_flux] = c2 * (m_tot - v);
 }
 
 template <IonizationPhysics Ionization, typename T, typename G>
 KOKKOS_INLINE_FUNCTION void
-newton_radhydro(const double dt_a_ii, const double emin, T ustar, T uaf,
+newton_radhydro(const double dt_a_ii, const double emin, T ustar, T derived,
                 const RadHydroSolverIonizationContent &content, G &scratch,
                 const eos::EOS &eos, const Opacity &opac, eos::EOSLambda lambda,
-                const double dg_term) {
+                const double dg_term, const int idx_tau, const int idx_vel,
+                const int idx_ener, const int idx_rad_energy,
+                const int idx_rad_flux, const int idx_tgas) {
   constexpr double c = constants::c_cgs;
   constexpr double inv_c = 1.0 / c;
   constexpr double c2 = c * c;
@@ -261,12 +266,12 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T uaf,
   constexpr double alpha = 1.0e-4;
   constexpr int max_linesearch = 22;
 
-  const double vstar = ustar(vars::cons::Velocity);
-  const double rho = 1.0 / ustar(vars::cons::SpecificVolume);
+  const double vstar = ustar(idx_vel);
+  const double rho = 1.0 / ustar(idx_tau);
   const double c_rho = constants::c_cgs * rho;
-  const double e_star = ustar(vars::cons::Energy);
-  const double er_star = ustar(vars::cons::RadEnergy);
-  const double fr_star = ustar(vars::cons::RadFlux);
+  const double e_star = ustar(idx_ener);
+  const double er_star = ustar(idx_rad_energy);
+  const double fr_star = ustar(idx_rad_flux);
   const double etot = e_star + er_star;
   const double m_tot = vstar + fr_star * inv_c2; // "total specific momentum"
   const double vscale = std::sqrt(2.0 * etot);
@@ -320,12 +325,12 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T uaf,
       lambda.data[4] = sigma2;
       lambda.data[5] = sigma3;
       lambda.data[6] = e_ion_corr;
-      lambda.data[7] = uaf(vars::aux::Tgas);
+      lambda.data[7] = derived(idx_tgas);
     }
 
     const double temperature = eos::temperature_from_density_sie(
         eos, rho, e - 0.5 * v * v, lambda.ptr());
-    uaf(vars::aux::Tgas) = temperature;
+    derived(idx_tgas) = temperature;
     const double cv =
         eos::cv_from_density_temperature(eos, rho, temperature, lambda.ptr());
     const double inv_cv = 1.0 / cv;
@@ -479,9 +484,9 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T uaf,
   }
 
   // Update conserved variables
-  scratch[vars::cons::Velocity] = v;
-  scratch[vars::cons::Energy] = e;
-  scratch[vars::cons::RadEnergy] = etot - e;
-  scratch[vars::cons::RadFlux] = c2 * (m_tot - v);
+  scratch[idx_vel] = v;
+  scratch[idx_ener] = e;
+  scratch[idx_rad_energy] = etot - e;
+  scratch[idx_rad_flux] = c2 * (m_tot - v);
 }
 } // namespace athelas::radiation

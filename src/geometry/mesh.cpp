@@ -280,17 +280,18 @@ void Mesh::create_log_grid() {
  * Compute cell masses
  **/
 KOKKOS_FUNCTION
-void Mesh::compute_mass(AthelasArray3D<double> ucf) {
+void Mesh::compute_mass(AthelasArray3D<double> evolved) {
   const int nNodes_ = n_nodes();
   const int ilo = get_ilo();
   const int ihi = get_ihi();
+  constexpr int idx_tau = 0;
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Compute mass", DevExecSpace(), ilo,
       ihi, KOKKOS_CLASS_LAMBDA(const int i) {
         double mass = 0.0;
         for (int q = 0; q < nNodes_; q++) {
-          const double rho = 1.0 / ucf(i, q, vars::cons::SpecificVolume);
+          const double rho = 1.0 / evolved(i, q, idx_tau);
           const double X = node_coordinate(i, q);
           mass += weights_(q) * get_sqrt_gm(X) * rho;
         }
@@ -318,10 +319,11 @@ void Mesh::compute_mass(AthelasArray3D<double> ucf) {
  * it should be refactored.
  **/
 KOKKOS_FUNCTION
-void Mesh::compute_mass_r(AthelasArray3D<double> ucf) {
+void Mesh::compute_mass_r(AthelasArray3D<double> evolved) {
   const int nNodes_ = n_nodes();
   const int ilo = get_ilo();
   const int ihi = get_ihi();
+  constexpr int idx_tau = 0;
 
   static const double geom_fac = (do_geometry()) ? 4.0 * constants::PI : 1.0;
 
@@ -336,7 +338,7 @@ void Mesh::compute_mass_r(AthelasArray3D<double> ucf) {
         const int ix = ilo + idx / nNodes_;
         const int q = idx % nNodes_;
         const double X = node_coordinate(ix, q);
-        const double rho = 1.0 / ucf(ix, q, vars::cons::SpecificVolume);
+        const double rho = 1.0 / evolved(ix, q, idx_tau);
         mass_contrib(idx) = weights_(q) * get_sqrt_gm(X) * rho * widths_(ix);
       });
 
@@ -375,10 +377,11 @@ auto Mesh::enclosed_mass(const int ix, const int q) const noexcept -> double {
  * Compute cell centers of masses reference coordinates
  **/
 KOKKOS_FUNCTION
-void Mesh::compute_center_of_mass(AthelasArray3D<double> ucf) {
+void Mesh::compute_center_of_mass(AthelasArray3D<double> evolved) {
   const int nNodes_ = n_nodes();
   const int ilo = get_ilo();
   const int ihi = get_ihi();
+  constexpr int idx_tau = 0;
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Grid :: center of mass", DevExecSpace(), ilo,
@@ -387,7 +390,7 @@ void Mesh::compute_center_of_mass(AthelasArray3D<double> ucf) {
 
         for (int q = 0; q < nNodes_; q++) {
           const double X = node_coordinate(i, q);
-          const double rho = 1.0 / ucf(i, q, vars::cons::SpecificVolume);
+          const double rho = 1.0 / evolved(i, q, idx_tau);
           com += nodes_(q) * weights_(q) * get_sqrt_gm(X) * rho;
         }
 

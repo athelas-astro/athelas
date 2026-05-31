@@ -16,8 +16,14 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Sedov requires ideal gas eos!");
 
-  auto uCF = mesh_state(0).get_field("u_cf");
-  auto uPF = mesh_state(0).get_field("u_pf");
+  auto evolved = mesh_state(0).get_field("evolved");
+  auto derived = mesh_state(0).get_field("derived");
+
+  const int idx_tau = mesh_state(0).var_index("evolved", "specific_volume");
+  const int idx_vel = mesh_state(0).var_index("evolved", "velocity");
+  const int idx_ener =
+      mesh_state(0).var_index("evolved", "specific_total_fluid_energy");
+  const int idx_density = mesh_state(0).var_index("derived", "density");
 
   static const int nNodes = mesh->n_nodes();
   static const IndexRange ib(mesh->domain<Domain::Interior>());
@@ -42,19 +48,17 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
             (4.0 * M_PI / 3.0) * std::pow(left_interface(origin + 1), 3.0);
         const double P0 = gm1 * E0 / volume;
 
-        uCF(i, q, vars::cons::SpecificVolume) = 1.0 / D0;
-        uCF(i, q, vars::cons::Velocity) = V0;
+        evolved(i, q, idx_tau) = 1.0 / D0;
+        evolved(i, q, idx_vel) = V0;
         if (i == origin - 1 || i == origin) {
-          uCF(i, q, vars::cons::Energy) =
-              (P0 / gm1) * uCF(i, q, vars::cons::SpecificVolume) +
-              0.5 * V0 * V0;
+          evolved(i, q, idx_ener) =
+              (P0 / gm1) * evolved(i, q, idx_tau) + 0.5 * V0 * V0;
         } else {
-          uCF(i, q, vars::cons::Energy) =
-              (1.0e-6 / gm1) * uCF(i, q, vars::cons::SpecificVolume) +
-              0.5 * V0 * V0;
+          evolved(i, q, idx_ener) =
+              (1.0e-6 / gm1) * evolved(i, q, idx_tau) + 0.5 * V0 * V0;
         }
 
-        uPF(i, q + 1, vars::prim::Rho) = D0;
+        derived(i, q + 1, idx_density) = D0;
       });
 
   // Fill density in guard cells
@@ -62,8 +66,10 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Sedov (ghost)", DevExecSpace(), 0,
       ib.s - 1, KOKKOS_LAMBDA(const int i) {
         for (int iN = 0; iN < nNodes + 2; iN++) {
-          uPF(ib.s - 1 - i, iN, 0) = uPF(ib.s + i, (nNodes + 2) - iN - 1, 0);
-          uPF(ib.e + 1 + i, iN, 0) = uPF(ib.e - i, (nNodes + 2) - iN - 1, 0);
+          derived(ib.s - 1 - i, iN, 0) =
+              derived(ib.s + i, (nNodes + 2) - iN - 1, 0);
+          derived(ib.e + 1 + i, iN, 0) =
+              derived(ib.e - i, (nNodes + 2) - iN - 1, 0);
         }
       });
 }

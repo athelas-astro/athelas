@@ -62,7 +62,7 @@ class RadiationEquilibriumTest(AthelasRegressionTest):
 
     # vars to test
     varlist = [
-      "fields/u_cf",
+      "fields/evolved",
     ]
     fn = "rad_equilibrium_final.ath"
     data = self.load_output(fn, varlist)

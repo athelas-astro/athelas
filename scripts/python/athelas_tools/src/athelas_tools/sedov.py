@@ -18,8 +18,8 @@ def plot_sedov(chk):
   r = a.r
   print(r[0])
   tau = a.get("specific_volume")
-  # vel = a.uCF[:, 0, 1]
-  # emT = a.uCF[:, 0, 2]
+  # vel = a.evolved[:, 0, 1]
+  # emT = a.evolved[:, 0, 2]
   # em = emT - 0.5 * vel * vel
   rho = 1.0 / tau
   # gamma = 1.4

@@ -81,7 +81,11 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
         static_cast<int>(pin->param()->get<bool>("physics.radiation.enabled"));
     const auto &basis = stage_data.fluid_basis();
     auto phi = basis.phi();
-    auto ucf = stage_data.get_field("u_cf");
+    auto evolved = stage_data.get_field("evolved");
+    const int idx_ener =
+        stage_data.var_index("evolved", "specific_total_fluid_energy");
+    const int idx_rad_energy =
+        stage_data.var_index("evolved", "specific_radiation_energy");
     auto r = mesh->nodal_grid();
     auto weights = mesh->weights();
     double total_energy = 0.0;
@@ -89,9 +93,8 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
         DEFAULT_LOOP_PATTERN, "ThermalEngine :: Total energy", DevExecSpace(),
         1, nx, 0, nnodes - 1,
         KOKKOS_CLASS_LAMBDA(const int i, const int q, double &lenergy) {
-          const double e_fluid = ucf(i, q, vars::cons::Energy);
-          const double e_rad =
-              radiation_active * ucf(i, q, vars::cons::RadEnergy);
+          const double e_fluid = evolved(i, q, idx_ener);
+          const double e_rad = radiation_active * evolved(i, q, idx_rad_energy);
           const double e_grav =
               grav_active * constants::G_GRAV * menc(i, q) / r(i, q + 1);
           lenergy +=
@@ -140,7 +143,7 @@ void ThermalEnginePackage::update_explicit(const StageData &stage_data,
   static const IndexRange ib(mesh.domain<Domain::Interior>());
 
   const auto stage = dt_info.stage;
-  auto ucf = stage_data.get_field("u_cf");
+  auto evolved = stage_data.get_field("evolved");
 
   const IndexRange ib_dep(std::make_pair(1, mend_idx_));
   auto weights = mesh.weights();
@@ -179,11 +182,12 @@ void ThermalEnginePackage::apply_delta(AthelasArray3D<double> lhs,
   static const IndexRange qb(nq);
 
   const int stage = dt_info.stage;
+  constexpr int idx_ener = 2;
 
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Thermal engine :: Apply delta", DevExecSpace(),
       ib.s, ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-        lhs(i, q, vars::cons::Energy) +=
+        lhs(i, q, idx_ener) +=
             dt_info.dt_coef * delta_(stage, i, q, pkg_vars::Energy);
       });
 }

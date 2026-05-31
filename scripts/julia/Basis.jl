@@ -26,7 +26,7 @@ function BasisEval(Basis::BasisType, Data::State, iCF::Int64, iX::Int64,
 
   result::Float64 = 0.0
   for k in 1:order
-    @inbounds result += Data.uCF[k, iX, iCF] * Basis.Phi[k, iX, iEta]
+    @inbounds result += Data.evolved[k, iX, iCF] * Basis.Phi[k, iX, iEta]
   end
   return result
 end
@@ -36,10 +36,10 @@ end
 Return an array of nodal values on the whole domain for a given quantity
 """
 function Modal2Nodal(Basis::BasisType, Data::State, iCF::Integer)
-  N::Integer = length( Data.uCF[1,:,iCF] ) * Basis.order
+  N::Integer = length( Data.evolved[1,:,iCF] ) * Basis.order
 
   out::Array{Float64,1} = zeros( N )
-  for i in 1:length(Data.uCF[1,:,iCF])
+  for i in 1:length(Data.evolved[1,:,iCF])
     for j in 1:Basis.order
       @inbounds out[(i-1)*Basis.order + j] = BasisEval(Basis, Data, iCF, i, j+1)
     end

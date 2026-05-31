@@ -19,8 +19,16 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Radiative requires ideal gas eos!");
 
-  auto uCF = mesh_state(0).get_field("u_cf");
-  auto uPF = mesh_state(0).get_field("u_pf");
+  auto evolved = mesh_state(0).get_field("evolved");
+  auto derived = mesh_state(0).get_field("derived");
+
+  const int idx_tau = mesh_state(0).var_index("evolved", "specific_volume");
+  const int idx_vel = mesh_state(0).var_index("evolved", "velocity");
+  const int idx_ener =
+      mesh_state(0).var_index("evolved", "specific_total_fluid_energy");
+  const int idx_rad_energy =
+      mesh_state(0).var_index("evolved", "specific_radiation_energy");
+  const int idx_density = mesh_state(0).var_index("derived", "density");
 
   static const int nNodes = mesh->n_nodes();
   static const IndexRange ib(mesh->domain<Domain::Interior>());
@@ -50,19 +58,19 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
         const double X1 = mesh->centers(i);
 
         if (X1 <= x_d) {
-          uCF(i, q, vars::cons::SpecificVolume) = 1.0 / rhoL;
-          uCF(i, q, vars::cons::Velocity) = V_L;
-          uCF(i, q, vars::cons::Energy) = em_gas_L + 0.5 * V_L * V_L;
-          uCF(i, q, vars::cons::RadEnergy) = e_rad_L / rhoL;
+          evolved(i, q, idx_tau) = 1.0 / rhoL;
+          evolved(i, q, idx_vel) = V_L;
+          evolved(i, q, idx_ener) = em_gas_L + 0.5 * V_L * V_L;
+          evolved(i, q, idx_rad_energy) = e_rad_L / rhoL;
 
-          uPF(i, q, vars::prim::Rho) = rhoL;
+          derived(i, q, idx_density) = rhoL;
         } else {
-          uCF(i, q, vars::cons::SpecificVolume) = 1.0 / rhoR;
-          uCF(i, q, vars::cons::Velocity) = V_R;
-          uCF(i, q, vars::cons::Energy) = em_gas_R + 0.5 * V_R * V_R;
-          uCF(i, q, vars::cons::RadEnergy) = e_rad_R / rhoR;
+          evolved(i, q, idx_tau) = 1.0 / rhoR;
+          evolved(i, q, idx_vel) = V_R;
+          evolved(i, q, idx_ener) = em_gas_R + 0.5 * V_R * V_R;
+          evolved(i, q, idx_rad_energy) = e_rad_R / rhoR;
 
-          uPF(i, q, vars::prim::Rho) = rhoR;
+          derived(i, q, idx_density) = rhoR;
         }
       });
 }

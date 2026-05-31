@@ -50,14 +50,14 @@ void TimeStepper::accumulate_grid_motion(MeshState &mesh_state, int sum_stage,
                                          int data_stage, double dt_coef,
                                          const IndexRange &ib,
                                          const char *label) {
-  auto facedata =
-      mesh_state(data_stage).get_field<AthelasArray2D<double>>("facedata");
+  auto interface =
+      mesh_state(data_stage).get_field<AthelasArray2D<double>>("interface");
   const int idx_vstar =
-      mesh_state(data_stage).var_index("facedata", "interface_velocity");
+      mesh_state(data_stage).var_index("interface", "interface_velocity");
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, label, DevExecSpace(), ib.s, ib.e,
       KOKKOS_CLASS_LAMBDA(const int i) {
-        x_l_sumvar_(sum_stage, i) += dt_coef * facedata(i, idx_vstar);
+        x_l_sumvar_(sum_stage, i) += dt_coef * interface(i, idx_vstar);
       });
 }
 
@@ -87,7 +87,7 @@ void TimeStepper::update_fluid_explicit(PackageManager *pkgs,
                                         TimeStepInfo &dt_info,
                                         SlopeLimiter *sl_hydro) {
   auto &mesh = mesh_state.mesh();
-  const int nvars = mesh_state.nvars("u_cf");
+  const int nvars = mesh_state.nvars("evolved");
   const IndexRange ib(mesh.domain<Domain::Entire>());
   const IndexRange qb(mesh.n_nodes());
   const IndexRange vb(nvars);
@@ -98,13 +98,13 @@ void TimeStepper::update_fluid_explicit(PackageManager *pkgs,
   const auto &fluid_basis = mesh_state.fluid_basis();
   const auto &eos = mesh_state.eos();
 
-  auto u0 = mesh_state(0).get_field("u_cf");
+  auto u0 = mesh_state(0).get_field("evolved");
   for (int iS = 0; iS < nStages_; ++iS) {
     dt_info.stage = iS;
 
     // re-set the summation variables `SumVar`
     auto stage_data = mesh_state.stage(iS);
-    auto u = stage_data.get_field("u_cf");
+    auto u = stage_data.get_field("evolved");
     reset_stage_sumvar(mesh, iS, u0, ib, qb, vb,
                        "Timestepper :: EX :: Reset sumvar");
 
@@ -181,7 +181,7 @@ void TimeStepper::update_rad_hydro_imex(PackageManager *pkgs,
   auto &mesh = mesh_state.mesh();
   const int nnodes = mesh.n_nodes();
 
-  const int nvars = mesh_state.nvars("u_cf");
+  const int nvars = mesh_state.nvars("evolved");
   const IndexRange ib(mesh.domain<Domain::Entire>());
   const IndexRange qb(nnodes);
   const IndexRange vb(nvars);
@@ -193,12 +193,12 @@ void TimeStepper::update_rad_hydro_imex(PackageManager *pkgs,
   const auto &rad_basis = mesh_state.rad_basis();
   const auto &eos = mesh_state.eos();
 
-  auto u0 = mesh_state(0).get_field("u_cf");
+  auto u0 = mesh_state(0).get_field("evolved");
   for (int iS = 0; iS < nStages_; ++iS) {
     dt_info.stage = iS;
     dt_info.t = t + integrator_.explicit_tableau.c_i(iS) * dt;
     auto stage_data = mesh_state.stage(iS);
-    auto u = stage_data.get_field("u_cf");
+    auto u = stage_data.get_field("evolved");
     reset_stage_sumvar(mesh, iS, u0, ib, qb, vb,
                        "Timestepper :: IMEX :: Reset sumvar");
 

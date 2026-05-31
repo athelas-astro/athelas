@@ -41,11 +41,11 @@ class Mesh {
 
   void copy_from(const Mesh &other);
   void update_grid(AthelasArray1D<double> SData);
-  void compute_mass(AthelasArray3D<double> ucf);
-  void compute_mass_r(AthelasArray3D<double> ucf);
+  void compute_mass(AthelasArray3D<double> evolved);
+  void compute_mass_r(AthelasArray3D<double> evolved);
   auto enclosed_mass(int ix, int iN) const noexcept -> double;
-  void compute_center_of_mass(AthelasArray3D<double> ucf);
-  void compute_center_of_mass_radius(AthelasArray3D<double> uPF);
+  void compute_center_of_mass(AthelasArray3D<double> evolved);
+  void compute_center_of_mass_radius(AthelasArray3D<double> derived);
 
   [[nodiscard]] auto x_l() const -> AthelasArray1D<double>;
   [[nodiscard]] auto widths() const -> AthelasArray1D<double>;

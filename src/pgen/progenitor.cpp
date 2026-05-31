@@ -107,14 +107,25 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   static const int nx = mesh->n_elements();
   static const IndexRange ib(mesh->domain<Domain::Interior>());
 
-  auto uCF = mesh_state(0).get_field("u_cf");
-  auto uAF = mesh_state(0).get_field("u_af");
-  auto uPF = mesh_state(0).get_field("u_pf");
+  auto evolved = mesh_state(0).get_field("evolved");
+  auto derived = mesh_state(0).get_field("derived");
+
+  const int idx_tau = mesh_state(0).var_index("evolved", "specific_volume");
+  const int idx_vel = mesh_state(0).var_index("evolved", "velocity");
+  const int idx_ener =
+      mesh_state(0).var_index("evolved", "specific_total_fluid_energy");
+  const int idx_rad_energy =
+      mesh_state(0).var_index("evolved", "specific_radiation_energy");
+  const int idx_rad_flux =
+      mesh_state(0).var_index("evolved", "specific_radiation_flux");
+  const int idx_density = mesh_state(0).var_index("derived", "density");
+  const int idx_pressure = mesh_state(0).var_index("derived", "pressure");
+  const int idx_tgas = mesh_state(0).var_index("derived", "gas_temperature");
 
   std::shared_ptr<atom::CompositionData> comps =
       std::make_shared<atom::CompositionData>(nx + 2, nNodes, ncomps);
 
-  auto mass_fractions = mesh_state.mass_fractions("u_cf");
+  auto mass_fractions = mesh_state.mass_fractions("evolved");
   auto charges = comps->charge();
   auto neutrons = comps->neutron_number();
   auto ye = comps->ye();
@@ -228,15 +239,15 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
           const int index_left =
               std::min(find_closest_cell(radius_view, r_athelas, n_zones_prog),
                        n_zones_prog - 2);
-          uPF(i, q, vars::prim::Rho) =
+          derived(i, q, idx_density) =
               linterp(radius_view(index_left), radius_view(index_left + 1),
                       density_view(index_left), density_view(index_left + 1),
                       r_athelas);
-          uAF(i, q, vars::aux::Pressure) =
+          derived(i, q, idx_pressure) =
               linterp(radius_view(index_left), radius_view(index_left + 1),
                       pressure_view(index_left), pressure_view(index_left + 1),
                       r_athelas);
-          uAF(i, q, vars::aux::Tgas) =
+          derived(i, q, idx_tgas) =
               linterp(radius_view(index_left), radius_view(index_left + 1),
                       temperature_view(index_left),
                       temperature_view(index_left + 1), r_athelas);
@@ -385,7 +396,7 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   // --- Interpolate mass fractions onto our mesh. ---
   // TODO(astrobarker): this can be device side.
   auto mass_fractions_h =
-      Kokkos::create_mirror_view(mesh_state.mass_fractions("u_cf"));
+      Kokkos::create_mirror_view(mesh_state.mass_fractions("evolved"));
   auto r_h = Kokkos::create_mirror_view(r);
   for (int i = ib.s; i <= ib.e; ++i) {
     for (int e = 0; e < ncomps; ++e) {
@@ -400,7 +411,7 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
     }
   }
 
-  Kokkos::deep_copy(mesh_state.mass_fractions("u_cf"), mass_fractions_h);
+  Kokkos::deep_copy(mesh_state.mass_fractions("evolved"), mass_fractions_h);
   Kokkos::deep_copy(species, species_h);
   Kokkos::deep_copy(neutron_number, neutron_number_h);
   Kokkos::deep_copy(inv_atomic_mass, inv_atomic_mass_h);
@@ -467,8 +478,7 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Tau", DevExecSpace(),
       ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
         for (int q = 0; q < nNodes; ++q) {
-          uCF(i, q, vars::cons::SpecificVolume) =
-              1.0 / uPF(i, q + 1, vars::prim::Rho);
+          evolved(i, q, idx_tau) = 1.0 / derived(i, q + 1, idx_density);
         }
       });
 
@@ -483,7 +493,7 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
         for (int q = 0; q < nNodes; ++q) {
           const double rq = r(i, q + 1);
           const int idx = find_closest_cell(radius_view, rq, n_zones_prog);
-          uCF(i, q, vars::cons::Velocity) =
+          evolved(i, q, idx_vel) =
               linterp(radius_view(idx), radius_view(idx + 1),
                       velocity_view(idx), velocity_view(idx + 1), rq);
         }
@@ -492,9 +502,9 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   // We go ahead and form the basis here now that the mesh is constructed.
   // I don't particularly like this pattern, but as it stands the basis is
   // needed in the Saha solves to come.
-  mesh->compute_mass(uCF);
+  mesh->compute_mass(evolved);
   auto fluid_basis_tmp = std::make_unique<basis::NodalBasis>(
-      uPF, mesh, nNodes, pin->param()->get<int>("problem.nx"));
+      derived, mesh, nNodes, pin->param()->get<int>("problem.nx"));
   mesh_state.setup_fluid_basis(std::move(fluid_basis_tmp));
 
   // There is one subtelty that must be taken care of:
@@ -509,19 +519,18 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Consistent interfaces",
       DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-        uAF(i, 0, vars::aux::Pressure) = basis::basis_eval<Interface::Left>(
-            phi, uAF, i, vars::aux::Pressure);
-        uAF(i, nNodes + 1, vars::aux::Pressure) =
-            basis::basis_eval<Interface::Right>(phi, uAF, i,
-                                                vars::aux::Pressure);
-        uAF(i, 0, vars::aux::Tgas) =
-            basis::basis_eval<Interface::Left>(phi, uAF, i, vars::aux::Tgas);
-        uAF(i, nNodes + 1, vars::aux::Tgas) =
-            basis::basis_eval<Interface::Right>(phi, uAF, i, vars::aux::Tgas);
-        uPF(i, 0, vars::prim::Rho) =
-            basis::basis_eval<Interface::Left>(phi, uPF, i, vars::prim::Rho);
-        uPF(i, nNodes + 1, vars::prim::Rho) =
-            basis::basis_eval<Interface::Right>(phi, uPF, i, vars::prim::Rho);
+        derived(i, 0, idx_pressure) =
+            basis::basis_eval<Interface::Left>(phi, derived, i, idx_pressure);
+        derived(i, nNodes + 1, idx_pressure) =
+            basis::basis_eval<Interface::Right>(phi, derived, i, idx_pressure);
+        derived(i, 0, idx_tgas) =
+            basis::basis_eval<Interface::Left>(phi, derived, i, idx_tgas);
+        derived(i, nNodes + 1, idx_tgas) =
+            basis::basis_eval<Interface::Right>(phi, derived, i, idx_tgas);
+        derived(i, 0, idx_density) =
+            basis::basis_eval<Interface::Left>(phi, derived, i, idx_density);
+        derived(i, nNodes + 1, idx_density) =
+            basis::basis_eval<Interface::Right>(phi, derived, i, idx_density);
       });
 
   // Compute necessary terms for using the Paczynski eos
@@ -552,8 +561,8 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Project sie",
       DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
         for (int q = 0; q < nNodes; ++q) {
-          const double temperature_q = uAF(i, q + 1, vars::aux::Tgas);
-          const double vel = uCF(i, q, vars::cons::Velocity);
+          const double temperature_q = derived(i, q + 1, idx_tgas);
+          const double vel = evolved(i, q, idx_vel);
           eos::EOSLambda lambda;
           lambda.data[0] = number_density(i, q + 1);
           lambda.data[1] = ye(i, q + 1);
@@ -563,11 +572,10 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
           lambda.data[5] = sigma3(i, q + 1);
           lambda.data[6] = e_ion_corr(i, q + 1);
           lambda.data[7] = temperature_q;
-          uCF(i, q, vars::cons::Energy) =
-              eos::sie_from_density_temperature(
-                  eos, 1.0 / uCF(i, q, vars::cons::SpecificVolume),
-                  temperature_q, lambda.ptr()) +
-              0.5 * vel * vel;
+          evolved(i, q, idx_ener) = eos::sie_from_density_temperature(
+                                        eos, 1.0 / evolved(i, q, idx_tau),
+                                        temperature_q, lambda.ptr()) +
+                                    0.5 * vel * vel;
         }
       });
 
@@ -582,11 +590,11 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
           for (int q = 0; q < nNodes; ++q) {
             const double rq = r(i, q + 1);
             const int idx = find_closest_cell(radius_view, rq, n_zones_prog);
-            uCF(i, q, vars::cons::RadEnergy) =
-                radiation::rad_energy(uAF(i, q + 1, vars::aux::Tgas)) *
-                uCF(i, q, vars::cons::SpecificVolume);
-            uCF(i, q, vars::cons::RadFlux) =
-                uCF(i, q, vars::cons::SpecificVolume) *
+            evolved(i, q, idx_rad_energy) =
+                radiation::rad_energy(derived(i, q + 1, idx_tgas)) *
+                evolved(i, q, idx_tau);
+            evolved(i, q, idx_rad_flux) =
+                evolved(i, q, idx_tau) *
                 linterp(radius_view(idx), radius_view(idx + 1),
                         luminosity_view(idx), luminosity_view(idx + 1), rq) /
                 (constants::FOURPI * rq * rq);
@@ -597,7 +605,7 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   int nvars = rad_enabled ? 5 : 3;
   // composition boundary condition
   static const IndexRange vb_comps(std::make_pair(nvars, nvars + ncomps - 1));
-  bc::fill_ghost_zones_composition(uCF, vb_comps);
+  bc::fill_ghost_zones_composition(evolved, vb_comps);
 
   // Fill density and temperature in guard cells.
   // Temperature must be filled in when ionization is active.
@@ -605,14 +613,14 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova (ghost)", DevExecSpace(), 0,
       ib.s - 1, KOKKOS_LAMBDA(const int i) {
         for (int q = 0; q < nNodes + 2; q++) {
-          uPF(ib.s - 1 - i, q, vars::prim::Rho) =
-              uPF(ib.s + i, (nNodes + 2) - q - 1, vars::prim::Rho);
-          uPF(ib.e + 1 + i, q, vars::prim::Rho) =
-              uPF(ib.e - i, (nNodes + 2) - q - 1, vars::prim::Rho);
-          uAF(ib.s - 1 - i, q, vars::aux::Tgas) =
-              uAF(ib.s + i, (nNodes + 2) - q - 1, vars::aux::Tgas);
-          uAF(ib.e + 1 + i, q, vars::aux::Tgas) =
-              uAF(ib.e - i, (nNodes + 2) - q - 1, vars::aux::Tgas);
+          derived(ib.s - 1 - i, q, idx_density) =
+              derived(ib.s + i, (nNodes + 2) - q - 1, idx_density);
+          derived(ib.e + 1 + i, q, idx_density) =
+              derived(ib.e - i, (nNodes + 2) - q - 1, idx_density);
+          derived(ib.s - 1 - i, q, idx_tgas) =
+              derived(ib.s + i, (nNodes + 2) - q - 1, idx_tgas);
+          derived(ib.e + 1 + i, q, idx_tgas) =
+              derived(ib.e - i, (nNodes + 2) - q - 1, idx_tgas);
         }
       });
 }

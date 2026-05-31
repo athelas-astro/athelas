@@ -118,21 +118,21 @@ inline void athelas_requires(bool condition, const std::string &message,
 
 template <typename T>
 void check_state(T state, const int ihi, const bool do_rad) {
-  auto uCF = state.get_field("u_cf");
+  auto evolved = state.get_field("evolved");
   const double c = constants::c_cgs;
 
   // Create host mirrors of the views
-  auto uCF_h = Kokkos::create_mirror_view(uCF);
+  auto evolved_h = Kokkos::create_mirror_view(evolved);
 
   // Copy data to host
-  Kokkos::deep_copy(uCF_h, uCF);
+  Kokkos::deep_copy(evolved_h, evolved);
 
   // Check state on host
   for (int ix = 1; ix <= ihi; ix++) {
 
-    const double tau = uCF_h(ix, 0, 0); // cell averages checked
-    const double vel = uCF_h(ix, 0, 1);
-    const double e_m = uCF_h(ix, 0, 2);
+    const double tau = evolved_h(ix, 0, 0); // cell averages checked
+    const double vel = evolved_h(ix, 0, 1);
+    const double e_m = evolved_h(ix, 0, 2);
 
     if (tau <= 0.0) {
       std::println("Error on cell {}", ix);
@@ -162,8 +162,8 @@ void check_state(T state, const int ihi, const bool do_rad) {
     }
 
     if (do_rad) {
-      const double e_rad = uCF_h(ix, 0, 3);
-      const double f_rad = uCF_h(ix, 0, 4);
+      const double e_rad = evolved_h(ix, 0, 3);
+      const double f_rad = evolved_h(ix, 0, 4);
 
       if (std::isnan(e_rad)) {
         std::println("Error on cell {}", ix);

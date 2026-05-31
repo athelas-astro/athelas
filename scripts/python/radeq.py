@@ -99,7 +99,7 @@ def main():
       continue
     a = Athelas(fn)
     athelas_time[i] = a.time
-    athelas_ener[i] = a.get("fluid_energy")[0] / a.get("tau")[0]
+    athelas_ener[i] = a.get("specific_total_fluid_energy")[0] / a.get("specific_volume")[0]
     i += 1
   print(athelas_time)
   print(athelas_ener)

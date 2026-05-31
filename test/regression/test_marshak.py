@@ -35,7 +35,7 @@ class MarshakTest(AthelasRegressionTest):
       build_required = True
 
     # vars to test
-    varlist = ["mesh/r", "mesh/dr", "fields/u_cf"]
+    varlist = ["mesh/r", "mesh/dr", "fields/evolved"]
 
     # Initialize the parent class with test-specific parameters
     super().__init__(
