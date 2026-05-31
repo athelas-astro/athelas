@@ -235,7 +235,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
       varnames_cons.emplace_back(str);
     }
   }
-  mesh_state_.register_field("u_cf", DataPolicy::Staged, "Conserved variables",
+  mesh_state_.register_field("u_cf", DataPolicy::TwoCopy, "Conserved variables",
                              varnames_cons, nx + 2, nnodes, nvars_cons);
 
   int nvars_aux = 3;

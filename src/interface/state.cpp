@@ -217,6 +217,11 @@ MeshState::MeshState(const ProblemIn *const pin, const int nstages)
   return get_metadata(field).policy == DataPolicy::OneCopy;
 }
 
+[[nodiscard]] auto MeshState::is_twocopy(const std::string &field) const
+    -> bool {
+  return get_metadata(field).policy == DataPolicy::TwoCopy;
+}
+
 [[nodiscard]] auto
 MeshState::get_comp_start_index(const std::string &field_name) const -> int {
   const auto &metadata = get_metadata(field_name);
@@ -241,10 +246,11 @@ MeshState::get_comp_start_index(const std::string &field_name) const -> int {
 
   const auto &meta = get_metadata(field_name);
   int total_vars = nvars(field_name);
-
-  if (meta.policy == DataPolicy::Staged) {
+  const int stage_idx =
+      meta.policy == DataPolicy::TwoCopy && stage > 0 ? 1 : stage;
+  if (meta.policy == DataPolicy::Staged || meta.policy == DataPolicy::TwoCopy) {
     auto field = get_field<AthelasArray4D<double>>(field_name);
-    return Kokkos::subview(field, stage, Kokkos::ALL, Kokkos::ALL,
+    return Kokkos::subview(field, stage_idx, Kokkos::ALL, Kokkos::ALL,
                            Kokkos::make_pair(comp_start, total_vars));
   }
   auto field = get_field<AthelasArray3D<double>>(field_name);
@@ -257,13 +263,11 @@ MeshState::get_comp_start_index(const std::string &field_name) const -> int {
 
   for (const auto &[name, arr_variant] : arrays_) {
     const auto &metadata = get_metadata(name);
+    const auto policy = policy_string(metadata);
 
     // Field name and policy
     info += "\n" + metadata.name;
-    info += " [" +
-            std::string(metadata.policy == DataPolicy::Staged ? "Staged"
-                                                              : "OneCopy") +
-            "]";
+    info += " [" + policy + "]";
 
     info += ":\n";
     info += "#  Description: " + metadata.description + "\n";
