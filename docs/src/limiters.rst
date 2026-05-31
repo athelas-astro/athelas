@@ -1,6 +1,12 @@
 Slope Limiters
 ==============
 
+Slope limiters are a critical component of a discontinuous Galerkin method.
+High order numerical methods applied to non-smooth problems (e.g., effectively
+all interesting hydrodynamic phenomena) are prone to Gibbs phenomena -- 
+artificial oscillations in the solution. It is the responsibility of a scheme 
+to prevent spurious oscillations while not limiting smooth, physical extrema.
+
 Athelas damps spurious oscillations in the discontinuous Galerkin solution with
 *slope limiters*, applied to the modal (Legendre) coefficients of each field
 after every explicit stage. A limiter is selected per physics block
