@@ -219,19 +219,20 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   // --- Set up mesh state ---
   // First set up the conserved fields.
   // Composition var names can't be known yet, so they are just set to
-  // comps_0, ...
+  // mass_fraction_0, ...
   int nvars_cons = 3;
-  std::vector<std::string> varnames_cons = {"tau", "vel", "fluid_energy"};
+  std::vector<std::string> varnames_cons = {"specific_volume", "velocity",
+                                            "specific_total_fluid_energy"};
   if (rad_active) {
     nvars_cons += 2;
-    varnames_cons.emplace_back("rad_energy");
-    varnames_cons.emplace_back("rad_momentum");
+    varnames_cons.emplace_back("specific_radiation_energy");
+    varnames_cons.emplace_back("specific_radiation_flux");
   }
   if (comps_active) {
     const auto ncomps = pin->param()->get<int>("composition.ncomps");
     nvars_cons += ncomps;
     for (int i = 0; i < ncomps; ++i) {
-      const auto str = "comps_" + std::to_string(i);
+      const auto str = "mass_fraction_" + std::to_string(i);
       varnames_cons.emplace_back(str);
     }
   }
@@ -240,12 +241,13 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
 
   int nvars_aux = 3;
   mesh_state_.register_field("u_af", DataPolicy::OneCopy, "Auxiliary variables",
-                             {"pressure", "gas temperature", "sound speed"},
+                             {"pressure", "gas_temperature", "sound_speed"},
                              nx + 2, nnodes + 2, nvars_aux);
   int nvars_prim = 3;
-  mesh_state_.register_field("u_pf", DataPolicy::OneCopy, "Primitive variables",
-                             {"density", "momentum", "sie"}, nx + 2, nnodes + 2,
-                             nvars_prim);
+  mesh_state_.register_field(
+      "u_pf", DataPolicy::OneCopy, "Primitive variables",
+      {"density", "momentum_density", "specific_internal_energy"}, nx + 2,
+      nnodes + 2, nvars_prim);
 
   if (comps_active) {
     // TODO(astrobarker) [composition] Get rid of x_q nodal mass fractions
@@ -260,8 +262,8 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   }
 
   mesh_state_.register_field("facedata", DataPolicy::Staged,
-                             "Misc variable face data", {"vstar"}, nx + 2 + 1,
-                             1);
+                             "Misc variable face data", {"interface_velocity"},
+                             nx + 2 + 1, 1);
 
   // auto info = mesh_state_.field_info();
 

@@ -18,9 +18,9 @@ def plot_shocktube(chk):
 
   a = Athelas(fn)
   r = a.r
-  tau = a.get("tau")
-  vel = a.get("vel")
-  emT = a.get("fluid_energy")
+  tau = a.get("specific_volume")
+  vel = a.get("velocity")
+  emT = a.get("specific_total_fluid_energy")
   em = emT - 0.5 * vel * vel
   rho = 1.0 / tau
   gamma = 1.4

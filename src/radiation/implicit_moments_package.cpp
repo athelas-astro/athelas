@@ -91,12 +91,16 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
   const int nNodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
 
-  static const int idx_tau = stage_data.var_index("u_cf", "tau");
-  static const int idx_vel = stage_data.var_index("u_cf", "vel");
-  static const int idx_ener = stage_data.var_index("u_cf", "fluid_energy");
-  static const int idx_er = stage_data.var_index("u_cf", "rad_energy");
-  static const int idx_fr = stage_data.var_index("u_cf", "rad_momentum");
-  static const int idx_vstar = stage_data.var_index("facedata", "vstar");
+  static const int idx_tau = stage_data.var_index("u_cf", "specific_volume");
+  static const int idx_vel = stage_data.var_index("u_cf", "velocity");
+  static const int idx_ener =
+      stage_data.var_index("u_cf", "specific_total_fluid_energy");
+  static const int idx_er =
+      stage_data.var_index("u_cf", "specific_radiation_energy");
+  static const int idx_fr =
+      stage_data.var_index("u_cf", "specific_radiation_flux");
+  static const int idx_vstar =
+      stage_data.var_index("facedata", "interface_velocity");
 
   auto ucf = stage_data.get_field("u_cf");
   auto uaf = stage_data.get_field("u_af");
@@ -287,12 +291,16 @@ void ImplicitRadiationMomentsPackage::update_implicit(
   auto uaf = stage_data.get_field("u_af");
   auto facedata = stage_data.get_field<AthelasArray2D<double>>("facedata");
 
-  static const int idx_tau = stage_data.var_index("u_cf", "tau");
-  static const int idx_vel = stage_data.var_index("u_cf", "vel");
-  static const int idx_ener = stage_data.var_index("u_cf", "fluid_energy");
-  static const int idx_er = stage_data.var_index("u_cf", "rad_energy");
-  static const int idx_fr = stage_data.var_index("u_cf", "rad_momentum");
-  static const int idx_vstar = stage_data.var_index("facedata", "vstar");
+  static const int idx_tau = stage_data.var_index("u_cf", "specific_volume");
+  static const int idx_vel = stage_data.var_index("u_cf", "velocity");
+  static const int idx_ener =
+      stage_data.var_index("u_cf", "specific_total_fluid_energy");
+  static const int idx_er =
+      stage_data.var_index("u_cf", "specific_radiation_energy");
+  static const int idx_fr =
+      stage_data.var_index("u_cf", "specific_radiation_flux");
+  static const int idx_vstar =
+      stage_data.var_index("facedata", "interface_velocity");
 
   const double dt_aii = dt_info.dt_coef;
 
@@ -996,8 +1004,10 @@ auto ImplicitRadiationMomentsPackage::min_timestep(
   constexpr double EPS = 1.0e-10;
 
   auto ucf = stage_data.get_field("u_cf");
-  static const int idx_er = stage_data.var_index("u_cf", "rad_energy");
-  static const int idx_fr = stage_data.var_index("u_cf", "rad_momentum");
+  static const int idx_er =
+      stage_data.var_index("u_cf", "specific_radiation_energy");
+  static const int idx_fr =
+      stage_data.var_index("u_cf", "specific_radiation_flux");
 
   static const IndexRange ib(mesh.domain<Domain::Interior>());
   static const IndexRange qb(mesh.n_nodes());

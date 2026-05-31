@@ -72,7 +72,8 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
   auto uaf = stage_data.get_field("u_af");
   auto facedata = stage_data.get_field<AthelasArray2D<double>>("facedata");
 
-  static const int idx_vstar = stage_data.var_index("facedata", "vstar");
+  static const int idx_vstar =
+      stage_data.var_index("facedata", "interface_velocity");
 
   const auto &basis = stage_data.fluid_basis();
 
@@ -82,11 +83,12 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
   static const IndexRange qb(mesh.n_nodes());
   static const IndexRange vb(NUM_VARS_);
 
-  static const int idx_tau = stage_data.var_index("u_cf", "tau");
-  static const int idx_vel = stage_data.var_index("u_cf", "vel");
-  static const int idx_ener = stage_data.var_index("u_cf", "fluid_energy");
+  static const int idx_tau = stage_data.var_index("u_cf", "specific_volume");
+  static const int idx_vel = stage_data.var_index("u_cf", "velocity");
+  static const int idx_ener =
+      stage_data.var_index("u_cf", "specific_total_fluid_energy");
   static const int idx_pre = stage_data.var_index("u_af", "pressure");
-  static const int idx_cs = stage_data.var_index("u_af", "sound speed");
+  static const int idx_cs = stage_data.var_index("u_af", "sound_speed");
 
   auto x_l = mesh.x_l();
   auto sqrt_gm = mesh.sqrt_gm();

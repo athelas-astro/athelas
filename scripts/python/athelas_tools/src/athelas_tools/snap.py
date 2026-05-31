@@ -19,7 +19,7 @@ def parse_args():
   parser.add_argument(
     "quantity",
     type=str,
-    help="Quantity to plot (e.g. rho, tau, pressure, energy)",
+    help="Quantity to plot (e.g. density, specific_volume, pressure)",
   )
 
   parser.add_argument(

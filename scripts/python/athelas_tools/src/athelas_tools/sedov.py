@@ -17,7 +17,7 @@ def plot_sedov(chk):
   a = Athelas(fn)
   r = a.r
   print(r[0])
-  tau = a.get("tau")
+  tau = a.get("specific_volume")
   # vel = a.uCF[:, 0, 1]
   # emT = a.uCF[:, 0, 2]
   # em = emT - 0.5 * vel * vel

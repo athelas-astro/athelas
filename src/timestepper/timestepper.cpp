@@ -52,7 +52,8 @@ void TimeStepper::accumulate_grid_motion(MeshState &mesh_state, int sum_stage,
                                          const char *label) {
   auto facedata =
       mesh_state(data_stage).get_field<AthelasArray2D<double>>("facedata");
-  const int idx_vstar = mesh_state(data_stage).var_index("facedata", "vstar");
+  const int idx_vstar =
+      mesh_state(data_stage).var_index("facedata", "interface_velocity");
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, label, DevExecSpace(), ib.s, ib.e,
       KOKKOS_CLASS_LAMBDA(const int i) {
