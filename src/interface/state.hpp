@@ -16,8 +16,9 @@
 namespace athelas {
 
 enum class DataPolicy {
-  Staged, // per-stage storage
-  OneCopy // Shared across all stages
+  Staged, // One copy per RK stage.
+  TwoCopy, // Canonical storage plus a single work buffer
+  OneCopy, // Shared across all stages
 };
 
 // Variable index mapping
@@ -85,15 +86,28 @@ struct FieldMetadata {
         allocated(false) {}
 };
 
+inline auto policy_string(const FieldMetadata &metadata) -> std::string {
+  static const std::unordered_map<DataPolicy, std::string> data_policy_map = {
+      {DataPolicy::Staged, "Staged"},
+      {DataPolicy::OneCopy, "OneCopy"},
+      {DataPolicy::TwoCopy, "TwoCopy"},
+  };
+  const auto it = data_policy_map.find(metadata.policy);
+  // Probably should guard for a failed find but it is literally impossible
+  // to pass in an invalid DataPolicy.
+  return it->second;
+}
+
 // Forward declaration
 class MeshState;
 
 /**
  * @brief Lightweight view of simulation data at a specific RK stage.
  *
- * Provides unified access to both staged (per-RK-stage) and shared (OneCopy)
- * data. Staged fields return the slice for this stage; shared fields are
- * pass-through to the parent MeshState.
+ * Provides unified access to both Staged (per-RK-stage), TwoCopy, and
+ * shared (OneCopy) data. Staged fields return the slice for this stage;
+ * TwoCopy fields get the canonical storage for stage 0 and a work buffer
+ * for other stages; shared fields are pass-through to the parent MeshState.
  */
 class StageData {
  public:
@@ -136,9 +150,10 @@ class StageData {
 /**
  * @brief Container for all simulation state data and metadata.
  *
- * Manages fluid variables, composition data, and auxiliary fields with support
- * for multi-stage time integration. Fields can be registered as either Staged
- * (one copy per RK stage) or OneCopy (shared across stages). Provides a
+ * Manages fields with support for multi-stage time integration.
+ * Fields can be registered as either Staged (one copy per RK stage),
+ * TwoCopy (single storage plus one work buffer),
+ * or OneCopy (shared across stages). Provides a
  * runtime registry for dynamic field allocation and metadata queries.
  *
  * Access patterns:
@@ -273,6 +288,7 @@ class MeshState {
   [[nodiscard]] auto is_allocated(const std::string &field) const -> bool;
   [[nodiscard]] auto is_staged(const std::string &field) const -> bool;
   [[nodiscard]] auto is_onecopy(const std::string &field) const -> bool;
+  [[nodiscard]] auto is_twocopy(const std::string &field) const -> bool;
   [[nodiscard]] auto get_comp_start_index(const std::string &field_name) const
       -> int;
   [[nodiscard]] auto mass_fractions(const std::string &field_name,
@@ -318,6 +334,26 @@ class MeshState {
                             std::to_string(rank) + " is not supported!");
         break;
       }
+    } else if (policy == DataPolicy::TwoCopy) {
+      switch (rank) {
+      case 1:
+        arrays_[name] = allocate_nd<AthelasArray2D<double>>(name, 2, dims...);
+        break;
+      case 2:
+        arrays_[name] = allocate_nd<AthelasArray3D<double>>(name, 2, dims...);
+        break;
+      case 3:
+        arrays_[name] = allocate_nd<AthelasArray4D<double>>(name, 2, dims...);
+        break;
+      case 4:
+        arrays_[name] = allocate_nd<AthelasArray5D<double>>(name, 2, dims...);
+        break;
+      default:
+        throw_athelas_error("MeshState: Field registration of rank " +
+                            std::to_string(rank) + " is not supported!");
+        break;
+      }
+
     } else {
       switch (rank) {
       case 1:
@@ -396,6 +432,10 @@ auto StageData::get_field(const std::string &name) const -> T {
 
   if (metadata.policy == DataPolicy::Staged) {
     return parent_->get_field<T>(name, stage_);
+  }
+  if (metadata.policy == DataPolicy::TwoCopy) {
+    const int stage_idx = (stage_ > 0) ? 1 : 0;
+    return parent_->get_field<T>(name, stage_idx);
   }
   return parent_->get_field<T>(name);
 }

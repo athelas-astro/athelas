@@ -139,7 +139,7 @@ void read_field(const MeshState &mesh_state, const RestartReader &reader,
   const auto &meta = mesh_state.get_metadata(name);
   const std::string path = "/fields/" + name;
 
-  if (meta.policy == DataPolicy::Staged) {
+  if (meta.policy == DataPolicy::Staged || meta.policy == DataPolicy::TwoCopy) {
     switch (meta.rank) {
     case 1:
       reader.read_view(mesh_state.get_field<AthelasArray1D<double>>(name, 0),

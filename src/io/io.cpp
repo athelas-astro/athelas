@@ -244,6 +244,7 @@ class HDF5Writer {
   void write_field(const MeshState &mesh_state, const std::string &field_name,
                    const std::string &group_path, int stage = 0) {
     const auto &metadata = mesh_state.get_metadata(field_name);
+    const auto policy = policy_string(metadata);
     std::string dataset_path = group_path + "/" + field_name;
 
     // NOTE: we could support writing all stages.
@@ -253,9 +254,7 @@ class HDF5Writer {
 
     // Write metadata as attributes
     write_string_attribute(dataset_path, "description", metadata.description);
-    write_string_attribute(dataset_path, "policy",
-                           metadata.policy == DataPolicy::Staged ? "Staged"
-                                                                 : "OneCopy");
+    write_string_attribute(dataset_path, "policy", policy);
     write_attribute(dataset_path, "rank", metadata.rank,
                     H5::PredType::NATIVE_INT);
 
@@ -330,15 +329,16 @@ class HDF5Writer {
     create_group(base_group);
 
     for (const auto &field_name : mesh_state.list_fields()) {
-      const auto &meta = mesh_state.get_metadata(field_name);
+      const auto &metadata = mesh_state.get_metadata(field_name);
+      const auto policy = policy_string(metadata);
       std::string field_path = base_group;
       field_path.append("/").append(field_name);
       create_group(field_path);
 
-      write_string(field_path + "/description", meta.description);
-      write_string(field_path + "/policy",
-                   meta.policy == DataPolicy::Staged ? "Staged" : "OneCopy");
-      write_scalar(field_path + "/rank", meta.rank, H5::PredType::NATIVE_INT);
+      write_string(field_path + "/description", metadata.description);
+      write_string(field_path + "/policy", policy);
+      write_scalar(field_path + "/rank", metadata.rank,
+                   H5::PredType::NATIVE_INT);
       write_scalar(field_path + "/nvars", mesh_state.nvars(field_name),
                    H5::PredType::NATIVE_INT);
     }
