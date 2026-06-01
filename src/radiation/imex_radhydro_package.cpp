@@ -7,6 +7,7 @@
 #include "bc/boundary_conditions.hpp"
 #include "composition/composition.hpp"
 #include "composition/saha.hpp"
+#include "eos/eos.hpp"
 #include "eos/eos_variant.hpp"
 #include "fluid/fluid_utilities.hpp"
 #include "geometry/mesh.hpp"
@@ -564,7 +565,7 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Fill derived :: temperature",
         DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-          double lambda[8];
+          double lambda[eos::EOS_LAMBDA_SIZE] = {};
           for (int q = 0; q < nNodes + 2; ++q) {
             const double rho =
                 1.0 / basis_eval(phi_fluid, evolved, i, idx_tau, q);

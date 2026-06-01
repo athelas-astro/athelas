@@ -1,6 +1,7 @@
 #include "Kokkos_Core.hpp"
 
 #include "composition/composition.hpp"
+#include "eos/eos.hpp"
 #include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
@@ -36,7 +37,7 @@ void HydrostaticEquilibrium::solve(MeshState &mesh_state, Mesh *mesh,
   // point?
   const double vel = 0.0;
   const double energy = 0.0;
-  double lambda[8];
+  double lambda[eos::EOS_LAMBDA_SIZE] = {};
   if (mesh_state.enabled("ionization")) {
     atom::paczynski_terms(sd0, 1, 0, lambda);
   }

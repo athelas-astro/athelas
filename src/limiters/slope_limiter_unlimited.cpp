@@ -8,7 +8,8 @@ namespace athelas {
 void Unlimited::apply_slope_limiter(AthelasArray3D<double> /*U*/,
                                     const Mesh & /*mesh*/,
                                     const basis::NodalBasis & /*basis*/,
-                                    const eos::EOS & /*eos*/) {}
+                                    const eos::EOS & /*eos*/,
+                                    AthelasArray2D<double> /*lambda_cell*/) {}
 
 auto Unlimited::get_limited(const int /*i*/) const -> int { return 0.0; }
 auto Unlimited::limited() const -> AthelasArray1D<int> { return limited_cell_; }

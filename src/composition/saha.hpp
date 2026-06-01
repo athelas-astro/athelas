@@ -561,14 +561,14 @@ auto temperature_residual(const double temperature, const double rho,
   e_ion_corr(i, q) = N * sum_e_ion_corr;
 
   // Fill lambda
-  double lambda[8];
-  lambda[0] = N;
-  lambda[1] = ye(i, q);
-  lambda[2] = ybar(i, q);
-  lambda[3] = sigma1(i, q);
-  lambda[4] = sigma2(i, q);
-  lambda[5] = sigma3(i, q);
-  lambda[6] = e_ion_corr(i, q);
+  double lambda[eos::EOS_LAMBDA_SIZE];
+  lambda[eos::paczynski_lambda::number_density] = N;
+  lambda[eos::paczynski_lambda::ye] = ye(i, q);
+  lambda[eos::paczynski_lambda::ybar] = ybar(i, q);
+  lambda[eos::paczynski_lambda::sigma1] = sigma1(i, q);
+  lambda[eos::paczynski_lambda::sigma2] = sigma2(i, q);
+  lambda[eos::paczynski_lambda::sigma3] = sigma3(i, q);
+  lambda[eos::paczynski_lambda::e_ion_corr] = e_ion_corr(i, q);
 
   if constexpr (Inversion == eos::EOSInversion::Pressure) {
     const double inv_dfdt =

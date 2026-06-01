@@ -56,7 +56,7 @@ config.fluid = {
     m_tvb = 0.0,
     tci_opt = false,
     tci_val = 1.0,
-    characteristic = false,
+    characteristic = true,
   },
 }
 

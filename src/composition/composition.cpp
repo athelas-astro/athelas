@@ -1,6 +1,7 @@
 #include "composition/composition.hpp"
 #include "basic_types.hpp"
 #include "basis/polynomial_basis.hpp"
+#include "eos/eos.hpp"
 #include "geometry/mesh.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
@@ -43,14 +44,14 @@ void paczynski_terms(const StageData &stage_data, const int ix, const int node,
   const auto sigma2 = ionization_states->sigma2();
   const auto sigma3 = ionization_states->sigma3();
 
-  lambda[0] = number_density(ix, node);
-  lambda[1] = ye(ix, node);
-  lambda[2] = ybar(ix, node);
-  lambda[3] = sigma1(ix, node);
-  lambda[4] = sigma2(ix, node);
-  lambda[5] = sigma3(ix, node);
-  lambda[6] = e_ion_corr(ix, node);
-  lambda[7] = derived(ix, node, idx_tgas);
+  lambda[eos::paczynski_lambda::number_density] = number_density(ix, node);
+  lambda[eos::paczynski_lambda::ye] = ye(ix, node);
+  lambda[eos::paczynski_lambda::ybar] = ybar(ix, node);
+  lambda[eos::paczynski_lambda::sigma1] = sigma1(ix, node);
+  lambda[eos::paczynski_lambda::sigma2] = sigma2(ix, node);
+  lambda[eos::paczynski_lambda::sigma3] = sigma3(ix, node);
+  lambda[eos::paczynski_lambda::e_ion_corr] = e_ion_corr(ix, node);
+  lambda[eos::EOS_LAMBDA_TEMPERATURE] = derived(ix, node, idx_tgas);
 }
 
 } // namespace athelas::atom

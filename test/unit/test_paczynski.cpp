@@ -37,15 +37,15 @@ TEST_CASE("Paczynski EOS", "[paczynski]") {
   const double tau = 1.0 / rho_in;
   const double vel = 0.0;
   const double EmT = e_in;
-  double lambda[8];
-  lambda[0] = N_in;
-  lambda[1] = ye_in;
-  lambda[2] = ybar_in;
-  lambda[3] = sigma1;
-  lambda[4] = sigma2;
-  lambda[5] = sigma3;
-  lambda[6] = e_ioncorr_in;
-  lambda[7] = temp_guess;
+  double lambda[athelas::eos::EOS_LAMBDA_SIZE];
+  lambda[athelas::eos::paczynski_lambda::number_density] = N_in;
+  lambda[athelas::eos::paczynski_lambda::ye] = ye_in;
+  lambda[athelas::eos::paczynski_lambda::ybar] = ybar_in;
+  lambda[athelas::eos::paczynski_lambda::sigma1] = sigma1;
+  lambda[athelas::eos::paczynski_lambda::sigma2] = sigma2;
+  lambda[athelas::eos::paczynski_lambda::sigma3] = sigma3;
+  lambda[athelas::eos::paczynski_lambda::e_ion_corr] = e_ioncorr_in;
+  lambda[athelas::eos::EOS_LAMBDA_TEMPERATURE] = temp_guess;
 
   // Inputs differ slightly from SNEC so we don't require a strong equality.
   const double tol = 1.0e-2;

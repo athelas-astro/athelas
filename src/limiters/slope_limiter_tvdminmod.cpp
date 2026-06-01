@@ -1,5 +1,3 @@
-#include <cstdlib> /* abs */
-
 #include "basic_types.hpp"
 #include "geometry/mesh.hpp"
 #include "kokkos_abstraction.hpp"
@@ -8,7 +6,6 @@
 #include "limiters/slope_limiter.hpp"
 #include "limiters/slope_limiter_utilities.hpp"
 #include "loop_layout.hpp"
-#include "math/linear_algebra.hpp"
 
 namespace athelas {
 
@@ -20,7 +17,8 @@ using namespace vars::modes;
  * TVD Minmod limiter. See the Cockburn & Shu papers
  **/
 void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U, const Mesh &mesh,
-                                    const NodalBasis &basis, const EOS &eos) {
+                                    const NodalBasis &basis, const EOS &eos,
+                                    AthelasArray2D<double> lambda_cell) {
 
   // Do not apply for first order method or if we don't want to.
   if (order_ == 1 || !enabled_) {
@@ -31,7 +29,7 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U, const Mesh &mesh,
       1.0e-4; // TODO(astrobarker): move to input deck
 
   static constexpr int ilo = 1;
-  static const int &ihi = mesh.get_ihi();
+  const int ihi = mesh.get_ihi();
 
   const int nvars = nvars_;
 
@@ -48,103 +46,109 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U, const Mesh &mesh,
   // --- Map to modal basis ---
   basis.nodal_to_modal(u_k_, U, vb_);
 
-  // TODO(astrobarker): this is repeated code: clean up somehow
-  // --- map to characteristic vars ---
-  if (characteristic_) {
-    athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: Minmod :: ToCharacteristic",
-        DevExecSpace(), ilo, ihi, KOKKOS_CLASS_LAMBDA(const int i) {
-          // --- Characteristic Limiting Matrices ---
-          // Note: using cell averages
-          for (int v = 0; v < nvars; ++v) {
-            mult_(i, v) = u_k_(i, CellAverage, v);
-          }
+  const bool characteristic =
+      characteristic_ && nvars <= static_cast<int>(max_characteristic_vars) &&
+      order_ <= static_cast<int>(max_characteristic_modes);
 
-          auto R_i = Kokkos::subview(R_, i, Kokkos::ALL, Kokkos::ALL);
-          auto R_inv_i = Kokkos::subview(R_inv_, i, Kokkos::ALL, Kokkos::ALL);
-          auto U_c_T_i = Kokkos::subview(U_c_T_, i, Kokkos::ALL);
-          auto w_c_T_i = Kokkos::subview(w_c_T_, i, Kokkos::ALL);
-          auto Mult_i = Kokkos::subview(mult_, i, Kokkos::ALL);
-          compute_characteristic_decomposition(Mult_i, R_i, R_inv_i, eos);
-          for (int k = 0; k <= 1; ++k) {
-            // store w_.. = invR @ U_..
-            for (int v = 0; v < nvars; ++v) {
-              U_c_T_i(v) = u_k_(i, k, v);
-              w_c_T_i(v) = 0.0;
-            }
-            math::linalg::mat_mul<3>(1.0, R_inv_i, U_c_T_i, 0.0, w_c_T_i);
-
-            for (int v = 0; v < nvars; ++v) {
-              u_k_(i, k, v) = w_c_T_i(v);
-            } // end loop vars
-          } // end loop k
-        }); // par i
-  } // end map to characteristics
-
-  auto dr = mesh.widths();
+  const auto dr = mesh.widths();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: Minmod", DevExecSpace(), ilo,
       ihi, KOKKOS_CLASS_LAMBDA(const int i) {
-        // Do nothing we don't need to limit slopes
-        if (D_(i) > tci_val_ || !tci_opt_) {
-          for (int v = 0; v < nvars_; ++v) {
+        // Do nothing if the troubled-cell indicator says we needn't limit.
+        if (tci_opt_ && D_(i) <= tci_val_) {
+          return;
+        }
 
-            // --- Begin TVD Minmod Limiter --- //
-            const double s_i = u_k_(i, Slope, v); // target cell slope
-            const double c_i = u_k_(i, CellAverage, v); // target cell avg
-            const double c_p = u_k_(i + 1, CellAverage, v); // cell i + 1 avg
-            const double c_m = u_k_(i - 1, CellAverage, v); // cell i - 1 avg
-            // Form the neighbor slopes. We have to be mindful of the element
-            // widths as they are not uniform.
-            const double s_p = (c_p - c_i) / (0.5 * (dr(i) + dr(i + 1)));
-            const double s_m = (c_i - c_m) / (0.5 * (dr(i) + dr(i - 1)));
-            const double scale = 0.5 * dr(i);
-            const double new_slope = MINMOD_B(
-                s_i, b_tvd_ * scale * s_p, b_tvd_ * scale * s_m, dr(i), m_tvb_);
-
-            // check limited slope difference vs threshold
-            if (std::abs(new_slope - s_i) > sl_threshold_ * std::abs(s_i)) {
+        // --- Component-wise limiting (no characteristic transform) --- //
+        if (!characteristic) {
+          for (int v = 0; v < nvars; ++v) {
+            bool changed = false;
+            const double new_slope = limit_slope_minmod(
+                u_k_(i, Slope, v), u_k_(i - 1, CellAverage, v),
+                u_k_(i, CellAverage, v), u_k_(i + 1, CellAverage, v), dr(i),
+                dr(i - 1), dr(i + 1), b_tvd_, m_tvb_, sl_threshold_, changed);
+            if (changed) {
               u_k_(i, Slope, v) = new_slope;
-
-              // remove any higher order contributions
               for (int k = 2; k < order_; ++k) {
                 u_k_(i, k, v) = 0.0;
               }
-
-              // --- Note we have limited this cell --- //
               limited_cell_(i) = 1;
             }
-            // --- End TVD Minmod Limiter --- //
-            // The TVDMinmod part is really small... reusing a lot of code
+          }
+          return;
+        }
 
-          } // end loop v
-        } // end if "limit_this_cell"
-      }); // par_for i
+        // --- Characteristic limiting in cell i's eigenbasis --- //
+        // Build the decomposition from cell i's cell average, then project the
+        // *neighbor* data with cell i's left eigenvectors (R_inv_i). Using one
+        // common basis for all three cells keeps the field-by-field differences
+        // meaningful; projecting each cell with its own basis (a global
+        // pre-pass) injects a spurious term ~d(R)/dx that over-limits smooth
+        // flow (e.g. rarefaction fans).
+        auto R_i = Kokkos::subview(R_, i, Kokkos::ALL, Kokkos::ALL);
+        auto R_inv_i = Kokkos::subview(R_inv_, i, Kokkos::ALL, Kokkos::ALL);
+        auto avg_i = Kokkos::subview(mult_, i, Kokkos::ALL);
+        for (int v = 0; v < nvars; ++v) {
+          avg_i(v) = u_k_(i, CellAverage, v);
+        }
+        // Per-cell EOS lambda (slot 7 = temperature; ionizing EOS also reads
+        // the cell-average ionization slots).
+        compute_characteristic_decomposition(avg_i, R_i, R_inv_i, eos,
+                                             &lambda_cell(i, 0));
 
-  /* Map back to conserved variables */
-  if (characteristic_) {
-    athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN,
-        "SlopeLimiter :: Minmod :: FromCharacteristic", DevExecSpace(), ilo,
-        ihi, KOKKOS_CLASS_LAMBDA(const int i) {
-          // --- Characteristic Limiting Matrices ---
-          auto R_i = Kokkos::subview(R_, i, Kokkos::ALL, Kokkos::ALL);
-          auto U_c_T_i = Kokkos::subview(U_c_T_, i, Kokkos::ALL);
-          auto w_c_T_i = Kokkos::subview(w_c_T_, i, Kokkos::ALL);
-          for (int k = 0; k < 2; ++k) {
-            // store U.. = R @ w..
-            for (int v = 0; v < nvars; ++v) {
-              U_c_T_i(v) = u_k_(i, k, v);
-              w_c_T_i(v) = 0.0;
+        // Project cell i (all modes) and the neighbor averages (mode 0 only)
+        // into characteristic variables, all in cell i's basis.
+        CharBlock w_i;
+        CharBlock w_p;
+        CharBlock w_m;
+        to_characteristic(R_inv_i,
+                          Kokkos::subview(u_k_, i, Kokkos::ALL, Kokkos::ALL),
+                          w_i, order_, nvars);
+        to_characteristic(
+            R_inv_i, Kokkos::subview(u_k_, i + 1, Kokkos::ALL, Kokkos::ALL),
+            w_p, 1, nvars);
+        to_characteristic(
+            R_inv_i, Kokkos::subview(u_k_, i - 1, Kokkos::ALL, Kokkos::ALL),
+            w_m, 1, nvars);
+
+        // Minmod each characteristic field independently.
+        Kokkos::Array<bool, max_characteristic_vars> field_limited = {false};
+        bool any_limited = false;
+        for (int m = 0; m < nvars; ++m) {
+          bool changed = false;
+          const double ns = limit_slope_minmod(
+              w_i(Slope, m), w_m(CellAverage, m), w_i(CellAverage, m),
+              w_p(CellAverage, m), dr(i), dr(i - 1), dr(i + 1), b_tvd_, m_tvb_,
+              sl_threshold_, changed);
+          if (changed) {
+            w_i(Slope, m) = ns;
+            field_limited[m] = true;
+            any_limited = true;
+          }
+        }
+
+        if (!any_limited) {
+          return;
+        }
+
+        // Drop higher modes of the limited characteristic fields (go linear).
+        for (int m = 0; m < nvars; ++m) {
+          if (field_limited[m]) {
+            for (int k = 2; k < order_; ++k) {
+              w_i(k, m) = 0.0;
             }
-            math::linalg::mat_mul<3>(1.0, R_i, U_c_T_i, 0.0, w_c_T_i);
+          }
+        }
 
-            for (int v = 0; v < nvars; ++v) {
-              u_k_(i, k, v) = w_c_T_i(v);
-            } // end loop vars
-          } // end loop k
-        }); // par_for i
-  } // end map from characteristics
+        // Map the limited block back to conserved variables, preserving the
+        // cell average exactly (it is never limited).
+        auto u_cell_i = Kokkos::subview(u_k_, i, Kokkos::ALL, Kokkos::ALL);
+        from_characteristic(R_i, w_i, u_cell_i, order_, nvars);
+        for (int v = 0; v < nvars; ++v) {
+          u_k_(i, CellAverage, v) = avg_i(v);
+        }
+        limited_cell_(i) = 1;
+      }); // par_for i
 
   // conservative_correction(u_k_, U, mesh, nvars);
 

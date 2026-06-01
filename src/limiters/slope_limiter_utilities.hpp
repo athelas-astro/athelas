@@ -34,6 +34,26 @@ constexpr auto MINMOD_B(T a, T b, T c, T dx, T M) -> T {
   return a;
 }
 
+// TVD(B) minmod limit of a single scalar slope against the neighbour
+// cell-average differences on a (possibly non-uniform) stencil. Returns the
+// limited slope and reports via `changed` whether it moved beyond the relative
+// threshold. Shared by the component-wise and characteristic paths of the slope
+// limiters so the non-uniform-mesh slope arithmetic lives in one place.
+KOKKOS_INLINE_FUNCTION
+auto limit_slope_minmod(const double slope, const double avg_m,
+                        const double avg_i, const double avg_p,
+                        const double dr_i, const double dr_m, const double dr_p,
+                        const double b_tvd, const double m_tvb,
+                        const double threshold, bool &changed) -> double {
+  const double s_p = (avg_p - avg_i) / (0.5 * (dr_i + dr_p));
+  const double s_m = (avg_i - avg_m) / (0.5 * (dr_i + dr_m));
+  const double scale = 0.5 * dr_i;
+  const double limited =
+      MINMOD_B(slope, b_tvd * scale * s_p, b_tvd * scale * s_m, dr_i, m_tvb);
+  changed = std::abs(limited - slope) > threshold * std::abs(slope);
+  return limited;
+}
+
 auto barth_jespersen(double U_v_L, double U_v_R, double U_c_L, double U_c_T,
                      double U_c_R, double alpha) -> double;
 
@@ -57,10 +77,10 @@ auto cell_average(AthelasArray3D<double> U, AthelasArray1D<double> weights,
                   const int extrapolate = 0) -> double {
   assert((extrapolate == -1 || extrapolate == 0 || extrapolate == 1) &&
          "cell_average:: extrapolate must be -1, 0, 1");
-  static const int nNodes = static_cast<int>(weights.size());
+  const int nNodes = static_cast<int>(weights.size());
 
   // Some data structures include interface storage -- do some index gymnastics
-  static const int nq_p_i =
+  const int nq_p_i =
       static_cast<int>(weights.extent(0)) + 2; // size of nodes + interfaces
   const int nq_u = static_cast<int>(U.extent(1));
   const int offset = (nq_u == nq_p_i) ? 1 : 0;
@@ -88,10 +108,10 @@ auto cell_average(AthelasArray3D<double> U, AthelasArray2D<double> sqrt_gm,
                   const int i, const int extrapolate = 0) -> double {
   assert((extrapolate == -1 || extrapolate == 0 || extrapolate == 1) &&
          "cell_average:: extrapolate must be -1, 0, 1");
-  static const int nNodes = static_cast<int>(weights.size());
+  const int nNodes = static_cast<int>(weights.size());
 
   // Some data structures include interface storage -- do some index gymnastics
-  static const int nq_p_i =
+  const int nq_p_i =
       static_cast<int>(sqrt_gm.extent(1)); // size of nodes + interfaces
   const int nq_u = static_cast<int>(U.extent(1));
   const int offset = (nq_u == nq_p_i) ? 1 : 0;
@@ -118,10 +138,10 @@ auto cell_average(AthelasArray2D<double> U, AthelasArray2D<double> sqrt_gm,
                   const int extrapolate = 0) -> double {
   assert((extrapolate == -1 || extrapolate == 0 || extrapolate == 1) &&
          "cell_average:: extrapolate must be -1, 0, 1");
-  static const int nNodes = static_cast<int>(weights.size());
+  const int nNodes = static_cast<int>(weights.size());
 
   // Some data structures include interface storage -- do some index gymnastics
-  static const int nq_p_i =
+  const int nq_p_i =
       static_cast<int>(sqrt_gm.extent(1)); // size of nodes + interfaces
   const int nq_u = static_cast<int>(U.extent(1));
   const int offset = (nq_u == nq_p_i) ? 0 : 1;

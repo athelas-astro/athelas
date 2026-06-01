@@ -25,6 +25,7 @@
 
 #include "eos/eos_variant.hpp"
 #include "interface/state.hpp"
+#include "limiters/characteristic_decomposition.hpp"
 #include "limiters/slope_limiter_base.hpp"
 
 namespace athelas {
@@ -56,7 +57,11 @@ class WENO : public SlopeLimiterBase<WENO> {
   }
 
   void apply_slope_limiter(AthelasArray3D<double> U, const Mesh &mesh,
-                           const basis::NodalBasis &basis, const eos::EOS &eos);
+                           const basis::NodalBasis &basis, const eos::EOS &eos,
+                           AthelasArray2D<double> lambda_cell);
+  [[nodiscard]] auto uses_characteristics() const -> bool {
+    return enabled_ && characteristic_ && order_ > 1;
+  }
   [[nodiscard]] auto get_limited(int ix) const -> int;
   [[nodiscard]] auto limited() const -> AthelasArray1D<int>;
 
@@ -111,13 +116,17 @@ class TVDMinmod : public SlopeLimiterBase<TVDMinmod> {
                                   nvars_);
       R_inv_ = AthelasArray3D<double>("invR Matrix", mesh->n_elements() + 2,
                                       nvars_, nvars_);
-      U_c_T_ = AthelasArray2D<double>("U_c_T", mesh->n_elements() + 2, nvars_);
-      w_c_T_ = AthelasArray2D<double>("w_c_T", mesh->n_elements() + 2, nvars_);
       mult_ = AthelasArray2D<double>("Mult", mesh->n_elements() + 2, nvars_);
     }
   }
   void apply_slope_limiter(AthelasArray3D<double> U, const Mesh &mesh,
-                           const basis::NodalBasis &basis, const eos::EOS &eos);
+                           const basis::NodalBasis &basis, const eos::EOS &eos,
+                           AthelasArray2D<double> lambda_cell);
+  [[nodiscard]] auto uses_characteristics() const -> bool {
+    return enabled_ && characteristic_ && order_ > 1 &&
+           nvars_ <= static_cast<int>(max_characteristic_vars) &&
+           order_ <= static_cast<int>(max_characteristic_modes);
+  }
   [[nodiscard]] auto get_limited(int ix) const -> int;
   [[nodiscard]] auto limited() const -> AthelasArray1D<int>;
 
@@ -138,12 +147,8 @@ class TVDMinmod : public SlopeLimiterBase<TVDMinmod> {
   // --- Slope limiter quantities ---
 
   AthelasArray3D<double> u_k_;
-  AthelasArray2D<double> U_c_T_;
 
-  // characteristic forms
-  AthelasArray2D<double> w_c_T_;
-
-  // matrix mult scratch scape
+  // matrix mult scratch space (cell-average state for the decomposition)
   AthelasArray2D<double> mult_;
 
   AthelasArray1D<double> D_;
@@ -175,13 +180,17 @@ class MomentLimiter : public SlopeLimiterBase<MomentLimiter> {
                                   nvars_);
       R_inv_ = AthelasArray3D<double>("invR Matrix", mesh->n_elements() + 2,
                                       nvars_, nvars_);
-      U_c_T_ = AthelasArray2D<double>("U_c_T", mesh->n_elements() + 2, nvars_);
-      w_c_T_ = AthelasArray2D<double>("w_c_T", mesh->n_elements() + 2, nvars_);
       mult_ = AthelasArray2D<double>("Mult", mesh->n_elements() + 2, nvars_);
     }
   }
   void apply_slope_limiter(AthelasArray3D<double> U, const Mesh &mesh,
-                           const basis::NodalBasis &basis, const eos::EOS &eos);
+                           const basis::NodalBasis &basis, const eos::EOS &eos,
+                           AthelasArray2D<double> lambda_cell);
+  [[nodiscard]] auto uses_characteristics() const -> bool {
+    return enabled_ && characteristic_ && order_ > 1 &&
+           nvars_ <= static_cast<int>(max_characteristic_vars) &&
+           order_ <= static_cast<int>(max_characteristic_modes);
+  }
   [[nodiscard]] auto get_limited(int ix) const -> int;
   [[nodiscard]] auto limited() const -> AthelasArray1D<int>;
 
@@ -203,12 +212,8 @@ class MomentLimiter : public SlopeLimiterBase<MomentLimiter> {
 
   AthelasArray3D<double> u_k_;
   AthelasArray3D<double> u_k_unlimited_;
-  AthelasArray2D<double> U_c_T_;
 
-  // characteristic forms
-  AthelasArray2D<double> w_c_T_;
-
-  // matrix mult scratch scape
+  // matrix mult scratch space (cell-average state for the decomposition)
   AthelasArray2D<double> mult_;
 
   AthelasArray1D<double> D_;
@@ -220,7 +225,9 @@ class Unlimited : public SlopeLimiterBase<Unlimited> {
  public:
   Unlimited() = default;
   void apply_slope_limiter(AthelasArray3D<double> U, const Mesh &mesh,
-                           const basis::NodalBasis &basis, const eos::EOS &eos);
+                           const basis::NodalBasis &basis, const eos::EOS &eos,
+                           AthelasArray2D<double> lambda_cell);
+  [[nodiscard]] auto uses_characteristics() const -> bool { return false; }
   [[nodiscard]] auto get_limited(int ix) const -> int;
   [[nodiscard]] auto limited() const -> AthelasArray1D<int>;
 
@@ -230,6 +237,12 @@ class Unlimited : public SlopeLimiterBase<Unlimited> {
 
 using SlopeLimiter = std::variant<WENO, TVDMinmod, MomentLimiter, Unlimited>;
 
+// Fill a per-cell, cell-average EOS lambda for the characteristic
+// decomposition. Slot EOS_LAMBDA_TEMPERATURE is always meaningful; ionizing
+// runs also fill the Paczynski-specific slots.
+void fill_cell_average_lambda(AthelasArray2D<double> lambda_cell,
+                              const StageData &stage_data, const Mesh &mesh);
+
 // std::visit functions
 // The mesh for the limiter is taken from the stage data (canonical mesh for
 // stage 0, the active stage's work buffer otherwise). The basis is passed
@@ -238,9 +251,21 @@ inline void apply_slope_limiter(SlopeLimiter *limiter, AthelasArray3D<double> U,
                                 const StageData &stage_data,
                                 const basis::NodalBasis &basis,
                                 const eos::EOS &eos) {
+  const auto &mesh = stage_data.mesh();
+  AthelasArray2D<double> lambda_cell;
+  const bool needs_lambda = std::visit(
+      [](const auto &limiter) { return limiter.uses_characteristics(); },
+      *limiter);
+  if (needs_lambda) {
+    // Cell-average EOS lambda for characteristic limiting. Slot 7 is always
+    // filled with temperature; ionization runs also fill Paczynski slots 0--6.
+    lambda_cell =
+        stage_data.get_field<AthelasArray2D<double>>("eos_lambda_avg");
+    fill_cell_average_lambda(lambda_cell, stage_data, mesh);
+  }
   std::visit(
-      [&U, &stage_data, &basis, &eos](auto &limiter) {
-        limiter.apply_slope_limiter(U, stage_data.mesh(), basis, eos);
+      [&U, &mesh, &basis, &eos, &lambda_cell](auto &limiter) {
+        limiter.apply_slope_limiter(U, mesh, basis, eos, lambda_cell);
       },
       *limiter);
 }

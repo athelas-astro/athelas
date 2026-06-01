@@ -1,9 +1,9 @@
 #include <algorithm> // std::min, std::max
 #include <cmath>
-#include <cstdlib> /* abs */
 #include <limits>
 
 #include "basic_types.hpp"
+#include "composition/compdata.hpp"
 #include "geometry/mesh.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
@@ -67,9 +67,9 @@ void conservative_correction(AthelasArray3D<double> u_k,
   auto weights = mesh.weights();
   auto sqrt_gm = mesh.sqrt_gm();
 
-  static const int nq = static_cast<int>(nodes.size());
-  static const int order = nq;
-  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  const int nq = static_cast<int>(nodes.size());
+  const int order = nq;
+  const IndexRange ib(mesh.domain<Domain::Interior>());
   const IndexRange vb(nv);
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "SlopeLimiter :: Conservative Correction",
@@ -156,7 +156,7 @@ auto barth_jespersen(double U_v_L, double U_v_R, double U_c_L, double U_c_T,
 void detect_troubled_cells(AthelasArray3D<double> U, AthelasArray1D<double> D,
                            const Mesh &mesh, const NodalBasis &basis,
                            const IndexRange &vb) {
-  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  const IndexRange ib(mesh.domain<Domain::Interior>());
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: TCI :: Zero", DevExecSpace(),
       ib.s, ib.e, KOKKOS_LAMBDA(const int i) { D(i) = 0.0; });
@@ -304,6 +304,69 @@ auto weno_tau(const double beta_l, const double beta_i, const double beta_r)
   return (std::abs(beta_i - beta_l) + std::abs(beta_i - beta_r)) / 2.0;
   // return (std::abs(beta_l - beta_r) + std::abs(beta_i - beta_l) +
   // std::abs(beta_i - beta_r)) / 3.0;
+}
+
+// Build a per-cell, cell-average EOS lambda for the characteristic
+// decomposition. Slot 7 is always the cell-average temperature. For ionization
+// runs, slots 0--6 are cell averages of the Paczynski composition/ionization
+// quantities: {N, ye, ybar, sigma1, sigma2, sigma3, e_ion_corr}.
+void fill_cell_average_lambda(AthelasArray2D<double> lambda_cell,
+                              const StageData &stage_data, const Mesh &mesh) {
+  const auto derived = stage_data.get_field("derived");
+  const int idx_tgas = stage_data.var_index("derived", "gas_temperature");
+
+  const auto sqrt_gm = mesh.sqrt_gm();
+  const auto weights = mesh.weights();
+  const auto widths = mesh.widths();
+
+  const IndexRange ib(mesh.domain<Domain::Interior>());
+  const bool ionization_enabled = stage_data.enabled("ionization");
+  if (!ionization_enabled) {
+    athelas::par_for(
+        DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: fill cell-average lambda",
+        DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
+          const double dr = widths(i);
+          for (int l = 0; l < eos::EOS_LAMBDA_SIZE; ++l) {
+            lambda_cell(i, l) = 0.0;
+          }
+          lambda_cell(i, eos::EOS_LAMBDA_TEMPERATURE) =
+              cell_average(derived, sqrt_gm, weights, dr, idx_tgas, i);
+        });
+    return;
+  }
+
+  const auto *const comps = stage_data.comps();
+  const auto *const ion = stage_data.ionization_state();
+
+  const auto number_density = comps->number_density();
+  const auto ye = comps->ye();
+  const auto ybar = ion->ybar();
+  const auto sigma1 = ion->sigma1();
+  const auto sigma2 = ion->sigma2();
+  const auto sigma3 = ion->sigma3();
+  const auto e_ion_corr = ion->e_ion_corr();
+
+  athelas::par_for(
+      DEFAULT_FLAT_LOOP_PATTERN, "SlopeLimiter :: fill cell-average lambda",
+      DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
+        const double dr = widths(i);
+        lambda_cell(i, eos::paczynski_lambda::number_density) =
+            cell_average(number_density, sqrt_gm, weights, dr, i);
+        lambda_cell(i, eos::paczynski_lambda::ye) =
+            cell_average(ye, sqrt_gm, weights, dr, i);
+        lambda_cell(i, eos::paczynski_lambda::ybar) =
+            cell_average(ybar, sqrt_gm, weights, dr, i);
+        lambda_cell(i, eos::paczynski_lambda::sigma1) =
+            cell_average(sigma1, sqrt_gm, weights, dr, i);
+        lambda_cell(i, eos::paczynski_lambda::sigma2) =
+            cell_average(sigma2, sqrt_gm, weights, dr, i);
+        lambda_cell(i, eos::paczynski_lambda::sigma3) =
+            cell_average(sigma3, sqrt_gm, weights, dr, i);
+        lambda_cell(i, eos::paczynski_lambda::e_ion_corr) =
+            cell_average(e_ion_corr, sqrt_gm, weights, dr, i);
+        lambda_cell(i, eos::EOS_LAMBDA_TEMPERATURE) =
+            cell_average(derived, sqrt_gm, weights, dr, idx_tgas, i);
+      });
 }
 
 } // namespace athelas
