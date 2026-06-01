@@ -63,8 +63,11 @@ auto Driver::execute() -> int {
   // some startup io
   auto sd0 = mesh_state_(0);
   manager_->fill_derived(sd0, dt_info);
-  apply_slope_limiter(&sl_hydro_, sd0.get_field("evolved"), sd0, sd0.fluid_basis(), sd0.eos());
-  bel::apply_bound_enforcing_limiter(sd0);
+  if (!restart_) {
+    apply_slope_limiter(&sl_hydro_, sd0.get_field("evolved"), sd0,
+                        sd0.fluid_basis(), sd0.eos());
+    bel::apply_bound_enforcing_limiter(sd0);
+  }
   print_simulation_parameters(mesh_state_.mesh(), pin_.get());
   // Initial dump has file index 0 and is followed by initial history entry
   // 0 on the next line, so all "last_*" counters land at 0 here — restart
