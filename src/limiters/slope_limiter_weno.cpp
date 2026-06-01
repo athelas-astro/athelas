@@ -4,7 +4,6 @@
 #include "limiters/slope_limiter.hpp"
 #include "limiters/slope_limiter_utilities.hpp"
 #include "loop_layout.hpp"
-#include "math/linear_algebra.hpp"
 #include "math/utils.hpp"
 
 namespace athelas {
@@ -19,16 +18,17 @@ using namespace vars::modes;
  * H. Zhu 2020, simple, high-order compact WENO RKDG slope limiter
  **/
 void WENO::apply_slope_limiter(AthelasArray3D<double> U, const Mesh &mesh,
-                               const NodalBasis &basis, const EOS &eos) {
+                               const NodalBasis &basis, const EOS &eos,
+                               AthelasArray2D<double> lambda_cell) {
 
   // Do not apply for first order method or if we don't want to.
   if (order_ == 1 || !enabled_) {
     return;
   }
 
-  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  const IndexRange ib(mesh.domain<Domain::Interior>());
   static constexpr int ilo = 1;
-  static const int &ihi = mesh.get_ihi();
+  const int ihi = mesh.get_ihi();
 
   const auto nvars = nvars_;
 
@@ -57,14 +57,17 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U, const Mesh &mesh,
           auto U_c_T_i = Kokkos::subview(U_c_T_, i, Kokkos::ALL);
           auto w_c_T_i = Kokkos::subview(w_c_T_, i, Kokkos::ALL);
           auto Mult_i = Kokkos::subview(mult_, i, Kokkos::ALL);
-          compute_characteristic_decomposition(Mult_i, R_i, R_inv_i, eos);
-          for (int k = 0; k <= 1; ++k) {
+          // Per-cell EOS lambda (slot 7 = temperature; ionizing EOS also reads
+          // the cell-average ionization slots).
+          compute_characteristic_decomposition(Mult_i, R_i, R_inv_i, eos,
+                                               &lambda_cell(i, 0));
+          for (int k = 0; k < order_; ++k) {
             // store w_.. = invR @ U_..
             for (int v = 0; v < nvars; ++v) {
               U_c_T_i(v) = u_k_(i, k, v);
               w_c_T_i(v) = 0.0;
             }
-            math::linalg::mat_mul<3>(1.0, R_inv_i, U_c_T_i, 0.0, w_c_T_i);
+            characteristic_mat_vec(nvars, 1.0, R_inv_i, U_c_T_i, 0.0, w_c_T_i);
 
             for (int v = 0; v < nvars; ++v) {
               u_k_(i, k, v) = w_c_T_i(v);
@@ -133,13 +136,13 @@ void WENO::apply_slope_limiter(AthelasArray3D<double> U, const Mesh &mesh,
           auto R_i = Kokkos::subview(R_, i, Kokkos::ALL, Kokkos::ALL);
           auto U_c_T_i = Kokkos::subview(U_c_T_, i, Kokkos::ALL);
           auto w_c_T_i = Kokkos::subview(w_c_T_, i, Kokkos::ALL);
-          for (int k = 0; k < 2; ++k) {
+          for (int k = 0; k < order_; ++k) {
             // store U.. = R @ w..
             for (int v = 0; v < nvars; ++v) {
               U_c_T_i(v) = u_k_(i, k, v);
               w_c_T_i(v) = 0.0;
             }
-            math::linalg::mat_mul<3>(1.0, R_i, U_c_T_i, 0.0, w_c_T_i);
+            characteristic_mat_vec(nvars, 1.0, R_i, U_c_T_i, 0.0, w_c_T_i);
 
             for (int v = 0; v < nvars; ++v) {
               u_k_(i, k, v) = w_c_T_i(v);

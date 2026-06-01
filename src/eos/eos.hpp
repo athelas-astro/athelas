@@ -34,6 +34,17 @@ using root_finders::RootFinder, root_finders::NewtonAlgorithm,
 // Sets the size of an EOS lambda
 // 8 is needed for Paczynski
 constexpr int EOS_LAMBDA_SIZE = 8;
+constexpr int EOS_LAMBDA_TEMPERATURE = 7;
+
+namespace paczynski_lambda {
+constexpr int number_density = 0;
+constexpr int ye = 1;
+constexpr int ybar = 2;
+constexpr int sigma1 = 3;
+constexpr int sigma2 = 4;
+constexpr int sigma3 = 5;
+constexpr int e_ion_corr = 6;
+} // namespace paczynski_lambda
 
 /**
  * @struct EOSLambda

@@ -1,4 +1,6 @@
 #include "pgen/problem_in.hpp"
+#include <cmath>
+
 #include "io/restart.hpp"
 #include "lua_schema.hpp"
 #include "pgen/lua_validator.hpp"
@@ -196,8 +198,13 @@ ProblemIn::ProblemIn(
   if (limit_fluid &&
       (fluid_limiter_type == "minmod" || fluid_limiter_type == "moment")) {
     const double b_tvd = fluid_limiter_block.get_or("b_tvd", 1.0);
+    athelas_requires(
+        std::isfinite(b_tvd) && b_tvd >= 1.0 && b_tvd <= 2.0,
+        "[fluid] block: limiter b_tvd must be finite and in [1, 2].");
     params_->add("fluid.limiter.b_tvd", b_tvd);
     const double m_tvb = fluid_limiter_block.get_or("m_tvb", 0.0);
+    athelas_requires(std::isfinite(m_tvb) && m_tvb >= 0.0,
+                     "[fluid] block: limiter m_tvb must be finite and >= 0.");
     params_->add("fluid.limiter.m_tvb", m_tvb);
   }
 
@@ -345,8 +352,14 @@ ProblemIn::ProblemIn(
     if (limit_rad &&
         (rad_limiter_type == "minmod" || rad_limiter_type == "moment")) {
       const double b_tvd = rad_lim.get_or("b_tvd", 1.0);
+      athelas_requires(
+          std::isfinite(b_tvd) && b_tvd >= 1.0 && b_tvd <= 2.0,
+          "[radiation] block: limiter b_tvd must be finite and in [1, 2].");
       params_->add("radiation.limiter.b_tvd", b_tvd);
       const double m_tvb = rad_lim.get_or("m_tvb", 0.0);
+      athelas_requires(
+          std::isfinite(m_tvb) && m_tvb >= 0.0,
+          "[radiation] block: limiter m_tvb must be finite and >= 0.");
       params_->add("radiation.limiter.m_tvb", m_tvb);
     }
 
@@ -395,9 +408,6 @@ ProblemIn::ProblemIn(
     // characteristic limiting
     const bool rad_characteristic = rad_lim.get_or("characteristic", false);
     params_->add("radiation.limiter.characteristic", rad_characteristic);
-    athelas_requires(
-        !rad_characteristic,
-        "Characteristic limiting not currently supported for radiation!");
 
     // --- radiation bc ---
     sol::optional<sol::table> rad_bc_block =

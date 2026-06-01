@@ -77,15 +77,19 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
     const bool gravity_active =
         pin->param()->get<bool>("physics.gravity.enabled");
     const int grav_active = gravity_active ? 1 : 0;
-    const int radiation_active =
-        static_cast<int>(pin->param()->get<bool>("physics.radiation.enabled"));
+    const bool radiation_active =
+        pin->param()->get<bool>("physics.radiation.enabled");
     const auto &basis = stage_data.fluid_basis();
     auto phi = basis.phi();
     auto evolved = stage_data.get_field("evolved");
     const int idx_ener =
         stage_data.var_index("evolved", "specific_total_fluid_energy");
-    const int idx_rad_energy =
-        stage_data.var_index("evolved", "specific_radiation_energy");
+    // A bit hacky
+    int idx_rad_energy = -1;
+    if (radiation_active) {
+      idx_rad_energy =
+          stage_data.var_index("evolved", "specific_radiation_energy");
+    }
     auto r = mesh->nodal_grid();
     auto weights = mesh->weights();
     double total_energy = 0.0;
@@ -94,7 +98,10 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
         1, nx, 0, nnodes - 1,
         KOKKOS_CLASS_LAMBDA(const int i, const int q, double &lenergy) {
           const double e_fluid = evolved(i, q, idx_ener);
-          const double e_rad = radiation_active * evolved(i, q, idx_rad_energy);
+          double e_rad = 0.0;
+          if (radiation_active) {
+            e_rad = evolved(i, q, idx_rad_energy);
+          }
           const double e_grav =
               grav_active * constants::G_GRAV * menc(i, q) / r(i, q + 1);
           lenergy +=

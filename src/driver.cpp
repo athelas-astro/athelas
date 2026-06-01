@@ -4,6 +4,7 @@
 #include "basis/polynomial_basis.hpp"
 #include "bc/boundary_conditions.hpp"
 #include "engines/thermal.hpp"
+#include "eos/eos.hpp"
 #include "fluid/hydro_package.hpp"
 #include "geometry/geometry_package.hpp"
 #include "gravity/gravity_package.hpp"
@@ -215,7 +216,6 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   const bool rad_active = pin->param()->get<bool>("physics.radiation.enabled");
   const bool comps_active =
       pin->param()->get<bool>("physics.composition.enabled");
-
   // --- Set up mesh state ---
   // Field taxonomy:
   // - evolved: timestep state advanced by physics packages.
@@ -264,6 +264,13 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
                                "bulk mass fractions", {"X", "Y", "Z"}, nx + 2,
                                nnodes + 2, 3);
   }
+
+  // Cell-average EOS lambda consumed by characteristic slope limiting. Slot 7
+  // is always the thermodynamic temperature used to build EOS derivatives;
+  // ionization runs also fill the Paczynski composition/ionization slots.
+  mesh_state_.register_field("eos_lambda_avg", DataPolicy::OneCopy,
+                             "Cell-average EOS lambda", nx + 2,
+                             eos::EOS_LAMBDA_SIZE);
 
   mesh_state_.register_field("interface", DataPolicy::Staged,
                              "Interface variables", {"interface_velocity"},

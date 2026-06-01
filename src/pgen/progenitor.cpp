@@ -114,10 +114,6 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   const int idx_vel = mesh_state(0).var_index("evolved", "velocity");
   const int idx_ener =
       mesh_state(0).var_index("evolved", "specific_total_fluid_energy");
-  const int idx_rad_energy =
-      mesh_state(0).var_index("evolved", "specific_radiation_energy");
-  const int idx_rad_flux =
-      mesh_state(0).var_index("evolved", "specific_radiation_flux");
   const int idx_density = mesh_state(0).var_index("derived", "density");
   const int idx_pressure = mesh_state(0).var_index("derived", "pressure");
   const int idx_tgas = mesh_state(0).var_index("derived", "gas_temperature");
@@ -584,6 +580,10 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   // Radiaiton flux is currently set using the progenitor luminosity
   // TODO(astrobarker): Support initializing with 0 flux.
   if (rad_enabled) {
+    const int idx_rad_energy =
+        mesh_state(0).var_index("evolved", "specific_radiation_energy");
+    const int idx_rad_flux =
+        mesh_state(0).var_index("evolved", "specific_radiation_flux");
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Radiation",
         DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
