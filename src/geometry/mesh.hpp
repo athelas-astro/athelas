@@ -86,6 +86,22 @@ class Mesh {
            x_l_(iC + 1) * shape_function(1, nodes_(q));
   }
 
+  // Linear shape function on the reference element [-1/2, 1/2]. Public so that
+  // callers can interpolate face-defined quantities (e.g. interface velocity)
+  // onto interior nodes with the same map node_coordinate() uses, e.g.
+  //   v_node(q) = vstar_l * shape_function(0, nodes(q))
+  //             + vstar_r * shape_function(1, nodes(q));
+  KOKKOS_INLINE_FUNCTION
+  static auto shape_function(const int interface, const double eta) -> double {
+    if (interface == 0) {
+      return 1.0 * (0.5 - eta);
+    }
+    if (interface == 1) {
+      return 1.0 * (0.5 + eta);
+    }
+    return 0.0; // unreachable, but silences warnings
+  }
+
   KOKKOS_FUNCTION
   auto operator()(int i, int j) -> double &;
   KOKKOS_FUNCTION
@@ -115,18 +131,6 @@ class Mesh {
 
   AthelasArray2D<double> sqrt_gm_;
   AthelasArray2D<double> grid_;
-
-  // linear shape function on the reference element
-  KOKKOS_INLINE_FUNCTION
-  auto static shape_function(const int interface, const double eta) -> double {
-    if (interface == 0) {
-      return 1.0 * (0.5 - eta);
-    }
-    if (interface == 1) {
-      return 1.0 * (0.5 + eta);
-    }
-    return 0.0; // unreachable, but silences warnings
-  }
 };
 
 } // namespace athelas

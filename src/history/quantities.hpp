@@ -194,7 +194,7 @@ inline auto total_rad_energy(const MeshState &mesh_state, const Mesh &mesh)
   using basis::basis_eval;
   const auto &nNodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
-  auto dm = mesh.widths();
+  auto mcell = mesh.mass();
   auto weights = mesh.weights();
 
   auto u = mesh_state(0).get_field("evolved");
@@ -210,7 +210,7 @@ inline auto total_rad_energy(const MeshState &mesh_state, const Mesh &mesh)
         for (int q = 0; q < nNodes; ++q) {
           local_sum += u(i, q, idx_rad_energy) * weights(q);
         }
-        lsum += local_sum * dm(i);
+        lsum += local_sum * mcell(i);
       },
       Kokkos::Sum<double>(output));
 

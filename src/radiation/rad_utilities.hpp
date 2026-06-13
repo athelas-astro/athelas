@@ -393,7 +393,11 @@ struct RadHydroSourceDerivatives {
         *in.eos, in.rho, temperature + hT_cv, lambda);
     const double sie_m = eos::sie_from_density_temperature(
         *in.eos, in.rho, temperature - hT_cv, lambda);
-    const double cv = (sie_p - sie_m) / (2.0 * hT_cv);
+    double cv = (sie_p - sie_m) / (2.0 * hT_cv);
+    if (!std::isfinite(cv) || cv <= 0.0) {
+      cv = eos::cv_from_density_temperature(*in.eos, in.rho, temperature,
+                                            lambda);
+    }
     const double inv_cv = 1.0 / cv;
 
     const double at3 = constants::a * temperature * temperature * temperature;

@@ -14,7 +14,6 @@ class ModalBasis;
 
 namespace athelas::pgen::gas_collapse {
 
-void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin,
-          const eos::EOS *eos, basis::ModalBasis *fluid_basis = nullptr);
+void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin);
 
 } // namespace athelas::pgen::gas_collapse

@@ -197,21 +197,26 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   if (mass_cut != 0.0) {
     auto &mass_cut_ref =
         pin->param()->get_mutable_ref<double>("problem.params.mass_cut");
+    const double requested_mass_cut = mass_cut;
     double mass_enc = 0.0;
     double dm = 0.0;
+    bool found_mass_cut = false;
     for (int i = 0; i < n_zones_prog - 1; ++i) {
       dm = constants::FOUR_THIRDS_PI * density_host(i) *
            (std::pow(radius_host(i + 1), 3.0) - std::pow(radius_host(i), 3.0)) /
            constants::M_sun;
       mass_enc += dm;
-      if (mass_enc >= mass_cut) {
-        idx_cut = i - 1;
+      if (mass_enc >= requested_mass_cut) {
+        idx_cut = i;
         r_cut = linterp(mass_enc - dm, mass_enc, radius_host(idx_cut),
-                        radius_host(idx_cut + 1), mass_cut);
-        mass_cut = mass_enc;
-        mass_cut_ref = mass_cut;
+                        radius_host(idx_cut + 1), requested_mass_cut);
+        mass_cut_ref = requested_mass_cut;
+        found_mass_cut = true;
         break;
       }
+    }
+    if (!found_mass_cut) {
+      throw_athelas_error("Requested mass cut exceeds progenitor mass!");
     }
   }
 

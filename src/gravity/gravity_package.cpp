@@ -41,50 +41,69 @@ void GravityPackage::update_explicit(const StageData &stage_data,
   const auto &mesh = stage_data.mesh();
   const auto stage = dt_info.stage;
   auto evolved = stage_data.get_field("evolved");
+  const int idx_tau = stage_data.var_index("evolved", "specific_volume");
   const int idx_vel = stage_data.var_index("evolved", "velocity");
+  const auto &basis = stage_data.fluid_basis();
+  auto inv_mkk = basis.inv_mass_matrix();
 
   static const IndexRange ib(mesh.domain<Domain::Interior>());
+  static const IndexRange qb(mesh.n_nodes());
 
   if (model_ == GravityModel::Spherical) {
-    gravity_update<GravityModel::Spherical>(evolved, mesh, stage, idx_vel);
+    gravity_update<GravityModel::Spherical>(evolved, mesh, stage, idx_tau,
+                                            idx_vel);
   } else [[unlikely]] {
-    gravity_update<GravityModel::Constant>(evolved, mesh, stage, idx_vel);
+    gravity_update<GravityModel::Constant>(evolved, mesh, stage, idx_tau,
+                                           idx_vel);
   }
+
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "Gravity :: Apply inverse mass matrix",
+      DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
+      KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+        delta_(stage, i, q, pkg_vars::Velocity) *= inv_mkk(i, q);
+        delta_(stage, i, q, pkg_vars::Energy) *= inv_mkk(i, q);
+      });
 }
 
 template <GravityModel Model>
 void GravityPackage::gravity_update(AthelasArray3D<double> evolved,
                                     const Mesh &mesh, const int stage,
+                                    const int idx_tau,
                                     const int idx_vel) const {
-  using basis::basis_eval;
   static const int nNodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
   static const IndexRange qb(nNodes);
 
   auto r = mesh.nodal_grid();
+  auto dr = mesh.widths();
+  auto weights = mesh.weights();
+  auto sqrt_gm = mesh.sqrt_gm();
   auto enclosed_mass = mesh.enclosed_mass();
 
   const double gval = gval_;
-  // This can probably be simplified.
-  // NOTE: the update is divided by 4pi as this factor is weirdly included
-  // in enclosed mass but not in, e.g., the mass matrix.
+  // The spherical 4pi in <S, phi> cancels the common 4pi that would appear in
+  // the spherical mass matrix. The stored nodal mass matrix omits that common
+  // factor, so omit it here as well.
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Gravity :: Update", DevExecSpace(), ib.s,
       ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
+        const double width = dr(i);
         for (int q = qb.s; q <= qb.e; ++q) {
           const double X = r(i, q + 1);
-          const double denom = X * X * constants::FOURPI;
+          const double rho = 1.0 / evolved(i, q, idx_tau);
+          const double dvol = weights(q) * sqrt_gm(i, q + 1) * width;
+
+          double accel = 0.0;
           if constexpr (Model == GravityModel::Spherical) {
-            delta_(stage, i, q, pkg_vars::Velocity) =
-                -constants::G_GRAV * enclosed_mass(i, q) / denom;
-            delta_(stage, i, q, pkg_vars::Energy) =
-                delta_(stage, i, q, pkg_vars::Velocity) *
-                evolved(i, q, idx_vel);
+            accel = -constants::G_GRAV * enclosed_mass(i, q) / (X * X);
           } else {
-            delta_(stage, i, q, pkg_vars::Velocity) = -constants::G_GRAV * gval;
-            delta_(stage, i, q, pkg_vars::Energy) =
-                -constants::G_GRAV * gval * evolved(i, q, idx_vel);
+            accel = -constants::G_GRAV * gval;
           }
+
+          delta_(stage, i, q, pkg_vars::Velocity) = rho * accel * dvol;
+          delta_(stage, i, q, pkg_vars::Energy) =
+              delta_(stage, i, q, pkg_vars::Velocity) * evolved(i, q, idx_vel);
         }
       });
 }

@@ -14,6 +14,7 @@
  *          ihi = nElements_
  */
 
+#include <cmath>
 #include <iomanip>
 #include <vector>
 
@@ -171,27 +172,22 @@ void Mesh::create_uniform_grid() {
   auto centers_h = Kokkos::create_mirror_view(centers_);
   auto x_l_h = Kokkos::create_mirror_view(x_l_);
 
-  for (int i = 1; i < nElements_ + 1; i++) {
-    widths_h(i) = (xR_ - xL_) / nElements_;
-  }
-  widths_h(0) = widths_h(1);
-  widths_h(nElements_ + 1) = widths_h(nElements_);
+  const double dx = (xR_ - xL_) / static_cast<double>(nElements_);
 
-  x_l_h(1) = xL_;
-  for (int ix = 2; ix < nElements_ + 2; ix++) {
-    x_l_h(ix) = x_l_h(ix - 1) + widths_h(ix - 1);
+  x_l_h(0) = xL_ - dx;
+  for (int i = ilo; i <= ihi + 1; i++) {
+    x_l_h(i) = xL_ + static_cast<double>(i - ilo) * dx;
   }
+  x_l_h(ihi + 1) = xR_;
+  x_l_h(ihi + 2) = xR_ + dx;
 
-  centers_h(ilo) = xL_ + 0.5 * widths_h(ilo);
-  for (int i = ilo + 1; i <= ihi; i++) {
-    centers_h(i) = centers_h(i - 1) + widths_h(i - 1);
-  }
-
-  for (int i = ilo - 1; i >= 0; i--) {
-    centers_h(i) = centers_h(i + 1) - widths_h(i + 1);
-  }
-  for (int i = ihi + 1; i < nElements_ + 1 + 1; i++) {
-    centers_h(i) = centers_h(i - 1) + widths_h(i - 1);
+  for (int i = ilo - 1; i <= ihi + 1; i++) {
+    if (!std::isfinite(x_l_h(i)) || !std::isfinite(x_l_h(i + 1)) ||
+        x_l_h(i + 1) <= x_l_h(i)) {
+      throw_athelas_error("Invalid uniform grid construction!");
+    }
+    widths_h(i) = x_l_h(i + 1) - x_l_h(i);
+    centers_h(i) = 0.5 * (x_l_h(i) + x_l_h(i + 1));
   }
 
   // copy back to device mirrors
@@ -216,8 +212,8 @@ void Mesh::create_uniform_grid() {
 /**
  * @brief logarithmic radial mesh generation
  *
- * Sets up logarithmic mesh with cell centers:
- * x_i = x_l * (x_r / x_l)^(i/(nx - 1))
+ * Sets up logarithmically spaced cell edges and derives centers/widths from
+ * those edges.
  */
 void Mesh::create_log_grid() {
 
@@ -228,33 +224,24 @@ void Mesh::create_log_grid() {
   auto centers_h = Kokkos::create_mirror_view(centers_);
   auto x_l_h = Kokkos::create_mirror_view(x_l_);
 
-  const double log_xl = std::log10(xL_);
-  const double log_ratio = std::log10(math::utils::ratio(xR_, xL_));
-  const double dx = log_ratio / (nElements_ - 0);
+  const double log_ratio = std::log(math::utils::ratio(xR_, xL_));
+  const double dlog = log_ratio / static_cast<double>(nElements_);
+  const double spacing_ratio = std::exp(dlog);
 
-  // Set up cell centers
-  for (int i = ilo; i <= ihi; i++) {
-    const double log_xi = log_xl + i * dx;
-    centers_h(i) = std::pow(10.0, log_xi);
+  x_l_h(0) = xL_ / spacing_ratio;
+  for (int i = ilo; i <= ihi + 1; i++) {
+    x_l_h(i) = xL_ * std::exp(static_cast<double>(i - ilo) * dlog);
   }
+  x_l_h(ihi + 1) = xR_;
+  x_l_h(ihi + 2) = xR_ * spacing_ratio;
 
-  // Handle ghost cells
-  for (int i = ilo - 1; i >= 0; i--) {
-    centers_h(i) = centers_h(i + 1) - widths_h(i + 1);
-  }
-  for (int i = ihi + 1; i < nElements_ + 1 + 1; i++) {
-    centers_h(i) = centers_h(i - 1) + widths_h(i - 1);
-  }
-
-  // Set up left edges
-  x_l_h(1) = xL_;
-  for (int i = 2; i < nElements_ + 2; i++) {
-    x_l_h(i) = 0.5 * (centers_h(i - 1) + centers_h(i));
-  }
-
-  // Calculate remaining widths with geometric progression
-  for (int i = 0; i < nElements_ + 2; i++) {
+  for (int i = ilo - 1; i <= ihi + 1; i++) {
+    if (!std::isfinite(x_l_h(i)) || !std::isfinite(x_l_h(i + 1)) ||
+        x_l_h(i + 1) <= x_l_h(i)) {
+      throw_athelas_error("Invalid logarithmic grid construction!");
+    }
     widths_h(i) = x_l_h(i + 1) - x_l_h(i);
+    centers_h(i) = 0.5 * (x_l_h(i) + x_l_h(i + 1));
   }
 
   // copy back to device mirrors
@@ -263,8 +250,8 @@ void Mesh::create_log_grid() {
   Kokkos::deep_copy(x_l_, x_l_h);
 
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Create log grid", DevExecSpace(), ilo,
-      ihi, KOKKOS_CLASS_LAMBDA(const int i) {
+      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Create log grid", DevExecSpace(),
+      ilo - 1, ihi + 1, KOKKOS_CLASS_LAMBDA(const int i) {
         grid_(i, 0) = x_l_(i);
         sqrt_gm_(i, 0) = get_sqrt_gm(x_l_(i));
         for (int q = 1; q < nNodes_ + 1; q++) {

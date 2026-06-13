@@ -2,14 +2,12 @@
 
 #include <algorithm>
 #include <cmath>
-#include <print>
 #include <vector>
 
 #include "Kokkos_Macros.hpp"
 #include "concepts/arithmetic.hpp"
 #include "math/utils.hpp"
 #include "solvers/root_finder_opts.hpp"
-#include "utils/error.hpp"
 
 // TODO(astrobarker): make a solvers namespace? If it grows beyond rf, yes.
 namespace athelas::root_finders {
@@ -855,7 +853,7 @@ template <typename T>
 class RegulaFalsiAlgorithm {
  public:
   template <typename F, typename ErrorMetric, typename... Args>
-  auto operator()(F target, T a, T b, T guess,
+  auto operator()(F target, T a, T b, [[maybe_unused]] T guess,
                   const ToleranceConfig<T, ErrorMetric> &config,
                   Args &&...args) const -> T {
 
@@ -876,13 +874,10 @@ class RegulaFalsiAlgorithm {
       return b;
     }
 
-    // Check if bracket is valid
+    // Root not bracketed: for a monotone target this means the root lies
+    // outside [a, b]. Project onto the nearest endpoint.
     if (!check_bracket(fa, fb)) {
-      // Bracket doesn't bracket a root, return guess
-      std::println("root not bracketed!!");
-      std::println("a b fa fb {:.5e} {:.5e} {:.5e} {:.5e}", a, b, fa, fb);
-      throw_athelas_error(":(");
-      return guess;
+      return (std::abs(fa) <= std::abs(fb)) ? a : b;
     }
 
     // Normalize

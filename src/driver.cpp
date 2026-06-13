@@ -60,14 +60,22 @@ auto Driver::execute() -> int {
                        .stage = 0,
                        .cycle = 1};
 
-  // some startup io
   auto sd0 = mesh_state_(0);
+
+  // Apply limiters and fill derived quantities on initial state.
+  if (!restart_) {
+    // Apply bound enforcing limiter
+    bel::apply_bound_enforcing_limiter(sd0);
+  }
   manager_->fill_derived(sd0, dt_info);
   if (!restart_) {
+    // Refill derived after limiters because they mutate evolved variables.
     apply_slope_limiter(&sl_hydro_, sd0.get_field("evolved"), sd0,
                         sd0.fluid_basis(), sd0.eos());
     bel::apply_bound_enforcing_limiter(sd0);
+    manager_->fill_derived(sd0, dt_info);
   }
+  // some startup io
   print_simulation_parameters(mesh_state_.mesh(), pin_.get());
   // Initial dump has file index 0 and is followed by initial history entry
   // 0 on the next line, so all "last_*" counters land at 0 here — restart

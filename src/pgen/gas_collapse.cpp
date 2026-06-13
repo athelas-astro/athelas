@@ -11,8 +11,7 @@ namespace athelas::pgen::gas_collapse {
 /**
  * @brief Initialize gas collapse
  **/
-void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin,
-          const eos::EOS *eos, basis::ModalBasis * /*fluid_basis = nullptr*/) {
+void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",
                    "Gas collapse requires ideal gas eos!");
 
@@ -32,21 +31,22 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin,
   const auto rho0 = pin->param()->get<double>("problem.params.rho0", 1.0);
   const auto p0 = pin->param()->get<double>("problem.params.p0", 10.0);
 
-  const double gamma = gamma1(*eos);
+  const auto &eos = mesh_state.eos();
+  const double gamma = gamma1(eos);
   const double gm1 = gamma - 1.0;
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: GasCollapse (1)", DevExecSpace(),
       ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-        const int k = 0;
+        for (int q = 0; q < nNodes; q++) {
+          evolved(i, q, idx_tau) = 1.0 / rho0;
+          evolved(i, q, idx_vel) = V0;
+          evolved(i, q, idx_ener) =
+              (p0 / gm1) * evolved(i, q, idx_tau) + 0.5 * V0 * V0;
+        }
 
-        evolved(i, k, idx_tau) = rho0; // / rho0 * (1.0 / std::cosh(x / H));
-        evolved(i, k, idx_vel) = V0;
-        evolved(i, k, idx_ener) =
-            (p0 / gm1) * evolved(i, k, idx_tau) + 0.5 * V0 * V0;
-
-        for (int iNodeX = 0; iNodeX < nNodes + 2; iNodeX++) {
-          derived(i, iNodeX, idx_density) = rho0;
+        for (int q = 0; q < nNodes + 2; q++) {
+          derived(i, q, idx_density) = rho0;
         }
       });
 

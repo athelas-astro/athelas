@@ -58,12 +58,16 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
         }
       });
 
+  auto pressure_from_rho = [&](const double rho) -> double {
+    return polytropic_k * std::pow(rho, 1.0 + 1.0 / polytropic_n);
+  };
+
   auto tau_func = [&](double /*x*/, int ix, int iN) -> double {
-    return 1.0 / rho_from_p(derived(ix, iN, 0));
+    return 1.0 / derived(ix, iN, 0);
   };
   auto energy_func = [&](double /*x*/, int ix, int iN) -> double {
-    const double rho = rho_from_p(derived(ix, iN, 0));
-    return (derived(ix, iN, 0) / gm1) / rho;
+    const double rho = derived(ix, iN, 0);
+    return (pressure_from_rho(rho) / gm1) / rho;
   };
 
   static const IndexRange qb(nNodes);

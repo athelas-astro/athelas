@@ -1,5 +1,7 @@
 #include "Kokkos_Core.hpp"
 
+#include <algorithm>
+
 #include "composition/composition.hpp"
 #include "eos/eos.hpp"
 #include "geometry/mesh.hpp"
@@ -18,6 +20,9 @@ using math::interp::linterp;
 
 auto HydrostaticEquilibrium::rhs(const double mass_enc, const double p,
                                  const double r) const -> double {
+  if (p <= p_threshold_) {
+    return 0.0;
+  }
   static constexpr double G = constants::G_GRAV;
   const double rho = std::pow(p / k_, n_ / (n_ + 1.0));
   return -G * mass_enc * rho / (r * r);
@@ -42,7 +47,8 @@ void HydrostaticEquilibrium::solve(MeshState &mesh_state, Mesh *mesh,
     atom::paczynski_terms(sd0, 1, 0, lambda);
   }
   const auto &eos = mesh_state.eos();
-  const double p_c = pressure_from_conserved(eos, rho_c_, vel, energy, lambda);
+  const double p_c =
+      pressure_from_conserved(eos, 1.0 / rho_c_, vel, energy, lambda);
 
   const double r_c = mesh->node_coordinate(ilo, 0);
   double m_enc = (constants::FOURPI / 3.0) * (r_c * r_c * r_c) * rho_c_;
@@ -90,9 +96,12 @@ void HydrostaticEquilibrium::solve(MeshState &mesh_state, Mesh *mesh,
       std::println("NaN pressure found in hydrostatic equilibrium solve!");
       break;
     }
-    pressure.push_back(new_p);
+    pressure.push_back(std::max(new_p, p_threshold_));
     radius.push_back(r + dr);
 
+    if (new_p <= p_threshold_) {
+      break;
+    }
     i++;
   }
   std::println("# Hydrostatic Equilibrium Solver ::");
@@ -114,12 +123,11 @@ void HydrostaticEquilibrium::solve(MeshState &mesh_state, Mesh *mesh,
 
   // refill host radius array
   auto r_new = mesh->nodal_grid();
-  auto x_l_new = mesh->x_l();
   auto node_r_h = Kokkos::create_mirror_view(r_new);
-  auto x_l_h = Kokkos::create_mirror_view(x_l_new);
+  Kokkos::deep_copy(node_r_h, r_new);
   for (int i = 1; i <= ihi; ++i) {
     for (int q = 0; q < nNodes + 2; ++q) {
-      const double rq = r(i, q);
+      const double rq = node_r_h(i, q);
       h_r(i * (nNodes + 2) + q) = rq;
     }
   }
@@ -128,7 +136,8 @@ void HydrostaticEquilibrium::solve(MeshState &mesh_state, Mesh *mesh,
   for (int ix = 1; ix <= ihi; ++ix) {
     for (int q = 0; q < nNodes + 2; ++q) {
       const double rq = h_r(ix * (nNodes + 2) + q);
-      const int idx = find_closest_cell(radius, rq, radius.size());
+      const int idx = std::min(find_closest_cell(radius, rq, radius.size()),
+                               static_cast<int>(radius.size()) - 2);
       const double y = linterp(radius[idx], radius[idx + 1], pressure[idx],
                                pressure[idx + 1], rq);
       h_derived(ix, q, iP_) = y;

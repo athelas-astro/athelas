@@ -1,6 +1,7 @@
 #include "pgen/rad_advection.hpp"
 
 #include <cmath>
+#include <string>
 
 #include "eos/eos_variant.hpp"
 #include "geometry/mesh.hpp"
@@ -36,9 +37,23 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   const IndexRange qb(nNodes);
 
   const auto V0 = pin->param()->get<double>("problem.params.v0", 1.0);
+  const auto velocity_profile = pin->param()->get<std::string>(
+      "problem.params.velocity_profile", "constant");
   const auto D = pin->param()->get<double>("problem.params.rho", 1.0);
   const auto amp = pin->param()->get<double>("problem.params.amp", 1.0);
+  const auto x0 = pin->param()->get<double>("problem.params.x0", 0.5);
   const auto width = pin->param()->get<double>("problem.params.width", 0.05);
+  const auto floor = pin->param()->get<double>("problem.params.floor", 1.0e-8);
+  const auto flux_factor =
+      pin->param()->get<double>("problem.params.flux_factor", 0.5);
+  const auto T_gas = pin->param()->get<double>("problem.params.T_gas", 1.0e4);
+  athelas_requires(flux_factor >= 0.0 && flux_factor < 1.0,
+                   "Radiation advection requires 0 <= flux_factor < 1.");
+  athelas_requires(velocity_profile == "constant" ||
+                       velocity_profile == "homologous",
+                   "Radiation advection velocity_profile must be 'constant' "
+                   "or 'homologous'.");
+  const double xR = pin->param()->get<double>("problem.xr");
   const double mu = 1.0 + constants::m_e / constants::m_p;
   auto &eos = mesh_state.eos();
   const double gamma = gamma1(eos);
@@ -47,25 +62,24 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Pgen :: RadAdvection", DevExecSpace(), ib.s, ib.e,
       qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
-        const double X1 = mesh->centers(i);
-
-        evolved(i, q, idx_rad_energy) =
+        const double X1 = mesh->node_coordinate(i, q);
+        const double radiation_energy =
             amp *
-            std::max(std::exp(-std::pow((X1 - 0.5) / width, 2.0) / 2.0),
-                     1.0e-8) /
-            D;
-        evolved(i, q, idx_rad_flux) =
-            1.0 * constants::c_cgs * evolved(i, q, idx_rad_energy) / D;
+            std::max(std::exp(-std::pow((X1 - x0) / width, 2.0) / 2.0), floor);
 
-        const double Trad =
-            std::pow(evolved(i, q, idx_rad_energy) * D / constants::a, 0.25);
+        evolved(i, q, idx_rad_energy) = radiation_energy / D;
+        evolved(i, q, idx_rad_flux) =
+            flux_factor * constants::c_cgs * evolved(i, q, idx_rad_energy);
+
         const double sie_fluid =
-            constants::k_B * Trad / (gm1 * mu * constants::m_p);
+            constants::k_B * T_gas / (gm1 * mu * constants::m_p);
+        const double velocity =
+            velocity_profile == "homologous" ? V0 * X1 / xR : V0;
         evolved(i, q, idx_tau) = 1.0 / D;
-        evolved(i, q, idx_vel) = V0;
+        evolved(i, q, idx_vel) = velocity;
         evolved(i, q, idx_ener) =
             sie_fluid +
-            0.5 * V0 * V0; // p0 / (gamma - 1.0) / D + 0.5 * V0 * V0;
+            0.5 * velocity * velocity; // p0 / (gamma - 1.0) / D + 0.5 * v * v;
 
         derived(i, q, idx_density) = D;
       });

@@ -63,10 +63,10 @@ void GeometryPackage::update_explicit(const StageData &stage_data,
           const double rho = 1.0 / evolved(i, q, idx_tau);
           const double e_rad = evolved(i, q, idx_rad_energy) * rho;
           const double f_rad = evolved(i, q, idx_rad_flux) * rho;
-          const double Pperp = radiation::p_rad_perp(e_rad, f_rad);
+          const double p_perp = radiation::p_rad_perp(e_rad, f_rad);
 
           delta_(stage, i, q, pkg_vars::RadFlux) =
-              (2.0 * w(q) * Pperp * r(i, q + 1) * dr(i)) * inv_mkk(i, q);
+              (2.0 * w(q) * p_perp * r(i, q + 1) * dr(i)) * inv_mkk(i, q);
         });
   }
 }
