@@ -28,7 +28,7 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
                                            const StageData &stage_data,
                                            const Mesh *mesh, const int n_stages,
                                            const bool active)
-    : active_(active), mend_idx_(1) {
+    : active_(active), mend_idx_(0) {
 
   const int nx = pin->param()->get<int>("problem.nx");
   const int nq = mesh->n_nodes();
@@ -46,23 +46,21 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
           constants::M_sun;
 
   // Find index of mass spread
-  auto mass_enc_h = Kokkos::create_mirror_view(mesh->enclosed_mass());
+  auto mass_enc_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(),
+                                                        mesh->enclosed_mass());
   const double m_start = mass_enc_h(mstart_, 0);
   mend_ += m_start;
   const int nnodes = pin->param()->get<int>("basis.nnodes");
-  for (int i = 1; i <= nx; ++i) {
-    for (int q = 0; q < nnodes; ++q) {
-      if (mass_enc_h(i, q) <= mend_) {
-        mend_idx_++;
-      } else {
-        break;
-      }
+  for (int i = mstart_; i <= nx; ++i) {
+    if (mass_enc_h(i, nnodes - 1) <= mend_) {
+      mend_idx_ = i;
+    } else {
+      break;
     }
   }
 
-  if (mend_idx_ > nx) {
-    throw_athelas_error(
-        "ThermalEngine :: mass extent index (mend_idx) is greater than nx!");
+  if (mend_idx_ < mstart_) {
+    throw_athelas_error("ThermalEngine :: no cells selected for deposition!");
   }
 
   // Now we need to compute the actual deposition energy
@@ -92,6 +90,7 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
     }
     auto r = mesh->nodal_grid();
     auto weights = mesh->weights();
+    const double geom_fac = mesh->do_geometry() ? FOURPI : 1.0;
     double total_energy = 0.0;
     athelas::par_reduce(
         DEFAULT_LOOP_PATTERN, "ThermalEngine :: Total energy", DevExecSpace(),
@@ -105,7 +104,7 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
           const double e_grav =
               grav_active * constants::G_GRAV * menc(i, q) / r(i, q + 1);
           lenergy +=
-              (e_fluid + e_rad - e_grav) * weights(q) * mcell(i) * FOURPI;
+              (e_fluid + e_rad - e_grav) * weights(q) * mcell(i) * geom_fac;
         },
         Kokkos::Sum<double>(total_energy));
     energy_dep_ = energy_target_ - total_energy;
@@ -127,12 +126,13 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
   // integral for b_coeff_
   double b_int = 0.0;
   auto weights = mesh->weights();
+  const double geom_fac = mesh->do_geometry() ? FOURPI : 1.0;
   athelas::par_reduce(
       DEFAULT_FLAT_LOOP_PATTERN, "ThermalEngine :: b integral", DevExecSpace(),
-      1, mend_idx_,
+      mstart_, mend_idx_,
       KOKKOS_CLASS_LAMBDA(const int i, double &lb) {
         for (int q = 0; q < nnodes; ++q) {
-          double dm = FOURPI * mcell(i);
+          const double dm = geom_fac * weights(q) * mcell(i);
           lb += std::exp(-a_coeff_ * menc(i, q)) * dm;
         }
       },
@@ -142,8 +142,13 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
 
 void ThermalEnginePackage::update_explicit(const StageData &stage_data,
                                            const TimeStepInfo &dt_info) {
-  const auto &mesh = stage_data.mesh();
   const auto time = dt_info.t;
+  // Avoid accidentally accruing an extra update.
+  if (time >= tend_) {
+    return;
+  }
+
+  const auto &mesh = stage_data.mesh();
   const auto &basis = stage_data.fluid_basis();
   static const auto &nnodes = mesh.n_nodes();
   static const IndexRange qb(nnodes);
@@ -152,7 +157,7 @@ void ThermalEnginePackage::update_explicit(const StageData &stage_data,
   const auto stage = dt_info.stage;
   auto evolved = stage_data.get_field("evolved");
 
-  const IndexRange ib_dep(std::make_pair(1, mend_idx_));
+  const IndexRange ib_dep(std::make_pair(mstart_, mend_idx_));
   auto weights = mesh.weights();
   auto dr = mesh.widths();
   auto mass = mesh.mass();
@@ -184,8 +189,14 @@ void ThermalEnginePackage::update_explicit(const StageData &stage_data,
  */
 void ThermalEnginePackage::apply_delta(AthelasArray3D<double> lhs,
                                        const TimeStepInfo &dt_info) const {
+  const auto time = dt_info.t;
+  // Avoid accidentally accruing an extra update.
+  if (time >= tend_) {
+    return;
+  }
+
   static const int nq = static_cast<int>(lhs.extent(1));
-  static const IndexRange ib(std::make_pair(1, mend_idx_));
+  const IndexRange ib(std::make_pair(mstart_, mend_idx_));
   static const IndexRange qb(nq);
 
   const int stage = dt_info.stage;

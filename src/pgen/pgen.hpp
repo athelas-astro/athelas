@@ -17,6 +17,7 @@
 #include "interface/state.hpp"
 #include "pgen/advection.hpp"
 #include "pgen/ejecta_csm.hpp"
+#include "pgen/gas_collapse.hpp"
 #include "pgen/hydrostatic_balance.hpp"
 #include "pgen/marshak.hpp"
 #include "pgen/moving_contact.hpp"
@@ -50,6 +51,7 @@ void initialize_fields(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
       {"shocktube", &pgen::shocktube::init},
       {"shu_osher", &pgen::shu_osher::init},
       {"moving_contact", &pgen::moving_contact::init},
+      {"gas_collapse", &pgen::gas_collapse::init},
       {"hydrostatic_balance", &pgen::hydrostatic_balance::init},
       {"smooth_advection", &pgen::advection::init},
       {"sedov", &pgen::sedov::init},

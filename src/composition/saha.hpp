@@ -422,6 +422,88 @@ struct CoupledSolverContent {
   double target_var; // sie or pressure
 };
 
+static constexpr double saha_min_temperature = 500.0; // K
+static constexpr double neutral_zbar = 1.0e-16;
+
+KOKKOS_INLINE_FUNCTION
+void set_low_temperature_ionization_state(const double temperature,
+                                          const double rho,
+                                          const CoupledSolverContent &content,
+                                          double *lambda) {
+  auto species = content.species;
+  auto inv_atomic_mass = content.inv_atomic_mass;
+  auto number_density = content.number_density;
+  auto mass_fractions_nodal = content.mass_fractions_nodal;
+  auto sum_pots = content.sum_pots;
+  auto species_offsets = content.species_offsets;
+  auto ye = content.ye;
+  auto n_e = content.n_e;
+  auto ybar = content.ybar;
+  auto zbars = content.zbar;
+  auto e_ion_corr = content.e_ion_corr;
+  auto sigma1 = content.sigma1;
+  auto sigma2 = content.sigma2;
+  auto sigma3 = content.sigma3;
+  auto ionization_fractions = content.ionization_fractions;
+
+  const auto &eb = content.eb;
+  const auto &eb_saha = content.eb_saha;
+  const int &i = content.i;
+  const int &q = content.q;
+
+  double n_e_solve = 0.0;
+  double sum_e_ion_corr = 0.0;
+  const double N = number_density(i, q);
+  const double abar = content.abar(i, q);
+
+  for (int e = eb_saha.s; e <= eb_saha.e; ++e) {
+    const int z = species(e);
+    auto ionization_fractions_e =
+        Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
+    for (int s = 0; s <= z; ++s) {
+      ionization_fractions_e(s) = 0.0;
+    }
+    ionization_fractions_e(0) = 1.0;
+    zbars(i, q, e) = neutral_zbar;
+  }
+
+  for (int e = eb_saha.e + 1; e <= eb.e; ++e) {
+    const int z = species(e);
+    const double x_e = mass_fractions_nodal(i, q, e);
+    const double inv_A = inv_atomic_mass(e);
+    const double nk = atom::element_number_density(x_e, inv_A, rho);
+    const auto species_sum_pot = species_data(sum_pots, species_offsets, z);
+    auto ionization_fractions_e =
+        Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
+
+    for (int s = 0; s <= z; ++s) {
+      ionization_fractions_e(s) = 0.0;
+    }
+    ionization_fractions_e(z) = 1.0;
+
+    const double nu_k = abar * x_e * inv_A;
+    n_e_solve += z * nk;
+    sum_e_ion_corr += nu_k * species_sum_pot(z - 1);
+  }
+
+  n_e(i, q) = n_e_solve;
+  ybar(i, q) = n_e_solve / N / rho;
+  sigma1(i, q) = 0.0;
+  sigma2(i, q) = 0.0;
+  sigma3(i, q) = 0.0;
+  e_ion_corr(i, q) = N * sum_e_ion_corr;
+
+  lambda[eos::paczynski_lambda::number_density] = N;
+  lambda[eos::paczynski_lambda::ye] = ye(i, q);
+  lambda[eos::paczynski_lambda::ybar] = ybar(i, q);
+  lambda[eos::paczynski_lambda::sigma1] = sigma1(i, q);
+  lambda[eos::paczynski_lambda::sigma2] = sigma2(i, q);
+  lambda[eos::paczynski_lambda::sigma3] = sigma3(i, q);
+  lambda[eos::paczynski_lambda::e_ion_corr] = e_ion_corr(i, q);
+  lambda[eos::EOS_LAMBDA_TEMPERATURE] =
+      temperature > saha_min_temperature ? temperature : saha_min_temperature;
+}
+
 KOKKOS_FUNCTION
 template <eos::EOSInversion Inversion, SahaSolver SolverType>
 auto temperature_residual(const double temperature, const double rho,
@@ -468,6 +550,18 @@ auto temperature_residual(const double temperature, const double rho,
   double sum3 = 0.0;
   const double N = number_density(i, q);
   const auto abar = content.abar(i, q);
+
+  double lambda[eos::EOS_LAMBDA_SIZE];
+
+  if (temperature <= saha_min_temperature) {
+    set_low_temperature_ionization_state(temperature, rho, content, lambda);
+    if constexpr (Inversion == eos::EOSInversion::Pressure) {
+      return temperature_from_density_pressure(eos, rho, content.target_var,
+                                               lambda);
+    } else {
+      return temperature_from_density_sie(eos, rho, content.target_var, lambda);
+    }
+  }
 
   // Loop over Saha species – solve ionization for the Saha subset
   for (int e = eb_saha.s; e <= eb_saha.e; ++e) {
@@ -561,7 +655,6 @@ auto temperature_residual(const double temperature, const double rho,
   e_ion_corr(i, q) = N * sum_e_ion_corr;
 
   // Fill lambda
-  double lambda[eos::EOS_LAMBDA_SIZE];
   lambda[eos::paczynski_lambda::number_density] = N;
   lambda[eos::paczynski_lambda::ye] = ye(i, q);
   lambda[eos::paczynski_lambda::ybar] = ybar(i, q);
@@ -569,6 +662,7 @@ auto temperature_residual(const double temperature, const double rho,
   lambda[eos::paczynski_lambda::sigma2] = sigma2(i, q);
   lambda[eos::paczynski_lambda::sigma3] = sigma3(i, q);
   lambda[eos::paczynski_lambda::e_ion_corr] = e_ion_corr(i, q);
+  lambda[eos::EOS_LAMBDA_TEMPERATURE] = temperature;
 
   if constexpr (Inversion == eos::EOSInversion::Pressure) {
     const double inv_dfdt =
@@ -583,20 +677,7 @@ auto temperature_residual(const double temperature, const double rho,
     const double sie =
         sie_from_density_temperature(eos, rho, temperature, lambda);
     const double f = sie - content.target_var;
-
-    // We're going to do a line search to keep the temperature above 500 K
-    // Saha gets upset if it gets too cold.
-    // I don't expect we will actually evolve this cold, but if we do,
-    // we'll need to consider it here.
-    constexpr double min_temp = 900.0; // K
-    double lam = 1.0;
-    double trial = temperature - lam * inv_dfdt * f;
-    if (trial > 1000.0) {
-      return trial;
-    }
-    lam = std::min(1.0, 0.65 * (temperature - min_temp) / (inv_dfdt * f));
-    trial = temperature - lam * inv_dfdt * f;
-    return trial;
+    return temperature - inv_dfdt * f;
   }
 }
 

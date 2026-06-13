@@ -68,6 +68,7 @@ void limit_density(StageData &stage_data, const Mesh &mesh) {
   auto sqrt_gm = mesh.sqrt_gm();
   auto weights = mesh.weights();
   auto widths = mesh.widths();
+  auto phi = basis.phi();
   constexpr int idx_tau = 0;
 
   athelas::par_for(
@@ -76,10 +77,10 @@ void limit_density(StageData &stage_data, const Mesh &mesh) {
         // Compute cell average
         const double avg =
             cell_average(U, sqrt_gm, weights, widths(i), idx_tau, i);
-        // Compute minimum in cell
+        // Compute minimum over collocation and face evaluation points.
         double u_min = avg;
-        for (int q = 0; q < order; ++q) {
-          u_min = std::min(u_min, U(i, q, idx_tau));
+        for (int q = 0; q <= order + 1; ++q) {
+          u_min = std::min(u_min, basis_eval(phi, U, i, idx_tau, q));
         }
 
         // Compute theta

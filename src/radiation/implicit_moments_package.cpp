@@ -1,5 +1,7 @@
 #include "radiation/implicit_moments_package.hpp"
 
+#include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <limits>
 
@@ -318,6 +320,8 @@ void ImplicitRadiationMomentsPackage::update_implicit(
 
   const auto &eos = stage_data.eos();
   const auto &opac = stage_data.opac();
+  const bool paczynski_eos =
+      std::holds_alternative<athelas::eos::Paczynski>(eos);
   static const bool ionization_enabled = stage_data.enabled("ionization");
   AthelasArray2D<double> number_density;
   AthelasArray2D<double> ye;
@@ -396,7 +400,10 @@ void ImplicitRadiationMomentsPackage::update_implicit(
   // meaningfully in floating point: declare "acceptable" and exit.
   constexpr double step_tol = 1.0e-11; // ~eps^(2/3) for double precision
   constexpr double U_floor = 1.0e-14;
-  constexpr double T_inversion_floor = 100.0;
+  // Keep the line-search admissibility bound consistent with the lower end of
+  // the Paczynski/Saha temperature-inversion bracket.
+  constexpr double T_inversion_floor = 500.0;
+  constexpr double T_inversion_ceiling = 1.0e12;
 
   double resid0 = 0.0;
   while (iter < max_iters && (!converged || !accepted)) {
@@ -788,6 +795,11 @@ void ImplicitRadiationMomentsPackage::update_implicit(
     Kokkos::deep_copy(newton_.u_rad_trial, newton_.u_rad_work);
 
     double lam = 1.0;
+    // Step length actually applied below: the realizable lam (Armijo-decreasing
+    // if found, else the most-damped realizable one). Stays 0 — no update — if
+    // no realizable step exists this iteration, so the iterate never leaves the
+    // realizable set.
+    double lam_accept = 0.0;
     for (int ls = 0; ls < max_ls; ++ls) {
       // Form trial state's solved vars at the damped step.
       athelas::par_for(
@@ -834,14 +846,19 @@ void ImplicitRadiationMomentsPackage::update_implicit(
               lam_eos.data[7] = derived(i, q + 1, idx_tgas);
             }
             const double emin =
-                ionization_enabled
+                paczynski_eos ? eos::sie_from_density_temperature(
+                                    eos, rho, T_inversion_floor, lam_eos.ptr())
+                              : min_sie(eos, rho, lam_eos.ptr());
+            const double emax =
+                paczynski_eos
                     ? eos::sie_from_density_temperature(
-                          eos, rho, T_inversion_floor, lam_eos.ptr())
-                    : min_sie(eos, rho, lam_eos.ptr());
+                          eos, rho, T_inversion_ceiling, lam_eos.ptr())
+                    : std::numeric_limits<double>::infinity();
             const double e_margin =
                 64.0 * std::numeric_limits<double>::epsilon() *
                 std::max({std::abs(eg), std::abs(emin), 1.0});
-            if (er <= 0.0 || std::abs(fr) >= c * er || sie <= emin + e_margin) {
+            if (er <= 0.0 || std::abs(fr) >= c * er || sie <= emin + e_margin ||
+                sie >= emax - e_margin) {
               count += 1;
             }
 
@@ -867,6 +884,10 @@ void ImplicitRadiationMomentsPackage::update_implicit(
         continue;
       }
 
+      // Trial is realizable: record it as the step to apply if no
+      // Armijo-decreasing step is found. Never apply a non-realizable lam.
+      lam_accept = lam;
+
       // Trial residual.
       evaluate_residual(newton_.ls_b_trial, newton_.u_rad_trial, ustar,
                         stage_data, mesh, dt_aii);
@@ -882,18 +903,23 @@ void ImplicitRadiationMomentsPackage::update_implicit(
       lam *= 0.5;
     } // line search
 
+    if (lam_accept == 0.0) {
+      ++iter;
+      continue;
+    }
+
     athelas::par_for(
         DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Newton :: Update",
         DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
         KOKKOS_CLASS_LAMBDA(const int i, const int q) {
           newton_.u_rad_work(i, q, idx_er) +=
-              lam * solver_.b(i - ib.s, idx(q, 0));
+              lam_accept * solver_.b(i - ib.s, idx(q, 0));
           newton_.u_rad_work(i, q, idx_fr) +=
-              lam * solver_.b(i - ib.s, idx(q, 1));
+              lam_accept * solver_.b(i - ib.s, idx(q, 1));
           newton_.u_rad_work(i, q, idx_vel) +=
-              lam * solver_.b(i - ib.s, idx(q, 2));
+              lam_accept * solver_.b(i - ib.s, idx(q, 2));
           newton_.u_rad_work(i, q, idx_ener) +=
-              lam * solver_.b(i - ib.s, idx(q, 3));
+              lam_accept * solver_.b(i - ib.s, idx(q, 3));
         });
 
     // Stagnation stopping criterion.
@@ -904,16 +930,16 @@ void ImplicitRadiationMomentsPackage::update_implicit(
         DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
         KOKKOS_CLASS_LAMBDA(const int i, const int q, double &m) {
           const double s_er =
-              lam * std::abs(solver_.b(i - ib.s, idx(q, 0))) /
+              lam_accept * std::abs(solver_.b(i - ib.s, idx(q, 0))) /
               std::max(std::abs(newton_.u_rad_work(i, q, idx_er)), U_floor);
           const double s_fr =
-              lam * std::abs(solver_.b(i - ib.s, idx(q, 1))) /
+              lam_accept * std::abs(solver_.b(i - ib.s, idx(q, 1))) /
               std::max(std::abs(newton_.u_rad_work(i, q, idx_fr)), U_floor);
           const double s_v =
-              lam * std::abs(solver_.b(i - ib.s, idx(q, 2))) /
+              lam_accept * std::abs(solver_.b(i - ib.s, idx(q, 2))) /
               std::max(std::abs(newton_.u_rad_work(i, q, idx_vel)), U_floor);
           const double s_e =
-              lam * std::abs(solver_.b(i - ib.s, idx(q, 3))) /
+              lam_accept * std::abs(solver_.b(i - ib.s, idx(q, 3))) /
               std::max(std::abs(newton_.u_rad_work(i, q, idx_ener)), U_floor);
           m = std::max({m, s_er, s_fr, s_v, s_e});
         },

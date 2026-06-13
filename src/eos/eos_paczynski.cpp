@@ -47,7 +47,7 @@ Paczynski::temperature_from_density_sie(const double rho, const double sie,
                        const double *const lambda) {
     return sie_from_density_temperature(rho, temperature, lambda) - sie;
   };
-  static constexpr double T_lo = 100.0;
+  static constexpr double T_lo = 500.0;
   static constexpr double T_hi = 1.0e12;
   const double res =
       root_finder_.solve(target, T_lo, T_hi, temperature_guess, rho, lambda);
@@ -133,7 +133,7 @@ Paczynski::pressure_from_conserved(const double tau, const double V,
   const double temperature_guess = lambda[EOS_LAMBDA_TEMPERATURE];
   const double sie = E - 0.5 * V * V;
   const double rho = 1.0 / tau;
-  static constexpr double T_lo = 100.0;
+  static constexpr double T_lo = 500.0;
   static constexpr double T_hi = 1.0e12;
   auto target = [sie](double temperature, double rho,
                       const double *const lambda) {
@@ -396,14 +396,18 @@ Paczynski::sie_from_density_temperature(const double rho,
 [[nodiscard]] auto Paczynski::eps_min(double rho, const double *lambda)
     -> double {
   const double ye = lambda[paczynski_lambda::ye];
+  const double e_ion_corr = lambda[paczynski_lambda::e_ion_corr];
 
   const double pednr = p_ednr(rho, ye);
   const double pedr = p_edr(rho, ye);
   const double ped = p_ed(pednr, pedr);
   const double f = degeneracy_factor(ped, pednr, pedr);
 
-  // Include ionization energy?
-  return ped / (rho * (f - 1.0));
+  // Minimum sie at T->0 for the (frozen) ionization state: the cold electron
+  // degeneracy energy plus the stored ionization energy. Including e_ion_corr
+  // keeps this consistent with sie_from_density_temperature, so the energy
+  // floor matches the lower end of the temperature-inversion bracket.
+  return ped / (rho * (f - 1.0)) + e_ion_corr;
 }
 
 [[nodiscard]] auto Paczynski::cv_from_density_temperature(

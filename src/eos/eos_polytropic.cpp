@@ -13,9 +13,9 @@ namespace athelas::eos {
 
 [[nodiscard]] auto
 Polytropic::temperature_from_density_sie(const double rho, const double /*sie*/,
-                                         const double *const /*lambda*/) const
+                                         const double *const lambda) const
     -> double {
-  const double p = std::pow(rho, 1.0 + 1.0 / n_);
+  const double p = pressure_from_density_temperature(rho, 0.0, lambda);
   const double mu =
       1.0 + constants::m_e / constants::m_p; // TODO(astrobarker) generalize
   return p * mu * constants::m_p / (rho * constants::k_B);

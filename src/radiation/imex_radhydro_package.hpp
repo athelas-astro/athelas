@@ -463,7 +463,7 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T derived,
           lam * (std::abs(delta_e) / (std::abs(e) + 1e-14) +
                  std::abs(delta_v) / (std::abs(v) + 1e-14));
 
-      if (rel_update < 1e-12) {
+      if (rel_update < 1e-14) {
         // Update is too small to change the floats; further backtracking is
         // useless.
         break;
@@ -474,7 +474,7 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T derived,
     e += lam * delta_e;
     v += lam * delta_v;
 
-    const bool energy_converged = (std::abs(f_e) <= 1.0e-8 * etot) ||
+    const bool energy_converged = (std::abs(f_e) <= 1.0e-12 * etot) ||
                                   (std::abs(delta_e) <= 1.0e-12 * etot);
     const bool momentum_converged = (std::abs(f_v) <= 1.0e-8 * vscale) ||
                                     (std::abs(delta_v) <= 1.0e-12 * vscale);

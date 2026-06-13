@@ -9,7 +9,7 @@ namespace athelas::geometry {
 
 namespace pkg_vars {
 constexpr int Velocity = 0;
-constexpr int RadFlux = 0;
+constexpr int RadFlux = 1;
 } // namespace pkg_vars
 
 class GeometryPackage {
