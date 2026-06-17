@@ -299,7 +299,7 @@ void NodalBasis::initialize_basis(const AthelasArray3D<double> derived,
 
 /**
  * @brief Compute diagonal mass matrix
- * M_qq = w_q dm
+ * M_qq = w_q dm_deta_q
  * NOTE: This is constant in time on an element.
  */
 void NodalBasis::compute_mass_matrix(const Mesh *mesh) {
@@ -308,14 +308,14 @@ void NodalBasis::compute_mass_matrix(const Mesh *mesh) {
   const int ihi = mesh->get_ihi();
 
   auto weights = mesh->weights();
-  auto mass = mesh->mass();
+  auto dm_deta = mesh->dm_deta();
 
   auto mass_h = Kokkos::create_mirror_view(mass_matrix_);
   auto inv_mass_h = Kokkos::create_mirror_view(inv_mass_matrix_);
 
   for (int i = ilo; i <= ihi; ++i) {
     for (int j = 0; j < nNodes_; j++) {
-      const double M_jj = weights(j) * mass(i);
+      const double M_jj = weights(j) * dm_deta(i, j);
 
       mass_h(i, j) = M_jj;
       inv_mass_h(i, j) = 1.0 / M_jj;
@@ -335,10 +335,12 @@ void NodalBasis::fill_guard_cells(const Mesh *mesh) {
   auto phi_h = Kokkos::create_mirror_view(phi_);
   auto dphi_h = Kokkos::create_mirror_view(dphi_);
   auto mass_h = Kokkos::create_mirror_view(mass_matrix_);
+  auto inv_mass_h = Kokkos::create_mirror_view(inv_mass_matrix_);
 
   Kokkos::deep_copy(phi_h, phi_);
   Kokkos::deep_copy(dphi_h, dphi_);
   Kokkos::deep_copy(mass_h, mass_matrix_);
+  Kokkos::deep_copy(inv_mass_h, inv_mass_matrix_);
 
   // Mirror boundary values into guard cells
   for (int ix = 0; ix < ilo; ix++) {
@@ -355,12 +357,15 @@ void NodalBasis::fill_guard_cells(const Mesh *mesh) {
     for (int j = 0; j < nNodes_; j++) {
       mass_h(ilo - 1 - ix, j) = mass_h(ilo + ix, j);
       mass_h(ihi + 1 + ix, j) = mass_h(ihi - ix, j);
+      inv_mass_h(ilo - 1 - ix, j) = inv_mass_h(ilo + ix, j);
+      inv_mass_h(ihi + 1 + ix, j) = inv_mass_h(ihi - ix, j);
     }
   }
 
   Kokkos::deep_copy(phi_, phi_h);
   Kokkos::deep_copy(dphi_, dphi_h);
   Kokkos::deep_copy(mass_matrix_, mass_h);
+  Kokkos::deep_copy(inv_mass_matrix_, inv_mass_h);
 }
 
 auto d_legendre_n3(const int n, const int q, const double x) -> double {

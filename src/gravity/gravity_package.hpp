@@ -8,6 +8,7 @@
 #pragma once
 
 #include "basic_types.hpp"
+#include "basis/nodal_basis.hpp"
 #include "bc/boundary_conditions_base.hpp"
 #include "geometry/mesh.hpp"
 #include "interface/state.hpp"
@@ -31,7 +32,8 @@ class GravityPackage {
 
   template <GravityModel Model>
   void gravity_update(AthelasArray3D<double> evolved, const Mesh &mesh,
-                      int stage, int idx_tau, int idx_vstar) const;
+                      const basis::NodalBasis &basis, int stage,
+                      int idx_vel) const;
 
   void apply_delta(AthelasArray3D<double> lhs,
                    const TimeStepInfo &dt_info) const;
@@ -57,6 +59,7 @@ class GravityPackage {
   double cfl_;
 
   AthelasArray4D<double> delta_; // rhs delta [nstages, nx, nq, nvars]
+  AthelasArray2D<double> gravity_pressure_;
 
   static constexpr int NUM_VARS_ = 2;
 };

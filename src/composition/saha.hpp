@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+
 #include "Kokkos_Macros.hpp"
 #include "atom/atom.hpp"
 #include "basis/polynomial_basis.hpp"
@@ -16,6 +18,9 @@
 #include "solvers/root_finders.hpp"
 
 namespace athelas::atom {
+
+static constexpr double saha_min_temperature = 500.0; // K
+static constexpr double NEUTRAL_ZBAR = 1.0e-16;
 
 // NOTE: a lot of logic in here is 1-indexed.
 // I need to change it.
@@ -196,7 +201,7 @@ void saha_solve_linear(AthelasArray1D<double> ionization_states, const int Z,
 
   if (max_state == 1) {
     ionization_states(0) = 1.0; // neutral
-    zbar_old = 1.0e-16; // uncharged (but don't want division by 0)
+    zbar_old = NEUTRAL_ZBAR; // uncharged (but don't want division by 0)
   } else if (min_state == num_states) {
     ionization_states(Z) = 1.0; // full ionization
     zbar_old = Z;
@@ -422,9 +427,6 @@ struct CoupledSolverContent {
   double target_var; // sie or pressure
 };
 
-static constexpr double saha_min_temperature = 500.0; // K
-static constexpr double neutral_zbar = 1.0e-16;
-
 KOKKOS_INLINE_FUNCTION
 void set_low_temperature_ionization_state(const double temperature,
                                           const double rho,
@@ -458,13 +460,17 @@ void set_low_temperature_ionization_state(const double temperature,
 
   for (int e = eb_saha.s; e <= eb_saha.e; ++e) {
     const int z = species(e);
+    const double x_e = mass_fractions_nodal(i, q, e);
+    const double inv_A = inv_atomic_mass(e);
+    const double nk = atom::element_number_density(x_e, inv_A, rho);
     auto ionization_fractions_e =
         Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
     for (int s = 0; s <= z; ++s) {
       ionization_fractions_e(s) = 0.0;
     }
     ionization_fractions_e(0) = 1.0;
-    zbars(i, q, e) = neutral_zbar;
+    zbars(i, q, e) = NEUTRAL_ZBAR;
+    n_e_solve += NEUTRAL_ZBAR * nk;
   }
 
   for (int e = eb_saha.e + 1; e <= eb.e; ++e) {
@@ -580,6 +586,7 @@ auto temperature_residual(const double temperature, const double rho,
 
     // reset ionization fractions, setup saha factors
     for (int s = 0; s <= z; ++s) {
+      ionization_fractions_e(s) = 0.0;
       saha_factors(s) = saha_f<SolverType>(temperature, species_atomic_data(s));
     }
 
@@ -589,11 +596,23 @@ auto temperature_residual(const double temperature, const double rho,
 
       saha_solve_log(ionization_fractions_e, z, saha_factors, ln_i, rho, ln_nk,
                      zbar);
+      if (zbar <= std::log(10.0 * NEUTRAL_ZBAR)) {
+        zbar = NEUTRAL_ZBAR;
+        ionization_fractions_e(0) = 1.0;
+        n_e_solve += zbar * nk;
+        continue;
+      }
       ionization_fractions_e(0) =
           std::exp(ion_frac0(zbar, saha_factors, ln_i, ln_nk, 1, z + 1));
       zbar = std::exp(zbar);
     } else {
       saha_solve_linear(ionization_fractions_e, z, saha_factors, rho, nk, zbar);
+      if (zbar <= 10 * NEUTRAL_ZBAR) {
+        zbar = NEUTRAL_ZBAR;
+        ionization_fractions_e(0) = 1.0;
+        n_e_solve += zbar * nk;
+        continue;
+      }
       ionization_fractions_e(0) = ion_frac0(zbar, saha_factors, nk, 1, z + 1);
     }
     const int nstates = z + 1;
@@ -634,11 +653,7 @@ auto temperature_residual(const double temperature, const double rho,
     const double nk = atom::element_number_density(x_e, inv_A, rho);
 
     // species atomic data
-    const auto species_atomic_data = species_data(ion_data, species_offsets, z);
     const auto species_sum_pot = species_data(sum_pots, species_offsets, z);
-
-    auto ionization_fractions_e =
-        Kokkos::subview(ionization_fractions, i, q, e, Kokkos::ALL);
 
     const double sum_ion_pot = species_sum_pot(z - 1);
     const double nu_k = abar * x_e * inv_A;
@@ -683,8 +698,7 @@ auto temperature_residual(const double temperature, const double rho,
 
 template <Domain MeshDomain, eos::EOSInversion Inversion, SahaSolver SolverType>
 void compute_temperature_with_saha(StageData &stage_data, const Mesh &mesh) {
-  using root_finders::RegulaFalsiAlgorithm, root_finders::FixedPointAlgorithm,
-      root_finders::AAFixedPointAlgorithm;
+  using root_finders::AAFixedPointAlgorithm;
   static const auto &nnodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<MeshDomain>());
   static const IndexRange qb(nnodes + 2);
@@ -801,9 +815,14 @@ void compute_temperature_with_saha(StageData &stage_data, const Mesh &mesh) {
                                            q,
                                            target_var};
 
-        const double res =
-            solver.solve(temperature_residual<Inversion, SolverType>,
-                         temperature_guess, rho, eos, content);
+        double res = solver.solve(temperature_residual<Inversion, SolverType>,
+                                  temperature_guess, rho, eos, content);
+        if (!std::isfinite(res) || res < saha_min_temperature) {
+          static_cast<void>(temperature_residual<Inversion, SolverType>(
+              saha_min_temperature, rho, eos, content));
+          res = saha_min_temperature;
+        }
+
         derived(i, q, idx_tgas) = res;
       });
 }

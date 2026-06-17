@@ -52,7 +52,7 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
   mend_ += m_start;
   const int nnodes = pin->param()->get<int>("basis.nnodes");
   for (int i = mstart_; i <= nx; ++i) {
-    if (mass_enc_h(i, nnodes - 1) <= mend_) {
+    if (mass_enc_h(i, nnodes) <= mend_) {
       mend_idx_ = i;
     } else {
       break;
@@ -66,7 +66,7 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
   // Now we need to compute the actual deposition energy
   // If we specify an asymptotic explosion energy then offset by
   // the model's total energy
-  auto mcell = mesh->mass();
+  auto dm_deta = mesh->dm_deta();
   auto menc = mesh->enclosed_mass();
   if (mode_ == "direct") {
     energy_dep_ = energy_target_;
@@ -102,9 +102,9 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
             e_rad = evolved(i, q, idx_rad_energy);
           }
           const double e_grav =
-              grav_active * constants::G_GRAV * menc(i, q) / r(i, q + 1);
-          lenergy +=
-              (e_fluid + e_rad - e_grav) * weights(q) * mcell(i) * geom_fac;
+              grav_active * constants::G_GRAV * menc(i, q + 1) / r(i, q + 1);
+          const double dm = geom_fac * weights(q) * dm_deta(i, q);
+          lenergy += (e_fluid + e_rad - e_grav) * dm;
         },
         Kokkos::Sum<double>(total_energy));
     energy_dep_ = energy_target_ - total_energy;
@@ -132,8 +132,8 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
       mstart_, mend_idx_,
       KOKKOS_CLASS_LAMBDA(const int i, double &lb) {
         for (int q = 0; q < nnodes; ++q) {
-          const double dm = geom_fac * weights(q) * mcell(i);
-          lb += std::exp(-a_coeff_ * menc(i, q)) * dm;
+          const double dm = geom_fac * weights(q) * dm_deta(i, q);
+          lb += std::exp(-a_coeff_ * menc(i, q + 1)) * dm;
         }
       },
       Kokkos::Sum<double>(b_int));
@@ -155,32 +155,17 @@ void ThermalEnginePackage::update_explicit(const StageData &stage_data,
   static const IndexRange ib(mesh.domain<Domain::Interior>());
 
   const auto stage = dt_info.stage;
-  auto evolved = stage_data.get_field("evolved");
 
   const IndexRange ib_dep(std::make_pair(mstart_, mend_idx_));
-  auto weights = mesh.weights();
-  auto dr = mesh.widths();
-  auto mass = mesh.mass();
   auto menc = mesh.enclosed_mass();
-  auto phi = basis.phi();
+  auto mkk = basis.mass_matrix();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "ThermalEngine :: Update", DevExecSpace(),
       ib_dep.s, ib_dep.e, qb.s, qb.e,
       KOKKOS_CLASS_LAMBDA(const int i, const int q) {
         const double b_coeff = d_coeff_ * std::exp(-c_coeff_ * time) / b_int_;
-        delta_(stage, i, q, pkg_vars::Energy) =
-            weights(q) * b_coeff * std::exp(-a_coeff_ * menc(i, q));
-        delta_(stage, i, q, pkg_vars::Energy) *= mass(i);
-      });
-
-  // --- Divide update by mass matrix ---
-  auto inv_mqq = basis.inv_mass_matrix();
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "ThermalEngine :: delta / M_qq", DevExecSpace(),
-      ib_dep.s, ib_dep.e, qb.s, qb.e,
-      KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-        const double &imm = inv_mqq(i, q);
-        delta_(stage, i, q, pkg_vars::Energy) *= imm;
+        const double source = b_coeff * std::exp(-a_coeff_ * menc(i, q + 1));
+        delta_(stage, i, q, pkg_vars::Energy) = source;
       });
 }
 
@@ -200,7 +185,7 @@ void ThermalEnginePackage::apply_delta(AthelasArray3D<double> lhs,
   static const IndexRange qb(nq);
 
   const int stage = dt_info.stage;
-  constexpr int idx_ener = 2;
+  constexpr int idx_ener = 2; // Should pass this in incase it ever changes.
 
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Thermal engine :: Apply delta", DevExecSpace(),

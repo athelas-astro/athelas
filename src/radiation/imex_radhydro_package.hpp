@@ -75,10 +75,9 @@ KOKKOS_INLINE_FUNCTION void
 newton_radhydro_fd(const double dt_a_ii, const double emin, T ustar, T derived,
                    const RadHydroSolverIonizationContent &content, G &scratch,
                    const eos::EOS &eos, const Opacity &opac,
-                   eos::EOSLambda lambda, const double dg_term,
-                   const int idx_tau, const int idx_vel, const int idx_ener,
-                   const int idx_rad_energy, const int idx_rad_flux,
-                   const int idx_tgas) {
+                   eos::EOSLambda lambda, const int idx_tau, const int idx_vel,
+                   const int idx_ener, const int idx_rad_energy,
+                   const int idx_rad_flux, const int idx_tgas) {
   constexpr double c = constants::c_cgs;
   constexpr double c2 = c * c;
   constexpr double inv_c2 = 1.0 / c2;
@@ -119,7 +118,6 @@ newton_radhydro_fd(const double dt_a_ii, const double emin, T ustar, T derived,
   src_in.m_tot = m_tot;
   src_in.X = X;
   src_in.Z = Z;
-  src_in.dg_term = dg_term;
   src_in.eos = &eos;
   src_in.opac = &opac;
   while (n < root_finders::MAX_ITERS && !converged) {
@@ -254,9 +252,9 @@ KOKKOS_INLINE_FUNCTION void
 newton_radhydro(const double dt_a_ii, const double emin, T ustar, T derived,
                 const RadHydroSolverIonizationContent &content, G &scratch,
                 const eos::EOS &eos, const Opacity &opac, eos::EOSLambda lambda,
-                const double dg_term, const int idx_tau, const int idx_vel,
-                const int idx_ener, const int idx_rad_energy,
-                const int idx_rad_flux, const int idx_tgas) {
+                const int idx_tau, const int idx_vel, const int idx_ener,
+                const int idx_rad_energy, const int idx_rad_flux,
+                const int idx_tgas) {
   constexpr double c = constants::c_cgs;
   constexpr double inv_c = 1.0 / c;
   constexpr double c2 = c * c;
@@ -268,7 +266,6 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T derived,
 
   const double vstar = ustar(idx_vel);
   const double rho = 1.0 / ustar(idx_tau);
-  const double c_rho = constants::c_cgs * rho;
   const double e_star = ustar(idx_ener);
   const double er_star = ustar(idx_rad_energy);
   const double fr_star = ustar(idx_rad_flux);
@@ -296,7 +293,6 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T derived,
   src_in.m_tot = m_tot;
   src_in.X = X;
   src_in.Z = Z;
-  src_in.dg_term = dg_term;
   src_in.eos = &eos;
   src_in.opac = &opac;
 
@@ -354,16 +350,12 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T derived,
     const double dkappa_r_dT =
         dkappa_dT<OpacityType::Rosseland>(opac, rho, temperature, X, Z);
 
-    // Sources for energy (se) and velocity (sv)
-    // se = c G^0 = -c rho kappa_p (aT^4 - Er) - rho kappa_r Fr v/c
-    // sv = rho kappa_r Fr / c - rho kappa_p a T^4 v / c - rho kappa_r Pr v / c;
+    // Sources for specific energy and velocity. The reference-mass mass matrix
+    // carries mu, so no extra tau or rho*tau factor belongs here.
     const double se =
-        rho *
-        (-c * kappa_p * (at4 - rho * Er) - kappa_r * v * (Fr * rho) * inv_c) *
-        dg_term;
+        -c * kappa_p * (at4 - rho * Er) - kappa_r * v * (Fr * rho) * inv_c;
     const double sv =
-        rho * inv_c *
-        (kappa_r * (Fr * rho) - kappa_p * v * at4 - kappa_r * v * Pr) * dg_term;
+        inv_c * (kappa_r * (Fr * rho) - kappa_p * v * at4 - kappa_r * v * Pr);
 
     // Residuals
     const double f_e = e - e_star - dt_a_ii * se;
@@ -373,35 +365,29 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T derived,
     const double v2 = v * v;
 
     const double dsede =
-        c_rho * inv_cv *
+        c * inv_cv *
             (-4.0 * at3 * kappa_p - at4 * dkappa_p_dT + rho * Er * dkappa_p_dT -
-             v * rho * Fr * inv_c2 * dkappa_r_dT) *
-            dg_term -
-        c * rho * rho * kappa_p * dg_term;
-    const double dsedv =
-        (c_rho * inv_cv *
-             (v * at4 * dkappa_p_dT + 4.0 * at3 * v * kappa_p -
-              v * (rho * Er) * dkappa_p_dT +
-              (rho * Fr) * v2 * inv_c2 * dkappa_r_dT) -
-         (rho * kappa_r * (rho * Fr) * inv_c) + (rho * rho * kappa_r * v * c)) *
-        dg_term;
+             v * rho * Fr * inv_c2 * dkappa_r_dT) -
+        c * rho * kappa_p;
+    const double dsedv = c * inv_cv *
+                             (v * at4 * dkappa_p_dT + 4.0 * at3 * v * kappa_p -
+                              v * (rho * Er) * dkappa_p_dT +
+                              (rho * Fr) * v2 * inv_c2 * dkappa_r_dT) -
+                         kappa_r * (rho * Fr) * inv_c + rho * kappa_r * v * c;
 
     const double dprde = rho * (-chi + f * chi_prime);
-    const double dprdv = -c_rho * chi_prime;
-    const double dsvde =
-        (rho * inv_c * inv_cv *
-             ((rho * Fr) * dkappa_r_dT - at4 * v * dkappa_p_dT -
-              4.0 * at3 * kappa_p * v - v * Pr * dkappa_r_dT) -
-         (rho * v * kappa_r * inv_c * dprde)) *
-        dg_term;
+    const double dprdv = -c * rho * chi_prime;
+    const double dsvde = inv_c * inv_cv *
+                             ((rho * Fr) * dkappa_r_dT - at4 * v * dkappa_p_dT -
+                              4.0 * at3 * kappa_p * v - v * Pr * dkappa_r_dT) -
+                         v * kappa_r * inv_c * dprde;
 
     const double dsvdv =
-        (rho * inv_c * inv_cv *
-             (-v * (rho * Fr) * dkappa_r_dT + at4 * v2 * dkappa_p_dT +
-              4.0 * at3 * v2 * kappa_p + Pr * v2 * dkappa_r_dT) -
-         (c * rho * rho * kappa_r) - (rho * at4 * kappa_p * inv_c) -
-         (rho * kappa_r * Pr * inv_c) - (rho * kappa_r * v * dprdv * inv_c)) *
-        dg_term;
+        inv_c * inv_cv *
+            (-v * (rho * Fr) * dkappa_r_dT + at4 * v2 * dkappa_p_dT +
+             4.0 * at3 * v2 * kappa_p + Pr * v2 * dkappa_r_dT) -
+        c * rho * kappa_r - at4 * kappa_p * inv_c - kappa_r * Pr * inv_c -
+        kappa_r * v * dprdv * inv_c;
 
     const double J11 = 1.0 - dt_a_ii * dsede;
     const double J12 = -dt_a_ii * dsedv;

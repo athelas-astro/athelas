@@ -14,6 +14,7 @@
  *          ihi = nElements_
  */
 
+#include <algorithm>
 #include <cmath>
 #include <iomanip>
 #include <vector>
@@ -39,9 +40,11 @@ Mesh::Mesh(const ProblemIn *pin)
       nodes_("Nodes", nNodes_), weights_("weights_", nNodes_),
       centers_("Centers", mSize_), widths_("widths_", mSize_),
       x_l_("Left Interface", mSize_ + 1), mass_("Cell mass_", mSize_),
-      mass_r_("Enclosed mass", mSize_, nNodes_),
+      dm_deta_("Reference mass density", mSize_, nNodes_),
+      mass_r_("Enclosed mass", mSize_, nNodes_ + 2),
       center_of_mass_("Center of mass_", mSize_),
       sqrt_gm_("Sqrt Gamma", mSize_, nNodes_ + 2),
+      integration_matrix_("Integration matrix", nNodes_, nNodes_),
       grid_("Grid", mSize_, nNodes_ + 2) {
   std::vector<double> tmp_nodes(nNodes_);
   std::vector<double> tmp_weights(nNodes_);
@@ -59,6 +62,7 @@ Mesh::Mesh(const ProblemIn *pin)
     weights_(q) = tmp_weights[q];
   }
 
+  build_integration_matrix();
   create_grid(pin);
 }
 
@@ -75,11 +79,28 @@ auto Mesh::get_x_l() const noexcept -> double { return xL_; }
 auto Mesh::get_x_r() const noexcept -> double { return xR_; }
 
 // Accessor for SqrtGm
+KOKKOS_INLINE_FUNCTION
 auto Mesh::get_sqrt_gm(const double X) const -> double {
   if (geometry_ == "spherical") [[likely]] {
     return X * X;
   }
   return 1.0;
+}
+
+KOKKOS_INLINE_FUNCTION
+auto Mesh::coordinate_volume(const double X) const -> double {
+  if (geometry_ == "spherical") [[likely]] {
+    return X * X * X / 3.0;
+  }
+  return X;
+}
+
+KOKKOS_INLINE_FUNCTION
+auto Mesh::coordinate_from_volume(const double X) const -> double {
+  if (geometry_ == "spherical") [[likely]] {
+    return std::cbrt(3.0 * X);
+  }
+  return X;
 }
 
 // Return nNodes_
@@ -154,10 +175,63 @@ void Mesh::copy_from(const Mesh &other) {
   Kokkos::deep_copy(widths_, other.widths_);
   Kokkos::deep_copy(x_l_, other.x_l_);
   Kokkos::deep_copy(mass_, other.mass_);
+  Kokkos::deep_copy(dm_deta_, other.dm_deta_);
   Kokkos::deep_copy(mass_r_, other.mass_r_);
   Kokkos::deep_copy(center_of_mass_, other.center_of_mass_);
   Kokkos::deep_copy(sqrt_gm_, other.sqrt_gm_);
+  Kokkos::deep_copy(integration_matrix_, other.integration_matrix_);
   Kokkos::deep_copy(grid_, other.grid_);
+}
+
+/**
+ * @brief Build the reference integration matrix
+ *   I(i, q) = \int_{-1/2}^{eta_i} L_q(eta) deta,
+ * where L_q is the q-th Lagrange polynomial on the reference element
+ * [-1/2, 1/2]. Writing L_q in monomial form, L_q = (sum_k c_k eta^k) / denom,
+ * each entry is integrated analytically term by term:
+ *   I(i, q) = sum_k (c_k / denom) (eta_i^{k+1} - (-1/2)^{k+1}) / (k + 1).
+ * Contracting a field's nodal values against row i gives its partial integral
+ * up to node i:
+ *   \int_{-1/2}^{eta_i} f_h deta = sum_q I(i, q) f_q.
+ * Used to place interior nodes from cumulative mass/volume integrals in
+ * reconstruct_mesh and compute_mass_r.
+ * NOTE: Conceptually this belongs to the basis but is only used for the Mesh.
+ **/
+void Mesh::build_integration_matrix() {
+  auto nodes_h = Kokkos::create_mirror_view_and_copy(HostMemSpace(), nodes_);
+  auto integration_matrix_h = Kokkos::create_mirror_view(integration_matrix_);
+
+  for (int q = 0; q < nNodes_; ++q) {
+    std::vector<double> coeffs(1, 1.0);
+    double denom = 1.0;
+
+    for (int m = 0; m < nNodes_; ++m) {
+      if (m == q) {
+        continue;
+      }
+
+      std::vector<double> next(coeffs.size() + 1, 0.0);
+      for (std::size_t k = 0; k < coeffs.size(); ++k) {
+        next[k] -= nodes_h(m) * coeffs[k];
+        next[k + 1] += coeffs[k];
+      }
+      coeffs = next;
+      denom *= nodes_h(q) - nodes_h(m);
+    }
+
+    for (int i = 0; i < nNodes_; ++i) {
+      double integral = 0.0;
+      const double eta = nodes_h(i);
+      for (std::size_t k = 0; k < coeffs.size(); ++k) {
+        const auto power = static_cast<double>(k + 1);
+        integral += (coeffs[k] / denom) *
+                    (std::pow(eta, power) - std::pow(-0.5, power)) / power;
+      }
+      integration_matrix_h(i, q) = integral;
+    }
+  }
+
+  Kokkos::deep_copy(integration_matrix_, integration_matrix_h);
 }
 
 /**
@@ -264,10 +338,11 @@ void Mesh::create_log_grid() {
 }
 
 /**
- * Compute cell masses
+ * Compute the fixed reference mass measure from the initial geometry and
+ * density.
  **/
 KOKKOS_FUNCTION
-void Mesh::compute_mass(AthelasArray3D<double> evolved) {
+void Mesh::compute_mass_measure(AthelasArray3D<double> evolved) {
   const int nNodes_ = n_nodes();
   const int ilo = get_ilo();
   const int ihi = get_ihi();
@@ -279,10 +354,9 @@ void Mesh::compute_mass(AthelasArray3D<double> evolved) {
         double mass = 0.0;
         for (int q = 0; q < nNodes_; q++) {
           const double rho = 1.0 / evolved(i, q, idx_tau);
-          const double X = node_coordinate(i, q);
-          mass += weights_(q) * get_sqrt_gm(X) * rho;
+          dm_deta_(i, q) = sqrt_gm_(i, q + 1) * rho * widths_(i);
+          mass += weights_(q) * dm_deta_(i, q);
         }
-        mass *= widths_(i);
         mass_(i) = mass;
         // if (do_geometry()) {
         //   mass_(i) *= constants::FOURPI;
@@ -295,64 +369,102 @@ void Mesh::compute_mass(AthelasArray3D<double> evolved) {
       DevExecSpace(), 0, ilo - 1, KOKKOS_CLASS_LAMBDA(const int i) {
         mass_(ilo - 1 - i) = mass_(ilo + i);
         mass_(ihi + 1 + i) = mass_(ihi - i);
+        for (int q = 0; q < nNodes_; q++) {
+          dm_deta_(ilo - 1 - i, q) = dm_deta_(ilo + i, q);
+          dm_deta_(ihi + 1 + i, q) = dm_deta_(ihi - i, q);
+        }
       });
 }
 
 /**
- * @brief Compute enclosed masses
+ * @brief Compute enclosed mass at the interfaces and nodes.
  *
- * NOTE: This function is intended only to be called once, as it allocated.
- * If we find ourselves for any reason calling this repeatedly,
- * it should be refactored.
+ * Interface masses are a cross-cell prefix sum of the cell masses; interior
+ * nodes use the cumulative reference-mass partial integral, with a whole-cell
+ * linear fallback when the high-order partials are non-monotone.
  **/
 KOKKOS_FUNCTION
-void Mesh::compute_mass_r(AthelasArray3D<double> evolved) {
+void Mesh::compute_mass_r(AthelasArray3D<double> /*evolved*/) {
   const int nNodes_ = n_nodes();
   const int ilo = get_ilo();
   const int ihi = get_ihi();
-  constexpr int idx_tau = 0;
 
   static const double geom_fac = (do_geometry()) ? 4.0 * constants::PI : 1.0;
 
-  const int total_points = (ihi - ilo + 1) * nNodes_;
-  AthelasArray1D<double> mass_contrib("mass_contrib", total_points);
-  AthelasArray1D<double> cumulative_mass("cumulative_mass", total_points);
-
-  // 1: Compute individual mass contributions in parallel
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: compute mass contributions",
-      DevExecSpace(), 0, total_points - 1, KOKKOS_CLASS_LAMBDA(const int idx) {
-        const int ix = ilo + idx / nNodes_;
-        const int q = idx % nNodes_;
-        const double X = node_coordinate(ix, q);
-        const double rho = 1.0 / evolved(ix, q, idx_tau);
-        mass_contrib(idx) = weights_(q) * get_sqrt_gm(X) * rho * widths_(ix);
-      });
-
-  // 2: Perform parallel inclusive scan (cumulative sum)
   athelas::par_scan(
-      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: enclosed mass", DevExecSpace(), 0,
-      total_points - 1,
-      KOKKOS_LAMBDA(const int idx, double &partial_sum, const bool is_final) {
-        partial_sum += mass_contrib(idx);
+      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: enclosed mass faces", DevExecSpace(),
+      ilo, ihi,
+      KOKKOS_CLASS_LAMBDA(const int i, double &partial_sum,
+                          const bool is_final) {
+        double dm_cell = 0.0;
+        for (int q = 0; q < nNodes_; ++q) {
+          dm_cell += weights_(q) * dm_deta_(i, q);
+        }
+
         if (is_final) {
-          cumulative_mass(idx) = partial_sum;
+          mass_r_(i, 0) = geom_fac * partial_sum;
+        }
+        partial_sum += dm_cell;
+        if (is_final) {
+          mass_r_(i, nNodes_ + 1) = geom_fac * partial_sum;
         }
       });
 
-  // 3: sort into mass_r_
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: store enclosed mass", DevExecSpace(),
-      0, total_points - 1, KOKKOS_CLASS_LAMBDA(const int idx) {
-        const int ix = ilo + idx / nNodes_;
-        const int q = idx % nNodes_;
-        mass_r_(ix, q) = cumulative_mass(idx) * geom_fac;
+      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: enclosed mass nodes", DevExecSpace(),
+      ilo, ihi, KOKKOS_CLASS_LAMBDA(const int i) {
+        const double mass_left = mass_r_(i, 0);
+        const double mass_right = mass_r_(i, nNodes_ + 1);
+
+        Kokkos::Array<double, MAX_ORDER> dm;
+        for (int p = 0; p < nNodes_; ++p) {
+          dm[p] = dm_deta_(i, p);
+        }
+
+        // High-order enclosed mass at each node from the cumulative partial
+        // integral. Accept the whole cell only if the partials are monotone
+        // (increasing, within the face masses); otherwise fall back to the
+        // linear volume-fraction interpolation for the whole cell.
+        Kokkos::Array<double, MAX_ORDER> m_node;
+        bool monotone = true;
+        double m_prev = mass_left;
+        for (int q = 0; q < nNodes_; ++q) {
+          double partial_mass = 0.0;
+          for (int p = 0; p < nNodes_; ++p) {
+            partial_mass += integration_matrix_(q, p) * dm[p];
+          }
+          m_node[q] = mass_left + geom_fac * partial_mass;
+          if (m_node[q] <= m_prev || m_node[q] >= mass_right) {
+            monotone = false;
+          }
+          m_prev = m_node[q];
+        }
+
+        if (monotone) {
+          for (int q = 0; q < nNodes_; ++q) {
+            mass_r_(i, q + 1) = m_node[q];
+          }
+        } else {
+          const double x_left = coordinate_volume(grid_(i, 0));
+          const double dx = coordinate_volume(grid_(i, nNodes_ + 1)) - x_left;
+          for (int q = 0; q < nNodes_; ++q) {
+            const double x_node = coordinate_volume(grid_(i, q + 1));
+            const double theta_raw =
+                (dx > 0.0) ? (x_node - x_left) / dx : (nodes_(q) + 0.5);
+            mass_r_(i, q + 1) = mass_left + std::clamp(theta_raw, 0.0, 1.0) *
+                                                (mass_right - mass_left);
+          }
+        }
       });
 
-  // Get total mass
-  // auto h_cumulative =
-  // Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), cumulative_mass);
-  // mass = h_cumulative(total_points - 1);
+  athelas::par_for(
+      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: enclosed mass ghosts", DevExecSpace(),
+      0, ilo - 1, KOKKOS_CLASS_LAMBDA(const int i) {
+        for (int q = 0; q < nNodes_ + 2; ++q) {
+          mass_r_(ilo - 1 - i, q) = mass_r_(ilo + i, q);
+          mass_r_(ihi + 1 + i, q) = mass_r_(ihi - i, q);
+        }
+      });
 }
 
 KOKKOS_FUNCTION
@@ -364,11 +476,10 @@ auto Mesh::enclosed_mass(const int ix, const int q) const noexcept -> double {
  * Compute cell centers of masses reference coordinates
  **/
 KOKKOS_FUNCTION
-void Mesh::compute_center_of_mass(AthelasArray3D<double> evolved) {
+void Mesh::compute_center_of_mass(AthelasArray3D<double> /*evolved*/) {
   const int nNodes_ = n_nodes();
   const int ilo = get_ilo();
   const int ihi = get_ihi();
-  constexpr int idx_tau = 0;
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Grid :: center of mass", DevExecSpace(), ilo,
@@ -376,12 +487,9 @@ void Mesh::compute_center_of_mass(AthelasArray3D<double> evolved) {
         double com = 0.0;
 
         for (int q = 0; q < nNodes_; q++) {
-          const double X = node_coordinate(i, q);
-          const double rho = 1.0 / evolved(i, q, idx_tau);
-          com += nodes_(q) * weights_(q) * get_sqrt_gm(X) * rho;
+          com += nodes_(q) * weights_(q) * dm_deta_(i, q);
         }
 
-        com *= widths_(i);
         center_of_mass_(i) = com / mass_(i);
       });
 
@@ -394,49 +502,122 @@ void Mesh::compute_center_of_mass(AthelasArray3D<double> evolved) {
       });
 }
 
-/**
- * Update grid coordinates using interface velocities.
- **/
-KOKKOS_FUNCTION
-void Mesh::update_grid(const AthelasArray1D<double> SData) {
-
+// The interior grid is recovered entirely from the cumulative reference-mass
+// integral of tau; reconstruction only needs a single fixed point for the
+// absolute position. That point is the inner-face radius `x_inner`, which the
+// caller advances by the inner interface velocity v*(ilo).
+void Mesh::reconstruct_mesh(AthelasArray3D<double> evolved,
+                            const double x_inner) {
   const int ilo = get_ilo();
   const int ihi = get_ihi();
+  constexpr int idx_tau = 0;
 
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Update (1)", DevExecSpace(), ilo,
-      ihi + 1, KOKKOS_CLASS_LAMBDA(const int i) {
-        x_l_(i) = SData(i);
-        centers_(i) = 0.5 * (SData(i + 1) + SData(i));
+  // In the below, "X" is a generalized volume coordinate.
+  // X = r or (R^3)/3 for Cartesian and spherical, respectively.
+  const double X_inner = coordinate_volume(x_inner);
+
+  athelas::par_scan(
+      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Reconstruct from tau", DevExecSpace(),
+      ilo, ihi,
+      KOKKOS_CLASS_LAMBDA(const int i, double &partial_sum,
+                          const bool is_final) {
+        // Per-node reference-mass increment mu*tau, evaluated once and reused
+        // for the cell total (dX) and the within-cell partial integrals below.
+        Kokkos::Array<double, MAX_ORDER> mu_tau;
+        for (int q = 0; q < nNodes_; ++q) {
+          mu_tau[q] = dm_deta_(i, q) * evolved(i, q, idx_tau);
+        }
+
+        double dX = 0.0;
+        for (int q = 0; q < nNodes_; ++q) {
+          dX += weights_(q) * mu_tau[q];
+        }
+
+        const double X_left = X_inner + partial_sum;
+        partial_sum += dX;
+        const double X_right = X_inner + partial_sum;
+
+        if (is_final) {
+          const double r_left = coordinate_from_volume(X_left);
+          const double r_right = coordinate_from_volume(X_right);
+
+          x_l_(i) = r_left;
+          if (i == ihi) {
+            x_l_(i + 1) = r_right;
+          }
+          centers_(i) = 0.5 * (r_left + r_right);
+          widths_(i) = r_right - r_left;
+
+          grid_(i, 0) = r_left;
+          sqrt_gm_(i, 0) = get_sqrt_gm(r_left);
+
+          // High-order node placement from the cumulative reference-mass volume
+          // integral X_q = X_left + \int_{-1/2}^{eta_q} mu*tau deta. Decide
+          // monotonicity for the whole cell first, then commit to a single
+          // placement: all high-order if every partial integral is strictly
+          // increasing and between the faces, otherwise use the fixed enclosed
+          // mass fraction so gravity and reconstruction share the same nodal
+          // mass coordinate.
+          Kokkos::Array<double, MAX_ORDER> X_node;
+          bool monotone = true;
+          double X_prev = X_left;
+          for (int q = 0; q < nNodes_; ++q) {
+            double X_q = X_left;
+            for (int p = 0; p < nNodes_; ++p) {
+              X_q += integration_matrix_(q, p) * mu_tau[p];
+            }
+            X_node[q] = X_q;
+            if (Kokkos::isnan(X_q) || X_q <= X_prev || X_q >= X_right) {
+              monotone = false;
+            }
+            X_prev = X_q;
+          }
+
+          const double mass_left = mass_r_(i, 0);
+          const double mass_width = mass_r_(i, nNodes_ + 1) - mass_left;
+          for (int q = 0; q < nNodes_; ++q) {
+            const double theta_m =
+                (mass_width > 0.0)
+                    ? std::clamp((mass_r_(i, q + 1) - mass_left) / mass_width,
+                                 0.0, 1.0)
+                    : nodes_(q) + 0.5;
+            const double X_fallback = X_left + theta_m * (X_right - X_left);
+            const double r_q = monotone ? coordinate_from_volume(X_node[q])
+                                        : coordinate_from_volume(X_fallback);
+            grid_(i, q + 1) = r_q;
+            sqrt_gm_(i, q + 1) = get_sqrt_gm(r_q);
+          }
+          grid_(i, nNodes_ + 1) = r_right;
+          sqrt_gm_(i, nNodes_ + 1) = get_sqrt_gm(r_right);
+        }
       });
 
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Update (2)", DevExecSpace(), ilo, ihi,
-      KOKKOS_CLASS_LAMBDA(const int i) {
-        widths_(i) = SData(i + 1) - SData(i);
-      });
+      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Reconstruct ghosts", DevExecSpace(),
+      0, 1, KOKKOS_CLASS_LAMBDA(const int side) {
+        const int i = (side == 0) ? ilo - 1 : ihi + 1;
+        const int interior = (side == 0) ? ilo : ihi;
+        const double dr = widths_(interior);
 
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Update (3)", DevExecSpace(), ilo,
-      ihi + 1, KOKKOS_CLASS_LAMBDA(const int i) {
+        if (side == 0) {
+          x_l_(i) = x_l_(ilo) - dr;
+          x_l_(i + 1) = x_l_(ilo);
+        } else {
+          x_l_(i) = x_l_(ihi + 1);
+          x_l_(i + 1) = x_l_(ihi + 1) + dr;
+        }
+
+        centers_(i) = 0.5 * (x_l_(i) + x_l_(i + 1));
+        widths_(i) = x_l_(i + 1) - x_l_(i);
         grid_(i, 0) = x_l_(i);
-        for (int q = 1; q <= nNodes_; q++) {
+        sqrt_gm_(i, 0) = get_sqrt_gm(grid_(i, 0));
+        for (int q = 1; q <= nNodes_; ++q) {
           grid_(i, q) = node_coordinate(i, q - 1);
+          sqrt_gm_(i, q) = get_sqrt_gm(grid_(i, q));
         }
         grid_(i, nNodes_ + 1) = x_l_(i + 1);
+        sqrt_gm_(i, nNodes_ + 1) = get_sqrt_gm(grid_(i, nNodes_ + 1));
       });
-
-  if (do_geometry()) {
-    athelas::par_for(
-        DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Update (Sqrt Gm)", DevExecSpace(),
-        ilo, ihi + 1, KOKKOS_CLASS_LAMBDA(const int i) {
-          sqrt_gm_(i, 0) = get_sqrt_gm(x_l_(i));
-          for (int q = 1; q < nNodes_ + 1; q++) {
-            sqrt_gm_(i, q) = grid_(i, q) * grid_(i, q);
-          }
-          sqrt_gm_(i, nNodes_ + 1) = get_sqrt_gm(x_l_(i + 1));
-        });
-  }
 }
 
 // Access by (element, node)
@@ -458,6 +639,9 @@ auto Mesh::operator()(int i, int j) const -> double { return grid_(i, j); }
 [[nodiscard]] auto Mesh::x_l() const -> AthelasArray1D<double> { return x_l_; }
 [[nodiscard]] auto Mesh::mass() const -> AthelasArray1D<double> {
   return mass_;
+}
+[[nodiscard]] auto Mesh::dm_deta() const -> AthelasArray2D<double> {
+  return dm_deta_;
 }
 [[nodiscard]] auto Mesh::enclosed_mass() const -> AthelasArray2D<double> {
   return mass_r_;

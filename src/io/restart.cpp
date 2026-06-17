@@ -126,6 +126,7 @@ void load_grid_from_h5(Mesh &mesh, const RestartReader &reader) {
   reader.read_view(mesh.nodal_grid(), "/mesh/r_q");
   reader.read_view(mesh.enclosed_mass(), "/mesh/enclosed_mass");
   reader.read_view(mesh.mass(), "/mesh/dm");
+  reader.read_view(mesh.dm_deta(), "/mesh/dm_deta");
   reader.read_view(mesh.sqrt_gm(), "/mesh/sqrt_gm");
 }
 

@@ -150,7 +150,7 @@ void TVDMinmod::apply_slope_limiter(AthelasArray3D<double> U, const Mesh &mesh,
         limited_cell_(i) = 1;
       }); // par_for i
 
-  // conservative_correction(u_k_, U, mesh, nvars);
+  conservative_correction(u_k_, U, mesh, vb_);
 
   // --- Project back onto nodal basis ---
   basis.modal_to_nodal(U, u_k_, vb_);

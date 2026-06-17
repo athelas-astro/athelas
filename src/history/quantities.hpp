@@ -4,6 +4,14 @@
  *
  * @brief Select quantity calcuations for history
  *
+ * @details All integrals are mass integrals in the reference-mass DG
+ *          formulation: a conserved/extensive quantity is
+ *            Q = \int U dm = \sum_i \sum_q w_q dm_deta(i,q) U(i,q),
+ *          optionally times 4pi in spherical symmetry. dm_deta = mu =
+ *          sqrt(gamma) * rho * J is the fixed reference-mass measure and
+ *          already carries the geometry (sqrt(gamma)) and the (reconstructed)
+ *          Jacobian J, so no separate sqrt_gm / dr / tau factors are needed.
+ *
  * TODO(astrobarker): track boundary fluxes
  * TODO(astrobarker): Loop is 4 pi
  */
@@ -20,15 +28,12 @@ namespace athelas::analysis {
 
 inline auto total_gravitational_energy(const MeshState &mesh_state,
                                        const Mesh &mesh) -> double {
-  using basis::basis_eval;
   const auto &nNodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
   auto weights = mesh.weights();
   auto enclosed_mass = mesh.enclosed_mass();
-  auto mass_cell = mesh.mass();
+  auto dm_deta = mesh.dm_deta();
   auto r = mesh.nodal_grid();
-
-  const bool do_geometry = mesh.do_geometry();
 
   double output = 0.0;
   athelas::par_reduce(
@@ -37,30 +42,25 @@ inline auto total_gravitational_energy(const MeshState &mesh_state,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double &X = r(i, q + 1);
-          local_sum += (enclosed_mass(i, q) / X) * weights(q);
+          local_sum += weights(q) * dm_deta(i, q) *
+                       (enclosed_mass(i, q + 1) / r(i, q + 1));
         }
-        double mcell = mass_cell(i);
-        if (do_geometry) {
-          mcell *= constants::FOURPI;
-        }
-        lsum += local_sum * mcell;
+        lsum += local_sum;
       },
       Kokkos::Sum<double>(output));
 
+  if (mesh.do_geometry()) {
+    output *= constants::FOURPI;
+  }
   return -constants::G_GRAV * output;
 }
 
-// Perhaps the below will be more optimal by calculating
-// with cell mass
 inline auto total_fluid_energy(const MeshState &mesh_state, const Mesh &mesh)
     -> double {
-  using basis::basis_eval;
   const auto &nNodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
-  const auto dr = mesh.widths();
   auto weights = mesh.weights();
-  auto mcell = mesh.mass();
+  auto dm_deta = mesh.dm_deta();
 
   auto u = mesh_state(0).get_field("evolved");
   const int idx_ener =
@@ -73,9 +73,9 @@ inline auto total_fluid_energy(const MeshState &mesh_state, const Mesh &mesh)
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum += weights(q) * u(i, q, idx_ener);
+          local_sum += weights(q) * dm_deta(i, q) * u(i, q, idx_ener);
         }
-        lsum += local_sum * mcell(i);
+        lsum += local_sum;
       },
       Kokkos::Sum<double>(output));
 
@@ -87,15 +87,12 @@ inline auto total_fluid_energy(const MeshState &mesh_state, const Mesh &mesh)
 
 inline auto total_fluid_momentum(const MeshState &mesh_state, const Mesh &mesh)
     -> double {
-  using basis::basis_eval;
   const auto &nNodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
-  auto dr = mesh.widths();
-  auto sqrt_gm = mesh.sqrt_gm();
   auto weights = mesh.weights();
+  auto dm_deta = mesh.dm_deta();
 
   auto u = mesh_state(0).get_field("evolved");
-  const int idx_tau = mesh_state.var_index("evolved", "specific_volume");
   const int idx_vel = mesh_state.var_index("evolved", "velocity");
 
   double output = 0.0;
@@ -104,11 +101,11 @@ inline auto total_fluid_momentum(const MeshState &mesh_state, const Mesh &mesh)
       DevExecSpace(), ib.s, ib.e,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
+        // momentum = \int rho v dV = \int v dm
         for (int q = 0; q < nNodes; ++q) {
-          local_sum += weights(q) * u(i, q, idx_vel) / u(i, q, idx_tau) *
-                       sqrt_gm(i, q + 1) * weights(q);
+          local_sum += weights(q) * dm_deta(i, q) * u(i, q, idx_vel);
         }
-        lsum += local_sum * dr(i);
+        lsum += local_sum;
       },
       Kokkos::Sum<double>(output));
 
@@ -120,15 +117,12 @@ inline auto total_fluid_momentum(const MeshState &mesh_state, const Mesh &mesh)
 
 inline auto total_internal_energy(const MeshState &mesh_state, const Mesh &mesh)
     -> double {
-  using basis::basis_eval;
   const auto &nNodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
-  auto dr = mesh.widths();
-  auto sqrt_gm = mesh.sqrt_gm();
   auto weights = mesh.weights();
+  auto dm_deta = mesh.dm_deta();
 
   auto u = mesh_state(0).get_field("evolved");
-  const int idx_tau = mesh_state.var_index("evolved", "specific_volume");
   const int idx_vel = mesh_state.var_index("evolved", "velocity");
   const int idx_ener =
       mesh_state.var_index("evolved", "specific_total_fluid_energy");
@@ -141,10 +135,10 @@ inline auto total_internal_energy(const MeshState &mesh_state, const Mesh &mesh)
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
           const double vel = u(i, q, idx_vel);
-          local_sum += (u(i, q, idx_ener) - 0.5 * vel * vel) /
-                       u(i, q, idx_tau) * sqrt_gm(i, q + 1) * weights(q);
+          local_sum += weights(q) * dm_deta(i, q) *
+                       (u(i, q, idx_ener) - 0.5 * vel * vel);
         }
-        lsum += local_sum * dr(i);
+        lsum += local_sum;
       },
       Kokkos::Sum<double>(output));
 
@@ -156,15 +150,11 @@ inline auto total_internal_energy(const MeshState &mesh_state, const Mesh &mesh)
 
 inline auto total_kinetic_energy(const MeshState &mesh_state, const Mesh &mesh)
     -> double {
-  using basis::basis_eval;
   const auto &nNodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
-  auto dr = mesh.widths();
-  auto mass = mesh.mass();
-  auto sqrt_gm = mesh.sqrt_gm();
   auto weights = mesh.weights();
+  auto dm_deta = mesh.dm_deta();
 
-  auto phi = mesh_state.fluid_basis().phi();
   auto u = mesh_state(0).get_field("evolved");
   const int idx_vel = mesh_state.var_index("evolved", "velocity");
 
@@ -176,9 +166,9 @@ inline auto total_kinetic_energy(const MeshState &mesh_state, const Mesh &mesh)
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
           const double vel = u(i, q, idx_vel);
-          local_sum += weights(q) * (0.5 * vel * vel);
+          local_sum += weights(q) * dm_deta(i, q) * (0.5 * vel * vel);
         }
-        lsum += local_sum * mass(i);
+        lsum += local_sum;
       },
       Kokkos::Sum<double>(output));
 
@@ -191,11 +181,10 @@ inline auto total_kinetic_energy(const MeshState &mesh_state, const Mesh &mesh)
 // This total_energy is only radiation
 inline auto total_rad_energy(const MeshState &mesh_state, const Mesh &mesh)
     -> double {
-  using basis::basis_eval;
   const auto &nNodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
-  auto mcell = mesh.mass();
   auto weights = mesh.weights();
+  auto dm_deta = mesh.dm_deta();
 
   auto u = mesh_state(0).get_field("evolved");
   const int idx_rad_energy =
@@ -208,9 +197,9 @@ inline auto total_rad_energy(const MeshState &mesh_state, const Mesh &mesh)
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum += u(i, q, idx_rad_energy) * weights(q);
+          local_sum += weights(q) * dm_deta(i, q) * u(i, q, idx_rad_energy);
         }
-        lsum += local_sum * mcell(i);
+        lsum += local_sum;
       },
       Kokkos::Sum<double>(output));
 
@@ -222,14 +211,11 @@ inline auto total_rad_energy(const MeshState &mesh_state, const Mesh &mesh)
 
 inline auto total_rad_momentum(const MeshState &mesh_state, const Mesh &mesh)
     -> double {
-  using basis::basis_eval;
   const auto &nNodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
-  auto dr = mesh.widths();
-  auto sqrt_gm = mesh.sqrt_gm();
   auto weights = mesh.weights();
+  auto dm_deta = mesh.dm_deta();
 
-  auto phi_rad = mesh_state.rad_basis().phi();
   auto u = mesh_state(0).get_field("evolved");
   const int idx_rad_flux =
       mesh_state.var_index("evolved", "specific_radiation_flux");
@@ -240,10 +226,11 @@ inline auto total_rad_momentum(const MeshState &mesh_state, const Mesh &mesh)
       ib.s, ib.e,
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
+        // rad momentum = \int F_r/c^2 dV = (1/c^2) \int frad dm
         for (int q = 0; q < nNodes; ++q) {
-          local_sum += u(i, q, idx_rad_flux) * sqrt_gm(i, q + 1) * weights(q);
+          local_sum += weights(q) * dm_deta(i, q) * u(i, q, idx_rad_flux);
         }
-        lsum += local_sum * dr(i);
+        lsum += local_sum;
       },
       Kokkos::Sum<double>(output));
 
@@ -286,17 +273,12 @@ inline auto total_momentum(const MeshState &mesh_state, const Mesh &mesh)
 
 inline auto total_mass(const MeshState &mesh_state, const Mesh &mesh)
     -> double {
-  using basis::basis_eval;
   const auto &nNodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
-  auto dr = mesh.widths();
-  auto sqrt_gm = mesh.sqrt_gm();
   auto weights = mesh.weights();
+  auto dm_deta = mesh.dm_deta();
 
-  auto phi = mesh_state.fluid_basis().phi();
-  auto derived = mesh_state(0).get_field("derived");
-  const int idx_density = mesh_state.var_index("derived", "density");
-
+  // total mass = \int rho dV = \int dm = sum w_q dm_deta
   double output = 0.0;
   athelas::par_reduce(
       DEFAULT_FLAT_LOOP_PATTERN, "History :: TotalMass", DevExecSpace(), ib.s,
@@ -304,10 +286,9 @@ inline auto total_mass(const MeshState &mesh_state, const Mesh &mesh)
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum +=
-              derived(i, q + 1, idx_density) * sqrt_gm(i, q + 1) * weights(q);
+          local_sum += weights(q) * dm_deta(i, q);
         }
-        lsum += local_sum * dr(i);
+        lsum += local_sum;
       },
       Kokkos::Sum<double>(output));
 
@@ -320,17 +301,12 @@ inline auto total_mass(const MeshState &mesh_state, const Mesh &mesh)
 // TODO(astrobarker): surely there is a non-invasive way to combine
 // these total_mass_x. Would need to pass in either index or string for indexer
 inline auto total_mass_ni56(const MeshState &mesh_state, const Mesh &mesh) {
-  using basis::basis_eval;
   const auto &nNodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
-  auto dr = mesh.widths();
-  auto sqrt_gm = mesh.sqrt_gm();
   auto weights = mesh.weights();
+  auto dm_deta = mesh.dm_deta();
 
-  auto phi = mesh_state.fluid_basis().phi();
   auto evolved = mesh_state(0).get_field("evolved");
-  auto derived = mesh_state(0).get_field("derived");
-  const int idx_density = mesh_state.var_index("derived", "density");
 
   const auto *const species_indexer = mesh_state.comps()->species_indexer();
   const auto ind_x = species_indexer->get<int>("ni56");
@@ -342,11 +318,9 @@ inline auto total_mass_ni56(const MeshState &mesh_state, const Mesh &mesh) {
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double x_ni = evolved(i, q, ind_x);
-          local_sum += x_ni * derived(i, q + 1, idx_density) *
-                       sqrt_gm(i, q + 1) * weights(q);
+          local_sum += weights(q) * dm_deta(i, q) * evolved(i, q, ind_x);
         }
-        lsum += local_sum * dr(i);
+        lsum += local_sum;
       },
       Kokkos::Sum<double>(output));
 
@@ -357,17 +331,12 @@ inline auto total_mass_ni56(const MeshState &mesh_state, const Mesh &mesh) {
 }
 
 inline auto total_mass_co56(const MeshState &mesh_state, const Mesh &mesh) {
-  using basis::basis_eval;
   const auto &nNodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
-  auto dr = mesh.widths();
-  auto sqrt_gm = mesh.sqrt_gm();
   auto weights = mesh.weights();
+  auto dm_deta = mesh.dm_deta();
 
-  auto phi = mesh_state.fluid_basis().phi();
   auto evolved = mesh_state(0).get_field("evolved");
-  auto derived = mesh_state(0).get_field("derived");
-  const int idx_density = mesh_state.var_index("derived", "density");
 
   const auto *const species_indexer = mesh_state.comps()->species_indexer();
   const auto ind_x = species_indexer->get<int>("co56");
@@ -379,11 +348,9 @@ inline auto total_mass_co56(const MeshState &mesh_state, const Mesh &mesh) {
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double x_co = evolved(i, q, ind_x);
-          local_sum += x_co * derived(i, q + 1, idx_density) *
-                       sqrt_gm(i, q + 1) * weights(q);
+          local_sum += weights(q) * dm_deta(i, q) * evolved(i, q, ind_x);
         }
-        lsum += local_sum * dr(i);
+        lsum += local_sum;
       },
       Kokkos::Sum<double>(output));
 
@@ -394,17 +361,12 @@ inline auto total_mass_co56(const MeshState &mesh_state, const Mesh &mesh) {
 }
 
 inline auto total_mass_fe56(const MeshState &mesh_state, const Mesh &mesh) {
-  using basis::basis_eval;
   const auto &nNodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
-  auto dr = mesh.widths();
-  auto sqrt_gm = mesh.sqrt_gm();
   auto weights = mesh.weights();
+  auto dm_deta = mesh.dm_deta();
 
-  auto phi = mesh_state.fluid_basis().phi();
   auto evolved = mesh_state(0).get_field("evolved");
-  auto derived = mesh_state(0).get_field("derived");
-  const int idx_density = mesh_state.var_index("derived", "density");
 
   const auto *const species_indexer = mesh_state.comps()->species_indexer();
   const auto ind_x = species_indexer->get<int>("fe56");
@@ -416,11 +378,9 @@ inline auto total_mass_fe56(const MeshState &mesh_state, const Mesh &mesh) {
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          const double x_fe = evolved(i, q, ind_x);
-          local_sum += x_fe * derived(i, q + 1, idx_density) *
-                       sqrt_gm(i, q + 1) * weights(q);
+          local_sum += weights(q) * dm_deta(i, q) * evolved(i, q, ind_x);
         }
-        lsum += local_sum * dr(i);
+        lsum += local_sum;
       },
       Kokkos::Sum<double>(output));
 

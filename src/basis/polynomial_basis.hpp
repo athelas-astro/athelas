@@ -144,6 +144,30 @@ auto basis_eval(AthelasArray3D<double> phi, AthelasArray1D<double> U,
 }
 
 /**
+ * @brief Weak eta-derivative of a face/node field f projected onto basis
+ * function q, via integration by parts:
+ *   <phi_q, df/deta> = [phi_q f]_faces - sum_p w_p phi_q'(eta_p) f_p.
+ *
+ * f uses the (0 = left face, 1..nNodes = nodes, nNodes+1 = right face) column
+ * layout. With f = sqrt(gamma) this is the spherical curvature operator shared
+ * by the geometry and gravity momentum sources; it vanishes in planar geometry.
+ */
+KOKKOS_INLINE_FUNCTION
+auto geometric_weak_eta_derivative(const AthelasArray3D<double> phi,
+                                   const AthelasArray3D<double> dphi,
+                                   const AthelasArray2D<double> f,
+                                   const AthelasArray1D<double> weights,
+                                   const int ix, const int q, const int nNodes)
+    -> double {
+  double s =
+      phi(ix, nNodes + 1, q) * f(ix, nNodes + 1) - phi(ix, 0, q) * f(ix, 0);
+  for (int p = 0; p < nNodes; ++p) {
+    s -= weights(p) * dphi(ix, p + 1, q) * f(ix, p + 1);
+  }
+  return s;
+}
+
+/**
  * L2 projection from nodal function to modal representation
  * Projects nodal_func(x) onto the modal basis for cell ix, quantity q
  * TODO(astrobarker): [GPU] move inline

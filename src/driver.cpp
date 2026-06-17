@@ -295,7 +295,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
     initialize_fields(mesh_state_, &mesh_state_.mesh(), pin);
     auto evolved = mesh_state_(0).get_field("evolved");
     bc::fill_ghost_zones<3>(evolved, &mesh_state_.mesh(), bcs_.get(), {0, 2});
-    mesh_state_.mesh().compute_mass(evolved);
+    mesh_state_.mesh().compute_mass_measure(evolved);
   } else {
     // Restart path: rebuild MeshState/mesh from the .ath file rather than the
     // problem generator. Composition / ionization wiring must happen before
@@ -521,7 +521,7 @@ void Driver::post_init_work() {
 
   static const IndexRange ib(mesh_state_.mesh().domain<Domain::Interior>());
 
-  mesh_state_.mesh().compute_mass(evolved);
+  mesh_state_.mesh().compute_mass_measure(evolved);
   mesh_state_.mesh().compute_mass_r(evolved);
   mesh_state_.mesh().compute_center_of_mass(evolved);
 
@@ -536,7 +536,7 @@ void Driver::post_init_work() {
     athelas::par_for(
         DEFAULT_FLAT_LOOP_PATTERN, "post_init_work :: Adjust enclosed mass",
         DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
-          for (int q = 0; q < nNodes; q++) {
+          for (int q = 0; q < nNodes + 2; q++) {
             menc(i, q) += mc * constants::M_sun;
           }
         });

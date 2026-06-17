@@ -43,7 +43,7 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
       ib.e, KOKKOS_LAMBDA(const int i) {
         for (int iNodeX = 0; iNodeX < nNodes; iNodeX++) {
           const double x = mesh->node_coordinate(i, iNodeX);
-          derived(i, iNodeX, idx_density) =
+          derived(i, iNodeX + 1, idx_density) =
               (2.0 + Amp * sin(2.0 * constants::PI * x));
         }
       });

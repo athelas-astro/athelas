@@ -104,7 +104,7 @@ auto load_info_from_h5(const RestartReader &reader) -> SimInfo;
 
 /**
  * @brief Overwrite mesh arrays (centers, widths, x_l, mass, mass_r, sqrt_gm,
- * nodal mesh) from /mesh.
+ * jacobian, nodal mesh) from /mesh.
  */
 void load_grid_from_h5(Mesh &mesh, const RestartReader &reader);
 

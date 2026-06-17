@@ -35,6 +35,7 @@
 #include "interface/state.hpp"
 #include "io/parser.hpp"
 #include "kokkos_abstraction.hpp"
+#include "limiters/bound_enforcing_limiter.hpp"
 #include "math/interp.hpp"
 #include "radiation/rad_utilities.hpp"
 
@@ -503,7 +504,7 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   // We go ahead and form the basis here now that the mesh is constructed.
   // I don't particularly like this pattern, but as it stands the basis is
   // needed in the Saha solves to come.
-  mesh->compute_mass(evolved);
+  mesh->compute_mass_measure(evolved);
   auto fluid_basis_tmp = std::make_unique<basis::NodalBasis>(
       derived, mesh, nNodes, pin->param()->get<int>("problem.nx"));
   mesh_state.setup_fluid_basis(std::move(fluid_basis_tmp));
@@ -536,6 +537,7 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
 
   // Compute necessary terms for using the Paczynski eos
   auto sd0 = mesh_state(0);
+  bel::limit_mass_fractions(sd0, *mesh);
   atom::fill_derived_comps<Domain::Interior>(sd0, mesh);
 
   // Perform an eos inversion using the progenitor pressure for

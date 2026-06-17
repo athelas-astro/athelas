@@ -80,7 +80,8 @@ apply_bc(const BoundaryConditionsData<N> &bc, AthelasArray3D<double> U,
 
   case BcType::Outflow:
     for (int i = 0; i < n_nodes; ++i) {
-      U(ghost_cell, i, v) = U(interior_cell, i, v);
+      const int i_ref = n_nodes - 1 - i;
+      U(ghost_cell, i, v) = U(interior_cell, i_ref, v);
     }
     break;
 

@@ -19,15 +19,14 @@ namespace athelas {
 TimeStepper::TimeStepper(const ProblemIn *pin)
     : nvars_evolved_(nvars_evolved(pin)),
       mSize_(pin->param()->get<int>("problem.nx") + 2),
+      nNodes_(pin->param()->get<int>("basis.nnodes")),
       integrator_(
           create_tableau(pin->param()->get<MethodID>("time.integrator"))),
       nStages_(integrator_.num_stages), tOrder_(integrator_.explicit_order),
-      SumVar_U_("SumVar_U", mSize_, pin->param()->get<int>("basis.nnodes"),
-                nvars_evolved_),
-      x_l_sumvar_("x_l_sumvar_", nStages_, mSize_ + 1) {}
+      SumVar_U_("SumVar_U", mSize_, nNodes_, nvars_evolved_),
+      x_inner_sumvar_("x_inner_sumvar_", nStages_) {}
 
-void TimeStepper::reset_stage_sumvar(const Mesh &mesh, int stage,
-                                     AthelasArray3D<double> u0,
+void TimeStepper::reset_stage_sumvar(AthelasArray3D<double> u0,
                                      const IndexRange &ib, const IndexRange &qb,
                                      const IndexRange &vb, const char *label) {
   athelas::par_for(
@@ -37,43 +36,55 @@ void TimeStepper::reset_stage_sumvar(const Mesh &mesh, int stage,
           SumVar_U_(i, q, v) = u0(i, q, v);
         }
       });
-
-  auto left_interface = mesh.x_l();
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: Reset mesh sumvar",
-      DevExecSpace(), 0, mSize_, KOKKOS_CLASS_LAMBDA(const int i) {
-        x_l_sumvar_(stage, i) = left_interface(i);
-      });
 }
 
-void TimeStepper::accumulate_grid_motion(MeshState &mesh_state, int sum_stage,
-                                         int data_stage, double dt_coef,
-                                         const IndexRange &ib,
-                                         const char *label) {
+// Set this stage's buffer to the canonical inner-face radius x_l^n(ilo). The
+// inner loop then advances it by v*(ilo) for the stages that contribute.
+void TimeStepper::reset_x_inner_buffer(const Mesh &mesh, const int stage) {
+  auto x_l = mesh.x_l();
+  const int ilo = Mesh::get_ilo();
+  athelas::par_for(
+      DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: Reset x_inner buffer",
+      DevExecSpace(), 0, 0,
+      KOKKOS_CLASS_LAMBDA(const int) { x_inner_sumvar_(stage) = x_l(ilo); });
+}
+
+// Advance the `sum_stage` buffer by dt_coef * v*(ilo) taken from `data_stage`,
+// mirroring the RK accumulation applied to the evolved state.
+void TimeStepper::accumulate_x_inner_buffer(MeshState &mesh_state,
+                                            const int sum_stage,
+                                            const int data_stage,
+                                            const double dt_coef) {
   auto interface =
       mesh_state(data_stage).get_field<AthelasArray2D<double>>("interface");
   const int idx_vstar =
       mesh_state(data_stage).var_index("interface", "interface_velocity");
+  const int ilo = Mesh::get_ilo();
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, label, DevExecSpace(), ib.s, ib.e,
-      KOKKOS_CLASS_LAMBDA(const int i) {
-        x_l_sumvar_(sum_stage, i) += dt_coef * interface(i, idx_vstar);
+      DEFAULT_FLAT_LOOP_PATTERN, "Timestepper :: Accumulate x_inner buffer",
+      DevExecSpace(), 0, 0, KOKKOS_CLASS_LAMBDA(const int) {
+        x_inner_sumvar_(sum_stage) += dt_coef * interface(ilo, idx_vstar);
       });
 }
 
-void TimeStepper::update_stage_mesh(MeshState &mesh_state, int stage) {
-  // Stage 0 is the canonical mesh (x_l^n), read directly via StageData::mesh();
-  // there is nothing to materialize. Later stages are rebuilt into the single
-  // work buffer from the canonical mesh plus this stage's accumulated interface
-  // positions. A stage mesh is fully determined by (canonical mesh, x_l for the
-  // stage), so one buffer suffices.
+auto TimeStepper::x_inner_buffer(const int stage) -> double {
+  double x_inner = 0.0;
+  Kokkos::deep_copy(x_inner, Kokkos::subview(x_inner_sumvar_, stage));
+  return x_inner;
+}
+
+void TimeStepper::update_stage_mesh(MeshState &mesh_state, int stage,
+                                    AthelasArray3D<double> evolved) {
+  // Stage 0 is the canonical mesh. Later stages are rebuilt into the single
+  // work buffer from the canonical mesh and this stage's tau field. The inner
+  // face is positioned by this stage's accumulated x_inner buffer.
   if (stage == 0) {
+    mesh_state.mesh().reconstruct_mesh(evolved, x_inner_buffer(0));
     return;
   }
-  auto x_l_sumvar = Kokkos::subview(x_l_sumvar_, stage, Kokkos::ALL);
   auto &mesh_stage = mesh_state.mesh_stage();
   mesh_stage.copy_from(mesh_state.mesh());
-  mesh_stage.update_grid(x_l_sumvar);
+  mesh_stage.reconstruct_mesh(evolved, x_inner_buffer(stage));
 }
 
 void TimeStepper::step(PackageManager *pkgs, MeshState &mesh_state,
@@ -105,8 +116,8 @@ void TimeStepper::update_fluid_explicit(PackageManager *pkgs,
     // re-set the summation variables `SumVar`
     auto stage_data = mesh_state.stage(iS);
     auto u = stage_data.get_field("evolved");
-    reset_stage_sumvar(mesh, iS, u0, ib, qb, vb,
-                       "Timestepper :: EX :: Reset sumvar");
+    reset_stage_sumvar(u0, ib, qb, vb, "Timestepper :: EX :: Reset sumvar");
+    reset_x_inner_buffer(mesh, iS);
 
     // --- Inner update loop ---
 
@@ -117,9 +128,7 @@ void TimeStepper::update_fluid_explicit(PackageManager *pkgs,
       dt_info.dt_coef = dt_a_ex;
 
       pkgs->apply_delta(SumVar_U_, dt_info);
-
-      accumulate_grid_motion(mesh_state, iS, j, dt_a_ex, ib,
-                             "Timestepper :: EX :: grid");
+      accumulate_x_inner_buffer(mesh_state, iS, j, dt_a_ex);
     } // End inner loop
 
     // set U_s
@@ -131,12 +140,13 @@ void TimeStepper::update_fluid_explicit(PackageManager *pkgs,
           }
         });
 
-    update_stage_mesh(mesh_state, iS);
+    update_stage_mesh(mesh_state, iS, u);
 
     // stage_data.mesh() resolves to this stage's mesh (canonical for stage 0,
     // the work buffer otherwise).
     apply_slope_limiter(sl_hydro, u, stage_data, fluid_basis, eos);
     bel::apply_bound_enforcing_limiter(stage_data);
+    update_stage_mesh(mesh_state, iS, u);
 
     dt_info.stage = iS;
     dt_info.t = t + integrator_.explicit_tableau.c_i(iS) * dt;
@@ -153,15 +163,15 @@ void TimeStepper::update_fluid_explicit(PackageManager *pkgs,
     dt_info.dt_coef = dt_b_ex;
 
     pkgs->apply_delta(u0, dt_info);
-
-    accumulate_grid_motion(mesh_state, 0, iS, dt_b_ex, ib,
-                           "Timestepper :: EX :: Finalize grid");
+    accumulate_x_inner_buffer(mesh_state, 0, iS, dt_b_ex);
   }
-  mesh.update_grid(Kokkos::subview(x_l_sumvar_, 0, Kokkos::ALL));
+  const double x_inner = x_inner_buffer(0);
+  mesh.reconstruct_mesh(u0, x_inner);
 
   auto sd0 = mesh_state(0);
   apply_slope_limiter(sl_hydro, u0, sd0, sd0.fluid_basis(), sd0.eos());
   bel::apply_bound_enforcing_limiter(sd0);
+  mesh.reconstruct_mesh(u0, x_inner);
 
   pkgs->zero_delta();
 }
@@ -199,8 +209,8 @@ void TimeStepper::update_rad_hydro_imex(PackageManager *pkgs,
     dt_info.t = t + integrator_.explicit_tableau.c_i(iS) * dt;
     auto stage_data = mesh_state.stage(iS);
     auto u = stage_data.get_field("evolved");
-    reset_stage_sumvar(mesh, iS, u0, ib, qb, vb,
-                       "Timestepper :: IMEX :: Reset sumvar");
+    reset_stage_sumvar(u0, ib, qb, vb, "Timestepper :: IMEX :: Reset sumvar");
+    reset_x_inner_buffer(mesh, iS);
 
     // --- Inner update loop ---
 
@@ -213,19 +223,14 @@ void TimeStepper::update_rad_hydro_imex(PackageManager *pkgs,
       dt_info.dt_coef_implicit = dt_a_im;
 
       pkgs->apply_delta(SumVar_U_, dt_info);
-
-      accumulate_grid_motion(mesh_state, iS, j, dt_a, ib,
-                             "Timestepper :: IMEX :: Update grid");
+      accumulate_x_inner_buffer(mesh_state, iS, j, dt_a);
     } // End inner loop
-
-    update_stage_mesh(mesh_state, iS);
 
     // set U_s (stage data)
     Kokkos::deep_copy(u, SumVar_U_);
+    update_stage_mesh(mesh_state, iS, u);
 
     // Seems to be necessary when doing explicit transport.
-    // stage_data.mesh() resolves to this stage's mesh (canonical for stage 0,
-    // the work buffer otherwise).
     apply_slope_limiter(sl_rad, u, stage_data, rad_basis, eos);
 
     Kokkos::deep_copy(SumVar_U_, u);
@@ -240,11 +245,13 @@ void TimeStepper::update_rad_hydro_imex(PackageManager *pkgs,
     if (dt_info.dt_coef != 0.0) {
       pkgs->update_implicit(stage_data, SumVar_U_, dt_info);
     }
+    Kokkos::deep_copy(u, SumVar_U_);
 
     apply_slope_limiter(sl_hydro, u, stage_data, fluid_basis, eos);
     apply_slope_limiter(sl_rad, u, stage_data, rad_basis, eos);
     bel::apply_bound_enforcing_limiter(stage_data);
     bel::apply_bound_enforcing_limiter_rad(stage_data);
+    update_stage_mesh(mesh_state, iS, u);
 
     dt_info.stage = iS;
     pkgs->fill_derived(stage_data, dt_info);
@@ -260,17 +267,17 @@ void TimeStepper::update_rad_hydro_imex(PackageManager *pkgs,
     dt_info.dt_coef_implicit = dt_b_im;
 
     pkgs->apply_delta(u0, dt_info);
-
-    accumulate_grid_motion(mesh_state, 0, iS, dt_b, ib,
-                           "Timestepper :: IMEX :: Finalize grid");
+    accumulate_x_inner_buffer(mesh_state, 0, iS, dt_b);
   }
-  mesh.update_grid(Kokkos::subview(x_l_sumvar_, 0, Kokkos::ALL));
+  const double x_inner = x_inner_buffer(0);
+  mesh.reconstruct_mesh(u0, x_inner);
 
   auto sd0 = mesh_state(0);
   apply_slope_limiter(sl_hydro, u0, sd0, fluid_basis, eos);
   apply_slope_limiter(sl_rad, u0, sd0, rad_basis, eos);
   bel::apply_bound_enforcing_limiter(sd0);
   bel::apply_bound_enforcing_limiter_rad(sd0);
+  mesh.reconstruct_mesh(u0, x_inner);
 
   pkgs->zero_delta();
 }

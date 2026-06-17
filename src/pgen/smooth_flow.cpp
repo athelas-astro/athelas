@@ -11,6 +11,7 @@ namespace athelas::pgen::smooth_flow {
 
 /**
  * @brief Initialize smooth flow test problem
+ * https://doi.org/10.1016/j.camwa.2018.03.040
  **/
 void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   athelas_requires(pin->param()->get<std::string>("eos.type") == "ideal",

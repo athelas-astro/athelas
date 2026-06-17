@@ -1,11 +1,14 @@
 #pragma once
 
+#include <algorithm>
+
 #include "Kokkos_Macros.hpp"
 #include "interface/state.hpp"
 
 namespace athelas::bel {
 
-void limit_density(StageData &stage_data, const Mesh &mesh);
+void limit_specific_volume(StageData &stage_data, const Mesh &mesh);
+void limit_mass_fractions(StageData &stage_data, const Mesh &mesh);
 template <IonizationPhysics Ionization>
 void limit_internal_energy(StageData &stage_data, const Mesh &mesh);
 void limit_rad_energy(StageData &stage_data, const Mesh &mesh);
@@ -95,6 +98,22 @@ auto backtrace(const double ubar, const double u_q, const double u_min)
   }
 
   return theta;
+}
+
+KOKKOS_FORCEINLINE_FUNCTION
+auto zhang_shu_theta_lower_bound(const double ubar, const double u_min,
+                                 const double lower_bound) -> double {
+  if (u_min >= lower_bound) {
+    return 1.0;
+  }
+
+  const double denom = ubar - u_min;
+  // If ubar < u_min the average is inadmissible. Return 0.0 to flatten to
+  // the average. But we are probably in trouble.
+  if (denom <= 0.0) {
+    return 0.0;
+  }
+  return std::clamp((ubar - lower_bound) / denom, 0.0, 1.0);
 }
 
 } // namespace athelas::bel
