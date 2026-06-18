@@ -11,7 +11,7 @@ import numpy as np
 
 # -- Compare two values up to some floating point tolerance
 def soft_equiv(val: float, ref: float, rtol: float = 1.0e-5) -> bool:
-  atol = ref / 1000.0 + np.finfo(float).eps
+  atol = max(abs(ref) / 1000.0, 100.0 * np.finfo(float).eps)
   error = abs(val - ref) / (atol + rtol * abs(ref))
 
   if abs(error) > 1.0:
