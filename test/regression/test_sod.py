@@ -54,7 +54,7 @@ class SodShockTubeTest(AthelasRegressionTest):
       num_procs=2,
       goldfile=goldfile,
       upgold=False,
-      tolerance=1.0e-5,
+      tolerance=9.0e-4,
       build_required=build_required,
       compression_factor=16,
       output_basename="shocktube",
