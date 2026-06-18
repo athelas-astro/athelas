@@ -679,18 +679,17 @@ class FixedPointAlgorithm {
 /**
  * @brief Anderson Accelerated Fixed-point algorithm for root finding.
  *
- * This class implements an Anderson accelerated fixed-point iteration:
- * x_{n+1} = (alpha * f_{n-1}) + (1.0 - alpha) * f(x_{n})
- * with alpha = r_{n} / (r_{n} - r_{n-1})
- * and r_{n} = f(x_{n}) - x_{n} is the residual
+ * This class implements a depth-1 Anderson accelerated fixed-point iteration.
+ * It checks convergence with the fixed-point residual f(x) - x and returns x,
+ * the last point at which target was evaluated, instead of returning the
+ * unevaluated Anderson proposal. For pure maps this is the checked fixed
+ * point; for maps with side effects it keeps those side effects consistent
+ * with the returned value.
  *
  * @tparam T Floating-point type for computations
  *
  * @par Usage Note:
  * To solve f(x) = 0, reformulate as x = x - f(x) = g(x), then use this solver.
- *
- * TODO(astrobarker): The loop/storage can be optimized to only evaluate
- * target once per iteration.
  */
 template <typename T>
 class AAFixedPointAlgorithm {
@@ -698,38 +697,38 @@ class AAFixedPointAlgorithm {
   template <typename F, typename ErrorMetric, typename... Args>
   auto operator()(F target, T x0, const ToleranceConfig<T, ErrorMetric> &config,
                   Args &&...args) const -> T {
+    T x_eval = x0;
 
-    T x_prev = x0;
-
-    // Initial fixed-point step to jumpstart AA
-    T f_prev = target(x_prev, std::forward<Args>(args)...);
-    T r_prev = residual(f_prev, x_prev); // r0 = f(x0) - x0
-    T x = f_prev; // x1 = f(x0)
-
-    if (config.converged(x, x_prev)) {
-      return x;
+    T f_prev = target(x_eval, std::forward<Args>(args)...);
+    T r_prev = residual(f_prev, x_eval);
+    if (config.converged(f_prev, x_eval)) {
+      return x_eval;
     }
+
+    T x_next = f_prev;
+    T last_evaluated = x_eval;
 
     for (int i = 1; i < config.max_iterations; ++i) {
-      T f = target(x, std::forward<Args>(args)...);
-      T r = residual(f, x);
+      x_eval = x_next;
+      T f = target(x_eval, std::forward<Args>(args)...);
+      last_evaluated = x_eval;
 
-      T alpha = alpha_aa(r, r_prev);
-
-      // Depth-1 Anderson update
-      T xkp1 = (1.0 - alpha) * f + alpha * f_prev;
-
-      if (config.converged(xkp1, x)) {
-        return xkp1;
+      T r = residual(f, x_eval);
+      if (config.converged(f, x_eval)) {
+        return x_eval;
       }
 
-      x_prev = x;
+      const T alpha = (r == r_prev) ? T(0) : alpha_aa(r, r_prev);
+      x_next = (1.0 - alpha) * f + alpha * f_prev;
+      if (config.converged(x_next, x_eval)) {
+        return x_eval;
+      }
+
       f_prev = f;
       r_prev = r;
-      x = xkp1;
     }
 
-    return x;
+    return last_evaluated;
   }
 };
 

@@ -1,5 +1,6 @@
 #include "geometry/geometry_package.hpp"
 #include "basic_types.hpp"
+#include "basis/polynomial_basis.hpp"
 #include "geometry/mesh.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
@@ -8,7 +9,7 @@
 #include "radiation/rad_utilities.hpp"
 
 namespace athelas::geometry {
-using basis::NodalBasis;
+using basis::NodalBasis, basis::geometric_weak_eta_derivative;
 
 GeometryPackage::GeometryPackage(const ProblemIn *pin, const int n_stages,
                                  const bool active)
@@ -37,36 +38,40 @@ void GeometryPackage::update_explicit(const StageData &stage_data,
   const int idx_pressure = stage_data.var_index("derived", "pressure");
   const auto stage = dt_info.stage;
 
-  auto r = mesh.nodal_grid();
-  auto dr = mesh.widths();
-  auto w = mesh.weights();
+  auto sqrt_gm = mesh.sqrt_gm();
+  auto weights = mesh.weights();
   const auto &basis = stage_data.fluid_basis();
+  auto phi = basis.phi();
+  auto dphi = basis.dphi();
   auto inv_mkk = basis.inv_mass_matrix();
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Geometry::Explicit", DevExecSpace(), ib.s, ib.e,
+      DEFAULT_LOOP_PATTERN, "Geometry :: Velocity", DevExecSpace(), ib.s, ib.e,
       qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
         const double P = derived(i, q + 1, idx_pressure);
-
+        const double geom_source = geometric_weak_eta_derivative(
+            phi, dphi, sqrt_gm, weights, i, q, nNodes);
         delta_(stage, i, q, pkg_vars::Velocity) =
-            (2.0 * w(q) * P * r(i, q + 1) * dr(i)) * inv_mkk(i, q);
+            (P * geom_source) * inv_mkk(i, q);
       });
 
   const bool rad_active = stage_data.enabled("radiation");
   if (rad_active) {
+    constexpr double c2 = constants::c_cgs * constants::c_cgs;
     const int idx_rad_energy =
         stage_data.var_index("evolved", "specific_radiation_energy");
     const int idx_rad_flux =
         stage_data.var_index("evolved", "specific_radiation_flux");
     athelas::par_for(
-        DEFAULT_LOOP_PATTERN, "Geometry::Explicit", DevExecSpace(), ib.s, ib.e,
+        DEFAULT_LOOP_PATTERN, "Geometry :: RadFlux", DevExecSpace(), ib.s, ib.e,
         qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
           const double rho = 1.0 / evolved(i, q, idx_tau);
           const double e_rad = evolved(i, q, idx_rad_energy) * rho;
           const double f_rad = evolved(i, q, idx_rad_flux) * rho;
           const double p_perp = radiation::p_rad_perp(e_rad, f_rad);
-
+          const double geom_source = geometric_weak_eta_derivative(
+              phi, dphi, sqrt_gm, weights, i, q, nNodes);
           delta_(stage, i, q, pkg_vars::RadFlux) =
-              (2.0 * w(q) * p_perp * r(i, q + 1) * dr(i)) * inv_mkk(i, q);
+              (c2 * p_perp * geom_source) * inv_mkk(i, q);
         });
   }
 }

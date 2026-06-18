@@ -11,7 +11,8 @@
  *          physical quantities using the formulation:
  *          u_q = (1 - theta) * u_avg + theta * u_q
  *
- *          - limit_density: Prevents negative density by limiting at each node
+ *          - limit_specific_volume: Prevents negative specific volume (and so
+ *            keeps density positive and finite) by limiting at each node
  *          - limit_internal_energy: Maintains positive internal energy using
  *            root-finding algorithms at each node
  *          - limit_rad_energy: Ensures physical radiation energy values
@@ -58,25 +59,23 @@ using math::utils::ratio;
  *   - Cell average tau_avg > 0
  *   - Density limiter applied before dependent limiters
  */
-void limit_density(StageData &stage_data, const Mesh &mesh) {
+void limit_specific_volume(StageData &stage_data, const Mesh &mesh) {
   constexpr static double EPSILON = 1.0e-30; // maybe make this smarter
 
   const auto &basis = stage_data.fluid_basis();
   const int order = basis.order();
 
   auto U = stage_data.get_field("evolved");
-  auto sqrt_gm = mesh.sqrt_gm();
+  auto dm_deta = mesh.dm_deta();
   auto weights = mesh.weights();
-  auto widths = mesh.widths();
   auto phi = basis.phi();
   constexpr int idx_tau = 0;
 
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit density", DevExecSpace(), 1,
-      U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
+      DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit specific volume", DevExecSpace(),
+      1, U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
         // Compute cell average
-        const double avg =
-            cell_average(U, sqrt_gm, weights, widths(i), idx_tau, i);
+        const double avg = cell_average_mass(U, dm_deta, weights, idx_tau, i);
         // Compute minimum over collocation and face evaluation points.
         double u_min = avg;
         for (int q = 0; q <= order + 1; ++q) {
@@ -98,6 +97,63 @@ void limit_density(StageData &stage_data, const Mesh &mesh) {
             const double nodal = U(i, q, idx_tau);
 
             U(i, q, idx_tau) = (1.0 - theta) * avg + theta * nodal;
+          }
+        }
+      });
+}
+
+/**
+ * @brief Zhang-Shu lower-bound limiter for evolved mass fractions.
+ *
+ * Uses one theta per cell for the whole composition vector. This preserves
+ * every species' mass-weighted cell average and also preserves the pointwise
+ * simplex constraint sum_k X_k = 1 whenever the incoming nodal polynomial
+ * satisfies it.
+ */
+void limit_mass_fractions(StageData &stage_data, const Mesh &mesh) {
+  constexpr static double X_FLOOR = 1.0e-99;
+
+  if (!stage_data.enabled("composition")) {
+    return;
+  }
+
+  const auto &basis = stage_data.fluid_basis();
+  const int nNodes = basis.order();
+  if (nNodes <= 1) {
+    return;
+  }
+
+  auto mass_fractions = stage_data.mass_fractions("evolved");
+  auto dm_deta = mesh.dm_deta();
+  auto weights = mesh.weights();
+  auto phi = basis.phi();
+  const int ncomps = static_cast<int>(mass_fractions.extent(2));
+
+  athelas::par_for(
+      DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit mass fractions", DevExecSpace(),
+      1, mass_fractions.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
+        double theta = 1.0;
+
+        for (int e = 0; e < ncomps; ++e) {
+          const double avg =
+              cell_average_mass(mass_fractions, dm_deta, weights, e, i);
+          double x_min = avg;
+          for (int q = 0; q < nNodes + 2; ++q) {
+            x_min = std::min(x_min,
+                             basis::basis_eval(phi, mass_fractions, i, e, q));
+          }
+          theta =
+              std::min(theta, zhang_shu_theta_lower_bound(avg, x_min, X_FLOOR));
+        }
+
+        if (theta < 1.0) {
+          for (int e = 0; e < ncomps; ++e) {
+            const double avg =
+                cell_average_mass(mass_fractions, dm_deta, weights, e, i);
+            for (int q = 0; q < nNodes; ++q) {
+              mass_fractions(i, q, e) =
+                  avg + theta * (mass_fractions(i, q, e) - avg);
+            }
           }
         }
       });
@@ -136,6 +192,7 @@ void limit_internal_energy(StageData &stage_data, const Mesh &mesh) {
   }
 
   auto U = stage_data.get_field("evolved");
+  auto dm_deta = mesh.dm_deta();
   auto sqrt_gm = mesh.sqrt_gm();
   auto weights = mesh.weights();
   auto widths = mesh.widths();
@@ -149,16 +206,17 @@ void limit_internal_energy(StageData &stage_data, const Mesh &mesh) {
       1, U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
         // Compute cell-averaged conserved quantities for reconstruction
         const double tau_avg =
-            cell_average(U, sqrt_gm, weights, widths(i), idx_tau, i);
-        const double v_avg =
-            cell_average(U, sqrt_gm, weights, widths(i), idx_vel, i);
+            cell_average_mass(U, dm_deta, weights, idx_tau, i);
+        const double v_avg = cell_average_mass(U, dm_deta, weights, idx_vel, i);
         const double etot_avg =
-            cell_average(U, sqrt_gm, weights, widths(i), idx_ener, i);
+            cell_average_mass(U, dm_deta, weights, idx_ener, i);
 
         eos::EOSLambda lambda_avg;
         if constexpr (Ionization == IonizationPhysics::Active) {
           // Cell-centered approximations
           lambda_avg.data[1] = cell_average(ye, sqrt_gm, weights, widths(i), i);
+          lambda_avg.data[6] =
+              cell_average(e_ion_corr, sqrt_gm, weights, widths(i), i);
         }
         const double e_min_avg = min_sie(eos, 1.0 / tau_avg, lambda_avg.ptr());
 
@@ -174,6 +232,7 @@ void limit_internal_energy(StageData &stage_data, const Mesh &mesh) {
           eos::EOSLambda lambda_q;
           if constexpr (Ionization == IonizationPhysics::Active) {
             lambda_q.data[1] = ye(i, q);
+            lambda_q.data[6] = e_ion_corr(i, q);
           }
 
           const double e_min_q = min_sie(eos, rho_q, lambda_q.ptr());
@@ -217,12 +276,15 @@ void limit_internal_energy(StageData &stage_data, const Mesh &mesh) {
 void apply_bound_enforcing_limiter(StageData &stage_data) {
   const auto &mesh = stage_data.mesh();
   if (stage_data.fluid_basis().order() > 1) {
-    limit_density(stage_data, mesh);
+    limit_specific_volume(stage_data, mesh);
     if (stage_data.enabled("ionization")) {
       limit_internal_energy<IonizationPhysics::Active>(stage_data, mesh);
     } else {
       limit_internal_energy<IonizationPhysics::Inactive>(stage_data, mesh);
     }
+    // TODO(astrobarker): When mass fractions are evolved we will want to
+    // call their BEL here.
+    // limit_mass_fractions(stage_data, mesh);
   }
 }
 
@@ -257,16 +319,15 @@ void limit_rad_energy(StageData &stage_data, const Mesh &mesh) {
   const int order = basis.order();
 
   auto U = stage_data.get_field("evolved");
-  auto sqrt_gm = mesh.sqrt_gm();
+  auto dm_deta = mesh.dm_deta();
   auto weights = mesh.weights();
-  auto widths = mesh.widths();
   constexpr int idx_rad_energy = 3;
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "BEL :: Limit rad energy", DevExecSpace(), 1,
       U.extent(0) - 2, KOKKOS_LAMBDA(const int i) {
         const double E_avg =
-            cell_average(U, sqrt_gm, weights, widths(i), idx_rad_energy, i);
+            cell_average_mass(U, dm_deta, weights, idx_rad_energy, i);
 
         // --- Compute minimum over cell ---
         double theta = 1.0;
@@ -275,7 +336,6 @@ void limit_rad_energy(StageData &stage_data, const Mesh &mesh) {
 
           // Solve for smallest admissible theta
           if (E_q < EPSILON) {
-            std::println("eavg eq {:.5e} {:.5e}", E_avg, E_q);
             const double theta_q = backtrace(E_avg, E_q, EPSILON);
             theta = std::min(theta, theta_q);
           }

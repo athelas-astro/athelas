@@ -115,7 +115,6 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
   auto phi = basis.phi();
   auto dphi = basis.dphi();
   auto mkk = basis.mass_matrix();
-  auto inv_mkk = basis.inv_mass_matrix();
   auto dr = mesh.widths();
   auto weights = mesh.weights();
   auto sqrt_gm = mesh.sqrt_gm();
@@ -228,7 +227,6 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
           }
 
           const double m = mkk(i, q);
-          const double inv_m = inv_mkk(i, q);
           eos::EOSLambda lambda;
           double X = 0.0;
           double Z = 0.0;
@@ -244,20 +242,18 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
             X = bulk(i, q + 1, 0);
             Z = bulk(i, q + 1, 2);
           }
-          const RadSourceInputs src_in{
-              .rho = 1.0 / evolved(i, q, idx_tau),
-              .e = U(i, q, idx_ener),
-              .v = U(i, q, idx_vel),
-              .erad = U(i, q, idx_er),
-              .frad = U(i, q, idx_fr),
-              .etot = 0.0,
-              .m_tot = 0.0,
-              .X = X,
-              .Z = Z,
-              .dt_a_ii = dt_aii,
-              .dg_term = weights(q) * sqrt_gm(i, q + 1) * dr(i) * inv_m,
-              .eos = &eos,
-              .opac = &opac};
+          const RadSourceInputs src_in{.rho = 1.0 / evolved(i, q, idx_tau),
+                                       .e = U(i, q, idx_ener),
+                                       .v = U(i, q, idx_vel),
+                                       .erad = U(i, q, idx_er),
+                                       .frad = U(i, q, idx_fr),
+                                       .etot = 0.0,
+                                       .m_tot = 0.0,
+                                       .X = X,
+                                       .Z = Z,
+                                       .dt_a_ii = dt_aii,
+                                       .eos = &eos,
+                                       .opac = &opac};
           const RadHydroSources src(src_in, lambda.ptr());
           const int row_e = q * 4 + 0;
           const int row_f = q * 4 + 1;
@@ -313,7 +309,6 @@ void ImplicitRadiationMomentsPackage::update_implicit(
   auto phi = basis.phi();
   auto dphi = basis.dphi();
   auto mkk = basis.mass_matrix();
-  auto inv_mkk = basis.inv_mass_matrix();
   auto dr = mesh.widths();
   auto weights = mesh.weights();
   auto sqrt_gm = mesh.sqrt_gm();
@@ -497,8 +492,6 @@ void ImplicitRadiationMomentsPackage::update_implicit(
                 .X = X,
                 .Z = Z,
                 .dt_a_ii = dt_aii,
-                .dg_term =
-                    weights(q) * sqrt_gm(i, q + 1) * dr(i) * inv_mkk(i, q),
                 .eos = &eos,
                 .opac = &opac};
             const RadHydroSourceDerivatives src_d(src_in, lambda.ptr());

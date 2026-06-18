@@ -379,6 +379,7 @@ void write_output(const MeshState &mesh_state, Mesh &mesh, ProblemIn *pin,
   writer.write_view(mesh.nodal_grid(), "/mesh/r_q");
   writer.write_view(mesh.enclosed_mass(), "/mesh/enclosed_mass");
   writer.write_view(mesh.mass(), "/mesh/dm");
+  writer.write_view(mesh.dm_deta(), "/mesh/dm_deta");
   writer.write_view(mesh.sqrt_gm(), "/mesh/sqrt_gm");
 
   const auto &fluid_basis = mesh_state.fluid_basis();

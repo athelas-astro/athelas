@@ -9,7 +9,7 @@ namespace athelas {
 
 void conservative_correction(AthelasArray3D<double> u_k,
                              AthelasArray3D<double> evolved, const Mesh &mesh,
-                             int nv);
+                             const IndexRange &vb);
 
 auto initialize_slope_limiter(std::string field, const Mesh *mesh,
                               const ProblemIn *pin, IndexRange vars)
@@ -128,6 +128,28 @@ auto cell_average(AthelasArray3D<double> U, AthelasArray2D<double> sqrt_gm,
   return avg / vol;
 }
 
+KOKKOS_INLINE_FUNCTION
+auto cell_average_mass(AthelasArray3D<double> U, AthelasArray2D<double> dm_deta,
+                       AthelasArray1D<double> weights, const int v, const int i,
+                       const int extrapolate = 0) -> double {
+  assert((extrapolate == -1 || extrapolate == 0 || extrapolate == 1) &&
+         "cell_average_mass:: extrapolate must be -1, 0, 1");
+  const int nNodes = static_cast<int>(weights.size());
+
+  const int nq_m = static_cast<int>(dm_deta.extent(1));
+  const int nq_u = static_cast<int>(U.extent(1));
+  const int offset = (nq_u == nq_m) ? 0 : 1;
+
+  double avg = 0.0;
+  double mass = 0.0;
+  for (int q = 0; q < nNodes; ++q) {
+    const double dm = weights(q) * dm_deta(i, q);
+    mass += dm;
+    avg += U(i + extrapolate, q + offset, v) * dm;
+  }
+  return avg / mass;
+}
+
 /**
  * Return the cell average of a field q on cell ix.
  * Takes a specific quantity (nx, nq) instead of a field (nx, nq, nv).
@@ -144,7 +166,7 @@ auto cell_average(AthelasArray2D<double> U, AthelasArray2D<double> sqrt_gm,
   const int nq_p_i =
       static_cast<int>(sqrt_gm.extent(1)); // size of nodes + interfaces
   const int nq_u = static_cast<int>(U.extent(1));
-  const int offset = (nq_u == nq_p_i) ? 0 : 1;
+  const int offset = (nq_u == nq_p_i) ? 1 : 0;
 
   double avg = 0.0;
   double vol = 0.0;

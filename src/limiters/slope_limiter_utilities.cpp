@@ -62,38 +62,39 @@ auto initialize_slope_limiter(const std::string field, const Mesh *mesh,
 
 void conservative_correction(AthelasArray3D<double> u_k,
                              AthelasArray3D<double> evolved, const Mesh &mesh,
-                             const int nv) {
+                             const IndexRange &vb) {
   auto nodes = mesh.nodes();
   auto weights = mesh.weights();
-  auto sqrt_gm = mesh.sqrt_gm();
+  auto dm_deta = mesh.dm_deta();
 
   const int nq = static_cast<int>(nodes.size());
   const int order = nq;
   const IndexRange ib(mesh.domain<Domain::Interior>());
-  const IndexRange vb(nv);
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "SlopeLimiter :: Conservative Correction",
       DevExecSpace(), ib.s, ib.e, vb.s, vb.e,
       KOKKOS_LAMBDA(const int i, const int v) {
+        // u_k is laid out 0-based over the limiter's variable subset, matching
+        // nodal_to_modal/modal_to_nodal; evolved is the full state, so offset
+        // the modal index by vb.s.
+        const int uk = v - vb.s;
         double corr = 0.0;
         for (int k = 1; k < order; ++k) {
           for (int q = 0; q < nq; ++q) {
-            const double dv = weights(q) * sqrt_gm(i, q + 1);
-            corr += basis::legendre(k, nodes(q)) * u_k(i, k, v) * dv;
+            const double dm = weights(q) * dm_deta(i, q);
+            corr += basis::legendre(k, 2.0 * nodes(q)) * u_k(i, k, uk) * dm;
           }
         }
 
-        double vol = 0.0;
+        double mass = 0.0;
         double avg = 0.0;
         for (int q = 0; q < nq; ++q) {
-          const double dv = weights(q) * sqrt_gm(i, q + 1);
-          avg += evolved(i, q, v) * dv;
-          vol += dv;
+          const double dm = weights(q) * dm_deta(i, q);
+          avg += evolved(i, q, v) * dm;
+          mass += dm;
         }
 
-        // std::println("i old avg new avg {} {:.5e} {:.5e}", i, u_k(i, 0, v),
-        // (avg-corr)/vol);
-        u_k(i, vars::modes::CellAverage, v) = (avg - corr) / vol;
+        u_k(i, vars::modes::CellAverage, uk) = (avg - corr) / mass;
       });
 }
 

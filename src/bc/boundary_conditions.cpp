@@ -22,14 +22,15 @@ namespace athelas::bc {
 
 void fill_ghost_zones_composition(AthelasArray3D<double> U,
                                   const IndexRange &vb) {
-  const std::size_t num_modes = U.extent(1);
+  const std::size_t num_nodes = U.extent(1);
   static const std::size_t nx = U.extent(0) - 2;
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Fill ghosts comps", DevExecSpace(), vb.s,
       vb.e, KOKKOS_LAMBDA(const int v) {
-        for (std::size_t k = 0; k < num_modes; k++) {
-          U(0, k, v) = U(1, k, v); // inner ghost
-          U(nx + 1, k, v) = U(nx, k, v); // inner ghost
+        for (std::size_t k = 0; k < num_nodes; k++) {
+          const std::size_t k_ref = num_nodes - 1 - k;
+          U(0, k, v) = U(1, k_ref, v); // inner ghost
+          U(nx + 1, k, v) = U(nx, k_ref, v); // outer ghost
         }
       });
 }

@@ -41,7 +41,7 @@ ModalBasis::ModalBasis(poly_basis basis, const AthelasArray3D<double> derived,
       phi_("phi_", nElements + 2, nN + 2, pOrder),
       dphi_("dphi_", nElements + 2, nN + 2, pOrder) {
   // --- Compute mesh quantities ---
-  mesh->compute_mass(derived);
+  mesh->compute_mass_measure(derived);
   mesh->compute_mass_r(derived); // Weird place for this to be but works
   mesh->compute_center_of_mass(derived);
 

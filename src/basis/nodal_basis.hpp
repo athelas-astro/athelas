@@ -38,7 +38,7 @@ class NodalBasis {
   auto get_d_phi(const int ix, const int i_eta, const int k) const -> double;
 
   /**
-   * @brief Diagonal mass matrix M_jj = w_j * rho_j * J_j * dr
+   * @brief Diagonal reference-mass matrix M_jj = w_j * dm/deta_j
    * @return mass_matrix_(ix, j)
    */
   [[nodiscard]] auto mass_matrix() const noexcept -> AthelasArray2D<double>;
@@ -114,6 +114,29 @@ class NodalBasis {
     }
 
     return result;
+  }
+
+  /**
+   * @brief Persson-Peraire modal-decay smoothness indicator for variable `v`
+   * in cell `ix`: the fraction of the L2 (modal) energy carried by the highest
+   * Legendre mode. ~O(h^{2k}) where the field is smooth, O(1) across a
+   * discontinuity. Cheap -- one inverse-Vandermonde row dotted with the nodal
+   * data, plus the nodal energy (Parseval, exact for the orthogonal Legendre
+   * modes under GL quadrature). Returns 1 for nNodes_ < 2 (no resolvable high
+   * mode), so callers fall back to full upwinding there.
+   */
+  [[nodiscard]] KOKKOS_INLINE_FUNCTION auto
+  modal_decay_indicator(const AthelasArray3D<double> U, const int ix,
+                        const int v) const -> double {
+    double c_top = 0.0;
+    double energy = 0.0;
+    for (int q = 0; q < nNodes_; ++q) {
+      const double u = U(ix, q, v);
+      c_top += inv_vandermonde_(nNodes_ - 1, q) * u;
+      energy += weights_(q) * u * u;
+    }
+    const double top_norm = 1.0 / (2.0 * nNodes_ - 1.0); // ||P_k||^2
+    return (c_top * c_top * top_norm) / (energy + 1.0e-300);
   }
 
  private:

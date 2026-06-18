@@ -26,8 +26,6 @@ void radiation_source_implicit(const StageData &stage_data,
                                AthelasArray4D<double> delta, const Mesh &mesh,
                                const TimeStepInfo &dt_info) {
   // TODO(astrobarker) handle separate fluid and rad orders
-  const auto &rad_basis = stage_data.rad_basis();
-  const auto &fluid_basis = stage_data.fluid_basis();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
   static const IndexRange qb(mesh.n_nodes());
 
@@ -48,14 +46,6 @@ void radiation_source_implicit(const StageData &stage_data,
 
   const auto &eos = stage_data.eos();
   const auto &opac = stage_data.opac();
-
-  auto phi_rad = rad_basis.phi();
-  auto phi_fluid = fluid_basis.phi();
-  auto inv_mkk = fluid_basis.inv_mass_matrix();
-  auto inv_mkk_rad = rad_basis.inv_mass_matrix();
-  auto dr = mesh.widths();
-  auto weights = mesh.weights();
-  auto sqrt_gm = mesh.sqrt_gm();
 
   constexpr int NUM_VARS = 5;
   if (ionization_enabled) {
@@ -107,12 +97,10 @@ void radiation_source_implicit(const StageData &stage_data,
           lambda.data[6] = content.e_ion_corr;
           lambda.data[7] = uaf_i(idx_tgas);
           const double emin = min_sie(eos, rho, lambda.ptr());
-          const double dg_term =
-              weights(q) * sqrt_gm(i, q + 1) * dr(i) * inv_mkk(i, q);
 
           newton_radhydro<IonizationPhysics::Active>(
               dt_info.dt_coef, emin, Ustar_i, uaf_i, content, scratch_sol, eos,
-              opac, lambda, dg_term, idx_tau, idx_vel, idx_ener, idx_rad_energy,
+              opac, lambda, idx_tau, idx_vel, idx_ener, idx_rad_energy,
               idx_rad_flux, idx_tgas);
 
           for (int v = 1; v < NUM_VARS; ++v) {
@@ -145,14 +133,10 @@ void radiation_source_implicit(const StageData &stage_data,
           const double rho = 1.0 / evolved_i(idx_tau);
           eos::EOSLambda lambda;
           const double emin = min_sie(eos, rho, lambda.ptr());
-          const double inv_mqq = inv_mkk(i, q);
-          const double dr_i = dr(i);
-          const double dg_term =
-              weights(q) * sqrt_gm(i, q + 1) * dr_i * inv_mqq;
 
           newton_radhydro<IonizationPhysics::Inactive>(
               dt_info.dt_coef, emin, Ustar_i, uaf_i, content, scratch_sol, eos,
-              opac, lambda, dg_term, idx_tau, idx_vel, idx_ener, idx_rad_energy,
+              opac, lambda, idx_tau, idx_vel, idx_ener, idx_rad_energy,
               idx_rad_flux, idx_tgas);
 
           for (int v = 1; v < NUM_VARS; ++v) {

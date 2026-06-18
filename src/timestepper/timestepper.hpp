@@ -60,17 +60,24 @@ class TimeStepper {
   [[nodiscard]] static auto nvars_evolved(const ProblemIn *pin) noexcept -> int;
 
  private:
-  void reset_stage_sumvar(const Mesh &mesh, int stage,
-                          AthelasArray3D<double> u0, const IndexRange &ib,
+  void reset_stage_sumvar(AthelasArray3D<double> u0, const IndexRange &ib,
                           const IndexRange &qb, const IndexRange &vb,
                           const char *label);
-  void accumulate_grid_motion(MeshState &mesh_state, int sum_stage,
-                              int data_stage, double dt_coef,
-                              const IndexRange &ib, const char *label);
-  void update_stage_mesh(MeshState &mesh_state, int stage);
+  void update_stage_mesh(MeshState &mesh_state, int stage,
+                         AthelasArray3D<double> evolved);
+
+  // Inner-face radius buffer for mesh reconstruction. The interior grid is
+  // recovered from tau; the inner face is the single position degree of freedom
+  // tau cannot supply, so it is advanced Lagrangianly by v*(ilo) with the same
+  // RK accumulation as the state (one scalar per stage).
+  void reset_x_inner_buffer(const Mesh &mesh, int stage);
+  void accumulate_x_inner_buffer(MeshState &mesh_state, int sum_stage,
+                                 int data_stage, double dt_coef);
+  [[nodiscard]] auto x_inner_buffer(int stage) -> double;
 
   int nvars_evolved_;
   int mSize_;
+  int nNodes_;
 
   // tableaus
   RKIntegrator integrator_;
@@ -81,8 +88,8 @@ class TimeStepper {
   // Hold stage data
   AthelasArray3D<double> SumVar_U_;
 
-  // x_l_sumvar_ Holds cell left interface positions
-  AthelasArray2D<double> x_l_sumvar_;
+  // Per-stage accumulated inner-face radius for mesh reconstruction.
+  AthelasArray1D<double> x_inner_sumvar_;
 };
 
 } // namespace athelas

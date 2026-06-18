@@ -302,7 +302,7 @@ struct RadSourceInputs {
   double erad, frad;
   double etot, m_tot; // conserved across a source-only step
   double X, Z;
-  double dt_a_ii, dg_term;
+  double dt_a_ii;
   const eos::EOS *eos;
   const Opacity *opac;
 };
@@ -335,13 +335,8 @@ struct RadHydroSources {
 
     const double Pr = compute_closure(Er, Fr);
 
-    const double s_eg_local =
-        in.rho * (-c * kappa_p * (at4 - Er) - kappa_r * in.v * Fr * inv_c) *
-        in.dg_term;
-    s_eg = s_eg_local;
-    s_v = in.rho * inv_c *
-          (kappa_r * Fr - kappa_p * in.v * at4 - kappa_r * in.v * Pr) *
-          in.dg_term;
+    s_eg = -c * kappa_p * (at4 - Er) - kappa_r * in.v * Fr * inv_c;
+    s_v = inv_c * (kappa_r * Fr - kappa_p * in.v * at4 - kappa_r * in.v * Pr);
 
     s_er = -s_eg; // NOLINT
     s_fr = -c * c * s_v;
@@ -373,8 +368,6 @@ struct RadHydroSourceDerivatives {
     const double Fr = in.frad * in.rho;
     const double v = in.v;
     const double rho = in.rho;
-
-    const double c_rho = c * in.rho;
 
     const double temperature = eos::temperature_from_density_sie(
         *in.eos, in.rho, in.e - 0.5 * in.v * in.v, lambda);
@@ -424,31 +417,26 @@ struct RadHydroSourceDerivatives {
     const double dprdfr = rho * inv_c * chi_prime * math::utils::sgn(Fr);
 
     // Energy source derivatives
-    dsedeg = c_rho * inv_cv *
+    dsedeg = c * inv_cv *
              (-4.0 * at3 * kappa_p - delta * dkappa_p_dT -
-              v * Fr * dkappa_r_dT * inv_c2) *
-             in.dg_term;
-    dsedv = (c_rho * inv_cv *
-                 (4 * at3 * in.v * kappa_p + delta * in.v * dkappa_p_dT +
-                  Fr * v * v * dkappa_r_dT * inv_c2) -
-             rho * Fr * kappa_r * inv_c) *
-            in.dg_term;
-    dseder = c_rho * rho * kappa_p * in.dg_term;
-    dsedfr = -rho * rho * kappa_r * v * inv_c * in.dg_term;
+              v * Fr * dkappa_r_dT * inv_c2);
+    dsedv = c * inv_cv *
+                (4 * at3 * in.v * kappa_p + delta * in.v * dkappa_p_dT +
+                 Fr * v * v * dkappa_r_dT * inv_c2) -
+            Fr * kappa_r * inv_c;
+    dseder = c * rho * kappa_p;
+    dsedfr = -rho * kappa_r * v * inv_c;
 
     // Momentum source derivatives
-    dsvdeg = rho * inv_c * inv_cv *
+    dsvdeg = inv_c * inv_cv *
              (Fr * dkappa_r_dT - 4.0 * at3 * v * kappa_p -
-              at4 * v * dkappa_p_dT - v * Pr * dkappa_r_dT) *
-             in.dg_term;
-    dsvdv = (rho * inv_c * inv_cv *
-                 (-Fr * v * dkappa_r_dT + 4.0 * at3 * kappa_p * v * v +
-                  at4 * v * v * dkappa_p_dT + v * v * Pr * dkappa_r_dT) -
-             rho * Pr * kappa_r * inv_c - rho * at4 * kappa_p * inv_c) *
-            in.dg_term;
-    dsvder = -rho * kappa_r * v * inv_c * dprder * in.dg_term;
-    dsvdfr = rho * (rho * kappa_r * inv_c - kappa_r * v * inv_c * dprdfr) *
-             in.dg_term;
+              at4 * v * dkappa_p_dT - v * Pr * dkappa_r_dT);
+    dsvdv = inv_c * inv_cv *
+                (-Fr * v * dkappa_r_dT + 4.0 * at3 * kappa_p * v * v +
+                 at4 * v * v * dkappa_p_dT + v * v * Pr * dkappa_r_dT) -
+            Pr * kappa_r * inv_c - at4 * kappa_p * inv_c;
+    dsvder = -kappa_r * v * inv_c * dprder;
+    dsvdfr = rho * kappa_r * inv_c - kappa_r * v * inv_c * dprdfr;
   }
 };
 
@@ -475,12 +463,9 @@ auto compute_rad_sources(const RadSourceInputs &in, double *lambda)
 
   const double Pr = compute_closure(Er, Fr);
 
-  const double se = in.rho *
-                    (-c * kappa_p * (at4 - Er) - kappa_r * in.v * Fr * inv_c) *
-                    in.dg_term;
+  const double se = -c * kappa_p * (at4 - Er) - kappa_r * in.v * Fr * inv_c;
   const double sv =
-      in.rho * inv_c *
-      (kappa_r * Fr - kappa_p * in.v * at4 - kappa_r * in.v * Pr) * in.dg_term;
+      inv_c * (kappa_r * Fr - kappa_p * in.v * at4 - kappa_r * in.v * Pr);
   return {se, sv};
 }
 
