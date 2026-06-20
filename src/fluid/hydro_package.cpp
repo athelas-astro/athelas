@@ -1,18 +1,18 @@
-#include <limits>
-
+#include "fluid/hydro_package.hpp"
 #include "Kokkos_Macros.hpp"
 #include "basic_types.hpp"
+#include "basis/basis_utilities.hpp"
 #include "bc/boundary_conditions.hpp"
 #include "composition/composition.hpp"
 #include "composition/saha.hpp"
 #include "eos/eos_variant.hpp"
 #include "fluid/fluid_utilities.hpp"
-#include "fluid/hydro_package.hpp"
 #include "geometry/mesh.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
 #include "loop_layout.hpp"
 #include "pgen/problem_in.hpp"
+#include <limits>
 
 namespace athelas::fluid {
 
@@ -35,19 +35,14 @@ void HydroPackage::update_explicit(const StageData &stage_data,
 
   auto derived = stage_data.get_field("derived");
 
-  const auto &basis = stage_data.fluid_basis();
+  const auto &basis = stage_data.basis();
 
   static const IndexRange ib(mesh.domain<Domain::Interior>());
   static const IndexRange qb(mesh.n_nodes());
   static const IndexRange vb(NUM_VARS_);
 
-  // --- Apply BC ---
-  bc::fill_ghost_zones<3>(evolved, &mesh, bcs_, {0, 2});
-  if (stage_data.enabled("composition")) {
-    static const IndexRange vb_comps(
-        std::make_pair(NUM_VARS_, stage_data.nvars("evolved") - 1));
-    bc::fill_ghost_zones_composition(evolved, vb_comps);
-  }
+  // --- Refresh evolved halo ---
+  bc::ghost_fill(stage_data, bcs_);
 
   // --- Fluid Increment : Divergence ---
   fluid_divergence(stage_data, mesh, stage);
@@ -75,7 +70,7 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
   static const int idx_vstar =
       stage_data.var_index("interface", "interface_velocity");
 
-  const auto &basis = stage_data.fluid_basis();
+  const auto &basis = stage_data.basis();
 
   const auto &nNodes = mesh.n_nodes();
   const auto &order = basis.order();
@@ -95,7 +90,8 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
   auto weights = mesh.weights();
 
   auto phi = basis.phi();
-  auto dphis = basis.dphi();
+  auto dphi = basis.dphi();
+  const auto fluid_bcs = bc::fluid_bc_data(bcs_);
 
   // --- Interpolate Conserved Variable to Interfaces ---
 
@@ -133,8 +129,17 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
                                       .v = u_f_r_(i, idx_vel),
                                       .p = P_R,
                                       .cs = Cs_R};
-        const auto [flux_u, flux_p] =
-            numerical_flux_gudonov_positivity(left, right);
+        const auto flux = numerical_flux_fluid_with_boundary(
+            i, ib.s, ib.e + 1, fluid_bcs, left, right);
+        const double flux_u = flux.u;
+        const double flux_p = flux.p;
+
+        if (i == ib.s) {
+          interface(0, idx_vstar) = flux_u;
+        } else if (i == ib.e + 1) {
+          interface(ib.e + 2, idx_vstar) = flux_u;
+        }
+
         interface(i, idx_vstar) = flux_u;
 
         dFlux_num_(i, idx_tau) = -flux_u;
@@ -142,46 +147,22 @@ void HydroPackage::fluid_divergence(const StageData &stage_data,
         dFlux_num_(i, idx_ener) = flux_u * flux_p;
       });
 
-  interface(0, idx_vstar) = interface(1, idx_vstar);
-  interface(ib.e + 2, idx_vstar) = interface(ib.e + 1, idx_vstar);
-
   // --- Surface Term ---
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Hydro :: Surface Term", DevExecSpace(), ib.s, ib.e,
-      qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-        for (int v = vb.s; v <= vb.e; ++v) {
-          delta_(stage, i, q, v) -=
-              (+dFlux_num_(i + 1, v) * phi(i, nNodes + 1, q) *
-                   sqrt_gm(i, nNodes + 1) -
-               dFlux_num_(i + 0, v) * phi(i, 0, q) * sqrt_gm(i, 0));
-        }
-      });
+  basis::surface_term(delta_, dFlux_num_, phi, sqrt_gm, stage, nNodes, ib, qb,
+                      vb, "Hydro :: Surface Term");
 
   if (order > 1) [[likely]] {
     // --- Volume Term ---
-    athelas::par_for(
-        DEFAULT_LOOP_PATTERN, "Hydro :: Volume Term", DevExecSpace(), ib.s,
-        ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int p) {
-          double local_sum1 = 0.0;
-          double local_sum2 = 0.0;
-          double local_sum3 = 0.0;
-          for (int q = 0; q < nNodes; ++q) {
-            const double vel = evolved(i, q, idx_vel);
-            const double P = derived(i, q + 1, idx_pre);
-            const auto [flux1, flux2, flux3] = flux_fluid(vel, P);
-            const double w = weights(q);
-            const double dphi = dphis(i, q + 1, p);
-            const double sqrtgm = sqrt_gm(i, q + 1);
-
-            local_sum1 += w * flux1 * dphi * sqrtgm;
-            local_sum2 += w * flux2 * dphi * sqrtgm;
-            local_sum3 += w * flux3 * dphi * sqrtgm;
-          }
-
-          delta_(stage, i, p, idx_tau) += local_sum1;
-          delta_(stage, i, p, idx_vel) += local_sum2;
-          delta_(stage, i, p, idx_ener) += local_sum3;
-        });
+    basis::volume_term<NUM_VARS_>(
+        delta_, dphi, weights, sqrt_gm, stage, nNodes, ib, qb,
+        KOKKOS_LAMBDA(const int i, const int q)
+            ->Kokkos::Array<double, NUM_VARS_> {
+              const double vel = evolved(i, q, idx_vel);
+              const double P = derived(i, q + 1, idx_pre);
+              const auto [flux1, flux2, flux3] = flux_fluid(vel, P);
+              return {flux1, flux2, flux3};
+            },
+        "Hydro :: Volume Term");
   }
 }
 
@@ -280,20 +261,16 @@ void HydroPackage::fill_derived(StageData &stage_data,
   const int idx_cs = stage_data.var_index("derived", "sound_speed");
 
   const int nNodes = mesh.n_nodes();
-  static const IndexRange ib(mesh.domain<Domain::Entire>());
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
   static const bool ionization_enabled = stage_data.enabled("ionization");
 
-  const auto &basis = stage_data.fluid_basis();
+  const auto &basis = stage_data.basis();
 
-  // --- Apply BC ---
-  bc::fill_ghost_zones<3>(evolved, &mesh, bcs_, {0, 2});
+  // --- Refresh evolved halo ---
+  bc::ghost_fill(stage_data, bcs_);
 
   if (stage_data.enabled("composition")) {
-    // composition boundary condition
-    static const IndexRange vb_comps(
-        std::make_pair(NUM_VARS_, stage_data.nvars("evolved") - 1));
-    bc::fill_ghost_zones_composition(evolved, vb_comps);
-    atom::fill_derived_comps<Domain::Entire>(stage_data, &mesh);
+    atom::fill_derived_comps(stage_data, &mesh);
   }
 
   const auto &eos = stage_data.eos();
@@ -305,14 +282,14 @@ void HydroPackage::fill_derived(StageData &stage_data,
   if (ionization_enabled) {
     auto *const ionization_state = stage_data.ionization_state();
     if (ionization_state->solver() == atom::SahaSolver::Linear) {
-      atom::compute_temperature_with_saha<
-          Domain::Entire, eos::EOSInversion::Sie, atom::SahaSolver::Linear>(
-          stage_data, mesh);
+      atom::compute_temperature_with_saha<eos::EOSInversion::Sie,
+                                          atom::SahaSolver::Linear>(stage_data,
+                                                                    mesh);
     }
     if (ionization_state->solver() == atom::SahaSolver::Log) {
-      atom::compute_temperature_with_saha<
-          Domain::Entire, eos::EOSInversion::Sie, atom::SahaSolver::Log>(
-          stage_data, mesh);
+      atom::compute_temperature_with_saha<eos::EOSInversion::Sie,
+                                          atom::SahaSolver::Log>(stage_data,
+                                                                 mesh);
     }
   } else {
     athelas::par_for(

@@ -23,6 +23,7 @@
 #include "radiation/imex_radhydro_package.hpp"
 #include "radiation/implicit_moments_package.hpp"
 #include "timestepper/timestepper.hpp"
+#include "utils/constants.hpp"
 #include "utils/error.hpp"
 
 namespace athelas {
@@ -70,8 +71,8 @@ auto Driver::execute() -> int {
   manager_->fill_derived(sd0, dt_info);
   if (!restart_) {
     // Refill derived after limiters because they mutate evolved variables.
-    apply_slope_limiter(&sl_hydro_, sd0.get_field("evolved"), sd0,
-                        sd0.fluid_basis(), sd0.eos());
+    apply_slope_limiter(&sl_hydro_, sd0.get_field("evolved"), sd0, sd0.basis(),
+                        sd0.eos());
     bel::apply_bound_enforcing_limiter(sd0);
     manager_->fill_derived(sd0, dt_info);
   }
@@ -182,6 +183,7 @@ auto Driver::execute() -> int {
 
     // history
     if (time_ >= i_out_hist * pin_->param()->get<double>("output.hist_dt")) {
+      manager_->fill_derived(sd0, dt_info);
       history_->write(mesh_state_, mesh_state_.mesh(), time_);
       i_out_hist += 1;
     }
@@ -293,8 +295,8 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
 
   if (!restart_) {
     initialize_fields(mesh_state_, &mesh_state_.mesh(), pin);
+    bc::ghost_fill(mesh_state_, bcs_.get());
     auto evolved = mesh_state_(0).get_field("evolved");
-    bc::fill_ghost_zones<3>(evolved, &mesh_state_.mesh(), bcs_.get(), {0, 2});
     mesh_state_.mesh().compute_mass_measure(evolved);
   } else {
     // Restart path: rebuild MeshState/mesh from the .ath file rather than the
@@ -349,12 +351,8 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   // Basis construction is identical for both paths once derived is in place
   // (pgen-populated or restart-loaded).
   auto derived = mesh_state_(0).get_field("derived");
-  mesh_state_.setup_fluid_basis(
+  mesh_state_.setup_basis(
       std::make_unique<NodalBasis>(derived, &mesh_state_.mesh(), nnodes, nx));
-  if (rad_active) {
-    mesh_state_.setup_rad_basis(
-        std::make_unique<NodalBasis>(derived, &mesh_state_.mesh(), nnodes, nx));
-  }
 
   // post_init_work recomputes mesh mass / center-of-mass and applies the
   // mass-cut adjustment. For restart those values came from the .ath file
@@ -456,16 +454,12 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   }
   std::print("\n\n");
 
-  // --- Fill ghosts and apply limiters to initial condition ---
+  // --- Refresh halos and apply limiters to initial condition ---
   // Restart state is already post-step-valid: ghost zones and limited values
   // came from the .ath file, so re-running the limiter would alter the
   // checkpointed state.
   if (!restart_) {
-    auto evolved = sd0.get_field("evolved");
-    bc::fill_ghost_zones<3>(evolved, &mesh_state_.mesh(), bcs_.get(), {0, 2});
-    if (rad_active) {
-      bc::fill_ghost_zones<2>(evolved, &mesh_state_.mesh(), bcs_.get(), {3, 4});
-    }
+    bc::ghost_fill(mesh_state_, bcs_.get());
   }
 
   // --- Add history outputs ---
@@ -482,6 +476,11 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   history_->add_quantity("Total Kinetic Energy [erg]",
                          analysis::total_kinetic_energy);
   history_->add_quantity("Total Momentum [g cm / s]", analysis::total_momentum);
+  history_->add_quantity("Fluid Boundary Energy Rate [erg / s]",
+                         [this](const MeshState &mesh_state, const Mesh &mesh) {
+                           return analysis::fluid_boundary_energy_rate(
+                               mesh_state, mesh, bcs_.get());
+                         });
 
   if (gravity_active) {
     history_->add_quantity("Total Gravitational Energy [erg]",
@@ -493,6 +492,12 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
                            analysis::total_rad_momentum);
     history_->add_quantity("Total Radiation Energy [erg]",
                            analysis::total_rad_energy);
+    history_->add_quantity(
+        "Radiation Boundary Energy Rate [erg / s]",
+        [this](const MeshState &mesh_state, const Mesh &mesh) {
+          return analysis::radiation_boundary_energy_rate(mesh_state, mesh,
+                                                          bcs_.get());
+        });
   }
 
   // total nickel56, cobalt56, iron56

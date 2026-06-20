@@ -1,7 +1,6 @@
 #include "pgen/one_zone_ionization.hpp"
 
 #include "basic_types.hpp"
-#include "bc/boundary_conditions.hpp"
 #include "composition/composition.hpp"
 #include "composition/saha.hpp"
 #include "eos/eos_variant.hpp"
@@ -135,42 +134,6 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
         }
         for (int q = 0; q < nNodes; ++q) {
           evolved(i, q, idx_ener) = derived(i, q + 1, idx_sie);
-        }
-      });
-
-  // atom::fill_derived_comps<Domain::Interior>(sd0, mesh);
-  // atom::solve_saha_ionization<Domain::Interior, atom::SahaSolver::Linear>(
-  //     sd0, *mesh);
-  // atom::fill_derived_ionization<Domain::Interior>(sd0, mesh);
-  //  composition boundary condition
-  static const IndexRange vb_comps(std::make_pair(3, 3 + ncomps - 1));
-  bc::fill_ghost_zones_composition(evolved, vb_comps);
-
-  // Fill density and temperature in guard cells
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: OneZoneIonization (ghost)",
-      DevExecSpace(), 0, ib.s - 1, KOKKOS_LAMBDA(const int i) {
-        for (int iN = 0; iN < nNodes + 2; iN++) {
-          derived(ib.s - 1 - i, iN, idx_density) =
-              derived(ib.s + i, (nNodes + 2) - iN - 1, idx_density);
-          derived(ib.e + 1 + i, iN, idx_density) =
-              derived(ib.e - i, (nNodes + 2) - iN - 1, idx_density);
-          derived(ib.s - 1 - i, iN, idx_tgas) =
-              derived(ib.s + i, (nNodes + 2) - iN - 1, idx_tgas);
-          derived(ib.e + 1 + i, iN, idx_tgas) =
-              derived(ib.e - i, (nNodes + 2) - iN - 1, idx_tgas);
-          zbar(ib.s - 1 - i, iN, i_H) =
-              zbar(ib.s + i, (nNodes + 2) - iN - 1, i_H);
-          zbar(ib.e + 1 + i, iN, i_H) =
-              zbar(ib.e - i, (nNodes + 2) - iN - 1, i_H);
-          zbar(ib.s - 1 - i, iN, i_He) =
-              zbar(ib.s + i, (nNodes + 2) - iN - 1, i_He);
-          zbar(ib.e + 1 + i, iN, i_He) =
-              zbar(ib.e - i, (nNodes + 2) - iN - 1, i_He);
-          zbar(ib.s - 1 - i, iN, i_C) =
-              zbar(ib.s + i, (nNodes + 2) - iN - 1, i_C);
-          zbar(ib.e + 1 + i, iN, i_C) =
-              zbar(ib.e - i, (nNodes + 2) - iN - 1, i_C);
         }
       });
 }

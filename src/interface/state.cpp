@@ -52,12 +52,8 @@ auto StageData::mass_fractions(const std::string &name) const
   return parent_->opac();
 }
 
-[[nodiscard]] auto StageData::fluid_basis() const -> const basis::NodalBasis & {
-  return parent_->fluid_basis();
-}
-
-[[nodiscard]] auto StageData::rad_basis() const -> const basis::NodalBasis & {
-  return parent_->rad_basis();
+[[nodiscard]] auto StageData::basis() const -> const basis::NodalBasis & {
+  return parent_->basis();
 }
 
 [[nodiscard]] auto StageData::mesh() const -> const Mesh & {
@@ -289,21 +285,10 @@ MeshState::get_comp_start_index(const std::string &field_name) const -> int {
   return info;
 }
 
-[[nodiscard]] auto MeshState::has_rad_basis() const noexcept -> bool {
-  return rad_basis_ != nullptr;
-}
-
-[[nodiscard]] auto MeshState::fluid_basis() const -> const basis::NodalBasis & {
-  if (!fluid_basis_) {
+[[nodiscard]] auto MeshState::basis() const -> const basis::NodalBasis & {
+  if (!basis_) {
     throw_athelas_error("Fluid basis not initialized!");
   }
-  return *fluid_basis_;
-}
-
-[[nodiscard]] auto MeshState::rad_basis() const -> const basis::NodalBasis & {
-  if (!rad_basis_) {
-    throw_athelas_error("Radiation basis not initialized!");
-  }
-  return *rad_basis_;
+  return *basis_;
 }
 } // namespace athelas

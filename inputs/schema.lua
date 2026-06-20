@@ -12,7 +12,7 @@
 --   required (bool or table, optional)
 --     true                                    -- always required
 --     { when = "section.key", equals = val }  -- required when another key equals val
---     { when = "section.key", is_true = true} -- required when another key is true
+--     { when = "section.key", is_true = true } -- required when another key is true
 --   ignore   (bool, optional)                 -- skip this subtable entirely (no validation)
 
 local schema = {}
@@ -316,44 +316,37 @@ schema.bc = {
     bc_i = {
       type = "string",
       required = true,
-      doc = "Inner fluid boundary condition. Options: 'reflecting', 'outflow', 'dirichlet', 'periodic'.",
+      doc = "Inner fluid boundary condition. Options: 'reflecting', 'outflow', 'surface', 'periodic'.",
     },
     bc_o = {
       type = "string",
       required = true,
-      doc = "Outer fluid boundary condition. Options: 'reflecting', 'outflow', 'dirichlet', 'periodic'.",
+      doc = "Outer fluid boundary condition. Options: 'reflecting', 'outflow', 'surface', 'periodic'.",
     },
-    dirichlet_values_i = {
-      type = "array",
-      required = { when = "bc.fluid.bc_i", equals = "dirichlet" },
-      doc = "Dirichlet state values at inner boundary.",
+    surface_pressure_i = {
+      type = "number",
+      doc = "Prescribed pressure at an inner surface boundary. Defaults to zero.",
     },
-    dirichlet_values_o = {
-      type = "array",
-      required = { when = "bc.fluid.bc_o", equals = "dirichlet" },
-      doc = "Dirichlet state values at outer boundary.",
+    surface_pressure_o = {
+      type = "number",
+      doc = "Prescribed pressure at an outer surface boundary. Defaults to zero.",
     },
   },
   radiation = {
     bc_i = {
       type = "string",
       required = { when = "physics.radiation", is_true = true },
-      doc = "Inner radiation boundary condition. Options: 'reflecting', 'outflow', 'marshak', 'dirichlet'.",
+      doc = "Inner radiation boundary condition. Options: 'reflecting', 'interior', 'free_streaming', 'marshak', 'periodic'. 'interior' uses the interior-state physical flux, analogous to fluid outflow but not a no-incoming-characteristics condition.",
     },
     bc_o = {
       type = "string",
       required = { when = "physics.radiation", is_true = true },
-      doc = "Outer radiation boundary condition. Options: 'reflecting', 'outflow', 'dirichlet'.",
+      doc = "Outer radiation boundary condition. Options: 'reflecting', 'interior', 'free_streaming', 'periodic'. 'interior' uses the interior-state physical flux, analogous to fluid outflow but not a no-incoming-characteristics condition.",
     },
-    dirichlet_values_i = {
-      type = "array",
-      required = { when = "bc.radiation.bc_i", equals = "dirichlet" },
-      doc = "Dirichlet state values at inner boundary.",
-    },
-    dirichlet_values_o = {
-      type = "array",
-      required = { when = "bc.radiation.bc_o", equals = "dirichlet" },
-      doc = "Dirichlet state values at outer boundary.",
+    marshak_incoming_energy_i = {
+      type = "number",
+      required = { when = "bc.radiation.bc_i", equals = "marshak" },
+      doc = "Incoming volumetric radiation energy for an inner Marshak boundary.",
     },
   },
 }

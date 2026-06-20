@@ -28,13 +28,13 @@ config.physics = {
 }
 
 config.basis = {
-  nnodes = 2,
+  nnodes = 1,
 }
 
 config.bc = {
   fluid = {
     bc_i = "reflecting",
-    bc_o = "outflow",
+    bc_o = "surface",
   },
 }
 
@@ -50,13 +50,12 @@ config.output = {
 config.fluid = {
   limiter = {
     enabled = true,
-    type = "minmod",
+    type = "moment",
     b_tvd = 1.0,
     m_tvb = 0.0,
-    tci_opt = false,
+    tci_opt = true,
     tci_val = 0.1,
-    characteristic = true,
-    gamma_i = 0.8,
+    characteristic = false,
   },
 }
 

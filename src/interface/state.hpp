@@ -135,8 +135,7 @@ class StageData {
       -> AthelasArray3D<double>;
   [[nodiscard]] auto eos() const -> const eos::EOS &;
   [[nodiscard]] auto opac() const -> const Opacity &;
-  [[nodiscard]] auto fluid_basis() const -> const basis::NodalBasis &;
-  [[nodiscard]] auto rad_basis() const -> const basis::NodalBasis &;
+  [[nodiscard]] auto basis() const -> const basis::NodalBasis &;
 
   // Mesh for this RK stage. Stage 0 is the canonical mesh; later
   // stages get a work buffer. See MeshState::mesh()/mesh_stage().
@@ -207,17 +206,11 @@ class MeshState {
     ionization_state_ = std::move(ion);
   }
 
-  void setup_fluid_basis(std::unique_ptr<basis::NodalBasis> basis) {
-    fluid_basis_ = std::move(basis);
+  void setup_basis(std::unique_ptr<basis::NodalBasis> basis) {
+    basis_ = std::move(basis);
   }
 
-  void setup_rad_basis(std::unique_ptr<basis::NodalBasis> basis) {
-    rad_basis_ = std::move(basis);
-  }
-
-  [[nodiscard]] auto has_rad_basis() const noexcept -> bool;
-  [[nodiscard]] auto fluid_basis() const -> const basis::NodalBasis &;
-  [[nodiscard]] auto rad_basis() const -> const basis::NodalBasis &;
+  [[nodiscard]] auto basis() const -> const basis::NodalBasis &;
 
   [[nodiscard]] auto params() noexcept -> Params * { return params_.get(); }
 
@@ -421,8 +414,7 @@ class MeshState {
   std::shared_ptr<atom::IonizationState> ionization_state_;
   std::unique_ptr<eos::EOS> eos_;
   std::unique_ptr<Opacity> opac_;
-  std::unique_ptr<basis::NodalBasis> fluid_basis_;
-  std::unique_ptr<basis::NodalBasis> rad_basis_;
+  std::unique_ptr<basis::NodalBasis> basis_;
 };
 
 template <typename T>

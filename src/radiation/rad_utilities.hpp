@@ -1,13 +1,19 @@
 #pragma once
 
+#include <algorithm>
+#include <cmath>
 #include <tuple>
 
 #include "Kokkos_Macros.hpp"
 #include "basic_types.hpp"
+#include "bc/boundary_conditions_base.hpp"
 #include "eos/eos_variant.hpp"
+#include "geometry/mesh.hpp"
+#include "math/difference.hpp"
 #include "opacity/opac_variant.hpp"
 #include "solvers/root_finders.hpp"
 #include "utils.hpp"
+#include "utils/error.hpp"
 #include "utils/riemann.hpp"
 
 namespace athelas::radiation {
@@ -33,6 +39,16 @@ struct LLFRiemannState {
   double u;
   double f;
   double alpha;
+};
+
+struct RadBoundaryState {
+  double E;
+  double F;
+};
+
+struct RadNumericalFlux {
+  double e;
+  double f;
 };
 
 using root_finders::PhysicalScales, root_finders::RadHydroConvergence;
@@ -188,10 +204,10 @@ auto lambda_hll(const double f, const int sign) -> double {
 KOKKOS_INLINE_FUNCTION
 auto rad_lambda(const double f, const double sgn_F, const double chi,
                 const double chi_prime, const int sign) -> double {
+  const double discriminant =
+      std::max(chi_prime * chi_prime - 4.0 * chi_prime * f + 4.0 * chi, 0.0);
   return constants::c_cgs * 0.5 *
-         (chi_prime * sgn_F +
-          sign * std::sqrt(chi_prime * chi_prime - 4.0 * chi_prime * f +
-                           4.0 * chi));
+         (chi_prime * sgn_F + sign * std::sqrt(discriminant));
 }
 
 /**
@@ -222,6 +238,254 @@ auto rad_wavespeed(const double E_L, const double E_R, const double F_L,
       std::max({std::abs(lam_lp - vstar), std::abs(lam_lm - vstar),
                 std::abs(lam_rp - vstar), std::abs(lam_rm - vstar)});
   return alpha;
+}
+
+KOKKOS_INLINE_FUNCTION
+auto free_streaming_boundary_flux_rad(const Boundary side, const double E,
+                                      const double F, const double vstar)
+    -> std::tuple<double, double> {
+  constexpr double c = constants::c_cgs;
+  const double f = flux_factor(E, F);
+  const double chi = eddington_factor(f);
+  const double chi_prime = eddington_factor_prime(f);
+  const double sgn_F = math::utils::sgn(F);
+  const double lambda_m = rad_lambda(f, sgn_F, chi, chi_prime, -1) - vstar;
+  const double lambda_p = rad_lambda(f, sgn_F, chi, chi_prime, +1) - vstar;
+
+  const bool use_m =
+      (side == Boundary::Interior) ? (lambda_m < 0.0) : (lambda_m > 0.0);
+  const bool use_p =
+      (side == Boundary::Interior) ? (lambda_p < 0.0) : (lambda_p > 0.0);
+
+  if (use_m && use_p) {
+    return flux_rad(E, F, chi * E, vstar);
+  }
+  if (!use_m && !use_p) {
+    return {0.0, 0.0};
+  }
+
+  const double s_m = lambda_m + vstar;
+  const double s_p = lambda_p + vstar;
+  const double denom = s_p - s_m;
+  if (std::abs(denom) <= 1.0e-14 * c) {
+    return flux_rad(E, F, chi * E, vstar);
+  }
+
+  const double w_m = (s_p * E - F) / denom;
+  const double w_p = (F - s_m * E) / denom;
+
+  double flux_e = 0.0;
+  double flux_f = 0.0;
+  if (use_m) {
+    flux_e += lambda_m * w_m;
+    flux_f += lambda_m * w_m * s_m;
+  }
+  if (use_p) {
+    flux_e += lambda_p * w_p;
+    flux_f += lambda_p * w_p * s_p;
+  }
+  return {flux_e, flux_f};
+}
+
+KOKKOS_INLINE_FUNCTION
+auto interior_boundary_flux_rad(const double E, const double F,
+                                const double vstar)
+    -> std::tuple<double, double> {
+  return flux_rad(E, F, compute_closure(E, F), vstar);
+}
+
+KOKKOS_INLINE_FUNCTION
+auto numerical_flux_llf_rad(const RadBoundaryState &left,
+                            const RadBoundaryState &right, const double vstar)
+    -> RadNumericalFlux {
+  constexpr double c2 = constants::c_cgs * constants::c_cgs;
+  const double P_L = compute_closure(left.E, left.F);
+  const double P_R = compute_closure(right.E, right.F);
+  const double alpha = rad_wavespeed(left.E, right.E, left.F, right.F, vstar);
+
+  const LLFRiemannState left_erad{
+      .u = left.E, .f = left.F - vstar * left.E, .alpha = alpha};
+  const LLFRiemannState right_erad{
+      .u = right.E, .f = right.F - vstar * right.E, .alpha = alpha};
+
+  const LLFRiemannState left_frad{
+      .u = left.F, .f = c2 * P_L - vstar * left.F, .alpha = alpha};
+  const LLFRiemannState right_frad{
+      .u = right.F, .f = c2 * P_R - vstar * right.F, .alpha = alpha};
+
+  return {.e = llf_flux(left_erad, right_erad),
+          .f = llf_flux(left_frad, right_frad)};
+}
+
+KOKKOS_INLINE_FUNCTION
+auto boundary_flux_rad(const Boundary side, const bc::BcType type,
+                       const RadBoundaryState &interior,
+                       const RadBoundaryState &exterior, const double vstar,
+                       const double marshak_einc = 0.0) -> RadNumericalFlux {
+  // Reflecting / Marshak set a ghost state and share the LLF call below; the
+  // fallback (fluid-only types, excluded by runtime validation) keeps
+  // boundary = exterior.
+  RadBoundaryState boundary = exterior;
+  switch (type) {
+  case bc::BcType::InteriorFlux: {
+    const auto [flux_e, flux_f] =
+        interior_boundary_flux_rad(interior.E, interior.F, vstar);
+    return {.e = flux_e, .f = flux_f};
+  }
+  case bc::BcType::FreeStreaming: {
+    const auto [flux_e, flux_f] =
+        free_streaming_boundary_flux_rad(side, interior.E, interior.F, vstar);
+    return {.e = flux_e, .f = flux_f};
+  }
+  case bc::BcType::Periodic:
+    return (side == Boundary::Interior)
+               ? numerical_flux_llf_rad(exterior, interior, vstar)
+               : numerical_flux_llf_rad(interior, exterior, vstar);
+  case bc::BcType::Reflecting:
+    boundary = {.E = interior.E, .F = -interior.F};
+    break;
+  case bc::BcType::Marshak: {
+    constexpr double c = constants::c_cgs;
+    boundary = {.E = marshak_einc,
+                .F = 0.5 * c * marshak_einc -
+                     0.5 * (c * interior.E + 2.0 * interior.F)};
+    break;
+  }
+  case bc::BcType::Outflow:
+  case bc::BcType::Surface:
+  case bc::BcType::Null:
+    break; // fluid-only / invalid for radiation — excluded by runtime
+           // validation. No default: a new BcType must be handled explicitly.
+  }
+
+  return (side == Boundary::Interior)
+             ? numerical_flux_llf_rad(boundary, interior, vstar)
+             : numerical_flux_llf_rad(interior, boundary, vstar);
+}
+
+KOKKOS_INLINE_FUNCTION
+auto numerical_flux_rad_with_boundary(
+    const int face, const int inner_face, const int outer_face,
+    const Kokkos::Array<bc::BoundaryConditionData, 2> &bcs,
+    const RadBoundaryState &left, const RadBoundaryState &right,
+    const double vstar) -> RadNumericalFlux {
+  if (face == inner_face) {
+    return boundary_flux_rad(Boundary::Interior, bcs[0].type, right, left,
+                             vstar, bcs[0].marshak_incoming_energy);
+  }
+  if (face == outer_face) {
+    return boundary_flux_rad(Boundary::Exterior, bcs[1].type, left, right,
+                             vstar, bcs[1].marshak_incoming_energy);
+  }
+
+  return numerical_flux_llf_rad(left, right, vstar);
+}
+
+KOKKOS_INLINE_FUNCTION
+auto free_streaming_flux_jacobian(const Boundary side,
+                                  const RadBoundaryState &interior,
+                                  const double vstar, const double rho,
+                                  const int flux_index, const int var_index)
+    -> double {
+  constexpr double c = constants::c_cgs;
+  constexpr double eps = 1.0e-6;
+
+  const double scale = (var_index == 0)
+                           ? std::max(std::abs(interior.E), 1.0)
+                           : std::max(std::abs(interior.F), c * interior.E);
+  double h = eps * scale;
+
+  if (var_index == 0) {
+    h = std::min(h, 0.5 * interior.E);
+  }
+
+  const auto flux_component = [&](const double x) {
+    RadBoundaryState state = interior;
+    if (var_index == 0) {
+      state.E = x;
+    } else {
+      state.F = x;
+    }
+    const auto flux =
+        boundary_flux_rad(side, bc::BcType::FreeStreaming, state, state, vstar);
+    return (flux_index == 0) ? flux.e : flux.f;
+  };
+
+  const double x = (var_index == 0) ? interior.E : interior.F;
+  return rho * math::difference::finite_difference<DiffScheme::Central>(
+                   h, flux_component, x);
+}
+
+// Jacobian of the radiation boundary flux (component flux_index) with respect
+// to the per-mass radiation variable (var_index: 0 = E, 1 = F) that the
+// implicit solve evolves. The *rho factor converts the volumetric-variable
+// derivative to the specific (per-mass) one.
+KOKKOS_INLINE_FUNCTION
+auto boundary_flux_jacobian(const Boundary side, const bc::BcType type,
+                            const RadBoundaryState &interior,
+                            const double vstar, const double rho,
+                            const int flux_index, const int var_index,
+                            const double marshak_einc = 0.0) -> double {
+  if (type == bc::BcType::Periodic) {
+    throw_athelas_error(
+        "Periodic implicit radiation boundaries need cyclic coupling.");
+  }
+
+  if (type == bc::BcType::FreeStreaming || type == bc::BcType::Reflecting ||
+      type == bc::BcType::Marshak) {
+    if (type == bc::BcType::FreeStreaming) {
+      return free_streaming_flux_jacobian(side, interior, vstar, rho,
+                                          flux_index, var_index);
+    }
+
+    constexpr double eps = 1.0e-6;
+    const double scale =
+        (var_index == 0)
+            ? std::max(std::abs(interior.E), 1.0)
+            : std::max(std::abs(interior.F),
+                       constants::c_cgs * std::max(interior.E, 1.0));
+    double h = eps * scale;
+
+    if (var_index == 0) {
+      h = std::min(h, 0.5 * interior.E);
+    }
+
+    const auto flux_component = [&](const double x) {
+      RadBoundaryState state = interior;
+      if (var_index == 0) {
+        state.E = x;
+      } else {
+        state.F = x;
+      }
+      const auto flux =
+          boundary_flux_rad(side, type, state, state, vstar, marshak_einc);
+      return (flux_index == 0) ? flux.e : flux.f;
+    };
+
+    const double x = (var_index == 0) ? interior.E : interior.F;
+    return rho * math::difference::finite_difference<DiffScheme::Central>(
+                     h, flux_component, x);
+  }
+
+  constexpr double c = constants::c_cgs;
+  constexpr double c2 = c * c;
+  const double f = flux_factor(interior.E, interior.F);
+  const double chi = eddington_factor(f);
+  const double chi_prime = eddington_factor_prime(f);
+
+  if (flux_index == 0 && var_index == 0) {
+    return rho * (-vstar);
+  }
+  if (flux_index == 0 && var_index == 1) {
+    return rho;
+  }
+  if (flux_index == 1 && var_index == 0) {
+    return rho * c2 * (chi - f * chi_prime);
+  }
+  if (flux_index == 1 && var_index == 1) {
+    return rho * (c * chi_prime * math::utils::sgn(interior.F) - vstar);
+  }
+  return 0.0;
 }
 
 /**

@@ -62,16 +62,13 @@ class ProblemIn {
   std::unique_ptr<Params> params_;
 };
 
-// TODO(astrobarker) move into class
-auto check_bc(std::string bc) -> bool;
-
 template <typename G>
 void read_lua_array(const sol::table &tbl, G &out_array) {
   const std::size_t expected = out_array.size();
   if (tbl.size() != expected) {
     std::cerr << "Lua array size " << tbl.size()
               << " does not match expected size " << expected << "\n";
-    throw_athelas_error(" ! Error reading dirichlet boundary conditions.");
+    throw_athelas_error(" ! Error reading Lua array.");
   }
   for (std::size_t i = 0; i < expected; ++i) {
     // Lua arrays are 1-indexed
@@ -79,7 +76,7 @@ void read_lua_array(const sol::table &tbl, G &out_array) {
     if (!val) {
       std::cerr << "Type mismatch or nil at Lua array index " << (i + 1)
                 << "\n";
-      throw_athelas_error(" ! Error reading dirichlet boundary conditions.");
+      throw_athelas_error(" ! Error reading Lua array.");
     }
     out_array[i] = *val;
   }

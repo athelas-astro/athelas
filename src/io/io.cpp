@@ -382,19 +382,16 @@ void write_output(const MeshState &mesh_state, Mesh &mesh, ProblemIn *pin,
   writer.write_view(mesh.dm_deta(), "/mesh/dm_deta");
   writer.write_view(mesh.sqrt_gm(), "/mesh/sqrt_gm");
 
-  const auto &fluid_basis = mesh_state.fluid_basis();
-  auto phi_fluid = fluid_basis.phi();
-  auto dphi_fluid = fluid_basis.dphi();
+  const auto &basis = mesh_state.basis();
+  auto phi_fluid = basis.phi();
+  auto dphi_fluid = basis.dphi();
   writer.write_view(phi_fluid, "/basis/hi");
   writer.write_view(dphi_fluid, "/basis/dphi");
   writer.write_view(mesh.nodes(), "/basis/nodes");
   writer.write_view(mesh.weights(), "/basis/weights");
   if (mesh_state.enabled("radiation")) {
-    const auto &basis = mesh_state.rad_basis();
-    auto phi = basis.phi();
-    auto dphi = basis.dphi();
-    writer.write_view(phi, "/basis/radiation/phi");
-    writer.write_view(dphi, "/basis/radiation/dphi");
+    writer.write_view(phi_fluid, "/basis/radiation/phi");
+    writer.write_view(dphi_fluid, "/basis/radiation/dphi");
   }
 
   if (mesh_state.enabled("composition")) {

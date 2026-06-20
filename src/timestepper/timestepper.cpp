@@ -106,7 +106,7 @@ void TimeStepper::update_fluid_explicit(PackageManager *pkgs,
   const double t = dt_info.t;
   const double dt = dt_info.dt;
 
-  const auto &fluid_basis = mesh_state.fluid_basis();
+  const auto &basis = mesh_state.basis();
   const auto &eos = mesh_state.eos();
 
   auto u0 = mesh_state(0).get_field("evolved");
@@ -144,7 +144,7 @@ void TimeStepper::update_fluid_explicit(PackageManager *pkgs,
 
     // stage_data.mesh() resolves to this stage's mesh (canonical for stage 0,
     // the work buffer otherwise).
-    apply_slope_limiter(sl_hydro, u, stage_data, fluid_basis, eos);
+    apply_slope_limiter(sl_hydro, u, stage_data, basis, eos);
     bel::apply_bound_enforcing_limiter(stage_data);
     update_stage_mesh(mesh_state, iS, u);
 
@@ -169,7 +169,7 @@ void TimeStepper::update_fluid_explicit(PackageManager *pkgs,
   mesh.reconstruct_mesh(u0, x_inner);
 
   auto sd0 = mesh_state(0);
-  apply_slope_limiter(sl_hydro, u0, sd0, sd0.fluid_basis(), sd0.eos());
+  apply_slope_limiter(sl_hydro, u0, sd0, sd0.basis(), sd0.eos());
   bel::apply_bound_enforcing_limiter(sd0);
   mesh.reconstruct_mesh(u0, x_inner);
 
@@ -199,8 +199,7 @@ void TimeStepper::update_rad_hydro_imex(PackageManager *pkgs,
   const double t = dt_info.t;
   const double dt = dt_info.dt;
 
-  const auto &fluid_basis = mesh_state.fluid_basis();
-  const auto &rad_basis = mesh_state.rad_basis();
+  const auto &basis = mesh_state.basis();
   const auto &eos = mesh_state.eos();
 
   auto u0 = mesh_state(0).get_field("evolved");
@@ -231,7 +230,7 @@ void TimeStepper::update_rad_hydro_imex(PackageManager *pkgs,
     update_stage_mesh(mesh_state, iS, u);
 
     // Seems to be necessary when doing explicit transport.
-    apply_slope_limiter(sl_rad, u, stage_data, rad_basis, eos);
+    apply_slope_limiter(sl_rad, u, stage_data, basis, eos);
 
     Kokkos::deep_copy(SumVar_U_, u);
 
@@ -247,8 +246,8 @@ void TimeStepper::update_rad_hydro_imex(PackageManager *pkgs,
     }
     Kokkos::deep_copy(u, SumVar_U_);
 
-    apply_slope_limiter(sl_hydro, u, stage_data, fluid_basis, eos);
-    apply_slope_limiter(sl_rad, u, stage_data, rad_basis, eos);
+    apply_slope_limiter(sl_hydro, u, stage_data, basis, eos);
+    apply_slope_limiter(sl_rad, u, stage_data, basis, eos);
     bel::apply_bound_enforcing_limiter(stage_data);
     bel::apply_bound_enforcing_limiter_rad(stage_data);
     update_stage_mesh(mesh_state, iS, u);
@@ -273,8 +272,8 @@ void TimeStepper::update_rad_hydro_imex(PackageManager *pkgs,
   mesh.reconstruct_mesh(u0, x_inner);
 
   auto sd0 = mesh_state(0);
-  apply_slope_limiter(sl_hydro, u0, sd0, fluid_basis, eos);
-  apply_slope_limiter(sl_rad, u0, sd0, rad_basis, eos);
+  apply_slope_limiter(sl_hydro, u0, sd0, basis, eos);
+  apply_slope_limiter(sl_rad, u0, sd0, basis, eos);
   bel::apply_bound_enforcing_limiter(sd0);
   bel::apply_bound_enforcing_limiter_rad(sd0);
   mesh.reconstruct_mesh(u0, x_inner);

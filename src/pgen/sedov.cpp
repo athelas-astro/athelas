@@ -60,18 +60,6 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
 
         derived(i, q + 1, idx_density) = D0;
       });
-
-  // Fill density in guard cells
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Sedov (ghost)", DevExecSpace(), 0,
-      ib.s - 1, KOKKOS_LAMBDA(const int i) {
-        for (int iN = 0; iN < nNodes + 2; iN++) {
-          derived(ib.s - 1 - i, iN, 0) =
-              derived(ib.s + i, (nNodes + 2) - iN - 1, 0);
-          derived(ib.e + 1 + i, iN, 0) =
-              derived(ib.e - i, (nNodes + 2) - iN - 1, 0);
-        }
-      });
 }
 
 } // namespace athelas::pgen::sedov

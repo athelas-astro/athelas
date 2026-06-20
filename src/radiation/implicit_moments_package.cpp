@@ -12,10 +12,10 @@
 #include "geometry/mesh.hpp"
 #include "kokkos_abstraction.hpp"
 #include "loop_layout.hpp"
-#include "math/difference.hpp"
 #include "math/linear_algebra.hpp"
 #include "pgen/problem_in.hpp"
 #include "radiation/rad_utilities.hpp"
+#include "utils/error.hpp"
 
 namespace athelas::radiation {
 using basis::NodalBasis, basis::basis_eval;
@@ -38,10 +38,6 @@ ImplicitRadiationMomentsPackage::ImplicitRadiationMomentsPackage(
               AthelasArray3D<double>("ImplicitMoments::A_minus", nx + 1, 2, 2),
           .A_plus =
               AthelasArray3D<double>("ImplicitMoments::A_plus", nx + 1, 2, 2),
-          .A_bndry = AthelasArray2D<double>("ImplicitMoments::A_bndry", 2, 2),
-          .A_bndry_ghost =
-              AthelasArray2D<double>("ImplicitMoments::A_bndry_ghost", 2, 2),
-          .d_bndry = AthelasArray2D<double>("ImplicitMoments::d_bndry", 2, 2),
       },
       solver_{
           .mat_diag = AthelasArray3D<double>("ImplicitMoments::solver.mat_diag",
@@ -89,7 +85,7 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
     AthelasArray2D<double> b_out, AthelasArray3D<double> U,
     AthelasArray3D<double> ustar, const StageData &stage_data, const Mesh &mesh,
     const double dt_aii) {
-  const auto &basis = stage_data.fluid_basis();
+  const auto &basis = stage_data.basis();
   const int nNodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
 
@@ -118,9 +114,7 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
   auto dr = mesh.widths();
   auto weights = mesh.weights();
   auto sqrt_gm = mesh.sqrt_gm();
-
-  constexpr double c = constants::c_cgs;
-  constexpr double c2 = c * c;
+  const auto rad_bcs = bc::radiation_bc_data(bcs_);
 
   static const bool ionization_enabled = stage_data.enabled("ionization");
   AthelasArray2D<double> number_density;
@@ -144,9 +138,8 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
     bulk = stage_data.get_field("bulk_composition");
   }
 
-  // Apply BC to U (so face states at boundary faces see the right ghosts)
-  bc::fill_ghost_zones<2>(U, &mesh, bcs_, {3, 4});
-  bc::fill_ghost_zones<3>(U, &mesh, bcs_, {0, 2});
+  // Refresh halo cells so face states have valid stencil data.
+  bc::ghost_fill(U, stage_data, bcs_);
 
   // Face states: faces_.u_f_l = U at right edge of cell i-1, faces_.u_f_r = U
   // at left edge of cell i. Indices on second axis: 0 = tau, 1 = E_specific, 2
@@ -177,21 +170,12 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
         const double F_L = faces_.u_f_l(i, 2) * rho_L;
         const double F_R = faces_.u_f_r(i, 2) * rho_R;
 
-        const double Prad_L = compute_closure(E_L, F_L);
-        const double Prad_R = compute_closure(E_R, F_R);
-        const double alpha = rad_wavespeed(E_L, E_R, F_L, F_R, vstar);
+        const auto flux = numerical_flux_rad_with_boundary(
+            i, ib.s, ib.e + 1, rad_bcs, RadBoundaryState{.E = E_L, .F = F_L},
+            RadBoundaryState{.E = E_R, .F = F_R}, vstar);
 
-        const LLFRiemannState left_erad{
-            .u = E_L, .f = F_L - vstar * E_L, .alpha = alpha};
-        const LLFRiemannState right_erad{
-            .u = E_R, .f = F_R - vstar * E_R, .alpha = alpha};
-        faces_.flux_num(i, 0) = llf_flux(left_erad, right_erad);
-
-        const LLFRiemannState left_frad{
-            .u = F_L, .f = c2 * Prad_L - vstar * F_L, .alpha = alpha};
-        const LLFRiemannState right_frad{
-            .u = F_R, .f = c2 * Prad_R - vstar * F_R, .alpha = alpha};
-        faces_.flux_num(i, 1) = llf_flux(left_frad, right_frad);
+        faces_.flux_num(i, 0) = flux.e;
+        faces_.flux_num(i, 1) = flux.f;
       });
 
   // Assemble residual into b_out, with the existing sign convention
@@ -277,12 +261,10 @@ void ImplicitRadiationMomentsPackage::update_implicit(
     const StageData &stage_data, AthelasArray3D<double> ustar,
     const TimeStepInfo &dt_info) {
   const auto &mesh = stage_data.mesh();
-  using bc::BcType;
-  using math::difference::finite_difference;
   using math::linalg::ThomasScratch, math::linalg::block_thomas_solve;
   using math::utils::sgn;
 
-  const auto &basis = stage_data.fluid_basis();
+  const auto &basis = stage_data.basis();
   const int nNodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
   static const IndexRange qb(nNodes);
@@ -372,10 +354,8 @@ void ImplicitRadiationMomentsPackage::update_implicit(
   constexpr double c = constants::c_cgs;
   constexpr double c2 = c * c;
 
-  bc::fill_ghost_zones<2>(evolved, &mesh, bcs_, {3, 4});
-  bc::fill_ghost_zones<3>(evolved, &mesh, bcs_, {0, 2});
-  bc::fill_ghost_zones<2>(ustar, &mesh, bcs_, {3, 4});
-  bc::fill_ghost_zones<3>(ustar, &mesh, bcs_, {0, 2});
+  bc::ghost_fill(evolved, stage_data, bcs_);
+  bc::ghost_fill(ustar, stage_data, bcs_);
 
   int iter = 0;
   double norm_resid = 1.0;
@@ -401,7 +381,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
   constexpr double T_inversion_ceiling = 1.0e12;
 
   double resid0 = 0.0;
-  while (iter < max_iters && (!converged || !accepted)) {
+  while (iter < max_iters && !converged && !accepted) {
 
     Kokkos::deep_copy(solver_.mat_diag, 0.0);
     Kokkos::deep_copy(solver_.mat_upper, 0.0);
@@ -614,7 +594,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
           }
         });
 
-    const auto rad_bcs = get_bc_data<2>(bcs_);
+    const auto rad_bcs = bc::radiation_bc_data(bcs_);
     static const int nblocks = mesh.n_elements();
     static const int i_inner_face = 1;
     static const int i_outer_face = nblocks + 1;
@@ -631,81 +611,31 @@ void ImplicitRadiationMomentsPackage::update_implicit(
           const double gL_i = sqrt_gm(i_inner_cell, 0);
           const double gR_o = sqrt_gm(i_outer_cell, nNodes + 1);
 
-          // Lambda that processes the BC's per-variable D matrix into
-          // faces_.d_bndry, and reports whether the BC permutes nodes
-          // (i_ref = nNodes-1-i for Reflecting/Marshak).
-          auto process_bc = [&](BcType type) -> bool {
-            // Zero all entries first to avoid stale values from a prior BC.
-            for (int v = 0; v < 2; ++v) {
-              for (int w = 0; w < 2; ++w) {
-                faces_.d_bndry(v, w) = 0.0;
-              }
-            }
-            bool node_reverse = false;
-            switch (type) {
-            case BcType::Outflow:
-              faces_.d_bndry(0, 0) = 1.0;
-              faces_.d_bndry(1, 1) = 1.0;
-              break;
-            case BcType::Reflecting:
-              faces_.d_bndry(0, 0) = 1.0;
-              faces_.d_bndry(1, 1) = -1.0;
-              node_reverse = true;
-              break;
-            case BcType::Marshak:
-              // Ghost E = Einc(tau) -> D(0,*) = 0.
-              // Ghost F = 0.5*c*Einc - 0.5*c*E0 - F0  -> D(1,0) = -0.5*c,
-              //                                          D(1,1) = -1.
-              faces_.d_bndry(1, 0) = -0.5 * c;
-              faces_.d_bndry(1, 1) = -1.0;
-              node_reverse = true;
-              break;
-            default:
-              break;
-            }
-            return node_reverse;
-          };
-
           // --- inner boundary ---
           const auto inner_bc = rad_bcs[0];
-          bool node_reverse = process_bc(inner_bc.type);
-          boundary_jacobian<Boundary::Interior>(
-              faces_.A_bndry, faces_.A_bndry_ghost, faces_.u_f_l, faces_.u_f_r,
-              vstar_i);
+          const RadBoundaryState inner_state{
+              .E = faces_.u_f_r(i_inner_face, 1) * rho_i,
+              .F = faces_.u_f_r(i_inner_face, 2) * rho_i};
 
           // Row factor: basis at left edge of the interior cell.
-          // Direct column: same edge as the row (interior on R side).
-          // Ghost column: basis at right edge (= ghost's near-face edge
-          // after fill_guard), with node-permutation p_map for
-          // Reflecting/Marshak.
           int blk = 0;
           for (int q = 0; q < nNodes; ++q) {
             const double ellL_q = phi(i_inner_cell, 0, q);
             for (int p = 0; p < nNodes; ++p) {
-              const int p_map = node_reverse ? (nNodes - 1 - p) : p;
               const double phi_p_direct = phi(i_inner_cell, 0, p);
-              const double phi_p_ghost = phi(i_inner_cell, nNodes + 1, p_map);
 
               for (int v = 0; v < 2; ++v) {
                 const int row = idx(q, v);
                 for (int w = 0; w < 2; ++w) {
                   const int col = idx(p, w);
-
-                  // Combine A_ghost with the BC variable-Jacobian
-                  // faces_.d_bndry.
-                  double AD_vw = 0.0;
-                  for (int kk = 0; kk < 2; ++kk) {
-                    AD_vw +=
-                        faces_.A_bndry_ghost(v, kk) * faces_.d_bndry(kk, w);
-                  }
-
+                  const double A_vw = boundary_flux_jacobian(
+                      Boundary::Interior, inner_bc.type, inner_state, vstar_i,
+                      rho_i, v, w, inner_bc.marshak_incoming_energy);
                   // Inner boundary residual has +flux_num(face)*phi_L, so
                   // dR/dU contributes with a leading minus sign from
                   // R = M(U-U*) - dt*rhs.
                   solver_.mat_diag(blk, row, col) -=
-                      dt_aii * ellL_q * gL_i * rho_i *
-                      (faces_.A_bndry(v, w) * phi_p_direct +
-                       AD_vw * phi_p_ghost);
+                      dt_aii * ellL_q * gL_i * A_vw * phi_p_direct;
                 }
               }
             }
@@ -713,41 +643,28 @@ void ImplicitRadiationMomentsPackage::update_implicit(
 
           // --- outer boundary ---
           const auto outer_bc = rad_bcs[1];
-          node_reverse = process_bc(outer_bc.type);
-          boundary_jacobian<Boundary::Exterior>(
-              faces_.A_bndry, faces_.A_bndry_ghost, faces_.u_f_l, faces_.u_f_r,
-              vstar_o);
+          const RadBoundaryState outer_state{
+              .E = faces_.u_f_l(i_outer_face, 1) * rho_o,
+              .F = faces_.u_f_l(i_outer_face, 2) * rho_o};
 
           // Row factor: basis at right edge of the interior cell.
-          // Direct column: same edge.
-          // Ghost column: basis at left edge (= ghost's near-face edge
-          // after fill_guard), with node-permutation for
-          // Reflecting/Marshak.
           blk = nblocks - 1;
           for (int q = 0; q < nNodes; ++q) {
             const double ellR_q = phi(i_outer_cell, nNodes + 1, q);
             for (int p = 0; p < nNodes; ++p) {
-              const int p_map = node_reverse ? (nNodes - 1 - p) : p;
               const double phi_p_direct = phi(i_outer_cell, nNodes + 1, p);
-              const double phi_p_ghost = phi(i_outer_cell, 0, p_map);
 
               for (int v = 0; v < 2; ++v) {
                 const int row = idx(q, v);
                 for (int w = 0; w < 2; ++w) {
                   const int col = idx(p, w);
-
-                  double AD_vw = 0.0;
-                  for (int kk = 0; kk < 2; ++kk) {
-                    AD_vw +=
-                        faces_.A_bndry_ghost(v, kk) * faces_.d_bndry(kk, w);
-                  }
-
+                  const double A_vw = boundary_flux_jacobian(
+                      Boundary::Exterior, outer_bc.type, outer_state, vstar_o,
+                      rho_o, v, w, outer_bc.marshak_incoming_energy);
                   // Outer boundary residual has -flux_num(face)*phi_R,
                   // so dR/dU contributes with a leading plus sign.
                   solver_.mat_diag(blk, row, col) +=
-                      dt_aii * ellR_q * gR_o * rho_o *
-                      (faces_.A_bndry(v, w) * phi_p_direct +
-                       AD_vw * phi_p_ghost);
+                      dt_aii * ellR_q * gR_o * A_vw * phi_p_direct;
                 }
               }
             }
@@ -755,13 +672,16 @@ void ImplicitRadiationMomentsPackage::update_implicit(
         });
 
     norm_resid = math::linalg::newton_norm_l2(solver_.b, sqrt_gm, dr, weights);
+    if (!std::isfinite(norm_resid)) {
+      throw_athelas_error("Implicit radiation Newton residual is nonfinite.");
+    }
 
     if (iter == 0) {
       resid0 = norm_resid;
     }
 
     // Should we break here or compute and apply the update?
-    if (norm_resid / resid0 < tol) {
+    if (norm_resid == 0.0 || norm_resid / resid0 < tol) {
       converged = true;
       break;
     }
@@ -850,8 +770,10 @@ void ImplicitRadiationMomentsPackage::update_implicit(
             const double e_margin =
                 64.0 * std::numeric_limits<double>::epsilon() *
                 std::max({std::abs(eg), std::abs(emin), 1.0});
-            if (er <= 0.0 || std::abs(fr) >= c * er || sie <= emin + e_margin ||
-                sie >= emax - e_margin) {
+            if (!std::isfinite(er) || !std::isfinite(fr) ||
+                !std::isfinite(eg) || !std::isfinite(vg) ||
+                !std::isfinite(sie) || er <= 0.0 || std::abs(fr) >= c * er ||
+                sie <= emin + e_margin || sie >= emax - e_margin) {
               count += 1;
             }
 
@@ -865,7 +787,9 @@ void ImplicitRadiationMomentsPackage::update_implicit(
                   phi, newton_.u_rad_trial, i, idx_fr);
               const double fr_R = basis_eval<Interface::Right>(
                   phi, newton_.u_rad_trial, i, idx_fr);
-              if (er_L <= 0.0 || er_R <= 0.0 || std::abs(fr_L) >= c * er_L ||
+              if (!std::isfinite(er_L) || !std::isfinite(er_R) ||
+                  !std::isfinite(fr_L) || !std::isfinite(fr_R) || er_L <= 0.0 ||
+                  er_R <= 0.0 || std::abs(fr_L) >= c * er_L ||
                   std::abs(fr_R) >= c * er_R) {
                 count += 1;
               }
@@ -877,15 +801,20 @@ void ImplicitRadiationMomentsPackage::update_implicit(
         continue;
       }
 
-      // Trial is realizable: record it as the step to apply if no
-      // Armijo-decreasing step is found. Never apply a non-realizable lam.
-      lam_accept = lam;
-
       // Trial residual.
       evaluate_residual(newton_.ls_b_trial, newton_.u_rad_trial, ustar,
                         stage_data, mesh, dt_aii);
       const double F_trial = math::linalg::newton_norm_l2(newton_.ls_b_trial,
                                                           sqrt_gm, dr, weights);
+      if (!std::isfinite(F_trial)) {
+        lam *= 0.5;
+        continue;
+      }
+
+      // Trial is realizable with finite residual: record it as the step to
+      // apply if no Armijo-decreasing step is found. Never apply a
+      // non-realizable or nonfinite trial.
+      lam_accept = lam;
       const double F_trial_sq = F_trial * F_trial;
 
       // Sufficient decrease.
@@ -994,24 +923,25 @@ void ImplicitRadiationMomentsPackage::zero_delta() const noexcept {
   static const IndexRange qb(static_cast<int>(delta_.extent(2)));
   static const IndexRange vb(static_cast<int>(delta_.extent(3)));
 
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "RadHydro :: Zero delta", DevExecSpace(), sb.s,
-      sb.e, ib.s, ib.e, qb.s, qb.e,
-      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int q) {
-        for (int v = vb.s; v <= vb.e; ++v) {
-          delta_(s, i, q, v) = 0.0;
-        }
-      });
-
   // We store the last stage source in the state = 0 slot.
   // That is, G(U^0) <- G(U^n).
   // In an ESDIRK tableau we reuse this for the first stage.
   const int ns = sb.e;
   athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "RadHydro :: Zero delta", DevExecSpace(), ib.s,
-      ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+      DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Cache last delta",
+      DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
+      KOKKOS_CLASS_LAMBDA(const int i, const int q) {
         for (int v = vb.s; v <= vb.e; ++v) {
           delta_(0, i, q, v) = delta_(ns, i, q, v);
+        }
+      });
+
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Zero delta", DevExecSpace(),
+      sb.s + 1, sb.e, ib.s, ib.e, qb.s, qb.e,
+      KOKKOS_CLASS_LAMBDA(const int s, const int i, const int q) {
+        for (int v = vb.s; v <= vb.e; ++v) {
+          delta_(s, i, q, v) = 0.0;
         }
       });
 }
@@ -1092,15 +1022,15 @@ void ImplicitRadiationMomentsPackage::fill_derived(
   auto evolved = stage_data.get_field("evolved");
   auto derived = stage_data.get_field("derived");
 
-  const auto &fluid_basis = stage_data.fluid_basis();
+  const auto &basis = stage_data.basis();
 
   const int nNodes = mesh.n_nodes();
-  static const IndexRange ib(mesh.domain<Domain::Entire>());
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
 
-  auto phi = fluid_basis.phi();
+  auto phi = basis.phi();
 
-  // --- Apply BC ---
-  bc::fill_ghost_zones<2>(evolved, &mesh, bcs_, {3, 4});
+  // --- Refresh evolved halo ---
+  bc::ghost_fill(stage_data, bcs_);
 
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "ImplicitMoments :: fill derived",

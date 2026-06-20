@@ -5,7 +5,10 @@
 
 #include "Kokkos_Macros.hpp"
 
+#include "bc/boundary_conditions_base.hpp"
+#include "geometry/mesh.hpp"
 #include "math/utils.hpp"
+#include "utils/error.hpp"
 
 namespace athelas::fluid {
 
@@ -19,6 +22,11 @@ struct FluidRiemannState {
   double v;
   double p;
   double cs;
+};
+
+struct FluidNumericalFlux {
+  double u;
+  double p;
 };
 
 KOKKOS_INLINE_FUNCTION
@@ -97,6 +105,62 @@ auto numerical_flux_gudonov_positivity(const FluidRiemannState &left,
   const double Flux_U = (-pRmL + zR * vR + zL * vL) * (inv_z_sum);
   const double Flux_P = pL - (zL2) * (tau_l_star - tauL);
   return {Flux_U, Flux_P};
+}
+
+KOKKOS_INLINE_FUNCTION
+auto boundary_flux(const Boundary side, const bc::BcType type,
+                   const FluidRiemannState &interior,
+                   const FluidRiemannState &exterior,
+                   const double surface_pressure = 0.0) -> FluidNumericalFlux {
+  switch (type) {
+  case bc::BcType::Outflow:
+    return {.u = interior.v, .p = interior.p};
+  case bc::BcType::Surface:
+    return {.u = interior.v, .p = surface_pressure};
+  case bc::BcType::Reflecting: {
+    const FluidRiemannState wall{.tau = interior.tau,
+                                 .v = -interior.v,
+                                 .p = interior.p,
+                                 .cs = interior.cs};
+    const auto flux = (side == Boundary::Interior)
+                          ? numerical_flux_gudonov_positivity(wall, interior)
+                          : numerical_flux_gudonov_positivity(interior, wall);
+    return {.u = 0.0, .p = std::get<1>(flux)};
+  }
+  case bc::BcType::Periodic: {
+    const auto flux =
+        (side == Boundary::Interior)
+            ? numerical_flux_gudonov_positivity(exterior, interior)
+            : numerical_flux_gudonov_positivity(interior, exterior);
+    return {.u = std::get<0>(flux), .p = std::get<1>(flux)};
+  }
+  case bc::BcType::Marshak:
+  case bc::BcType::InteriorFlux:
+  case bc::BcType::FreeStreaming:
+  case bc::BcType::Null:
+    break; // radiation-only / invalid for fluid — excluded by runtime
+           // validation. No default: a new BcType must be handled explicitly.
+  }
+  return {.u = 0.0, .p = 0.0};
+}
+
+KOKKOS_INLINE_FUNCTION
+auto numerical_flux_fluid_with_boundary(
+    const int face, const int inner_face, const int outer_face,
+    const Kokkos::Array<bc::BoundaryConditionData, 2> &bcs,
+    const FluidRiemannState &left, const FluidRiemannState &right)
+    -> FluidNumericalFlux {
+  if (face == inner_face) {
+    return boundary_flux(Boundary::Interior, bcs[0].type, right, left,
+                         bcs[0].surface_pressure);
+  }
+  if (face == outer_face) {
+    return boundary_flux(Boundary::Exterior, bcs[1].type, left, right,
+                         bcs[1].surface_pressure);
+  }
+
+  const auto [flux_u, flux_p] = numerical_flux_gudonov_positivity(left, right);
+  return {.u = flux_u, .p = flux_p};
 }
 
 } // namespace athelas::fluid

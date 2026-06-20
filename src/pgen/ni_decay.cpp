@@ -1,6 +1,5 @@
 #include "pgen/ni_decay.hpp"
 
-#include "bc/boundary_conditions.hpp"
 #include "eos/eos_variant.hpp"
 #include "geometry/mesh.hpp"
 #include "interface/state.hpp"
@@ -100,10 +99,6 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
       });
 
   mesh_state.setup_composition(comps);
-
-  // composition boundary condition
-  static const IndexRange vb_comps(std::make_pair(3, 3 + ncomps - 1));
-  bc::fill_ghost_zones_composition(evolved, vb_comps);
 }
 
 } // namespace athelas::pgen::ni_decay

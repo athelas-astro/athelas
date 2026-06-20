@@ -40,7 +40,7 @@ void GeometryPackage::update_explicit(const StageData &stage_data,
 
   auto sqrt_gm = mesh.sqrt_gm();
   auto weights = mesh.weights();
-  const auto &basis = stage_data.fluid_basis();
+  const auto &basis = stage_data.basis();
   auto phi = basis.phi();
   auto dphi = basis.dphi();
   auto inv_mkk = basis.inv_mass_matrix();
