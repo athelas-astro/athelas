@@ -36,7 +36,7 @@ struct HDF5FieldInfo {
   std::vector<VariableInfo> variables;
 };
 
-struct GridType {
+struct MeshType {
   double r{};
 };
 

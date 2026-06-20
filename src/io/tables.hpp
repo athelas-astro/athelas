@@ -10,7 +10,7 @@
 
 namespace athelas {
 
-using DataBox = Spiner::DataBox<double, Spiner::RegularGrid1D<double>>;
+using DataBox = Spiner::DataBox<double, Spiner::RegularMesh1D<double>>;
 
 struct OpacityTable {
   std::vector<double> X;

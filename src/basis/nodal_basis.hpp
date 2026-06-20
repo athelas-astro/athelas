@@ -13,7 +13,7 @@ class NodalBasis {
   /**
    * @brief Constructor
    * @param derived Primitive variables (nodal representation)
-   * @param mesh Grid structure
+   * @param mesh Mesh structure
    * @param nN Number of nodes
    * @param nElements Number of elements
    */

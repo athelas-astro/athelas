@@ -47,7 +47,7 @@ void print_simulation_parameters(Mesh &mesh, ProblemIn *pin) {
                pin->param()->get<double>("problem.cfl"));
   std::println("");
 
-  std::println("# --- Grid Parameters --- ");
+  std::println("# --- Mesh Parameters --- ");
   std::println("# Mesh Elements  : {}", nX);
   std::println("# Number Nodes   : {}", nNodes);
   std::println("# Lower Boundary : {}", mesh.get_x_l());
