@@ -31,8 +31,8 @@ void fill_ghost_zone_range(AthelasArray3D<double> U, const IndexRange &vars,
 void ghost_fill_array(AthelasArray3D<double> U, BoundaryConditions *bcs,
                       const bool radiation_enabled,
                       const bool composition_enabled) {
-  const int nvars = static_cast<int>(U.extent(2));
-  const bool fluid_periodic = bcs->fluid_bc[0].type == BcType::Periodic;
+  static const int nvars = static_cast<int>(U.extent(2));
+  static const bool fluid_periodic = bcs->fluid_bc[0].type == BcType::Periodic;
 
   fill_ghost_zone_range(U, IndexRange(std::make_pair(0, 2)), fluid_periodic);
 
@@ -60,6 +60,16 @@ void ghost_fill(const MeshState &mesh_state, BoundaryConditions *bcs) {
 void ghost_fill(const StageData &stage_data, BoundaryConditions *bcs) {
   auto evolved = stage_data.get_field("evolved");
   ghost_fill(evolved, stage_data, bcs);
+}
+
+void ghost_fill_derived(AthelasArray3D<double> derived,
+                        BoundaryConditions *bcs) {
+  const int nderived = static_cast<int>(derived.extent(2));
+  const bool fluid_periodic = bcs->fluid_bc[0].type == BcType::Periodic;
+  // All derived quantities follow the (fluid) domain topology: periodic wraps,
+  // otherwise the ghost is a copy of the adjacent interior cell.
+  fill_ghost_zone_range(derived, IndexRange(std::make_pair(0, nderived - 1)),
+                        fluid_periodic);
 }
 
 void ghost_fill(AthelasArray3D<double> U, const StageData &stage_data,

@@ -384,6 +384,10 @@ void HydroPackage::fill_derived(StageData &stage_data,
           }
         });
   }
+
+  // Copy derived into the ghost cells so boundary flux reads (e.g. periodic)
+  // see valid pressure / sound speed there.
+  bc::ghost_fill_derived(derived, bcs_);
 }
 
 [[nodiscard]] auto HydroPackage::name() const noexcept -> std::string_view {

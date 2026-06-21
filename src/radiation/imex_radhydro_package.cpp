@@ -595,6 +595,10 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
           }
         });
   }
+
+  // Copy derived into the ghost cells so boundary flux reads see valid
+  // pressure / sound speed there (mirrors the evolved ghost fill).
+  bc::ghost_fill_derived(derived, bcs_);
 }
 
 [[nodiscard]] auto RadHydroPackage::name() const noexcept -> std::string_view {

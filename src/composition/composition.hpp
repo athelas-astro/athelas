@@ -111,8 +111,8 @@ auto fill_derived_ionization(const AthelasArray3D<double> phi,
 inline void fill_derived_ionization(StageData &stage_data,
                                     const Mesh *const mesh) {
   const auto nnodes = mesh->n_nodes();
-  const IndexRange ib(mesh->domain<Domain::Interior>());
-  const IndexRange qb(nnodes + 2);
+  static const IndexRange ib(mesh->domain<Domain::Interior>());
+  static const IndexRange qb(nnodes + 2);
 
   auto evolved = stage_data.get_field("evolved");
   const int idx_tau = stage_data.var_index("evolved", "specific_volume");

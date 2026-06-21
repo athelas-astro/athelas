@@ -23,8 +23,7 @@ namespace athelas::basis {
  *                       - dFlux_num(i+0,v) phi(i,0,q)        sqrt_gm(i,0)
  * for every interior cell i, quadrature node q, and variable v in [vb.s, vb.e].
  *
- * Shared by the fluid and rad-hydro divergence kernels: a single nodal basis
- * applies to every evolved variable, so the same operator serves both.
+ * Shared by the fluid and rad-hydro divergence kernels.
  */
 inline void
 surface_term(AthelasArray4D<double> delta, AthelasArray2D<double> dFlux_num,
