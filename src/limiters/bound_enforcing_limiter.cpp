@@ -62,7 +62,7 @@ using math::utils::ratio;
 void limit_specific_volume(StageData &stage_data, const Mesh &mesh) {
   constexpr static double EPSILON = 1.0e-30; // maybe make this smarter
 
-  const auto &basis = stage_data.fluid_basis();
+  const auto &basis = stage_data.basis();
   const int order = basis.order();
 
   auto U = stage_data.get_field("evolved");
@@ -117,7 +117,7 @@ void limit_mass_fractions(StageData &stage_data, const Mesh &mesh) {
     return;
   }
 
-  const auto &basis = stage_data.fluid_basis();
+  const auto &basis = stage_data.basis();
   const int nNodes = basis.order();
   if (nNodes <= 1) {
     return;
@@ -176,7 +176,7 @@ void limit_mass_fractions(StageData &stage_data, const Mesh &mesh) {
  */
 template <IonizationPhysics Ionization>
 void limit_internal_energy(StageData &stage_data, const Mesh &mesh) {
-  const auto &basis = stage_data.fluid_basis();
+  const auto &basis = stage_data.basis();
   const auto &eos = stage_data.eos();
   const int order = basis.order();
 
@@ -275,7 +275,7 @@ void limit_internal_energy(StageData &stage_data, const Mesh &mesh) {
  */
 void apply_bound_enforcing_limiter(StageData &stage_data) {
   const auto &mesh = stage_data.mesh();
-  if (stage_data.fluid_basis().order() > 1) {
+  if (stage_data.basis().order() > 1) {
     limit_specific_volume(stage_data, mesh);
     if (stage_data.enabled("ionization")) {
       limit_internal_energy<IonizationPhysics::Active>(stage_data, mesh);
@@ -296,7 +296,7 @@ void apply_bound_enforcing_limiter(StageData &stage_data) {
  */
 void apply_bound_enforcing_limiter_rad(StageData &stage_data) {
   const auto &mesh = stage_data.mesh();
-  if (stage_data.rad_basis().order() == 1) {
+  if (stage_data.basis().order() == 1) {
     return;
   }
   limit_rad_energy(stage_data, mesh);
@@ -315,7 +315,7 @@ void apply_bound_enforcing_limiter_rad(StageData &stage_data) {
 void limit_rad_energy(StageData &stage_data, const Mesh &mesh) {
   constexpr static double EPSILON = 1.0e-13; // maybe make this smarter
 
-  const auto &basis = stage_data.rad_basis();
+  const auto &basis = stage_data.basis();
   const int order = basis.order();
 
   auto U = stage_data.get_field("evolved");
@@ -372,7 +372,7 @@ void limit_rad_energy(StageData &stage_data, const Mesh &mesh) {
 void limit_rad_momentum(StageData &stage_data, const Mesh &mesh) {
   constexpr static double c = constants::c_cgs;
 
-  const auto &basis = stage_data.rad_basis();
+  const auto &basis = stage_data.basis();
   const int order = basis.order();
 
   auto U = stage_data.get_field("evolved");

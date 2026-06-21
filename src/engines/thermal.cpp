@@ -77,7 +77,7 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
     const int grav_active = gravity_active ? 1 : 0;
     const bool radiation_active =
         pin->param()->get<bool>("physics.radiation.enabled");
-    const auto &basis = stage_data.fluid_basis();
+    const auto &basis = stage_data.basis();
     auto phi = basis.phi();
     auto evolved = stage_data.get_field("evolved");
     const int idx_ener =
@@ -149,7 +149,7 @@ void ThermalEnginePackage::update_explicit(const StageData &stage_data,
   }
 
   const auto &mesh = stage_data.mesh();
-  const auto &basis = stage_data.fluid_basis();
+  const auto &basis = stage_data.basis();
   static const auto &nnodes = mesh.n_nodes();
   static const IndexRange qb(nnodes);
   static const IndexRange ib(mesh.domain<Domain::Interior>());

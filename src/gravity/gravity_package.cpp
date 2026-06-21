@@ -45,7 +45,7 @@ void GravityPackage::update_explicit(const StageData &stage_data,
   const auto stage = dt_info.stage;
   auto evolved = stage_data.get_field("evolved");
   const int idx_vel = stage_data.var_index("evolved", "velocity");
-  const auto &basis = stage_data.fluid_basis();
+  const auto &basis = stage_data.basis();
 
   if (model_ == GravityModel::Spherical) {
     gravity_update<GravityModel::Spherical>(evolved, mesh, basis, stage,

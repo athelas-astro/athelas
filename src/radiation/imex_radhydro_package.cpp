@@ -3,6 +3,7 @@
 #include <limits>
 
 #include "basic_types.hpp"
+#include "basis/basis_utilities.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "bc/boundary_conditions.hpp"
 #include "composition/composition.hpp"
@@ -19,13 +20,12 @@
 namespace athelas::radiation {
 using basis::NodalBasis, basis::basis_eval;
 using eos::EOS;
-using fluid::numerical_flux_gudonov_positivity;
+using fluid::numerical_flux_fluid_with_boundary;
 
 void radiation_source_implicit(const StageData &stage_data,
                                AthelasArray3D<double> R,
                                AthelasArray4D<double> delta, const Mesh &mesh,
                                const TimeStepInfo &dt_info) {
-  // TODO(astrobarker) handle separate fluid and rad orders
   static const IndexRange ib(mesh.domain<Domain::Interior>());
   static const IndexRange qb(mesh.n_nodes());
 
@@ -168,18 +168,15 @@ RadHydroPackage::RadHydroPackage(const ProblemIn *pin, int n_stages, int nq,
 void RadHydroPackage::update_explicit(const StageData &stage_data,
                                       const TimeStepInfo &dt_info) const {
   const auto &mesh = stage_data.mesh();
-  // TODO(astrobarker) handle separate fluid and rad orders
-  const auto &basis = stage_data.fluid_basis();
+  const auto &basis = stage_data.basis();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
   static const IndexRange qb(mesh.n_nodes());
   static const IndexRange vb(NUM_VARS_);
 
   const auto stage = dt_info.stage;
-  auto evolved = stage_data.get_field("evolved");
 
-  // --- Apply BC ---
-  bc::fill_ghost_zones<2>(evolved, &mesh, bcs_, {3, 4});
-  bc::fill_ghost_zones<3>(evolved, &mesh, bcs_, {0, 2});
+  // --- Refresh evolved halo ---
+  bc::ghost_fill(stage_data, bcs_);
 
   // --- radiation Increment : Divergence ---
   radhydro_divergence(stage_data, mesh, stage);
@@ -273,8 +270,7 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
   auto derived = stage_data.get_field("derived");
   auto interface = stage_data.get_field<AthelasArray2D<double>>("interface");
 
-  const auto &rad_basis = stage_data.rad_basis();
-  const auto &fluid_basis = stage_data.fluid_basis();
+  const auto &basis = stage_data.basis();
 
   const auto &nNodes = mesh.n_nodes();
   static constexpr int ilo = 1;
@@ -300,10 +296,10 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
   auto sqrt_gm = mesh.sqrt_gm();
   auto weights = mesh.weights();
 
-  auto phi_rad = rad_basis.phi();
-  auto phi_fluid = fluid_basis.phi();
-  auto dphi_rad = rad_basis.dphi();
-  auto dphi_fluid = fluid_basis.dphi();
+  auto phi = basis.phi();
+  auto dphi = basis.dphi();
+  const auto fluid_bcs = bc::fluid_bc_data(bcs_);
+  const auto rad_bcs = bc::radiation_bc_data(bcs_);
 
   // --- Interpolate Conserved Variable to Interfaces ---
 
@@ -312,20 +308,13 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Interface states", DevExecSpace(),
       ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
-        for (int v = 0; v < 3; ++v) {
-          u_f_l_(i, v) =
-              basis_eval<Interface::Right>(phi_fluid, evolved, i - 1, v);
-          u_f_r_(i, v) = basis_eval<Interface::Left>(phi_fluid, evolved, i, v);
-        }
-        for (int v = 3; v < NUM_VARS_; ++v) {
-          u_f_l_(i, v) =
-              basis_eval<Interface::Right>(phi_rad, evolved, i - 1, v);
-          u_f_r_(i, v) = basis_eval<Interface::Left>(phi_rad, evolved, i, v);
+        for (int v = 0; v < NUM_VARS_; ++v) {
+          u_f_l_(i, v) = basis_eval<Interface::Right>(phi, evolved, i - 1, v);
+          u_f_r_(i, v) = basis_eval<Interface::Left>(phi, evolved, i, v);
         }
       });
 
   // --- Calc numerical flux at all faces ---
-  static constexpr double c2 = constants::c_cgs * constants::c_cgs;
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: Numerical fluxes", DevExecSpace(),
       ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
@@ -343,9 +332,6 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
         const double E_R = u_f_r_(i, idx_radener) * rhoR;
         const double F_R = u_f_r_(i, idx_radflux) * rhoR;
 
-        const double Prad_L = compute_closure(E_L, F_L);
-        const double Prad_R = compute_closure(E_R, F_R);
-
         // --- Numerical Fluxes ---
 
         // Riemann Problem
@@ -360,91 +346,56 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
                                       .v = u_f_r_(i, idx_vel),
                                       .p = Pgas_R,
                                       .cs = Cs_R};
-        const auto [flux_u, flux_p] =
-            numerical_flux_gudonov_positivity(left, right);
+        const auto fluid_flux = numerical_flux_fluid_with_boundary(
+            i, ib.s, ib.e + 1, fluid_bcs, left, right);
+        const double flux_u = fluid_flux.u;
+        const double flux_p = fluid_flux.p;
+
+        if (i == ib.s) {
+          interface(ilo - 1, idx_vstar) = flux_u;
+        } else if (i == ib.e + 1) {
+          interface(ihi + 2, idx_vstar) = flux_u;
+        }
         interface(i, idx_vstar) = flux_u;
 
         const double vstar = flux_u;
-
-        const double alpha = rad_wavespeed(E_L, E_R, F_L, F_R, vstar);
-
-        const LLFRiemannState left_erad{
-            .u = E_L, .f = F_L - vstar * E_L, .alpha = alpha};
-        const LLFRiemannState right_erad{
-            .u = E_R, .f = F_R - vstar * E_R, .alpha = alpha};
-        const double flux_e = llf_flux(left_erad, right_erad);
-
-        const LLFRiemannState left_frad{
-            .u = F_L, .f = c2 * Prad_L - vstar * F_L, .alpha = alpha};
-        const LLFRiemannState right_frad{
-            .u = F_R, .f = c2 * Prad_R - vstar * F_R, .alpha = alpha};
-        const double flux_f = llf_flux(left_frad, right_frad);
+        const auto rad_flux = numerical_flux_rad_with_boundary(
+            i, ib.s, ib.e + 1, rad_bcs, RadBoundaryState{.E = E_L, .F = F_L},
+            RadBoundaryState{.E = E_R, .F = F_R}, vstar);
 
         dFlux_num_(i, idx_tau) = -flux_u;
         dFlux_num_(i, idx_vel) = flux_p;
         dFlux_num_(i, idx_ener) = +flux_u * flux_p;
 
-        dFlux_num_(i, idx_radener) = flux_e;
-        dFlux_num_(i, idx_radflux) = flux_f;
+        dFlux_num_(i, idx_radener) = rad_flux.e;
+        dFlux_num_(i, idx_radflux) = rad_flux.f;
       });
 
-  interface(ilo - 1, idx_vstar) = interface(ilo, idx_vstar);
-  interface(ihi + 2, idx_vstar) = interface(ihi + 1, idx_vstar);
-
-  // TODO(astrobarker): Is this pattern for the surface term okay?
   // --- Surface Term ---
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "RadHydro :: Surface term", DevExecSpace(), ib.s,
-      ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-        for (int v = vb.s; v <= vb.e; ++v) {
-          const auto phi_v = (v < 3) ? phi_fluid : phi_rad;
-
-          delta_(stage, i, q, v) -=
-              (+dFlux_num_(i + 1, v) * phi_v(i, nNodes + 1, q) *
-                   sqrt_gm(i, nNodes + 1) -
-               dFlux_num_(i + 0, v) * phi_v(i, 0, q) * sqrt_gm(i, 0));
-        }
-      });
+  basis::surface_term(delta_, dFlux_num_, phi, sqrt_gm, stage, nNodes, ib, qb,
+                      vb, "RadHydro :: Surface term");
 
   if (nNodes > 1) [[likely]] {
     // --- Volume Term ---
     auto derived = stage_data.get_field("derived");
-    athelas::par_for(
-        DEFAULT_LOOP_PATTERN, "RadHydro :: Volume term", DevExecSpace(), ib.s,
-        ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int p) {
-          double local_sum1 = 0.0;
-          double local_sum2 = 0.0;
-          double local_sum3 = 0.0;
-          double local_sum_e = 0.0;
-          double local_sum_f = 0.0;
-          const double vstar = interface(i, idx_vstar);
-          for (int q = 0; q < nNodes; ++q) {
-            const int qp1 = q + 1;
-
-            const double pressure = derived(i, qp1, idx_pre);
-            const double rho = derived(i, q, idx_density);
-            const double vel = evolved(i, q, idx_vel);
-            const double e_rad = evolved(i, q, idx_radener) * rho;
-            const double f_rad = evolved(i, q, idx_radflux) * rho;
-            const double p_rad = compute_closure(e_rad, f_rad);
-            const auto [flux1, flux2, flux3] =
-                athelas::fluid::flux_fluid(vel, pressure);
-            const auto [flux_e, flux_f] = flux_rad(e_rad, f_rad, p_rad, vstar);
-            const double w_dphi_sqrtgm =
-                weights(q) * dphi_fluid(i, qp1, p) * sqrt_gm(i, qp1);
-            local_sum1 += w_dphi_sqrtgm * flux1;
-            local_sum2 += w_dphi_sqrtgm * flux2;
-            local_sum3 += w_dphi_sqrtgm * flux3;
-            local_sum_e += w_dphi_sqrtgm * flux_e;
-            local_sum_f += w_dphi_sqrtgm * flux_f;
-          }
-
-          delta_(stage, i, p, idx_tau) += local_sum1;
-          delta_(stage, i, p, idx_vel) += local_sum2;
-          delta_(stage, i, p, idx_ener) += local_sum3;
-          delta_(stage, i, p, idx_radener) += local_sum_e;
-          delta_(stage, i, p, idx_radflux) += local_sum_f;
-        });
+    basis::volume_term<NUM_VARS_>(
+        delta_, dphi, weights, sqrt_gm, stage, nNodes, ib, qb,
+        KOKKOS_LAMBDA(const int i, const int q)
+            ->Kokkos::Array<double, NUM_VARS_> {
+              const double pressure = derived(i, q + 1, idx_pre);
+              const double rho = derived(i, q, idx_density);
+              const double vel = evolved(i, q, idx_vel);
+              const double e_rad = evolved(i, q, idx_radener) * rho;
+              const double f_rad = evolved(i, q, idx_radflux) * rho;
+              const double p_rad = compute_closure(e_rad, f_rad);
+              const double vstar = interface(i, idx_vstar);
+              const auto [flux1, flux2, flux3] =
+                  athelas::fluid::flux_fluid(vel, pressure);
+              const auto [flux_e, flux_f] =
+                  flux_rad(e_rad, f_rad, p_rad, vstar);
+              return {flux1, flux2, flux3, flux_e, flux_f};
+            },
+        "RadHydro :: Volume term");
   }
 } // radhydro_divergence
 
@@ -506,27 +457,21 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
   const int idx_tgas = stage_data.var_index("derived", "gas_temperature");
   const int idx_cs = stage_data.var_index("derived", "sound_speed");
 
-  const auto &fluid_basis = stage_data.fluid_basis();
+  const auto &basis = stage_data.basis();
 
   const auto &eos = stage_data.eos();
 
   const int nNodes = mesh.n_nodes();
-  static const IndexRange ib(mesh.domain<Domain::Entire>());
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
   static const bool ionization_enabled = stage_data.enabled("ionization");
 
-  auto phi_fluid = fluid_basis.phi();
+  auto phi = basis.phi();
 
-  // --- Apply BC ---
-  bc::fill_ghost_zones<2>(evolved, &mesh, bcs_, {3, 4});
-  bc::fill_ghost_zones<3>(evolved, &mesh, bcs_, {0, 2});
+  // --- Refresh evolved halo ---
+  bc::ghost_fill(stage_data, bcs_);
 
   if (stage_data.enabled("composition")) {
-    static constexpr int nvars = 5; // non-comps
-    // composition boundary condition
-    static const IndexRange vb_comps(
-        std::make_pair(nvars, stage_data.nvars("evolved") - 1));
-    bc::fill_ghost_zones_composition(evolved, vb_comps);
-    atom::fill_derived_comps<Domain::Entire>(stage_data, &mesh);
+    atom::fill_derived_comps(stage_data, &mesh);
   }
 
   // First we get the temperature from the density and specific internal
@@ -536,14 +481,14 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
   if (ionization_enabled) {
     auto *const ionization_state = stage_data.ionization_state();
     if (ionization_state->solver() == atom::SahaSolver::Linear) {
-      atom::compute_temperature_with_saha<
-          Domain::Entire, eos::EOSInversion::Sie, atom::SahaSolver::Linear>(
-          stage_data, mesh);
+      atom::compute_temperature_with_saha<eos::EOSInversion::Sie,
+                                          atom::SahaSolver::Linear>(stage_data,
+                                                                    mesh);
     }
     if (ionization_state->solver() == atom::SahaSolver::Log) {
-      atom::compute_temperature_with_saha<
-          Domain::Entire, eos::EOSInversion::Sie, atom::SahaSolver::Log>(
-          stage_data, mesh);
+      atom::compute_temperature_with_saha<eos::EOSInversion::Sie,
+                                          atom::SahaSolver::Log>(stage_data,
+                                                                 mesh);
     }
   } else {
     athelas::par_for(
@@ -551,10 +496,9 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
         DevExecSpace(), ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
           double lambda[eos::EOS_LAMBDA_SIZE] = {};
           for (int q = 0; q < nNodes + 2; ++q) {
-            const double rho =
-                1.0 / basis_eval(phi_fluid, evolved, i, idx_tau, q);
-            const double vel = basis_eval(phi_fluid, evolved, i, idx_vel, q);
-            const double emt = basis_eval(phi_fluid, evolved, i, idx_ener, q);
+            const double rho = 1.0 / basis_eval(phi, evolved, i, idx_tau, q);
+            const double vel = basis_eval(phi, evolved, i, idx_vel, q);
+            const double emt = basis_eval(phi, evolved, i, idx_ener, q);
             const double sie = emt - 0.5 * vel * vel;
             derived(i, q, idx_tgas) =
                 temperature_from_density_sie(eos, rho, sie, lambda);
@@ -577,12 +521,12 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
         DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: fill derived", DevExecSpace(),
         ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
           for (int q = 0; q < nNodes + 2; ++q) {
-            const double tau = basis_eval(phi_fluid, evolved, i, idx_tau, q);
-            const double vel = basis_eval(phi_fluid, evolved, i, idx_vel, q);
-            const double emt = basis_eval(phi_fluid, evolved, i, idx_ener, q);
+            const double tau = basis_eval(phi, evolved, i, idx_tau, q);
+            const double vel = basis_eval(phi, evolved, i, idx_vel, q);
+            const double emt = basis_eval(phi, evolved, i, idx_ener, q);
 
-            // const double e_rad = rad_basis_->basis_eval(evolved, i, 3, q +
-            // 1); const double f_rad = rad_basis_->basis_eval(evolved, i, 4, q
+            // const double e_rad = basis_->basis_eval(evolved, i, 3, q +
+            // 1); const double f_rad = basis_->basis_eval(evolved, i, 4, q
             // + 1);
 
             // const double flux_fact = flux_factor(e_rad, f_rad);
@@ -620,12 +564,12 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
         DEFAULT_FLAT_LOOP_PATTERN, "RadHydro :: fill derived", DevExecSpace(),
         ib.s, ib.e, KOKKOS_LAMBDA(const int i) {
           for (int q = 0; q < nNodes + 2; ++q) {
-            const double tau = basis_eval(phi_fluid, evolved, i, idx_tau, q);
-            const double vel = basis_eval(phi_fluid, evolved, i, idx_vel, q);
-            const double emt = basis_eval(phi_fluid, evolved, i, idx_ener, q);
+            const double tau = basis_eval(phi, evolved, i, idx_tau, q);
+            const double vel = basis_eval(phi, evolved, i, idx_vel, q);
+            const double emt = basis_eval(phi, evolved, i, idx_ener, q);
 
-            // const double e_rad = rad_basis_->basis_eval(evolved, i, 3, q +
-            // 1); const double f_rad = rad_basis_->basis_eval(evolved, i, 4, q
+            // const double e_rad = basis_->basis_eval(evolved, i, 3, q +
+            // 1); const double f_rad = basis_->basis_eval(evolved, i, 4, q
             // + 1);
 
             // const double flux_fact = flux_factor(e_rad, f_rad);
@@ -651,6 +595,10 @@ void RadHydroPackage::fill_derived(StageData &stage_data,
           }
         });
   }
+
+  // Copy derived into the ghost cells so boundary flux reads see valid
+  // pressure / sound speed there (mirrors the evolved ghost fill).
+  bc::ghost_fill_derived(derived, bcs_);
 }
 
 [[nodiscard]] auto RadHydroPackage::name() const noexcept -> std::string_view {

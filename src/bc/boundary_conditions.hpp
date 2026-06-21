@@ -3,157 +3,32 @@
  * --------------
  *
  * @brief Boundary conditions
- *
- * @details Implemented BCs
- *            - outflow
- *            - reflecting
- *            - periodic
- *            - Dirichlet
- *            - Marshak
  */
 
 #pragma once
 
-#include "basic_types.hpp"
-#include "basis/nodal_basis.hpp"
 #include "bc/boundary_conditions_base.hpp"
-#include "geometry/mesh.hpp"
-#include "kokkos_abstraction.hpp"
-#include "loop_layout.hpp"
+#include "kokkos_types.hpp"
+
+namespace athelas {
+class MeshState;
+class StageData;
+} // namespace athelas
 
 namespace athelas::bc {
 
-void fill_ghost_zones_composition(AthelasArray3D<double> U,
-                                  const IndexRange &vb);
+void ghost_fill(const MeshState &mesh_state, BoundaryConditions *bcs);
+void ghost_fill(const StageData &stage_data, BoundaryConditions *bcs);
+void ghost_fill(AthelasArray3D<double> U, const StageData &stage_data,
+                BoundaryConditions *bcs);
 
-/**
- * @brief Apply Boundary Conditions to fluid fields
- *
- * @note Templated on number of variables, probably should change.
- * As it stands, N = 3 for fluid and N = 2 for radiation boundaries.
- *
- * Supported Options:
- *  outflow
- *  reflecting
- *  periodic
- *  dirichlet
- *  marshak
- *
- * TODO(astrobarker): Some generalizing
- * between rad and fluid bcs is needed.
- **/
-template <int N> // N = 3 for fluid, N = 2 for rad...
-void fill_ghost_zones(AthelasArray3D<double> U, const Mesh *mesh,
-                      BoundaryConditions *bcs,
-                      const std::tuple<int, int> &vars) {
+// Copy the derived field into the ghost cells (periodic wrap, else neighbor
+// copy), mirroring ghost_fill for the evolved field. fill_derived only computes
+// interior cells, so boundary flux reads of derived (pressure, sound speed) at
+// the ghosts would otherwise be uninitialized -- harmless for BCs that ignore
+// the exterior state, but fatal for periodic, which solves a real Riemann
+// problem against it. This is a cheap copy, not an EOS recompute.
+void ghost_fill_derived(AthelasArray3D<double> derived,
+                        BoundaryConditions *bcs);
 
-  const int nX = mesh->n_elements();
-
-  auto this_bc = get_bc_data<N>(bcs);
-
-  auto [start, stop] = vars;
-
-  const int num_modes = U.extent(1);
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Fill ghosts", DevExecSpace(), start, stop,
-      KOKKOS_LAMBDA(const int v) {
-        const int ghost_L = 0;
-        const int interior_L = (this_bc[0].type != BcType::Periodic) ? 1 : nX;
-        const int ghost_R = nX + 1;
-        const int interior_R = (this_bc[1].type != BcType::Periodic) ? nX : 1;
-
-        apply_bc<N>(this_bc[0], U, v, ghost_L, interior_L, num_modes);
-        apply_bc<N>(this_bc[1], U, v, ghost_R, interior_R, num_modes);
-      });
-}
-
-template <int N>
-KOKKOS_INLINE_FUNCTION void
-apply_bc(const BoundaryConditionsData<N> &bc, AthelasArray3D<double> U,
-         const int v, const int ghost_cell, const int interior_cell,
-         const int n_nodes) {
-  constexpr int idx_tau = 0;
-  constexpr int idx_rad_energy = 3;
-  constexpr int idx_rad_flux = 4;
-
-  switch (bc.type) {
-
-  case BcType::Outflow:
-    for (int i = 0; i < n_nodes; ++i) {
-      const int i_ref = n_nodes - 1 - i;
-      U(ghost_cell, i, v) = U(interior_cell, i_ref, v);
-    }
-    break;
-
-  case BcType::Periodic:
-    for (int i = 0; i < n_nodes; ++i) {
-      U(ghost_cell, i, v) = U(interior_cell, i, v);
-    }
-    break;
-
-  // --------------------------------------------------
-  // Reflecting
-  //
-  // - reverse node ordering
-  // - flip sign of normal vector components
-  // --------------------------------------------------
-  case BcType::Reflecting:
-    for (int i = 0; i < n_nodes; ++i) {
-
-      const int i_ref = n_nodes - 1 - i;
-
-      if (v == 1 || v == 4) {
-        // normal momentum / radiation flux
-        U(ghost_cell, i, v) = -U(interior_cell, i_ref, v);
-      } else {
-        // scalar quantities
-        U(ghost_cell, i, v) = U(interior_cell, i_ref, v);
-      }
-    }
-    break;
-
-  case BcType::Dirichlet: {
-    const double g = bc.dirichlet_values[v];
-
-    for (int i = 0; i < n_nodes; ++i) {
-      U(ghost_cell, i, v) = g;
-    }
-  } break;
-
-  case BcType::Marshak: {
-
-    constexpr double c = constants::c_cgs;
-    const double Einc = bc.dirichlet_values[0] * U(interior_cell, 0, idx_tau);
-
-    for (int i = 0; i < n_nodes; ++i) {
-
-      const int i_ref = n_nodes - 1 - i;
-
-      if (v == idx_rad_energy) {
-
-        // Set incoming radiation energy to Einc
-        U(ghost_cell, i, v) = Einc;
-
-      } else if (v == idx_rad_flux) {
-
-        const double E0 = U(interior_cell, i_ref, idx_rad_energy);
-
-        const double F0 = U(interior_cell, i_ref, idx_rad_flux);
-
-        // Marshak incoming flux
-        U(ghost_cell, i, v) = 0.5 * c * Einc - 0.5 * (c * E0 + 2.0 * F0);
-      } else {
-        // other vars: simple reflection
-        U(ghost_cell, i, v) = U(interior_cell, i_ref, v);
-      }
-    }
-
-  } break;
-
-  // --------------------------------------------------
-  case BcType::Null:
-    throw_athelas_error("Null BC is not for use!");
-    break;
-  }
-}
 } // namespace athelas::bc

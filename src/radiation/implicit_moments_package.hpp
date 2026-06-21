@@ -30,12 +30,6 @@ struct TransportFaceScratch {
   AthelasArray2D<double> flux_num; // numerical fluxes at faces
   AthelasArray3D<double> A_minus; // dF_hat/dU_L per interior face
   AthelasArray3D<double> A_plus; // dF_hat/dU_R per interior face
-  // Boundary-face Jacobians split so the kernel can apply distinct phi
-  // factors. A_bndry = direct (interior) part; A_bndry_ghost = ghost-side
-  // part, multiplied by d_bndry (BC variable-Jacobian) in the kernel.
-  AthelasArray2D<double> A_bndry;
-  AthelasArray2D<double> A_bndry_ghost;
-  AthelasArray2D<double> d_bndry;
 };
 
 // Block-tridiagonal Newton system and Thomas-solver workspace.
@@ -85,8 +79,8 @@ class ImplicitRadiationMomentsPackage {
   // Compute the implicit-transport residual b_out = -R(U), where
   // R = M (U - U*) - dt_aii * (T(U) + S(U)), T is the DG transport operator
   // (volume + surface), and S are the sources.
-  // Side effect: refills u_f_l_, u_f_r_, flux_num_
-  // from U after applying ghost-zone BCs to U.
+  // Side effect: refills u_f_l_, u_f_r_, flux_num_ from U after refreshing
+  // copy-only halo cells.
   void evaluate_residual(AthelasArray2D<double> b_out, AthelasArray3D<double> U,
                          AthelasArray3D<double> ustar,
                          const StageData &stage_data, const Mesh &mesh,
@@ -132,91 +126,4 @@ class ImplicitRadiationMomentsPackage {
   // constants
   static constexpr int NUM_VARS_ = 4;
 };
-
-// Split flux Jacobian at a boundary face into two independent pieces that
-// the caller multiplies by separate phi factors:
-//
-//   A_direct = dF_hat/dU_interior (the side of the face facing the interior)
-//   A_ghost  = dF_hat/dU_ghost    (the side facing the ghost, BEFORE applying
-//                                  the BC's variable-Jacobian D)
-//
-// The caller is responsible for combining A_ghost with D and for using the
-// correct column-side phi/node-mapping for each piece, because:
-//   - Direct uses basis-eval at the interior cell's near-face edge.
-//   - Ghost uses basis-eval at the ghost cell's near-face edge (the *other*
-//     edge from the interior's perspective) and may also need a node
-//     permutation for reflecting/Marshak BCs.
-//
-// Variables on second axis of ufl/ufr: 0 = specific volume, 1 = specific
-// radiation energy density, 2 = specific radiation flux.
-//
-// TODO(astrobarker): add the dalpha/dU contribution generally — here in
-// boundary_jacobian *and* in the A_minus_ / A_plus_ assembly in
-// update_implicit — so the analytic Jacobian is exact.
-KOKKOS_FUNCTION
-template <Boundary Loc>
-void boundary_jacobian(AthelasArray2D<double> A_direct,
-                       AthelasArray2D<double> A_ghost,
-                       AthelasArray2D<double> ufl, AthelasArray2D<double> ufr,
-                       const double vstar) {
-  using math::utils::sgn;
-  constexpr double c = constants::c_cgs;
-  constexpr double c2 = c * c;
-  if constexpr (Loc == Boundary::Interior) {
-    // Inner face: interior on R side, ghost on L side.
-    // A_direct uses the A_plus shape (-alpha), A_ghost uses A_minus (+alpha).
-    // alpha must use BOTH ghost (L) and interior (R) states to match the
-    // alpha actually used in the LLF flux at this face.
-    constexpr int i_inner = 1;
-    const double alpha = rad_wavespeed(ufl(i_inner, 1), ufr(i_inner, 1),
-                                       ufl(i_inner, 2), ufr(i_inner, 2), vstar);
-
-    // Direct (interior, R side).
-    double f = flux_factor(ufr(i_inner, 1), ufr(i_inner, 2));
-    double chi = eddington_factor(f);
-    double chi_prime = eddington_factor_prime(f);
-    A_direct(0, 0) = 0.5 * (-vstar - alpha);
-    A_direct(0, 1) = 0.5;
-    A_direct(1, 0) = 0.5 * c2 * (chi - f * chi_prime);
-    A_direct(1, 1) =
-        0.5 * (c * chi_prime * sgn(ufr(i_inner, 2)) - vstar - alpha);
-
-    // Ghost (L side).
-    f = flux_factor(ufl(i_inner, 1), ufl(i_inner, 2));
-    chi = eddington_factor(f);
-    chi_prime = eddington_factor_prime(f);
-    A_ghost(0, 0) = 0.5 * (-vstar + alpha);
-    A_ghost(0, 1) = 0.5;
-    A_ghost(1, 0) = 0.5 * c2 * (chi - f * chi_prime);
-    A_ghost(1, 1) =
-        0.5 * (c * chi_prime * sgn(ufl(i_inner, 2)) - vstar + alpha);
-  }
-  if constexpr (Loc == Boundary::Exterior) {
-    // Outer face: interior on L side, ghost on R side.
-    // A_direct uses A_minus (+alpha), A_ghost uses A_plus (-alpha).
-    static const int i_outer = static_cast<int>(ufl.extent(0)) - 1;
-    const double alpha = rad_wavespeed(ufl(i_outer, 1), ufr(i_outer, 1),
-                                       ufl(i_outer, 2), ufr(i_outer, 2), vstar);
-
-    // Direct (interior, L side).
-    double f = flux_factor(ufl(i_outer, 1), ufl(i_outer, 2));
-    double chi = eddington_factor(f);
-    double chi_prime = eddington_factor_prime(f);
-    A_direct(0, 0) = 0.5 * (-vstar + alpha);
-    A_direct(0, 1) = 0.5;
-    A_direct(1, 0) = 0.5 * c2 * (chi - f * chi_prime);
-    A_direct(1, 1) =
-        0.5 * (c * chi_prime * sgn(ufl(i_outer, 2)) - vstar + alpha);
-
-    // Ghost (R side).
-    f = flux_factor(ufr(i_outer, 1), ufr(i_outer, 2));
-    chi = eddington_factor(f);
-    chi_prime = eddington_factor_prime(f);
-    A_ghost(0, 0) = 0.5 * (-vstar - alpha);
-    A_ghost(0, 1) = 0.5;
-    A_ghost(1, 0) = 0.5 * c2 * (chi - f * chi_prime);
-    A_ghost(1, 1) =
-        0.5 * (c * chi_prime * sgn(ufr(i_outer, 2)) - vstar - alpha);
-  }
-}
 } // namespace athelas::radiation

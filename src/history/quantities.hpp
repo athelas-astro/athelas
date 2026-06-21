@@ -17,14 +17,21 @@
  */
 
 #include "basic_types.hpp"
+#include "bc/boundary_conditions.hpp"
+#include "fluid/fluid_utilities.hpp"
 #include "geometry/mesh.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 #include "loop_layout.hpp"
 #include "polynomial_basis.hpp"
+#include "radiation/rad_utilities.hpp"
 #include "utils/constants.hpp"
 
 namespace athelas::analysis {
+
+inline auto geometry_factor(const Mesh &mesh) -> double {
+  return mesh.do_geometry() ? constants::FOURPI : 1.0;
+}
 
 inline auto total_gravitational_energy(const MeshState &mesh_state,
                                        const Mesh &mesh) -> double {
@@ -238,6 +245,144 @@ inline auto total_rad_momentum(const MeshState &mesh_state, const Mesh &mesh)
     output *= constants::FOURPI;
   }
   return output / (constants::c_cgs * constants::c_cgs);
+}
+
+inline auto fluid_boundary_energy_rate(const MeshState &mesh_state,
+                                       const Mesh &mesh,
+                                       bc::BoundaryConditions *bcs) -> double {
+  using basis::basis_eval;
+  using fluid::FluidRiemannState;
+  using fluid::numerical_flux_fluid_with_boundary;
+
+  const auto &nNodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+
+  auto evolved = mesh_state(0).get_field("evolved");
+  auto derived = mesh_state.get_field<AthelasArray3D<double>>("derived");
+  auto sqrt_gm = mesh.sqrt_gm();
+  auto phi = mesh_state.basis().phi();
+  const auto fluid_bcs = bc::fluid_bc_data(bcs);
+
+  const int idx_tau = mesh_state.var_index("evolved", "specific_volume");
+  const int idx_vel = mesh_state.var_index("evolved", "velocity");
+  const int idx_pre = mesh_state.var_index("derived", "pressure");
+  const int idx_cs = mesh_state.var_index("derived", "sound_speed");
+
+  double output = 0.0;
+  athelas::par_reduce(
+      DEFAULT_FLAT_LOOP_PATTERN, "History :: FluidBoundaryEnergyRate",
+      DevExecSpace(), 0, 1,
+      KOKKOS_LAMBDA(const int side, double &lsum) {
+        const bool inner = side == 0;
+        const int face = inner ? ib.s : ib.e + 1;
+        const int cell = inner ? ib.s : ib.e;
+        const int q_face = inner ? 0 : nNodes + 1;
+
+        const FluidRiemannState left{
+            .tau =
+                basis_eval<Interface::Right>(phi, evolved, face - 1, idx_tau),
+            .v = basis_eval<Interface::Right>(phi, evolved, face - 1, idx_vel),
+            .p = derived(face - 1, nNodes + 1, idx_pre),
+            .cs = derived(face - 1, nNodes + 1, idx_cs)};
+        const FluidRiemannState right{
+            .tau = basis_eval<Interface::Left>(phi, evolved, face, idx_tau),
+            .v = basis_eval<Interface::Left>(phi, evolved, face, idx_vel),
+            .p = derived(face, 0, idx_pre),
+            .cs = derived(face, 0, idx_cs)};
+
+        const auto flux = numerical_flux_fluid_with_boundary(
+            face, ib.s, ib.e + 1, fluid_bcs, left, right);
+        const double sign = inner ? 1.0 : -1.0;
+        lsum += sign * flux.u * flux.p * sqrt_gm(cell, q_face);
+      },
+      Kokkos::Sum<double>(output));
+
+  return geometry_factor(mesh) * output;
+}
+
+inline auto radiation_boundary_energy_rate(const MeshState &mesh_state,
+                                           const Mesh &mesh,
+                                           bc::BoundaryConditions *bcs)
+    -> double {
+  using basis::basis_eval;
+  using fluid::FluidRiemannState;
+  using fluid::numerical_flux_fluid_with_boundary;
+  using radiation::numerical_flux_rad_with_boundary;
+  using radiation::RadBoundaryState;
+
+  if (!mesh_state.enabled("radiation")) {
+    return 0.0;
+  }
+
+  const auto &nNodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+
+  auto evolved = mesh_state(0).get_field("evolved");
+  auto derived = mesh_state.get_field<AthelasArray3D<double>>("derived");
+  auto sqrt_gm = mesh.sqrt_gm();
+  auto phi = mesh_state.basis().phi();
+  const auto fluid_bcs = bc::fluid_bc_data(bcs);
+  const auto rad_bcs = bc::radiation_bc_data(bcs);
+
+  const int idx_tau = mesh_state.var_index("evolved", "specific_volume");
+  const int idx_vel = mesh_state.var_index("evolved", "velocity");
+  const int idx_pre = mesh_state.var_index("derived", "pressure");
+  const int idx_cs = mesh_state.var_index("derived", "sound_speed");
+  const int idx_rad_energy =
+      mesh_state.var_index("evolved", "specific_radiation_energy");
+  const int idx_rad_flux =
+      mesh_state.var_index("evolved", "specific_radiation_flux");
+
+  double output = 0.0;
+  athelas::par_reduce(
+      DEFAULT_FLAT_LOOP_PATTERN, "History :: RadBoundaryEnergyRate",
+      DevExecSpace(), 0, 1,
+      KOKKOS_LAMBDA(const int side, double &lsum) {
+        const bool inner = side == 0;
+        const int face = inner ? ib.s : ib.e + 1;
+        const int cell = inner ? ib.s : ib.e;
+        const int q_face = inner ? 0 : nNodes + 1;
+
+        const FluidRiemannState fluid_left{
+            .tau =
+                basis_eval<Interface::Right>(phi, evolved, face - 1, idx_tau),
+            .v = basis_eval<Interface::Right>(phi, evolved, face - 1, idx_vel),
+            .p = derived(face - 1, nNodes + 1, idx_pre),
+            .cs = derived(face - 1, nNodes + 1, idx_cs)};
+        const FluidRiemannState fluid_right{
+            .tau = basis_eval<Interface::Left>(phi, evolved, face, idx_tau),
+            .v = basis_eval<Interface::Left>(phi, evolved, face, idx_vel),
+            .p = derived(face, 0, idx_pre),
+            .cs = derived(face, 0, idx_cs)};
+        const auto fluid_flux = numerical_flux_fluid_with_boundary(
+            face, ib.s, ib.e + 1, fluid_bcs, fluid_left, fluid_right);
+
+        const double rho_l =
+            1.0 / basis_eval<Interface::Right>(phi, evolved, face - 1, idx_tau);
+        const double rho_r =
+            1.0 / basis_eval<Interface::Left>(phi, evolved, face, idx_tau);
+        const RadBoundaryState rad_left{
+            .E = basis_eval<Interface::Right>(phi, evolved, face - 1,
+                                              idx_rad_energy) *
+                 rho_l,
+            .F = basis_eval<Interface::Right>(phi, evolved, face - 1,
+                                              idx_rad_flux) *
+                 rho_l};
+        const RadBoundaryState rad_right{
+            .E = basis_eval<Interface::Left>(phi, evolved, face,
+                                             idx_rad_energy) *
+                 rho_r,
+            .F = basis_eval<Interface::Left>(phi, evolved, face, idx_rad_flux) *
+                 rho_r};
+
+        const auto rad_flux = numerical_flux_rad_with_boundary(
+            face, ib.s, ib.e + 1, rad_bcs, rad_left, rad_right, fluid_flux.u);
+        const double sign = inner ? 1.0 : -1.0;
+        lsum += sign * rad_flux.e * sqrt_gm(cell, q_face);
+      },
+      Kokkos::Sum<double>(output));
+
+  return geometry_factor(mesh) * output;
 }
 
 // This total_energy is all sources

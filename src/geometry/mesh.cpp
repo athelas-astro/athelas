@@ -45,7 +45,7 @@ Mesh::Mesh(const ProblemIn *pin)
       center_of_mass_("Center of mass_", mSize_),
       sqrt_gm_("Sqrt Gamma", mSize_, nNodes_ + 2),
       integration_matrix_("Integration matrix", nNodes_, nNodes_),
-      grid_("Grid", mSize_, nNodes_ + 2) {
+      grid_("Mesh", mSize_, nNodes_ + 2) {
   std::vector<double> tmp_nodes(nNodes_);
   std::vector<double> tmp_weights(nNodes_);
 
@@ -270,7 +270,7 @@ void Mesh::create_uniform_grid() {
   Kokkos::deep_copy(x_l_, x_l_h);
 
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Create uniform grid", DevExecSpace(),
+      DEFAULT_FLAT_LOOP_PATTERN, "Mesh :: Create uniform grid", DevExecSpace(),
       ilo - 1, ihi + 1, KOKKOS_CLASS_LAMBDA(const int i) {
         grid_(i, 0) = x_l_(i);
         sqrt_gm_(i, 0) = get_sqrt_gm(x_l_(i));
@@ -324,7 +324,7 @@ void Mesh::create_log_grid() {
   Kokkos::deep_copy(x_l_, x_l_h);
 
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Create log grid", DevExecSpace(),
+      DEFAULT_FLAT_LOOP_PATTERN, "Mesh :: Create log grid", DevExecSpace(),
       ilo - 1, ihi + 1, KOKKOS_CLASS_LAMBDA(const int i) {
         grid_(i, 0) = x_l_(i);
         sqrt_gm_(i, 0) = get_sqrt_gm(x_l_(i));
@@ -349,7 +349,7 @@ void Mesh::compute_mass_measure(AthelasArray3D<double> evolved) {
   constexpr int idx_tau = 0;
 
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Compute mass", DevExecSpace(), ilo,
+      DEFAULT_FLAT_LOOP_PATTERN, "Mesh :: Compute mass", DevExecSpace(), ilo,
       ihi, KOKKOS_CLASS_LAMBDA(const int i) {
         double mass = 0.0;
         for (int q = 0; q < nNodes_; q++) {
@@ -365,7 +365,7 @@ void Mesh::compute_mass_measure(AthelasArray3D<double> evolved) {
 
   // Guard cells
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Compute mass (ghosts)",
+      DEFAULT_FLAT_LOOP_PATTERN, "Mesh :: Compute mass (ghosts)",
       DevExecSpace(), 0, ilo - 1, KOKKOS_CLASS_LAMBDA(const int i) {
         mass_(ilo - 1 - i) = mass_(ilo + i);
         mass_(ihi + 1 + i) = mass_(ihi - i);
@@ -392,7 +392,7 @@ void Mesh::compute_mass_r(AthelasArray3D<double> /*evolved*/) {
   static const double geom_fac = (do_geometry()) ? 4.0 * constants::PI : 1.0;
 
   athelas::par_scan(
-      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: enclosed mass faces", DevExecSpace(),
+      DEFAULT_FLAT_LOOP_PATTERN, "Mesh :: enclosed mass faces", DevExecSpace(),
       ilo, ihi,
       KOKKOS_CLASS_LAMBDA(const int i, double &partial_sum,
                           const bool is_final) {
@@ -411,7 +411,7 @@ void Mesh::compute_mass_r(AthelasArray3D<double> /*evolved*/) {
       });
 
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: enclosed mass nodes", DevExecSpace(),
+      DEFAULT_FLAT_LOOP_PATTERN, "Mesh :: enclosed mass nodes", DevExecSpace(),
       ilo, ihi, KOKKOS_CLASS_LAMBDA(const int i) {
         const double mass_left = mass_r_(i, 0);
         const double mass_right = mass_r_(i, nNodes_ + 1);
@@ -458,7 +458,7 @@ void Mesh::compute_mass_r(AthelasArray3D<double> /*evolved*/) {
       });
 
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: enclosed mass ghosts", DevExecSpace(),
+      DEFAULT_FLAT_LOOP_PATTERN, "Mesh :: enclosed mass ghosts", DevExecSpace(),
       0, ilo - 1, KOKKOS_CLASS_LAMBDA(const int i) {
         for (int q = 0; q < nNodes_ + 2; ++q) {
           mass_r_(ilo - 1 - i, q) = mass_r_(ilo + i, q);
@@ -482,7 +482,7 @@ void Mesh::compute_center_of_mass(AthelasArray3D<double> /*evolved*/) {
   const int ihi = get_ihi();
 
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: center of mass", DevExecSpace(), ilo,
+      DEFAULT_FLAT_LOOP_PATTERN, "Mesh :: center of mass", DevExecSpace(), ilo,
       ihi, KOKKOS_CLASS_LAMBDA(const int i) {
         double com = 0.0;
 
@@ -495,7 +495,7 @@ void Mesh::compute_center_of_mass(AthelasArray3D<double> /*evolved*/) {
 
   // Guard cells
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: center of mass (ghosts))",
+      DEFAULT_FLAT_LOOP_PATTERN, "Mesh :: center of mass (ghosts))",
       DevExecSpace(), 0, ilo - 1, KOKKOS_CLASS_LAMBDA(const int i) {
         center_of_mass_(ilo - 1 - i) = center_of_mass_(ilo + i);
         center_of_mass_(ihi + 1 + i) = center_of_mass_(ihi - i);
@@ -517,7 +517,7 @@ void Mesh::reconstruct_mesh(AthelasArray3D<double> evolved,
   const double X_inner = coordinate_volume(x_inner);
 
   athelas::par_scan(
-      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Reconstruct from tau", DevExecSpace(),
+      DEFAULT_FLAT_LOOP_PATTERN, "Mesh :: Reconstruct from tau", DevExecSpace(),
       ilo, ihi,
       KOKKOS_CLASS_LAMBDA(const int i, double &partial_sum,
                           const bool is_final) {
@@ -593,7 +593,7 @@ void Mesh::reconstruct_mesh(AthelasArray3D<double> evolved,
       });
 
   athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Grid :: Reconstruct ghosts", DevExecSpace(),
+      DEFAULT_FLAT_LOOP_PATTERN, "Mesh :: Reconstruct ghosts", DevExecSpace(),
       0, 1, KOKKOS_CLASS_LAMBDA(const int side) {
         const int i = (side == 0) ? ilo - 1 : ihi + 1;
         const int interior = (side == 0) ? ilo : ihi;

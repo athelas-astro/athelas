@@ -43,8 +43,8 @@ config.bc = {
   },
   radiation = {
     bc_i = "marshak",
-    bc_o = "outflow",
-    dirichlet_values_i = { 1.1113063385e+12, 0.0 },
+    bc_o = "free_streaming",
+    marshak_incoming_energy_i = 1.1113063385e+12,
   },
 }
 

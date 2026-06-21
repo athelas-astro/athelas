@@ -184,7 +184,7 @@ void NickelHeatingPackage::fill_derived(StageData &stage_data,
 
   const int nnodes = mesh.n_nodes();
   const int nx = mesh.n_elements();
-  static const RadialGridIndexer grid_indexer(nx, nnodes);
+  static const RadialMeshIndexer grid_indexer(nx, nnodes);
   auto coords = mesh.nodal_grid();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
   static const IndexRange qb(nnodes);

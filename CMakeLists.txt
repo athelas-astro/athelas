@@ -127,6 +127,7 @@ set( ATHELAS_SOURCES
   "src/driver.cpp"
   "src/composition/compdata.cpp"
   "src/composition/composition.cpp"
+  "src/composition/saha.cpp"
   "src/pgen/advection.cpp"
   "src/pgen/ejecta_csm.cpp"
   "src/pgen/gas_collapse.cpp"

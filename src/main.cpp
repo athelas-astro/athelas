@@ -89,7 +89,7 @@ auto parse_input_options(std::span<char *> args)
     std::println("  ./athelas -i ../inputs/sedov.lua "
                  "--output.history.fn='\"sedov.hst\"'");
     std::println("  ./athelas -i ../inputs/marshak.lua "
-                 "--bc.radiation.dirichlet_values_i='{{1.1e12, 0.0}}'");
+                 "--bc.radiation.marshak_incoming_energy_i=1.1e12");
     std::println("  ./athelas -r run/sedov_000050.ath -o run/");
     std::println("  ./athelas -r run/sedov_000050.ath --problem.tf=0.2");
     std::exit(get_help ? AthelasExitCodes::SUCCESS : AthelasExitCodes::FAILURE);

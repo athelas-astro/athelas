@@ -26,40 +26,6 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
 ``config.bc``
 -------------
 
-``radiation``
-~~~~~~~~~~~~~
-
-.. list-table::
-   :widths: 10 8 12 20 50
-   :header-rows: 1
-
-   * - Key
-     - Type
-     - Default
-     - Required
-     - Description
-   * - ``bc_i``
-     - string
-     - —
-     - No
-     - Inner radiation boundary condition. Options: 'reflecting', 'outflow', 'marshak', 'dirichlet'.
-   * - ``dirichlet_values_i``
-     - array
-     - —
-     - No
-     - Dirichlet state values at inner boundary.
-   * - ``dirichlet_values_o``
-     - array
-     - —
-     - No
-     - Dirichlet state values at outer boundary.
-   * - ``bc_o``
-     - string
-     - —
-     - No
-     - Outer radiation boundary condition. Options: 'reflecting', 'outflow', 'dirichlet'.
-
-
 ``fluid``
 ~~~~~~~~~
 
@@ -76,22 +42,51 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - string
      - —
      - No
-     - Inner fluid boundary condition. Options: 'reflecting', 'outflow', 'dirichlet', 'periodic'.
-   * - ``dirichlet_values_i``
-     - array
-     - —
-     - No
-     - Dirichlet state values at inner boundary.
-   * - ``dirichlet_values_o``
-     - array
-     - —
-     - No
-     - Dirichlet state values at outer boundary.
+     - Inner fluid boundary condition. Options: 'reflecting', 'outflow', 'surface', 'periodic'.
    * - ``bc_o``
      - string
      - —
      - No
-     - Outer fluid boundary condition. Options: 'reflecting', 'outflow', 'dirichlet', 'periodic'.
+     - Outer fluid boundary condition. Options: 'reflecting', 'outflow', 'surface', 'periodic'.
+   * - ``surface_pressure_o``
+     - number
+     - —
+     - No
+     - Prescribed pressure at an outer surface boundary. Defaults to zero.
+   * - ``surface_pressure_i``
+     - number
+     - —
+     - No
+     - Prescribed pressure at an inner surface boundary. Defaults to zero.
+
+
+``radiation``
+~~~~~~~~~~~~~
+
+.. list-table::
+   :widths: 10 8 12 20 50
+   :header-rows: 1
+
+   * - Key
+     - Type
+     - Default
+     - Required
+     - Description
+   * - ``bc_i``
+     - string
+     - —
+     - No
+     - Inner radiation boundary condition. Options: 'reflecting', 'interior', 'free_streaming', 'marshak', 'periodic'. 'interior' uses the interior-state physical flux, analogous to fluid outflow but not a no-incoming-characteristics condition.
+   * - ``bc_o``
+     - string
+     - —
+     - No
+     - Outer radiation boundary condition. Options: 'reflecting', 'interior', 'free_streaming', 'periodic'. 'interior' uses the interior-state physical flux, analogous to fluid outflow but not a no-incoming-characteristics condition.
+   * - ``marshak_incoming_energy_i``
+     - number
+     - —
+     - No
+     - Incoming volumetric radiation energy for an inner Marshak boundary.
 
 
 ``config.composition``
@@ -128,6 +123,21 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
+   * - ``operator_split``
+     - bool
+     - ``false``
+     - No
+     - Apply engine as operator-split source.
+   * - ``mode``
+     - string
+     - —
+     - No
+     - Injection mode. Options: 'direct', 'asymptotic'.
+   * - ``energy``
+     - double
+     - —
+     - No
+     - Total injected energy in erg.
    * - ``tend``
      - double
      - —
@@ -143,21 +153,6 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - —
      - No
      - Enable thermal energy injection engine.
-   * - ``energy``
-     - double
-     - —
-     - No
-     - Total injected energy in erg.
-   * - ``mode``
-     - string
-     - —
-     - No
-     - Injection mode. Options: 'direct', 'asymptotic'.
-   * - ``operator_split``
-     - bool
-     - ``false``
-     - No
-     - Apply engine as operator-split source.
 
 
 ``config.eos``
@@ -172,16 +167,6 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
-   * - ``n``
-     - double
-     - —
-     - No
-     - Polytropic index n. Required for polytropic EOS.
-   * - ``type``
-     - string
-     - —
-     - No
-     - Equation of state type. Options:. 'ideal', 'paczynski', 'marshak', 'polytropic'.
    * - ``gamma``
      - double
      - ``1.4``
@@ -192,6 +177,16 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - —
      - No
      - Polytropic constant K. Required for polytropic EOS.
+   * - ``type``
+     - string
+     - —
+     - No
+     - Equation of state type. Options:. 'ideal', 'paczynski', 'marshak', 'polytropic'.
+   * - ``n``
+     - double
+     - —
+     - No
+     - Polytropic index n. Required for polytropic EOS.
 
 
 ``config.fluid``
@@ -209,61 +204,61 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
-   * - ``type``
-     - string
-     - ``minmod``
-     - No
-     - Limiter type. Options: 'minmod', 'moment', 'weno [experimental]'.
-   * - ``gamma_l``
-     - double
-     - —
-     - No
-     - WENO left weight. Inferred from gamma_i if omitted.
-   * - ``b_tvd``
-     - double
-     - ``1.0``
-     - No
-     - TVD parameter b. Used with minmod limiter.
-   * - ``characteristic``
-     - bool
-     - ``false``
-     - No
-     - Enable characteristic limiting.
-   * - ``tci_opt``
-     - bool
-     - ``false``
-     - No
-     - Enable troubled-cell indicator.
-   * - ``enabled``
-     - bool
-     - ``true``
-     - No
-     - Enable slope limiter for fluid.
    * - ``weno_r``
      - double
      - ``2.0``
      - No
      - WENO smoothness exponent. Must be > 0.
-   * - ``m_tvb``
-     - double
-     - ``0.0``
+   * - ``type``
+     - string
+     - ``minmod``
      - No
-     - TVB parameter M. Used with minmod limiter.
-   * - ``gamma_r``
-     - double
-     - —
-     - No
-     - WENO right weight. Inferred from gamma_i if omitted.
+     - Limiter type. Options: 'minmod', 'moment', 'weno [experimental]'.
    * - ``gamma_i``
      - double
      - —
      - No
      - WENO central weight. Required for WENO limiter.
+   * - ``enabled``
+     - bool
+     - ``true``
+     - No
+     - Enable slope limiter for fluid.
+   * - ``gamma_r``
+     - double
+     - —
+     - No
+     - WENO right weight. Inferred from gamma_i if omitted.
+   * - ``b_tvd``
+     - double
+     - ``1.0``
+     - No
+     - TVD parameter b. Used with minmod limiter.
+   * - ``tci_opt``
+     - bool
+     - ``false``
+     - No
+     - Enable troubled-cell indicator.
+   * - ``characteristic``
+     - bool
+     - ``false``
+     - No
+     - Enable characteristic limiting.
    * - ``tci_val``
      - double
      - —
      - No
      - Troubled-cell indicator threshold.
+   * - ``m_tvb``
+     - double
+     - ``0.0``
+     - No
+     - TVB parameter M. Used with minmod limiter.
+   * - ``gamma_l``
+     - double
+     - —
+     - No
+     - WENO left weight. Inferred from gamma_i if omitted.
 
 
 ``config.gravity``
@@ -339,6 +334,11 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
+   * - ``ncomps``
+     - int
+     - —
+     - No
+     - Number of species for Saha solver.
    * - ``fn_degeneracy``
      - string
      - —
@@ -354,11 +354,6 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - —
      - No
      - Path to ionization atomic data file.
-   * - ``ncomps``
-     - int
-     - —
-     - No
-     - Number of species for Saha solver.
 
 
 ``config.opacity``
@@ -378,6 +373,11 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - —
      - No
      - Opacity model. Options: 'tabular', 'constant', 'powerlaw'.
+   * - ``kR_offset``
+     - double
+     - ``0.0``
+     - No
+     - Rosseland opacity additive offset. Powerlaw only.
    * - ``filename``
      - string
      - —
@@ -388,6 +388,11 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - —
      - No
      - Rosseland mean opacity (cm^2/g). Required for constant and powerlaw.
+   * - ``kP_offset``
+     - double
+     - ``0.0``
+     - No
+     - Planck opacity additive offset. Powerlaw only.
    * - ``t_exp``
      - double
      - —
@@ -398,16 +403,6 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - —
      - No
      - Density exponent for powerlaw opacity.
-   * - ``kR_offset``
-     - double
-     - ``0.0``
-     - No
-     - Rosseland opacity additive offset. Powerlaw only.
-   * - ``kP_offset``
-     - double
-     - ``0.0``
-     - No
-     - Planck opacity additive offset. Powerlaw only.
    * - ``kP``
      - double
      - —
@@ -432,6 +427,11 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - ``0.24``
      - No
      - Core Planck floor. Used with core_envelope model.
+   * - ``rosseland``
+     - double
+     - ``0.001``
+     - No
+     - Rosseland floor value. Used with constant floor model.
    * - ``type``
      - string
      - ``core_envelope``
@@ -447,11 +447,6 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - ``0.001``
      - No
      - Planck floor value. Used with constant floor model.
-   * - ``rosseland``
-     - double
-     - ``0.001``
-     - No
-     - Rosseland floor value. Used with constant floor model.
    * - ``env_rosseland``
      - double
      - ``0.01``
@@ -476,31 +471,31 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
-   * - ``dt_init``
-     - double
-     - ``1.000000e-16``
-     - No
-     - Initial timestep. Must be > 0.
-   * - ``ncycle_out``
-     - double
-     - ``100``
-     - No
-     - Number of cycles between stdout output.
-   * - ``dt_growth_frac``
-     - double
-     - ``1.05``
-     - No
-     - Initial timestep growth factor. Must be > 1.
    * - ``dt_fixed``
      - double
      - —
      - No
      - Fixed timestep override. Optional.
+   * - ``dt_growth_frac``
+     - double
+     - ``1.05``
+     - No
+     - Initial timestep growth factor. Must be > 1.
+   * - ``dt_init``
+     - double
+     - ``1.000000e-16``
+     - No
+     - Initial timestep. Must be > 0.
    * - ``dt_hdf5``
      - double
      - —
      - No
      - Time interval between HDF5 outputs. Default: t_end / 100.
+   * - ``ncycle_out``
+     - double
+     - ``100``
+     - No
+     - Number of cycles between stdout output.
 
 
 ``history``
@@ -539,6 +534,11 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
+   * - ``radiation``
+     - bool
+     - ``false``
+     - No
+     - Enable radiation transport.
    * - ``gravity``
      - bool
      - ``false``
@@ -549,26 +549,21 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - ``false``
      - No
      - Enable multi-species composition.
-   * - ``radiation``
-     - bool
-     - ``false``
-     - No
-     - Enable radiation transport.
    * - ``heating``
      - bool
      - ``false``
      - No
      - Enable nuclear heating sources.
-   * - ``engine``
-     - bool
-     - ``false``
-     - No
-     - Enable energy injection engine.
    * - ``ionization``
      - bool
      - ``false``
      - No
      - Enable Saha ionization. Requires composition = true.
+   * - ``engine``
+     - bool
+     - ``false``
+     - No
+     - Enable energy injection engine.
 
 
 ``config.problem``
@@ -583,6 +578,11 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
+   * - ``name``
+     - string
+     - —
+     - No
+     - Unique identifier for this simulation problem.
    * - ``t_end``
      - double
      - —
@@ -593,26 +593,6 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - —
      - No
      - Grid spacing type. Options: 'uniform', 'logarithmic'.
-   * - ``xl``
-     - double
-     - —
-     - No
-     - Left boundary of the domain.
-   * - ``nx``
-     - double
-     - —
-     - No
-     - Number of grid cells. Must be > 0.
-   * - ``params``
-     - —
-     - —
-     - No
-     - Problem-specific parameters. Validated by the problem generator.
-   * - ``nlim``
-     - double
-     - ``-1``
-     - No
-     - Maximum double of cycles. -1 for unlimited.
    * - ``cfl``
      - double
      - —
@@ -623,16 +603,31 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - —
      - No
      - Right boundary of the domain. Must be > xl.
+   * - ``nlim``
+     - double
+     - ``-1``
+     - No
+     - Maximum double of cycles. -1 for unlimited.
    * - ``geometry``
      - string
      - —
      - No
      - Domain geometry. Options: 'planar', 'spherical'.
-   * - ``name``
-     - string
+   * - ``nx``
+     - double
      - —
      - No
-     - Unique identifier for this simulation problem.
+     - Number of grid cells. Must be > 0.
+   * - ``params``
+     - —
+     - —
+     - No
+     - Problem-specific parameters. Validated by the problem generator.
+   * - ``xl``
+     - double
+     - —
+     - No
+     - Left boundary of the domain.
 
 
 ``config.radiation``
@@ -666,85 +661,61 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
-   * - ``type``
-     - string
-     - ``minmod``
-     - No
-     - Limiter type. Options: 'minmod', 'moment', 'weno [experimental]'.
-   * - ``gamma_l``
-     - double
-     - —
-     - No
-     - WENO left weight. Inferred from gamma_i if omitted.
-   * - ``b_tvd``
-     - double
-     - ``1.0``
-     - No
-     - TVD parameter b. Used with minmod limiter.
-   * - ``characteristic``
-     - bool
-     - ``false``
-     - No
-     - Enable characteristic limiting. Currently unsupported for radiation.
-   * - ``tci_opt``
-     - bool
-     - ``false``
-     - No
-     - Enable troubled-cell indicator.
-   * - ``enabled``
-     - bool
-     - ``true``
-     - No
-     - Enable slope limiter for radiation.
    * - ``weno_r``
      - double
      - ``2.0``
      - No
      - WENO smoothness exponent. Must be > 0.
-   * - ``m_tvb``
-     - double
-     - ``0.0``
+   * - ``type``
+     - string
+     - ``minmod``
      - No
-     - TVB parameter M. Used with minmod limiter.
-   * - ``gamma_r``
-     - double
-     - —
-     - No
-     - WENO right weight. Inferred from gamma_i if omitted.
+     - Limiter type. Options: 'minmod', 'moment', 'weno [experimental]'.
    * - ``gamma_i``
      - double
      - —
      - No
      - WENO central weight. Required for WENO limiter.
+   * - ``enabled``
+     - bool
+     - ``true``
+     - No
+     - Enable slope limiter for radiation.
+   * - ``gamma_r``
+     - double
+     - —
+     - No
+     - WENO right weight. Inferred from gamma_i if omitted.
+   * - ``b_tvd``
+     - double
+     - ``1.0``
+     - No
+     - TVD parameter b. Used with minmod limiter.
+   * - ``tci_opt``
+     - bool
+     - ``false``
+     - No
+     - Enable troubled-cell indicator.
+   * - ``characteristic``
+     - bool
+     - ``false``
+     - No
+     - Enable characteristic limiting. Currently unsupported for radiation.
    * - ``tci_val``
      - double
      - —
      - No
      - Troubled-cell indicator threshold.
-
-
-``timestep``
-~~~~~~~~~~~~
-
-.. list-table::
-   :widths: 10 8 12 20 50
-   :header-rows: 1
-
-   * - Key
-     - Type
-     - Default
-     - Required
-     - Description
-   * - ``max_change_f``
+   * - ``m_tvb``
+     - double
+     - ``0.0``
+     - No
+     - TVB parameter M. Used with minmod limiter.
+   * - ``gamma_l``
      - double
      - —
      - No
-     - Maximum allowed absolute change in radiation reduced flux. Timestep control for implicit transport.
-   * - ``max_fractional_change_e``
-     - double
-     - —
-     - No
-     - Maximum allowed fractional change in radiation energy. Timestep control for implicit transport.
+     - WENO left weight. Inferred from gamma_i if omitted.
 
 
 ``newton``
@@ -769,6 +740,30 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - ``1.000000e-08``
      - No
      - Convergence tolerance for implicit transport Newton iteration.
+
+
+``timestep``
+~~~~~~~~~~~~
+
+.. list-table::
+   :widths: 10 8 12 20 50
+   :header-rows: 1
+
+   * - Key
+     - Type
+     - Default
+     - Required
+     - Description
+   * - ``max_fractional_change_e``
+     - double
+     - —
+     - No
+     - Maximum allowed fractional change in radiation energy. Timestep control for implicit transport.
+   * - ``max_change_f``
+     - double
+     - —
+     - No
+     - Maximum allowed absolute change in radiation reduced flux. Timestep control for implicit transport.
 
 
 ``config.time``

@@ -1,6 +1,8 @@
 #include "pgen/problem_in.hpp"
 #include <cmath>
 
+#include "bc/boundary_conditions_base.hpp"
+#include "geometry/mesh.hpp"
 #include "io/restart.hpp"
 #include "lua_schema.hpp"
 #include "pgen/lua_validator.hpp"
@@ -265,40 +267,39 @@ ProblemIn::ProblemIn(
       fluid_bc_block ? sol::optional<std::string>((*fluid_bc_block)["bc_o"])
                      : sol::nullopt;
 
-  params_->add("fluid.bc.i", utilities::to_lower(*fluid_bc_i));
-  params_->add("fluid.bc.o", utilities::to_lower(*fluid_bc_o));
-  check_bc(params_->get<std::string>("fluid.bc.i"));
-  check_bc(params_->get<std::string>("fluid.bc.o"));
+  const auto fluid_bc_i_lc = utilities::to_lower(*fluid_bc_i);
+  const auto fluid_bc_o_lc = utilities::to_lower(*fluid_bc_o);
+  params_->add("fluid.bc.i", fluid_bc_i_lc);
+  params_->add("fluid.bc.o", fluid_bc_o_lc);
 
-  // handle dirichlet
-  std::array<double, 3> fluid_i_dirichlet_values = {0.0, 0.0, 0.0};
-  std::array<double, 3> fluid_o_dirichlet_values = {0.0, 0.0, 0.0};
-
-  if (fluid_bc_i == "dirichlet") {
-    sol::optional<sol::table> arr =
-        fluid_bc_block
-            ? sol::optional<sol::table>((*fluid_bc_block)["dirichlet_values_i"])
-            : sol::nullopt;
-    if (!arr) {
-      throw_athelas_error(" ! Initialization Error: Failed to read fluid "
-                          "dirichlet_values_i as array.");
-    }
-    read_lua_array(*arr, fluid_i_dirichlet_values);
+  const auto fluid_i_type = bc::parse_bc_type(fluid_bc_i_lc);
+  const auto fluid_o_type = bc::parse_bc_type(fluid_bc_o_lc);
+  bc::validate_fluid_bc(fluid_i_type);
+  bc::validate_fluid_bc(fluid_o_type);
+  if ((fluid_i_type == bc::BcType::Periodic) !=
+      (fluid_o_type == bc::BcType::Periodic)) {
+    throw_athelas_error("Periodic fluid boundaries must be set on both sides.");
   }
 
-  if (fluid_bc_o == "dirichlet") {
-    sol::optional<sol::table> arr =
+  double fluid_i_surface_pressure = 0.0;
+  double fluid_o_surface_pressure = 0.0;
+
+  if (fluid_i_type == bc::BcType::Surface) {
+    fluid_i_surface_pressure =
         fluid_bc_block
-            ? sol::optional<sol::table>((*fluid_bc_block)["dirichlet_values_o"])
-            : sol::nullopt;
-    if (!arr) {
-      throw_athelas_error(" ! Initialization Error: Failed to read fluid "
-                          "dirichlet_values_o as array.");
-    }
-    read_lua_array(*arr, fluid_o_dirichlet_values);
+            ? sol::optional<double>((*fluid_bc_block)["surface_pressure_i"])
+                  .value_or(0.0)
+            : 0.0;
   }
-  params_->add("fluid.bc.i.dirichlet_values", fluid_i_dirichlet_values);
-  params_->add("fluid.bc.o.dirichlet_values", fluid_o_dirichlet_values);
+  if (fluid_o_type == bc::BcType::Surface) {
+    fluid_o_surface_pressure =
+        fluid_bc_block
+            ? sol::optional<double>((*fluid_bc_block)["surface_pressure_o"])
+                  .value_or(0.0)
+            : 0.0;
+  }
+  params_->add("fluid.bc.i.surface_pressure", fluid_i_surface_pressure);
+  params_->add("fluid.bc.o.surface_pressure", fluid_o_surface_pressure);
 
   // -------------------------------------
   // ---------- radiation block ----------
@@ -421,40 +422,47 @@ ProblemIn::ProblemIn(
         rad_bc_block ? sol::optional<std::string>((*rad_bc_block)["bc_o"])
                      : sol::nullopt;
 
-    params_->add("radiation.bc.i", utilities::to_lower(*rad_bc_i));
-    params_->add("radiation.bc.o", utilities::to_lower(*rad_bc_o));
-    check_bc(params_->get<std::string>("radiation.bc.i"));
-    check_bc(params_->get<std::string>("radiation.bc.o"));
+    const auto rad_bc_i_lc = utilities::to_lower(*rad_bc_i);
+    const auto rad_bc_o_lc = utilities::to_lower(*rad_bc_o);
+    params_->add("radiation.bc.i", rad_bc_i_lc);
+    params_->add("radiation.bc.o", rad_bc_o_lc);
 
-    // handle dirichlet / marshak
-    std::array<double, 2> rad_i_dirichlet_values = {0.0, 0.0};
-    std::array<double, 2> rad_o_dirichlet_values = {0.0, 0.0};
-
-    if (rad_bc_i == "dirichlet" || rad_bc_i == "marshak") {
-      sol::optional<sol::table> arr =
-          rad_bc_block
-              ? sol::optional<sol::table>((*rad_bc_block)["dirichlet_values_i"])
-              : sol::nullopt;
-      if (!arr) {
-        throw_athelas_error(" ! Initialization Error: Failed to read radiation "
-                            "dirichlet_values_i as array.");
-      }
-      read_lua_array(*arr, rad_i_dirichlet_values);
+    const auto rad_i_type = bc::parse_bc_type(rad_bc_i_lc);
+    const auto rad_o_type = bc::parse_bc_type(rad_bc_o_lc);
+    bc::validate_radiation_bc(Boundary::Interior, rad_i_type);
+    bc::validate_radiation_bc(Boundary::Exterior, rad_o_type);
+    if ((rad_i_type == bc::BcType::Periodic) !=
+        (rad_o_type == bc::BcType::Periodic)) {
+      throw_athelas_error(
+          "Periodic radiation boundaries must be set on both sides.");
+    }
+    if (discretization_type == "implicit" &&
+        rad_i_type == bc::BcType::Periodic) {
+      throw_athelas_error(
+          "Implicit radiation does not support periodic boundaries.");
     }
 
-    if (rad_bc_o == "dirichlet") {
-      sol::optional<sol::table> arr =
-          rad_bc_block
-              ? sol::optional<sol::table>((*rad_bc_block)["dirichlet_values_o"])
-              : sol::nullopt;
-      if (!arr) {
-        throw_athelas_error(" ! Initialization Error: Failed to read radiation "
-                            "dirichlet_values_o as array.");
+    // handle Marshak data
+    double rad_i_marshak_incoming_energy = 0.0;
+    double rad_o_marshak_incoming_energy = 0.0;
+
+    if (rad_i_type == bc::BcType::Marshak) {
+      sol::optional<double> incoming =
+          rad_bc_block ? sol::optional<double>(
+                             (*rad_bc_block)["marshak_incoming_energy_i"])
+                       : sol::nullopt;
+      if (!incoming) {
+        throw_athelas_error(
+            " ! Initialization Error: Marshak radiation boundaries require "
+            "marshak_incoming_energy_i.");
       }
-      read_lua_array(*arr, rad_o_dirichlet_values);
+      rad_i_marshak_incoming_energy = *incoming;
     }
-    params_->add("radiation.bc.i.dirichlet_values", rad_i_dirichlet_values);
-    params_->add("radiation.bc.o.dirichlet_values", rad_o_dirichlet_values);
+
+    params_->add("radiation.bc.i.marshak_incoming_energy",
+                 rad_i_marshak_incoming_energy);
+    params_->add("radiation.bc.o.marshak_incoming_energy",
+                 rad_o_marshak_incoming_energy);
   } // --- radiation block ---
 
   // -----------------------------------
@@ -742,19 +750,6 @@ ProblemIn::ProblemIn(
   } // opacity block
 
   std::println("# Configuration ... Complete\n");
-}
-
-auto check_bc(std::string bc) -> bool {
-  if (bc != "outflow" && bc != "reflecting" && bc != "dirichlet" &&
-      bc != "periodic" && bc != "marshak") {
-    throw_athelas_error(
-        " ! Initialization Error: Bad boundary condition choice. Choose: \n"
-        " - outflow \n"
-        " - reflecting \n"
-        " - periodic \n"
-        " - dirichlet");
-  }
-  return false; // should not reach
 }
 
 // ---------------------------------------------------------------------------

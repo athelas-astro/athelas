@@ -4,11 +4,11 @@
 #include <tuple>
 
 /**
- * @class RadialGridIndexer
+ * @class RadialMeshIndexer
  * @brief Handles indexing conversion between 2D radial mesh coordinates and
  * flattened indices
  */
-class RadialGridIndexer {
+class RadialMeshIndexer {
  private:
   int nx_;
   int nnodes_;
@@ -20,7 +20,7 @@ class RadialGridIndexer {
    * @param nx Number of radial cells (must be > 0)
    * @param nnodes Number of quadrature points per cell (must be > 0)
    */
-  RadialGridIndexer(int nx, int nnodes)
+  RadialMeshIndexer(int nx, int nnodes)
       : nx_(nx), nnodes_(nnodes), total_(nx * nnodes) {
     assert(nx > 0 && "Number of cells must be positive");
     assert(nnodes > 0 && "Number of nodes per cell must be positive");

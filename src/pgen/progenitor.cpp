@@ -25,7 +25,6 @@
 
 #include "Kokkos_Core.hpp"
 #include "basic_types.hpp"
-#include "bc/boundary_conditions.hpp"
 #include "composition/composition.hpp"
 #include "composition/saha.hpp"
 #include "constants.hpp"
@@ -505,9 +504,9 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   // I don't particularly like this pattern, but as it stands the basis is
   // needed in the Saha solves to come.
   mesh->compute_mass_measure(evolved);
-  auto fluid_basis_tmp = std::make_unique<basis::NodalBasis>(
+  auto basis_tmp = std::make_unique<basis::NodalBasis>(
       derived, mesh, nNodes, pin->param()->get<int>("problem.nx"));
-  mesh_state.setup_fluid_basis(std::move(fluid_basis_tmp));
+  mesh_state.setup_basis(std::move(basis_tmp));
 
   // There is one subtelty that must be taken care of:
   // We have interpolated pressure, density, temperature etc onto element
@@ -516,7 +515,7 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   // on the element must equal the cell center value. This must be enforced
   // via the basis before the interface values are used. It needs to be done
   // before the first fill derived call.
-  const auto &basis = mesh_state.fluid_basis();
+  const auto &basis = mesh_state.basis();
   auto phi = basis.phi();
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova :: Consistent interfaces",
@@ -538,20 +537,18 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   // Compute necessary terms for using the Paczynski eos
   auto sd0 = mesh_state(0);
   bel::limit_mass_fractions(sd0, *mesh);
-  atom::fill_derived_comps<Domain::Interior>(sd0, mesh);
+  atom::fill_derived_comps(sd0, mesh);
 
   // Perform an eos inversion using the progenitor pressure for
   // the updated temperature. It is coupled to a Saha solver for the
   // ionization state.
   if (ionization_state->solver() == atom::SahaSolver::Linear) {
-    atom::compute_temperature_with_saha<Domain::Interior,
-                                        eos::EOSInversion::Pressure,
+    atom::compute_temperature_with_saha<eos::EOSInversion::Pressure,
                                         atom::SahaSolver::Linear>(sd0, *mesh);
   }
   if (ionization_state->solver() == atom::SahaSolver::Log) {
-    atom::compute_temperature_with_saha<
-        Domain::Interior, eos::EOSInversion::Pressure, atom::SahaSolver::Log>(
-        sd0, *mesh);
+    atom::compute_temperature_with_saha<eos::EOSInversion::Pressure,
+                                        atom::SahaSolver::Log>(sd0, *mesh);
   }
 
   auto number_density = comps->number_density();
@@ -608,28 +605,6 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
           }
         });
   }
-
-  int nvars = rad_enabled ? 5 : 3;
-  // composition boundary condition
-  static const IndexRange vb_comps(std::make_pair(nvars, nvars + ncomps - 1));
-  bc::fill_ghost_zones_composition(evolved, vb_comps);
-
-  // Fill density and temperature in guard cells.
-  // Temperature must be filled in when ionization is active.
-  athelas::par_for(
-      DEFAULT_FLAT_LOOP_PATTERN, "Pgen :: Supernova (ghost)", DevExecSpace(), 0,
-      ib.s - 1, KOKKOS_LAMBDA(const int i) {
-        for (int q = 0; q < nNodes + 2; q++) {
-          derived(ib.s - 1 - i, q, idx_density) =
-              derived(ib.s + i, (nNodes + 2) - q - 1, idx_density);
-          derived(ib.e + 1 + i, q, idx_density) =
-              derived(ib.e - i, (nNodes + 2) - q - 1, idx_density);
-          derived(ib.s - 1 - i, q, idx_tgas) =
-              derived(ib.s + i, (nNodes + 2) - q - 1, idx_tgas);
-          derived(ib.e + 1 + i, q, idx_tgas) =
-              derived(ib.e - i, (nNodes + 2) - q - 1, idx_tgas);
-        }
-      });
 }
 
 } // namespace athelas::pgen::progenitor
