@@ -1,24 +1,24 @@
 local config = {}
 
 config.problem = {
-  name = "rad_shock",
-  t_end = 2.0e-10,
+  name = "rad_diffusion_wave",
+  t_end = 2.0e-8,
   nlim = -1,
   geometry = "planar",
   xl = 0.0,
-  xr = 0.01575,
-  x_d = 0.0132,
-  cfl = 0.5,
-  nx = 512,
+  xr = 1.0,
+  cfl = 0.8,
+  nx = 128,
   grid_type = "uniform",
 
   params = {
-    vL = 5.19e+07,
-    vR = 1.73e+07,
-    rhoL = 5.69,
-    rhoR = 17.1,
-    T_L = 2.18e+06,
-    T_R = 7.98e+06,
+    profile = "diffusion_wave",
+    v0 = 0.0,
+    rho = 1.0,
+    amp = 1.0,
+    perturbation = 1.0e-3,
+    mode = 1,
+    T_gas = 1.0e6,
   },
 }
 
@@ -33,7 +33,6 @@ config.physics = {
 
 config.time = {
   integrator = "IMEX_PDARS_ESDIRK",
-  -- integrator = "IMEX_SSPRK11",
 }
 
 config.basis = {
@@ -46,43 +45,43 @@ config.bc = {
     bc_o = "outflow",
   },
   radiation = {
-    bc_i = "interior",
-    bc_o = "interior",
+    bc_i = "reflecting",
+    bc_o = "reflecting",
   },
 }
 
 config.output = {
   ncycle_out = 100,
-  dt_growth_frac = 1.1,
-  dt_init = 1.0e-17,
-  history = {
-    fn = config.problem.name .. ".hst",
-  },
+  dt_growth_frac = 1.2,
+  dt_init = 1.0e-10,
 }
 
 config.fluid = {
   limiter = {
     enabled = true,
     type = "minmod",
-    m_tvb = 0.5,
+    m_tvb = 0.0,
     b_tvd = 1.0,
-    tci_opt = true,
-    tci_val = 0.45,
+    tci_opt = false,
+    tci_val = 0.1,
     characteristic = false,
   },
 }
 
 config.radiation = {
   discretization = "implicit",
+  ap_coefficient = 3.0,
   timestep = {
-    max_fractional_change_e = 0.05,
-    max_change_f = 0.1,
+    max_fractional_change_e = 0.2,
+    max_change_f = 0.2,
+    energy_change_scale = 1.0e-12,
   },
   newton = {
-    max_iter = 9,
-    tol = 1.0e-8,
+    max_iter = 10,
+    tol = 1.0e-10,
   },
   limiter = {
+    enabled = true,
     type = "minmod",
     m_tvb = 0.0,
     b_tvd = 1.0,
@@ -99,8 +98,8 @@ config.eos = {
 
 config.opacity = {
   type = "constant",
-  kP = 577.0,
-  kR = 577.0,
+  kP = 0.0,
+  kR = 6400.0,
 }
 
 return config

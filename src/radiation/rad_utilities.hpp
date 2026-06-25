@@ -51,6 +51,57 @@ struct RadNumericalFlux {
   double f;
 };
 
+KOKKOS_FORCEINLINE_FUNCTION
+auto ap_dissipation_factor(const double tau, const double coefficient = 1.0)
+    -> double {
+  assert(tau >= 0.0 && "ap_dissipation_factor: optical depth must be >= 0!");
+  assert(coefficient >= 0.0 &&
+         "ap_dissipation_factor: coefficient must be >= 0!");
+  return 1.0 / (1.0 + coefficient * tau);
+}
+
+/**
+ * @brief Optical depth kappa_R * rho * dr contributed by one cell side of a
+ *        face, used to build the AP LLF dissipation factor.
+ * @note `node` selects the cell-local node adjacent to the face (0 = left
+ *       face, nNodes + 1 = right face). X/Z are read from the bulk composition
+ *       when enabled, otherwise treated as zero. The opacity temperature is the
+ *       (frozen) stage gas temperature from the derived field.
+ * TODO(astrobarker): [optical depth] Is there a more "DG" way to do this?
+ */
+template <typename Opacity>
+KOKKOS_FORCEINLINE_FUNCTION auto
+cell_optical_depth(const Opacity &opac, const AthelasArray3D<double> derived,
+                   const AthelasArray3D<double> bulk,
+                   const bool composition_enabled, const int idx_tgas,
+                   const int cell, const int node, const double rho,
+                   const double dr) -> double {
+  const double T = derived(cell, node, idx_tgas);
+  double X = 0.0;
+  double Z = 0.0;
+  if (composition_enabled) {
+    X = bulk(cell, node, 0);
+    Z = bulk(cell, node, 2);
+  }
+  eos::EOSLambda lambda;
+  lambda.data[eos::EOS_LAMBDA_TEMPERATURE] = T;
+  const double kappa_R = opac.rosseland_mean(rho, T, X, Z, lambda.ptr());
+  return kappa_R * rho * dr;
+}
+
+/**
+ * @brief Combine left/right cell-side optical depths into a single face value
+ *        for the AP LLF dissipation factor.
+ * TODO(astrobarker): try a harmonic mean of the two sides here; it may behave
+ * better than this arithmetic mean across sharp opacity jumps (e.g.
+ * composition boundaries).
+ */
+KOKKOS_FORCEINLINE_FUNCTION
+auto face_optical_depth(const double tau_left, const double tau_right)
+    -> double {
+  return 0.5 * (tau_left + tau_right);
+}
+
 using root_finders::PhysicalScales, root_finders::RadHydroConvergence;
 
 /**
@@ -169,13 +220,16 @@ radiation_four_force(const double D, const double V, const double T,
  * @brief LLF numerical flux
  */
 auto KOKKOS_FORCEINLINE_FUNCTION llf_flux(const LLFRiemannState &left,
-                                          const LLFRiemannState &right)
-    -> double {
+                                          const LLFRiemannState &right,
+                                          const double beta = 1.0) -> double {
   // Weird check here, but to keep Riemann solvers APIs consistent we need
   // the shared wavespeed alpha in the struct.
   assert(left.alpha == right.alpha &&
          "llf_flux: left and right alphas must be identical!");
-  return 0.5 * std::fma(left.alpha, (left.u - right.u), (right.f + left.f));
+  assert(beta >= 0.0 && beta <= 1.0 &&
+         "llf_flux: AP dissipation factor must be in [0, 1]!");
+  return 0.5 *
+         std::fma(beta * left.alpha, (left.u - right.u), (right.f + left.f));
 }
 
 /**
@@ -296,8 +350,8 @@ auto interior_boundary_flux_rad(const double E, const double F,
 
 KOKKOS_INLINE_FUNCTION
 auto numerical_flux_llf_rad(const RadBoundaryState &left,
-                            const RadBoundaryState &right, const double vstar)
-    -> RadNumericalFlux {
+                            const RadBoundaryState &right, const double vstar,
+                            const double beta = 1.0) -> RadNumericalFlux {
   constexpr double c2 = constants::c_cgs * constants::c_cgs;
   const double P_L = compute_closure(left.E, left.F);
   const double P_R = compute_closure(right.E, right.F);
@@ -313,15 +367,16 @@ auto numerical_flux_llf_rad(const RadBoundaryState &left,
   const LLFRiemannState right_frad{
       .u = right.F, .f = c2 * P_R - vstar * right.F, .alpha = alpha};
 
-  return {.e = llf_flux(left_erad, right_erad),
-          .f = llf_flux(left_frad, right_frad)};
+  return {.e = llf_flux(left_erad, right_erad, beta),
+          .f = llf_flux(left_frad, right_frad, beta)};
 }
 
 KOKKOS_INLINE_FUNCTION
 auto boundary_flux_rad(const Boundary side, const bc::BcType type,
                        const RadBoundaryState &interior,
                        const RadBoundaryState &exterior, const double vstar,
-                       const double marshak_einc = 0.0) -> RadNumericalFlux {
+                       const double marshak_einc = 0.0, const double beta = 1.0)
+    -> RadNumericalFlux {
   // Reflecting / Marshak set a ghost state and share the LLF call below; the
   // fallback (fluid-only types, excluded by runtime validation) keeps
   // boundary = exterior.
@@ -339,8 +394,8 @@ auto boundary_flux_rad(const Boundary side, const bc::BcType type,
   }
   case bc::BcType::Periodic:
     return (side == Boundary::Interior)
-               ? numerical_flux_llf_rad(exterior, interior, vstar)
-               : numerical_flux_llf_rad(interior, exterior, vstar);
+               ? numerical_flux_llf_rad(exterior, interior, vstar, beta)
+               : numerical_flux_llf_rad(interior, exterior, vstar, beta);
   case bc::BcType::Reflecting:
     boundary = {.E = interior.E, .F = -interior.F};
     break;
@@ -359,8 +414,8 @@ auto boundary_flux_rad(const Boundary side, const bc::BcType type,
   }
 
   return (side == Boundary::Interior)
-             ? numerical_flux_llf_rad(boundary, interior, vstar)
-             : numerical_flux_llf_rad(interior, boundary, vstar);
+             ? numerical_flux_llf_rad(boundary, interior, vstar, beta)
+             : numerical_flux_llf_rad(interior, boundary, vstar, beta);
 }
 
 KOKKOS_INLINE_FUNCTION
@@ -368,17 +423,17 @@ auto numerical_flux_rad_with_boundary(
     const int face, const int inner_face, const int outer_face,
     const Kokkos::Array<bc::BoundaryConditionData, 2> &bcs,
     const RadBoundaryState &left, const RadBoundaryState &right,
-    const double vstar) -> RadNumericalFlux {
+    const double vstar, const double beta = 1.0) -> RadNumericalFlux {
   if (face == inner_face) {
     return boundary_flux_rad(Boundary::Interior, bcs[0].type, right, left,
-                             vstar, bcs[0].marshak_incoming_energy);
+                             vstar, bcs[0].marshak_incoming_energy, beta);
   }
   if (face == outer_face) {
     return boundary_flux_rad(Boundary::Exterior, bcs[1].type, left, right,
-                             vstar, bcs[1].marshak_incoming_energy);
+                             vstar, bcs[1].marshak_incoming_energy, beta);
   }
 
-  return numerical_flux_llf_rad(left, right, vstar);
+  return numerical_flux_llf_rad(left, right, vstar, beta);
 }
 
 KOKKOS_INLINE_FUNCTION
@@ -425,7 +480,8 @@ auto boundary_flux_jacobian(const Boundary side, const bc::BcType type,
                             const RadBoundaryState &interior,
                             const double vstar, const double rho,
                             const int flux_index, const int var_index,
-                            const double marshak_einc = 0.0) -> double {
+                            const double marshak_einc = 0.0,
+                            const double beta = 1.0) -> double {
   if (type == bc::BcType::Periodic) {
     throw_athelas_error(
         "Periodic implicit radiation boundaries need cyclic coupling.");
@@ -457,8 +513,8 @@ auto boundary_flux_jacobian(const Boundary side, const bc::BcType type,
       } else {
         state.F = x;
       }
-      const auto flux =
-          boundary_flux_rad(side, type, state, state, vstar, marshak_einc);
+      const auto flux = boundary_flux_rad(side, type, state, state, vstar,
+                                          marshak_einc, beta);
       return (flux_index == 0) ? flux.e : flux.f;
     };
 
@@ -737,6 +793,7 @@ template <DiffScheme Scheme = DiffScheme::Forward>
 KOKKOS_INLINE_FUNCTION auto finite_diff_source(const RadSourceInputs &in,
                                                double *lambda)
     -> std::tuple<double, double, double, double> {
+  constexpr double c2 = constants::c_cgs * constants::c_cgs;
   constexpr double h_base = (Scheme == DiffScheme::Central) ? 1.0e-6 : 1.0e-8;
   constexpr double tol = 1.0e-14;
 
@@ -761,6 +818,7 @@ KOKKOS_INLINE_FUNCTION auto finite_diff_source(const RadSourceInputs &in,
 
       auto in_p = in;
       in_p.e += side * h_e;
+      in_p.erad -= side * h_e;
       const auto [sep, svp] = compute_rad_sources(in_p, lambda);
 
       dsede = (sep - se0) / (side * h_e);
@@ -771,6 +829,7 @@ KOKKOS_INLINE_FUNCTION auto finite_diff_source(const RadSourceInputs &in,
       const double h_v = 100.0 * h_base * std::abs(in.v) + tol;
       auto in_p = in;
       in_p.v += h_v;
+      in_p.frad -= c2 * h_v;
       const auto [sep, svp] = compute_rad_sources(in_p, lambda);
 
       dsedv = (sep - se0) / h_v;
@@ -786,7 +845,9 @@ KOKKOS_INLINE_FUNCTION auto finite_diff_source(const RadSourceInputs &in,
       auto in_m = in;
 
       in_p.e += h_e;
+      in_p.erad -= h_e;
       in_m.e -= h_e;
+      in_m.erad += h_e;
 
       const auto [sep, svp] = compute_rad_sources(in_p, lambda);
       const auto [sem, svm] = compute_rad_sources(in_m, lambda);
@@ -803,7 +864,9 @@ KOKKOS_INLINE_FUNCTION auto finite_diff_source(const RadSourceInputs &in,
       auto in_m = in;
 
       in_p.v += h_v;
+      in_p.frad -= c2 * h_v;
       in_m.v -= h_v;
+      in_m.frad += c2 * h_v;
 
       const auto [sep, svp] = compute_rad_sources(in_p, lambda);
       const auto [sem, svm] = compute_rad_sources(in_m, lambda);

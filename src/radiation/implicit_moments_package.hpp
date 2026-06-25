@@ -28,6 +28,7 @@ struct TransportFaceScratch {
   AthelasArray2D<double> u_f_l; // left  side at face i: (face_idx, var)
   AthelasArray2D<double> u_f_r; // right side at face i
   AthelasArray2D<double> flux_num; // numerical fluxes at faces
+  AthelasArray1D<double> beta; // AP LLF dissipation factor at each face
   AthelasArray3D<double> A_minus; // dF_hat/dU_L per interior face
   AthelasArray3D<double> A_plus; // dF_hat/dU_R per interior face
 };

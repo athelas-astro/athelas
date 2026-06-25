@@ -34,6 +34,7 @@ ImplicitRadiationMomentsPackage::ImplicitRadiationMomentsPackage(
           .u_f_r = AthelasArray2D<double>("ImplicitMoments::u_f_r", nx + 2, 3),
           .flux_num =
               AthelasArray2D<double>("ImplicitMoments::flux_num", nx + 2, 2),
+          .beta = AthelasArray1D<double>("ImplicitMoments::beta", nx + 2),
           .A_minus =
               AthelasArray3D<double>("ImplicitMoments::A_minus", nx + 1, 2, 2),
           .A_plus =
@@ -73,12 +74,17 @@ ImplicitRadiationMomentsPackage::ImplicitRadiationMomentsPackage(
   params_.add<double>(
       "max_fractional_change_e",
       pin->param()->get<double>("radiation.timestep.max_fractional_change_e"));
+  params_.add<double>(
+      "energy_change_scale",
+      pin->param()->get<double>("radiation.timestep.energy_change_scale"));
   params_.add<double>("max_change_f", pin->param()->get<double>(
                                           "radiation.timestep.max_change_f"));
   params_.add<int>("newton.max_iters",
                    pin->param()->get<int>("radiation.newton.max_iter"));
   params_.add<double>("newton.tol",
                       pin->param()->get<double>("radiation.newton.tol"));
+  params_.add<double>("ap_coefficient", pin->param()->get<double>(
+                                            "radiation.ap_coefficient", 1.0));
 }
 
 void ImplicitRadiationMomentsPackage::evaluate_residual(
@@ -101,12 +107,20 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
       stage_data.var_index("interface", "interface_velocity");
   static const int idx_tgas =
       stage_data.var_index("derived", "gas_temperature");
+  static constexpr int u_idx_tau = 0;
+  static constexpr int u_idx_vel = 1;
+  static constexpr int u_idx_ener = 2;
+  static constexpr int u_idx_er = 3;
+  static constexpr int u_idx_fr = 4;
 
   auto evolved = stage_data.get_field("evolved");
   auto derived = stage_data.get_field("derived");
   auto interface = stage_data.get_field<AthelasArray2D<double>>("interface");
   const auto &eos = stage_data.eos();
   const auto &opac = stage_data.opac();
+  const double ap_coefficient = params_.get<double>("ap_coefficient");
+  // C = 0 recovers standard LLF; skip the per-face opacity work entirely.
+  const bool ap_correction = ap_coefficient > 0.0;
 
   auto phi = basis.phi();
   auto dphi = basis.dphi();
@@ -125,6 +139,7 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
   AthelasArray2D<double> sigma3;
   AthelasArray2D<double> e_ion_corr;
   AthelasArray3D<double> bulk;
+  const bool composition_enabled = stage_data.enabled("composition");
   if (ionization_enabled) {
     const auto *const ionization_state = stage_data.ionization_state();
     const auto *const comps = stage_data.comps();
@@ -135,6 +150,8 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
     sigma2 = ionization_state->sigma2();
     sigma3 = ionization_state->sigma3();
     e_ion_corr = ionization_state->e_ion_corr();
+  }
+  if (composition_enabled || ionization_enabled) {
     bulk = stage_data.get_field("bulk_composition");
   }
 
@@ -148,13 +165,14 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
       DEFAULT_FLAT_LOOP_PATTERN, "ImplicitMoments :: residual :: faces",
       DevExecSpace(), ib.s, ib.e + 1, KOKKOS_CLASS_LAMBDA(const int i) {
         faces_.u_f_l(i, 0) =
-            basis_eval<Interface::Right>(phi, U, i - 1, idx_tau);
-        faces_.u_f_r(i, 0) = basis_eval<Interface::Left>(phi, U, i, idx_tau);
-        for (int v = 3; v < 5; ++v) {
-          faces_.u_f_l(i, v - 2) =
-              basis_eval<Interface::Right>(phi, U, i - 1, v);
-          faces_.u_f_r(i, v - 2) = basis_eval<Interface::Left>(phi, U, i, v);
-        }
+            basis_eval<Interface::Right>(phi, U, i - 1, u_idx_tau);
+        faces_.u_f_r(i, 0) = basis_eval<Interface::Left>(phi, U, i, u_idx_tau);
+        faces_.u_f_l(i, 1) =
+            basis_eval<Interface::Right>(phi, U, i - 1, u_idx_er);
+        faces_.u_f_r(i, 1) = basis_eval<Interface::Left>(phi, U, i, u_idx_er);
+        faces_.u_f_l(i, 2) =
+            basis_eval<Interface::Right>(phi, U, i - 1, u_idx_fr);
+        faces_.u_f_r(i, 2) = basis_eval<Interface::Left>(phi, U, i, u_idx_fr);
       });
 
   // Numerical flux at every interior face.
@@ -170,9 +188,33 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
         const double F_L = faces_.u_f_l(i, 2) * rho_L;
         const double F_R = faces_.u_f_r(i, 2) * rho_R;
 
+        double beta = 1.0;
+        if (ap_correction) {
+          double tau_face = 0.0;
+          if (i == ib.s) {
+            tau_face =
+                cell_optical_depth(opac, derived, bulk, composition_enabled,
+                                   idx_tgas, i, 0, rho_R, dr(i));
+          } else if (i == ib.e + 1) {
+            tau_face = cell_optical_depth(opac, derived, bulk,
+                                          composition_enabled, idx_tgas, i - 1,
+                                          nNodes + 1, rho_L, dr(i - 1));
+          } else {
+            const double tau_L = cell_optical_depth(
+                opac, derived, bulk, composition_enabled, idx_tgas, i - 1,
+                nNodes + 1, rho_L, dr(i - 1));
+            const double tau_R =
+                cell_optical_depth(opac, derived, bulk, composition_enabled,
+                                   idx_tgas, i, 0, rho_R, dr(i));
+            tau_face = face_optical_depth(tau_L, tau_R);
+          }
+          beta = ap_dissipation_factor(tau_face, ap_coefficient);
+        }
+        faces_.beta(i) = beta;
+
         const auto flux = numerical_flux_rad_with_boundary(
             i, ib.s, ib.e + 1, rad_bcs, RadBoundaryState{.E = E_L, .F = F_L},
-            RadBoundaryState{.E = E_R, .F = F_R}, vstar);
+            RadBoundaryState{.E = E_R, .F = F_R}, vstar, beta);
 
         faces_.flux_num(i, 0) = flux.e;
         faces_.flux_num(i, 1) = flux.f;
@@ -200,8 +242,8 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
           // Volume contribution.
           for (int p = 0; p < nNodes; ++p) {
             const double rho = 1.0 / evolved(i, p, idx_tau);
-            const double e_rad = U(i, p, idx_er) * rho;
-            const double f_rad = U(i, p, idx_fr) * rho;
+            const double e_rad = U(i, p, u_idx_er) * rho;
+            const double f_rad = U(i, p, u_idx_fr) * rho;
             const double p_rad = compute_closure(e_rad, f_rad);
             const auto [flux_e, flux_f] = flux_rad(e_rad, f_rad, p_rad, vstar);
             const double w_dphi_sqrtgm =
@@ -227,10 +269,10 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
             Z = bulk(i, q + 1, 2);
           }
           const RadSourceInputs src_in{.rho = 1.0 / evolved(i, q, idx_tau),
-                                       .e = U(i, q, idx_ener),
-                                       .v = U(i, q, idx_vel),
-                                       .erad = U(i, q, idx_er),
-                                       .frad = U(i, q, idx_fr),
+                                       .e = U(i, q, u_idx_ener),
+                                       .v = U(i, q, u_idx_vel),
+                                       .erad = U(i, q, u_idx_er),
+                                       .frad = U(i, q, u_idx_fr),
                                        .etot = 0.0,
                                        .m_tot = 0.0,
                                        .X = X,
@@ -244,14 +286,15 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
           const int row_v = q * 4 + 2;
           const int row_E = q * 4 + 3;
 
-          b_out(blk, row_e) = -(m * (U(i, q, idx_er) - ustar(i, q, idx_er)) -
+          b_out(blk, row_e) = -(m * (U(i, q, u_idx_er) - ustar(i, q, idx_er)) -
                                 dt_aii * rhs_e - dt_aii * m * src.s_er);
-          b_out(blk, row_f) = -(m * (U(i, q, idx_fr) - ustar(i, q, idx_fr)) -
+          b_out(blk, row_f) = -(m * (U(i, q, u_idx_fr) - ustar(i, q, idx_fr)) -
                                 dt_aii * rhs_f - dt_aii * m * src.s_fr);
-          b_out(blk, row_v) = -(m * (U(i, q, idx_vel) - ustar(i, q, idx_vel)) -
-                                dt_aii * m * src.s_v);
+          b_out(blk, row_v) =
+              -(m * (U(i, q, u_idx_vel) - ustar(i, q, idx_vel)) -
+                dt_aii * m * src.s_v);
           b_out(blk, row_E) =
-              -(m * (U(i, q, idx_ener) - ustar(i, q, idx_ener)) -
+              -(m * (U(i, q, u_idx_ener) - ustar(i, q, idx_ener)) -
                 dt_aii * m * src.s_eg);
         }
       });
@@ -285,6 +328,11 @@ void ImplicitRadiationMomentsPackage::update_implicit(
       stage_data.var_index("interface", "interface_velocity");
   static const int idx_tgas =
       stage_data.var_index("derived", "gas_temperature");
+  static constexpr int u_idx_tau = 0;
+  static constexpr int u_idx_vel = 1;
+  static constexpr int u_idx_ener = 2;
+  static constexpr int u_idx_er = 3;
+  static constexpr int u_idx_fr = 4;
 
   const double dt_aii = dt_info.dt_coef;
 
@@ -334,9 +382,11 @@ void ImplicitRadiationMomentsPackage::update_implicit(
       DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Newton :: Guess",
       DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
       KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-        for (int v = 0; v <= 4; ++v) {
-          newton_.u_rad_work(i, q, v) = ustar(i, q, v);
-        }
+        newton_.u_rad_work(i, q, u_idx_tau) = ustar(i, q, idx_tau);
+        newton_.u_rad_work(i, q, u_idx_vel) = ustar(i, q, idx_vel);
+        newton_.u_rad_work(i, q, u_idx_ener) = ustar(i, q, idx_ener);
+        newton_.u_rad_work(i, q, u_idx_er) = ustar(i, q, idx_er);
+        newton_.u_rad_work(i, q, u_idx_fr) = ustar(i, q, idx_fr);
       });
 
   const int block_size = 4 * nNodes;
@@ -407,6 +457,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
           const double F_R = faces_.u_f_r(i, 2) * rho_R;
 
           const double alpha = rad_wavespeed(E_L, E_R, F_L, F_R, vstar);
+          const double alpha_ap = faces_.beta(i) * alpha;
           const double f_l =
               flux_factor(faces_.u_f_l(i, 1), faces_.u_f_l(i, 2));
           const double f_r =
@@ -417,20 +468,20 @@ void ImplicitRadiationMomentsPackage::update_implicit(
           const double chi_prime_R = eddington_factor_prime(f_r);
 
           // A_minus = d(F_hat)/d(U_local) = 0.5 * (J_local + alpha * I)
-          faces_.A_minus(i - ib.s, 0, 0) = 0.5 * (-vstar + alpha) * rho_L;
+          faces_.A_minus(i - ib.s, 0, 0) = 0.5 * (-vstar + alpha_ap) * rho_L;
           faces_.A_minus(i - ib.s, 0, 1) = 0.5 * rho_L;
           faces_.A_minus(i - ib.s, 1, 0) =
               0.5 * (c2 * (chi_L - f_l * chi_prime_L)) * rho_L;
           faces_.A_minus(i - ib.s, 1, 1) =
-              0.5 * (c * chi_prime_L * sgn(F_L) - vstar + alpha) * rho_L;
+              0.5 * (c * chi_prime_L * sgn(F_L) - vstar + alpha_ap) * rho_L;
 
           // A_plus = d(F_hat)/d(U_neighbor) = 0.5 * (J_neighbor - alpha * I)
-          faces_.A_plus(i - ib.s, 0, 0) = 0.5 * (-vstar - alpha) * rho_R;
+          faces_.A_plus(i - ib.s, 0, 0) = 0.5 * (-vstar - alpha_ap) * rho_R;
           faces_.A_plus(i - ib.s, 0, 1) = 0.5 * rho_R;
           faces_.A_plus(i - ib.s, 1, 0) =
               0.5 * (c2 * (chi_R - f_r * chi_prime_R)) * rho_R;
           faces_.A_plus(i - ib.s, 1, 1) =
-              0.5 * (c * chi_prime_R * sgn(F_R) - vstar - alpha) * rho_R;
+              0.5 * (c * chi_prime_R * sgn(F_R) - vstar - alpha_ap) * rho_R;
         });
 
     athelas::par_for(
@@ -463,10 +514,10 @@ void ImplicitRadiationMomentsPackage::update_implicit(
             }
             const RadSourceInputs src_in{
                 .rho = 1.0 / evolved(i, q, idx_tau),
-                .e = newton_.u_rad_work(i, q, idx_ener),
-                .v = newton_.u_rad_work(i, q, idx_vel),
-                .erad = newton_.u_rad_work(i, q, idx_er),
-                .frad = newton_.u_rad_work(i, q, idx_fr),
+                .e = newton_.u_rad_work(i, q, u_idx_ener),
+                .v = newton_.u_rad_work(i, q, u_idx_vel),
+                .erad = newton_.u_rad_work(i, q, u_idx_er),
+                .frad = newton_.u_rad_work(i, q, u_idx_fr),
                 .etot = 0.0,
                 .m_tot = 0.0,
                 .X = X,
@@ -519,8 +570,9 @@ void ImplicitRadiationMomentsPackage::update_implicit(
               const int row = idx(q, v);
               for (int p = 0; p < nNodes; ++p) {
                 const double rhop = 1.0 / evolved(i, p, idx_tau);
-                const double f = flux_factor(newton_.u_rad_work(i, p, idx_er),
-                                             newton_.u_rad_work(i, p, idx_fr));
+                const double f =
+                    flux_factor(newton_.u_rad_work(i, p, u_idx_er),
+                                newton_.u_rad_work(i, p, u_idx_fr));
                 const double chi = eddington_factor(f);
                 const double sp2 = c2 * chi;
                 const double chi_prime = eddington_factor_prime(f);
@@ -531,9 +583,9 @@ void ImplicitRadiationMomentsPackage::update_implicit(
                   if (v == 0 && w == 0) {
                     A_vw = -vstar;
                   } else if (v == 1 && w == 1) {
-                    A_vw =
-                        c * chi_prime * sgn(newton_.u_rad_work(i, p, idx_fr)) -
-                        vstar;
+                    A_vw = c * chi_prime *
+                               sgn(newton_.u_rad_work(i, p, u_idx_fr)) -
+                           vstar;
                   } else if (v == 1 && w == 0) {
                     A_vw = sp2 - c2 * f * chi_prime;
                   }
@@ -608,6 +660,8 @@ void ImplicitRadiationMomentsPackage::update_implicit(
           const double vstar_o = interface(i_outer_face, idx_vstar);
           const double rho_i = 1.0 / faces_.u_f_r(i_inner_face, 0);
           const double rho_o = 1.0 / faces_.u_f_l(i_outer_face, 0);
+          const double beta_i = faces_.beta(i_inner_face);
+          const double beta_o = faces_.beta(i_outer_face);
           const double gL_i = sqrt_gm(i_inner_cell, 0);
           const double gR_o = sqrt_gm(i_outer_cell, nNodes + 1);
 
@@ -630,7 +684,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
                   const int col = idx(p, w);
                   const double A_vw = boundary_flux_jacobian(
                       Boundary::Interior, inner_bc.type, inner_state, vstar_i,
-                      rho_i, v, w, inner_bc.marshak_incoming_energy);
+                      rho_i, v, w, inner_bc.marshak_incoming_energy, beta_i);
                   // Inner boundary residual has +flux_num(face)*phi_L, so
                   // dR/dU contributes with a leading minus sign from
                   // R = M(U-U*) - dt*rhs.
@@ -660,7 +714,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
                   const int col = idx(p, w);
                   const double A_vw = boundary_flux_jacobian(
                       Boundary::Exterior, outer_bc.type, outer_state, vstar_o,
-                      rho_o, v, w, outer_bc.marshak_incoming_energy);
+                      rho_o, v, w, outer_bc.marshak_incoming_energy, beta_o);
                   // Outer boundary residual has -flux_num(face)*phi_R,
                   // so dR/dU contributes with a leading plus sign.
                   solver_.mat_diag(blk, row, col) +=
@@ -719,17 +773,17 @@ void ImplicitRadiationMomentsPackage::update_implicit(
           DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Newton :: Trial state",
           DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
           KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-            newton_.u_rad_trial(i, q, idx_er) =
-                newton_.u_rad_work(i, q, idx_er) +
+            newton_.u_rad_trial(i, q, u_idx_er) =
+                newton_.u_rad_work(i, q, u_idx_er) +
                 lam * solver_.b(i - ib.s, idx(q, 0));
-            newton_.u_rad_trial(i, q, idx_fr) =
-                newton_.u_rad_work(i, q, idx_fr) +
+            newton_.u_rad_trial(i, q, u_idx_fr) =
+                newton_.u_rad_work(i, q, u_idx_fr) +
                 lam * solver_.b(i - ib.s, idx(q, 1));
-            newton_.u_rad_trial(i, q, idx_vel) =
-                newton_.u_rad_work(i, q, idx_vel) +
+            newton_.u_rad_trial(i, q, u_idx_vel) =
+                newton_.u_rad_work(i, q, u_idx_vel) +
                 lam * solver_.b(i - ib.s, idx(q, 2));
-            newton_.u_rad_trial(i, q, idx_ener) =
-                newton_.u_rad_work(i, q, idx_ener) +
+            newton_.u_rad_trial(i, q, u_idx_ener) =
+                newton_.u_rad_work(i, q, u_idx_ener) +
                 lam * solver_.b(i - ib.s, idx(q, 3));
           });
 
@@ -741,10 +795,10 @@ void ImplicitRadiationMomentsPackage::update_implicit(
           "ImplicitMoments :: Newton :: Realizability check", DevExecSpace(),
           ib.s, ib.e, qb.s, qb.e,
           KOKKOS_CLASS_LAMBDA(const int i, const int q, int &count) {
-            const double er = newton_.u_rad_trial(i, q, idx_er);
-            const double fr = newton_.u_rad_trial(i, q, idx_fr);
-            const double eg = newton_.u_rad_trial(i, q, idx_ener);
-            const double vg = newton_.u_rad_trial(i, q, idx_vel);
+            const double er = newton_.u_rad_trial(i, q, u_idx_er);
+            const double fr = newton_.u_rad_trial(i, q, u_idx_fr);
+            const double eg = newton_.u_rad_trial(i, q, u_idx_ener);
+            const double vg = newton_.u_rad_trial(i, q, u_idx_vel);
             const double sie = eg - 0.5 * vg * vg;
             const double rho = 1.0 / evolved(i, q, idx_tau);
             eos::EOSLambda lam_eos;
@@ -780,13 +834,13 @@ void ImplicitRadiationMomentsPackage::update_implicit(
             // Face-edge realizability, once per cell. Messy.
             if (q == qb.s) {
               const double er_L = basis_eval<Interface::Left>(
-                  phi, newton_.u_rad_trial, i, idx_er);
+                  phi, newton_.u_rad_trial, i, u_idx_er);
               const double er_R = basis_eval<Interface::Right>(
-                  phi, newton_.u_rad_trial, i, idx_er);
+                  phi, newton_.u_rad_trial, i, u_idx_er);
               const double fr_L = basis_eval<Interface::Left>(
-                  phi, newton_.u_rad_trial, i, idx_fr);
+                  phi, newton_.u_rad_trial, i, u_idx_fr);
               const double fr_R = basis_eval<Interface::Right>(
-                  phi, newton_.u_rad_trial, i, idx_fr);
+                  phi, newton_.u_rad_trial, i, u_idx_fr);
               if (!std::isfinite(er_L) || !std::isfinite(er_R) ||
                   !std::isfinite(fr_L) || !std::isfinite(fr_R) || er_L <= 0.0 ||
                   er_R <= 0.0 || std::abs(fr_L) >= c * er_L ||
@@ -834,13 +888,13 @@ void ImplicitRadiationMomentsPackage::update_implicit(
         DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Newton :: Update",
         DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
         KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-          newton_.u_rad_work(i, q, idx_er) +=
+          newton_.u_rad_work(i, q, u_idx_er) +=
               lam_accept * solver_.b(i - ib.s, idx(q, 0));
-          newton_.u_rad_work(i, q, idx_fr) +=
+          newton_.u_rad_work(i, q, u_idx_fr) +=
               lam_accept * solver_.b(i - ib.s, idx(q, 1));
-          newton_.u_rad_work(i, q, idx_vel) +=
+          newton_.u_rad_work(i, q, u_idx_vel) +=
               lam_accept * solver_.b(i - ib.s, idx(q, 2));
-          newton_.u_rad_work(i, q, idx_ener) +=
+          newton_.u_rad_work(i, q, u_idx_ener) +=
               lam_accept * solver_.b(i - ib.s, idx(q, 3));
         });
 
@@ -853,16 +907,16 @@ void ImplicitRadiationMomentsPackage::update_implicit(
         KOKKOS_CLASS_LAMBDA(const int i, const int q, double &m) {
           const double s_er =
               lam_accept * std::abs(solver_.b(i - ib.s, idx(q, 0))) /
-              std::max(std::abs(newton_.u_rad_work(i, q, idx_er)), U_floor);
+              std::max(std::abs(newton_.u_rad_work(i, q, u_idx_er)), U_floor);
           const double s_fr =
               lam_accept * std::abs(solver_.b(i - ib.s, idx(q, 1))) /
-              std::max(std::abs(newton_.u_rad_work(i, q, idx_fr)), U_floor);
+              std::max(std::abs(newton_.u_rad_work(i, q, u_idx_fr)), U_floor);
           const double s_v =
               lam_accept * std::abs(solver_.b(i - ib.s, idx(q, 2))) /
-              std::max(std::abs(newton_.u_rad_work(i, q, idx_vel)), U_floor);
+              std::max(std::abs(newton_.u_rad_work(i, q, u_idx_vel)), U_floor);
           const double s_e =
               lam_accept * std::abs(solver_.b(i - ib.s, idx(q, 3))) /
-              std::max(std::abs(newton_.u_rad_work(i, q, idx_ener)), U_floor);
+              std::max(std::abs(newton_.u_rad_work(i, q, u_idx_ener)), U_floor);
           m = std::max({m, s_er, s_fr, s_v, s_e});
         },
         Kokkos::Max<double>(step_norm));
@@ -879,15 +933,17 @@ void ImplicitRadiationMomentsPackage::update_implicit(
       DevExecSpace(), ib.s, ib.e, KOKKOS_CLASS_LAMBDA(const int i) {
         for (int q = qb.s; q <= qb.e; ++q) {
           delta_(dt_info.stage, i, q, 0) =
-              (newton_.u_rad_work(i, q, idx_vel) - ustar(i, q, idx_vel)) /
+              (newton_.u_rad_work(i, q, u_idx_vel) - ustar(i, q, idx_vel)) /
               dt_aii;
           delta_(dt_info.stage, i, q, 1) =
-              (newton_.u_rad_work(i, q, idx_ener) - ustar(i, q, idx_ener)) /
+              (newton_.u_rad_work(i, q, u_idx_ener) - ustar(i, q, idx_ener)) /
               dt_aii;
           delta_(dt_info.stage, i, q, 2) =
-              (newton_.u_rad_work(i, q, idx_er) - ustar(i, q, idx_er)) / dt_aii;
+              (newton_.u_rad_work(i, q, u_idx_er) - ustar(i, q, idx_er)) /
+              dt_aii;
           delta_(dt_info.stage, i, q, 3) =
-              (newton_.u_rad_work(i, q, idx_fr) - ustar(i, q, idx_fr)) / dt_aii;
+              (newton_.u_rad_work(i, q, u_idx_fr) - ustar(i, q, idx_fr)) /
+              dt_aii;
         }
       });
 } // update_implicit
@@ -954,7 +1010,7 @@ auto ImplicitRadiationMomentsPackage::min_timestep(
   const auto &mesh = stage_data.mesh();
   constexpr double MAX_DT = std::numeric_limits<double>::max();
   constexpr double MIN_DT = 100.0 * std::numeric_limits<double>::min();
-  constexpr double EPS = 1.0e-10;
+  constexpr double TINY = 100.0 * std::numeric_limits<double>::min();
 
   auto evolved = stage_data.get_field("evolved");
   static const int idx_er =
@@ -966,6 +1022,7 @@ auto ImplicitRadiationMomentsPackage::min_timestep(
   static const IndexRange qb(mesh.n_nodes());
 
   const auto max_frac_change_e = params_.get<double>("max_fractional_change_e");
+  const auto energy_change_scale = params_.get<double>("energy_change_scale");
   const auto max_change_f = params_.get<double>("max_change_f");
 
   const double dt_old = dt_info.dt;
@@ -979,12 +1036,18 @@ auto ImplicitRadiationMomentsPackage::min_timestep(
       KOKKOS_CLASS_LAMBDA(const int i, const int q, double &lmin) {
         const double e_old = dt_cache_.e_rad_old(i, q);
         const double flux_old = dt_cache_.f_rad_old(i, q);
-        const double f =
-            flux_factor(evolved(i, q, idx_er) + EPS, evolved(i, q, idx_fr));
-        const double f_old = flux_factor(e_old + EPS, flux_old);
-        const double dt_e = dt_old * max_frac_change_e * (e_old + EPS) /
-                            (std::abs(evolved(i, q, idx_er) - e_old) + EPS);
-        const double dt_f = dt_old * max_change_f / (std::abs(f - f_old) + EPS);
+        const double e = evolved(i, q, idx_er);
+        const double e_scale =
+            std::max({std::abs(e), std::abs(e_old), energy_change_scale, TINY});
+        const double f = flux_factor(std::max({e, energy_change_scale, TINY}),
+                                     evolved(i, q, idx_fr));
+        const double f_old =
+            flux_factor(std::max({e_old, energy_change_scale, TINY}), flux_old);
+        const double frac_change_e = std::abs(e - e_old) / e_scale;
+        const double dt_e =
+            dt_old * max_frac_change_e / std::max(frac_change_e, TINY);
+        const double dt_f =
+            dt_old * max_change_f / std::max(std::abs(f - f_old), TINY);
         lmin = std::min({dt_e, dt_f, lmin});
       },
       Kokkos::Min<double>(dt_out));

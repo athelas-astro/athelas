@@ -324,14 +324,38 @@ ProblemIn::ProblemIn(
     }
     params_->add("radiation.discretization", discretization_type);
 
+    // AP LLF dissipation damping. The single coefficient C in the damping
+    // factor 1 / (1 + C tau) is the only knob: C = 0 recovers standard LLF
+    // (no damping), C > 0 enables the optical-depth correction.
+    const double ap_coefficient = radiation.get_or("ap_coefficient", 0.0);
+    athelas_requires(std::isfinite(ap_coefficient) && ap_coefficient >= 0.0,
+                     "[radiation] block: ap_coefficient must be finite and >= "
+                     "0.");
+    params_->add("radiation.ap_coefficient", ap_coefficient);
+
     // implicit radiation timestep controls
     if (discretization_type == "implicit") {
       sol::table timestep = radiation["timestep"];
       const double max_frac_change_e =
           timestep.get<double>("max_fractional_change_e");
+      const double energy_change_scale =
+          timestep.get_or("energy_change_scale", 1.0e-10);
       const double max_change_f = timestep.get<double>("max_change_f");
+      athelas_requires(
+          std::isfinite(max_frac_change_e) && max_frac_change_e > 0.0,
+          "[radiation.timestep] block: max_fractional_change_e must be finite "
+          "and > 0.");
+      athelas_requires(
+          std::isfinite(energy_change_scale) && energy_change_scale >= 0.0,
+          "[radiation.timestep] block: energy_change_scale must be finite and "
+          ">= 0.");
+      athelas_requires(std::isfinite(max_change_f) && max_change_f > 0.0,
+                       "[radiation.timestep] block: max_change_f must be "
+                       "finite and > 0.");
       params_->add("radiation.timestep.max_fractional_change_e",
                    max_frac_change_e);
+      params_->add("radiation.timestep.energy_change_scale",
+                   energy_change_scale);
       params_->add("radiation.timestep.max_change_f", max_change_f);
 
       sol::optional<sol::table> newton_block = radiation["newton"];
