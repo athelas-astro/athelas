@@ -31,8 +31,8 @@ void fill_ghost_zone_range(AthelasArray3D<double> U, const IndexRange &vars,
 void ghost_fill_array(AthelasArray3D<double> U, BoundaryConditions *bcs,
                       const bool radiation_enabled,
                       const bool composition_enabled) {
-  static const int nvars = static_cast<int>(U.extent(2));
-  static const bool fluid_periodic = bcs->fluid_bc[0].type == BcType::Periodic;
+  const int nvars = static_cast<int>(U.extent(2));
+  const bool fluid_periodic = bcs->fluid_bc[0].type == BcType::Periodic;
 
   fill_ghost_zone_range(U, IndexRange(std::make_pair(0, 2)), fluid_periodic);
 

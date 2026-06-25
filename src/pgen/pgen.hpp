@@ -61,6 +61,7 @@ void initialize_fields(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
       {"ejecta_csm", &pgen::ejecta_csm::init},
       {"rad_equilibrium", &pgen::rad_equilibrium::init},
       {"rad_advection", &pgen::rad_advection::init},
+      {"rad_diffusion_wave", &pgen::rad_advection::init},
       {"rad_shock_steady", &pgen::rad_shock_steady::init},
       {"rad_shock", &pgen::rad_shock::init},
       {"marshak", &pgen::marshak::init},

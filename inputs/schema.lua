@@ -227,11 +227,21 @@ schema.radiation = {
     required = { when = "physics.radiation", is_true = true },
     doc = "Spatial discretization of the transport term. Options: 'implicit' or 'explicit'.",
   },
+  ap_coefficient = {
+    type = "double",
+    default = 0.0,
+    doc = "Coefficient C in the AP LLF damping factor 1 / (1 + C tau). C = 0 recovers standard LLF (no damping); C > 0 enables the optical-depth correction. Must be >= 0.",
+  },
   timestep = {
     max_fractional_change_e = {
       type = "double",
       required = { when = "radiation.discretization", equals = "implicit" },
       doc = "Maximum allowed fractional change in radiation energy. Timestep control for implicit transport.",
+    },
+    energy_change_scale = {
+      type = "double",
+      default = 1.0e-10,
+      doc = "Specific radiation energy scale used in the implicit transport relative-change timestep controller.",
     },
     max_change_f = {
       type = "double",

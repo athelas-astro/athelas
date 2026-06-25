@@ -46,8 +46,8 @@ config.bc = {
     bc_o = "outflow",
   },
   radiation = {
-    bc_i = "outflow",
-    bc_o = "outflow",
+    bc_i = "interior",
+    bc_o = "interior",
   },
 }
 

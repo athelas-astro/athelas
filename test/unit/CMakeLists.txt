@@ -40,6 +40,7 @@ add_executable( unit_tests
   test_root_finders.cpp
   test_block_thomas.cpp
   test_fd.cpp
+  test_radiation_ap.cpp
   )
 
 target_link_libraries( unit_tests

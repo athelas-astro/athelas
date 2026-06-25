@@ -39,21 +39,43 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   const auto V0 = pin->param()->get<double>("problem.params.v0", 1.0);
   const auto velocity_profile = pin->param()->get<std::string>(
       "problem.params.velocity_profile", "constant");
-  const auto D = pin->param()->get<double>("problem.params.rho", 1.0);
+  const auto rho = pin->param()->get<double>("problem.params.rho", 1.0);
   const auto amp = pin->param()->get<double>("problem.params.amp", 1.0);
   const auto x0 = pin->param()->get<double>("problem.params.x0", 0.5);
   const auto width = pin->param()->get<double>("problem.params.width", 0.05);
   const auto floor = pin->param()->get<double>("problem.params.floor", 1.0e-8);
   const auto flux_factor =
       pin->param()->get<double>("problem.params.flux_factor", 0.5);
+  const auto profile =
+      pin->param()->get<std::string>("problem.params.profile", "gaussian");
+  const auto perturbation =
+      pin->param()->get<double>("problem.params.perturbation", 1.0e-3);
+  const auto mode = pin->param()->get<int>("problem.params.mode", 1);
   const auto T_gas = pin->param()->get<double>("problem.params.T_gas", 1.0e4);
+  athelas_requires(rho > 0.0, "Radiation advection requires rho > 0.");
   athelas_requires(flux_factor >= 0.0 && flux_factor < 1.0,
                    "Radiation advection requires 0 <= flux_factor < 1.");
+  athelas_requires(profile == "gaussian" || profile == "diffusion_wave" ||
+                       profile == "diffusion_mode",
+                   "Radiation advection profile must be 'gaussian', "
+                   "'diffusion_wave', or 'diffusion_mode'.");
+  athelas_requires(mode > 0, "Radiation advection requires mode > 0.");
+  athelas_requires(perturbation > -1.0 && perturbation < 1.0,
+                   "Radiation diffusion wave requires |perturbation| < 1.");
   athelas_requires(velocity_profile == "constant" ||
                        velocity_profile == "homologous",
                    "Radiation advection velocity_profile must be 'constant' "
                    "or 'homologous'.");
+  const double xL = pin->param()->get<double>("problem.xl");
   const double xR = pin->param()->get<double>("problem.xr");
+  const double length = xR - xL;
+  athelas_requires(length > 0.0, "Radiation advection requires xr > xl.");
+  const double kR = pin->param()->get<double>("opacity.kR", 1.0);
+  athelas_requires(
+      (profile != "diffusion_wave" && profile != "diffusion_mode") || kR > 0.0,
+      "Radiation diffusion wave requires opacity.kR > 0.");
+  const double wave_number = static_cast<double>(mode) * constants::PI / length;
+  const double diffusion_coeff = constants::c_cgs / (3.0 * rho * kR);
   const double mu = 1.0 + constants::m_e / constants::m_p;
   auto &eos = mesh_state.eos();
   const double gamma = gamma1(eos);
@@ -63,25 +85,33 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
       DEFAULT_LOOP_PATTERN, "Pgen :: RadAdvection", DevExecSpace(), ib.s, ib.e,
       qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
         const double X1 = mesh->node_coordinate(i, q);
-        const double radiation_energy =
+        double radiation_energy =
             amp *
             std::max(std::exp(-std::pow((X1 - x0) / width, 2.0) / 2.0), floor);
+        double radiation_flux =
+            flux_factor * constants::c_cgs * radiation_energy;
 
-        evolved(i, q, idx_rad_energy) = radiation_energy / D;
-        evolved(i, q, idx_rad_flux) =
-            flux_factor * constants::c_cgs * evolved(i, q, idx_rad_energy);
+        if (profile == "diffusion_wave" || profile == "diffusion_mode") {
+          const double phase = wave_number * (X1 - xL);
+          radiation_energy = amp * (1.0 + perturbation * std::cos(phase));
+          radiation_flux = diffusion_coeff * amp * perturbation * wave_number *
+                           std::sin(phase);
+        }
+
+        evolved(i, q, idx_rad_energy) = radiation_energy / rho;
+        evolved(i, q, idx_rad_flux) = radiation_flux / rho;
 
         const double sie_fluid =
             constants::k_B * T_gas / (gm1 * mu * constants::m_p);
         const double velocity =
             velocity_profile == "homologous" ? V0 * X1 / xR : V0;
-        evolved(i, q, idx_tau) = 1.0 / D;
+        evolved(i, q, idx_tau) = 1.0 / rho;
         evolved(i, q, idx_vel) = velocity;
         evolved(i, q, idx_ener) =
             sie_fluid +
             0.5 * velocity * velocity; // p0 / (gamma - 1.0) / D + 0.5 * v * v;
 
-        derived(i, q, idx_density) = D;
+        derived(i, q, idx_density) = rho;
       });
 }
 

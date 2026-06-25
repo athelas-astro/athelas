@@ -159,8 +159,9 @@ void radiation_source_implicit(const StageData &stage_data,
 RadHydroPackage::RadHydroPackage(const ProblemIn *pin, int n_stages, int nq,
                                  BoundaryConditions *bcs, double cfl, int nx,
                                  bool active)
-    : active_(active), cfl_(cfl), bcs_(bcs),
-      dFlux_num_("hydro::dFlux_num_", nx + 2 + 1, 5),
+    : active_(active), cfl_(cfl), ap_coefficient_(pin->param()->get<double>(
+                                      "radiation.ap_coefficient", 1.0)),
+      bcs_(bcs), dFlux_num_("hydro::dFlux_num_", nx + 2 + 1, 5),
       u_f_l_("hydro::u_f_l_", nx + 2, 5), u_f_r_("hydro::u_f_r_", nx + 2, 5),
       delta_("radhydro delta", n_stages, nx + 2, nq, 5),
       delta_im_("radhydro delta implicit", n_stages, nx + 2, nq, 4) {}
@@ -292,14 +293,26 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
       stage_data.var_index("evolved", "specific_radiation_flux");
   static const int idx_vstar =
       stage_data.var_index("interface", "interface_velocity");
+  static const int idx_tgas =
+      stage_data.var_index("derived", "gas_temperature");
 
   auto sqrt_gm = mesh.sqrt_gm();
   auto weights = mesh.weights();
+  auto dr = mesh.widths();
 
   auto phi = basis.phi();
   auto dphi = basis.dphi();
   const auto fluid_bcs = bc::fluid_bc_data(bcs_);
   const auto rad_bcs = bc::radiation_bc_data(bcs_);
+  const auto &opac = stage_data.opac();
+  const double ap_coefficient = ap_coefficient_;
+  // C = 0 recovers standard LLF; skip the per-face opacity work entirely.
+  const bool ap_correction = ap_coefficient > 0.0;
+  const bool composition_enabled = stage_data.enabled("composition");
+  AthelasArray3D<double> bulk;
+  if (composition_enabled) {
+    bulk = stage_data.get_field("bulk_composition");
+  }
 
   // --- Interpolate Conserved Variable to Interfaces ---
 
@@ -359,9 +372,35 @@ void RadHydroPackage::radhydro_divergence(const StageData &stage_data,
         interface(i, idx_vstar) = flux_u;
 
         const double vstar = flux_u;
+
+        // Asymptotic preserving flux correction
+        // Compute beta = 1 / (1 + ap_coefficient * tau) where
+        // tau is face averaged rho kappa dr (except on physical boundaries).
+        double beta = 1.0;
+        if (ap_correction) {
+          double tau_face = 0.0;
+          if (i == ib.s) {
+            tau_face =
+                cell_optical_depth(opac, derived, bulk, composition_enabled,
+                                   idx_tgas, i, 0, rhoR, dr(i));
+          } else if (i == ib.e + 1) {
+            tau_face = cell_optical_depth(opac, derived, bulk,
+                                          composition_enabled, idx_tgas, i - 1,
+                                          nNodes + 1, rhoL, dr(i - 1));
+          } else {
+            const double tau_L = cell_optical_depth(
+                opac, derived, bulk, composition_enabled, idx_tgas, i - 1,
+                nNodes + 1, rhoL, dr(i - 1));
+            const double tau_R =
+                cell_optical_depth(opac, derived, bulk, composition_enabled,
+                                   idx_tgas, i, 0, rhoR, dr(i));
+            tau_face = face_optical_depth(tau_L, tau_R);
+          }
+          beta = ap_dissipation_factor(tau_face, ap_coefficient);
+        }
         const auto rad_flux = numerical_flux_rad_with_boundary(
             i, ib.s, ib.e + 1, rad_bcs, RadBoundaryState{.E = E_L, .F = F_L},
-            RadBoundaryState{.E = E_R, .F = F_R}, vstar);
+            RadBoundaryState{.E = E_R, .F = F_R}, vstar, beta);
 
         dFlux_num_(i, idx_tau) = -flux_u;
         dFlux_num_(i, idx_vel) = flux_p;

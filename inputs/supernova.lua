@@ -84,7 +84,7 @@ config.ionization = {
 
 config.bc = {
   fluid = { bc_i = "reflecting", bc_o = "outflow" },
-  radiation = { bc_i = "reflecting", bc_o = "outflow" },
+  radiation = { bc_i = "reflecting", bc_o = "interior" },
 }
 
 config.fluid = {
@@ -100,12 +100,14 @@ config.fluid = {
 
 config.radiation = {
   discretization = "implicit",
+  ap_coefficient = 3.0,
   timestep = {
-    max_fractional_change_e = 0.01,
+    max_fractional_change_e = 0.05,
     max_change_f = 0.05,
+    energy_change_scale = 100.0,
   },
   newton = {
-    max_iter = 8,
+    max_iter = 12,
     tol = 8.0e-5,
   },
   limiter = {

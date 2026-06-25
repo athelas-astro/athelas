@@ -55,6 +55,7 @@ class RadHydroPackage {
   bool active_;
 
   double cfl_;
+  double ap_coefficient_;
 
   BoundaryConditions *bcs_;
 
@@ -133,11 +134,12 @@ newton_radhydro_fd(const double dt_a_ii, const double emin, T ustar, T derived,
       lambda.data[7] = derived(idx_tgas);
     }
 
-    // Build inputs struct for source evaluation
+    // Reconstruct rad vars as perturbations off the start (see note in
+    // newton_radhydro).
     src_in.e = e;
     src_in.v = v;
-    src_in.erad = etot - e;
-    src_in.frad = c2 * (m_tot - v);
+    src_in.erad = er_star - (e - e_star);
+    src_in.frad = fr_star - c2 * (v - vstar);
 
     // Sources and residuals
     const auto [se, sv] = compute_rad_sources(src_in, lambda.ptr());
@@ -177,8 +179,8 @@ newton_radhydro_fd(const double dt_a_ii, const double emin, T ustar, T derived,
     double lam = 1.0;
     double v_trial = v + lam * delta_v;
     double e_trial = e + lam * delta_e;
-    double Er_trial = etot - e_trial;
-    double Fr_trial = c2 * (m_tot - v_trial);
+    double Er_trial = er_star - (e_trial - e_star);
+    double Fr_trial = fr_star - c2 * (v_trial - vstar);
     double sie_trial = e_trial - 0.5 * v_trial * v_trial;
 
     // merit function: residual norm
@@ -187,8 +189,8 @@ newton_radhydro_fd(const double dt_a_ii, const double emin, T ustar, T derived,
     for (int ls = 0; ls < max_linesearch; ++ls) {
       e_trial = e + lam * delta_e;
       v_trial = v + lam * delta_v;
-      Er_trial = etot - e_trial;
-      Fr_trial = c2 * (m_tot - v_trial);
+      Er_trial = er_star - (e_trial - e_star);
+      Fr_trial = fr_star - c2 * (v_trial - vstar);
       sie_trial = e_trial - 0.5 * v_trial * v_trial;
 
       // realizability first
@@ -202,8 +204,8 @@ newton_radhydro_fd(const double dt_a_ii, const double emin, T ustar, T derived,
       trial_in.e = e_trial;
       trial_in.v = v_trial;
       // Conservation: trial rad vars track the trial (e, v).
-      trial_in.erad = etot - e_trial;
-      trial_in.frad = c2 * (m_tot - v_trial);
+      trial_in.erad = er_star - (e_trial - e_star);
+      trial_in.frad = fr_star - c2 * (v_trial - vstar);
       const auto [se_t, sv_t] = compute_rad_sources(trial_in, lambda.ptr());
       const double fe_t = e_trial - e_star - dt_a_ii * se_t;
       const double fv_t = v_trial - vstar - dt_a_ii * sv_t;
@@ -240,11 +242,13 @@ newton_radhydro_fd(const double dt_a_ii, const double emin, T ustar, T derived,
     ++n;
   } // while not converged
 
-  // Update conserved variables
+  // Reconstruct rad vars as perturbations off the start (see note in
+  // newton_radhydro).
+  const double e_clamped = std::max(e, emin);
   scratch[idx_vel] = v;
-  scratch[idx_ener] = std::max(e, emin);
-  scratch[idx_rad_energy] = etot - std::max(e, emin);
-  scratch[idx_rad_flux] = c2 * (m_tot - v);
+  scratch[idx_ener] = e_clamped;
+  scratch[idx_rad_energy] = er_star - (e_clamped - e_star);
+  scratch[idx_rad_flux] = fr_star - c2 * (v - vstar);
 }
 
 template <IonizationPhysics Ionization, typename T, typename G>
@@ -300,10 +304,13 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T derived,
   std::size_t n = 0;
 
   while (n < root_finders::MAX_ITERS && !converged) {
-    // Reconstruct radiation variables from conservation (source-only solve
-    // preserves etot = e + Er_spec and m_tot = v + Fr_spec/c²).
-    const double Er = (etot - e);
-    const double Fr = c2 * (m_tot - v);
+    // Reconstruct rad vars from conservation, written as perturbations off the
+    // start: Er = er_star - (e - e_star), not the equivalent etot - e. When
+    // matter dominates (e_star >> er_star), etot = e_star + er_star loses the
+    // small rad part to catastrophic cancellation and flattens the profile
+    // regardless of dt; differencing the changes preserves it.
+    const double Er = er_star - (e - e_star);
+    const double Fr = fr_star - c2 * (v - vstar);
 
     src_in.e = e;
     src_in.v = v;
@@ -404,8 +411,8 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T derived,
     double lam = 1.0;
     double v_trial = v + lam * delta_v;
     double e_trial = e + lam * delta_e;
-    double Er_trial = etot - e_trial;
-    double Fr_trial = c2 * (m_tot - v_trial);
+    double Er_trial = er_star - (e_trial - e_star);
+    double Fr_trial = fr_star - c2 * (v_trial - vstar);
     double sie_trial = e_trial - 0.5 * v_trial * v_trial;
 
     // merit function: residual norm
@@ -414,8 +421,8 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T derived,
     for (int ls = 0; ls < max_linesearch; ++ls) {
       e_trial = e + lam * delta_e;
       v_trial = v + lam * delta_v;
-      Er_trial = etot - e_trial;
-      Fr_trial = c2 * (m_tot - v_trial);
+      Er_trial = er_star - (e_trial - e_star);
+      Fr_trial = fr_star - c2 * (v_trial - vstar);
       sie_trial = e_trial - 0.5 * v_trial * v_trial;
 
       // realizability first
@@ -429,8 +436,8 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T derived,
       trial_in.e = e_trial;
       trial_in.v = v_trial;
       // Conservation: trial rad vars track the trial (e, v).
-      trial_in.erad = etot - e_trial;
-      trial_in.frad = c2 * (m_tot - v_trial);
+      trial_in.erad = er_star - (e_trial - e_star);
+      trial_in.frad = fr_star - c2 * (v_trial - vstar);
       const auto [se_t, sv_t] = compute_rad_sources(trial_in, lambda.ptr());
       const double fe_t = e_trial - e_star - dt_a_ii * se_t;
       const double fv_t = v_trial - vstar - dt_a_ii * sv_t;
@@ -469,10 +476,11 @@ newton_radhydro(const double dt_a_ii, const double emin, T ustar, T derived,
     ++n;
   }
 
-  // Update conserved variables
+  // Reconstruct rad vars as perturbations off the start (see note in the Newton
+  // loop above).
   scratch[idx_vel] = v;
   scratch[idx_ener] = e;
-  scratch[idx_rad_energy] = etot - e;
-  scratch[idx_rad_flux] = c2 * (m_tot - v);
+  scratch[idx_rad_energy] = er_star - (e - e_star);
+  scratch[idx_rad_flux] = fr_star - c2 * (v - vstar);
 }
 } // namespace athelas::radiation
