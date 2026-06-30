@@ -160,6 +160,7 @@ set( ATHELAS_SOURCES
   "src/eos/eos_polytropic.cpp"
   "src/fluid/hydro_package.cpp"
   "src/heating/nickel_package.cpp"
+  "src/history/diagnostics.cpp"
   "src/history/history.cpp"
   "src/interface/params.cpp"
   "src/radiation/imex_radhydro_package.cpp"

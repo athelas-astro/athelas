@@ -49,6 +49,12 @@ config.output = {
   },
 }
 
+config.diagnostics = {
+  shock = {
+    enabled = true,
+  },
+}
+
 config.bc = {
   fluid = { bc_i = "outflow", bc_o = "outflow" },
 }

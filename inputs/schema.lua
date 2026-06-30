@@ -402,6 +402,38 @@ schema.output = {
 }
 
 -- -------------------------
+-- diagnostics
+-- -------------------------
+schema.diagnostics = {
+  optical_depth = {
+    enabled = {
+      type = "bool",
+      default = false,
+      doc = "Enable Rosseland optical depth output integrated inward from the outer boundary.",
+    },
+  },
+  photosphere = {
+    enabled = {
+      type = "bool",
+      default = false,
+      doc = "Enable photosphere history tracking from the optical-depth profile.",
+    },
+    tau = {
+      type = "double",
+      default = 2.0 / 3.0,
+      doc = "Optical-depth threshold used by the photosphere tracker. Must be > 0.",
+    },
+  },
+  shock = {
+    enabled = {
+      type = "bool",
+      default = false,
+      doc = "Enable shock history tracking using the strongest velocity compression.",
+    },
+  },
+}
+
+-- -------------------------
 -- gravity
 -- -------------------------
 schema.gravity = {

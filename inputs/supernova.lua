@@ -148,4 +148,18 @@ config.opacity = {
   },
 }
 
+-- Useful diagnostics: optical depth calculation, shock & photosphere detectors
+config.diagnostics = {
+  optical_depth = {
+    enabled = true,
+  },
+  photosphere = {
+    enabled = true,
+    tau = 2.0 / 3.0, -- We can choose the value of tau for the photosphere.
+  },
+  shock = {
+    enabled = true,
+  },
+}
+
 return config
