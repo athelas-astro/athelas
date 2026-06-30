@@ -6,13 +6,13 @@
 #include "basis/nodal_basis.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "bc/boundary_conditions.hpp"
-#include "history/diagnostics.hpp"
 #include "engines/thermal.hpp"
 #include "eos/eos.hpp"
 #include "fluid/hydro_package.hpp"
 #include "geometry/geometry_package.hpp"
 #include "gravity/gravity_package.hpp"
 #include "heating/nickel_package.hpp"
+#include "history/diagnostics.hpp"
 #include "history/quantities.hpp"
 #include "interface/packages_base.hpp"
 #include "interface/state.hpp"
@@ -307,8 +307,8 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
       pin->param()->get<bool>("diagnostics.optical_depth.enabled");
   if (diag_optical_depth_enabled_) {
     mesh_state_.register_field("diagnostics", DataPolicy::OneCopy,
-                               "Diagnostic profile variables", {"optical_depth"},
-                               nx + 2, nnodes + 2, 1);
+                               "Diagnostic profile variables",
+                               {"optical_depth"}, nx + 2, nnodes + 2, 1);
   }
 
   // auto info = mesh_state_.field_info();

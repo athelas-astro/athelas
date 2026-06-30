@@ -85,7 +85,7 @@ void compute_optical_depth(const MeshState &mesh_state, const Mesh &mesh) {
 }
 
 auto detect_photosphere(const MeshState &mesh_state, const Mesh &mesh,
-                      const double tau_target) -> PhotosphereResult {
+                        const double tau_target) -> PhotosphereResult {
   PhotosphereResult result{.radius = std::numeric_limits<double>::quiet_NaN(),
                            .cell = -1.0,
                            .valid = 0.0};
@@ -94,7 +94,8 @@ auto detect_photosphere(const MeshState &mesh_state, const Mesh &mesh,
   }
 
   const int nnodes = mesh.n_nodes();
-  const auto field = mesh_state.get_field<AthelasArray3D<double>>("diagnostics");
+  const auto field =
+      mesh_state.get_field<AthelasArray3D<double>>("diagnostics");
   const auto h_field =
       Kokkos::create_mirror_view_and_copy(HostMemSpace(), field);
   const auto h_grid =
@@ -123,7 +124,8 @@ auto detect_photosphere(const MeshState &mesh_state, const Mesh &mesh,
   return result;
 }
 
-auto detect_shock(const MeshState &mesh_state, const Mesh &mesh) -> ShockResult {
+auto detect_shock(const MeshState &mesh_state, const Mesh &mesh)
+    -> ShockResult {
   ShockResult result{.radius = std::numeric_limits<double>::quiet_NaN(),
                      .cell = -1.0,
                      .compression = 0.0};
@@ -167,7 +169,8 @@ auto detect_shock(const MeshState &mesh_state, const Mesh &mesh) -> ShockResult 
         double v_left = 0.0;
         double v_right = 0.0;
         for (int p = 0; p < nnodes; ++p) {
-          v_left += phi(face - 1, nnodes + 1, p) * evolved(face - 1, p, idx_vel);
+          v_left +=
+              phi(face - 1, nnodes + 1, p) * evolved(face - 1, p, idx_vel);
           v_right += phi(face, 0, p) * evolved(face, p, idx_vel);
         }
         const double dx = 0.5 * (dr(face - 1) + dr(face));

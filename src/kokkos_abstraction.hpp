@@ -797,9 +797,10 @@ struct ArgMax {
 
 // Reduces to the candidate with the largest `value`, carrying along an
 // associated coordinate (`position`) and integer id (`index`). For use with
-// Kokkos::Max, which joins via operator> and inits from reduction_identity::max.
-// Kokkos names these identities by the reducer that consumes them, so
-// reduction_identity<double>::max() is the identity for a max reduction
+// Kokkos::Max, which joins via operator> and inits from
+// reduction_identity::max. Kokkos names these identities by the reducer that
+// consumes them, so reduction_identity<double>::max() is the identity for a max
+// reduction
 // (-DBL_MAX), not the largest representable double.
 struct MaxValLoc {
   double value;

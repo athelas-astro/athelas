@@ -40,11 +40,10 @@ HistoryOutput::HistoryOutput(const std::string &filename,
 
 void HistoryOutput::add_quantity(const std::string &name,
                                  QuantityFunction func) {
-  add_quantities(
-      {name}, [func = std::move(func)](const MeshState &mesh_state,
-                                       const Mesh &mesh) {
-        return std::vector<double>{func(mesh_state, mesh)};
-      });
+  add_quantities({name}, [func = std::move(func)](const MeshState &mesh_state,
+                                                  const Mesh &mesh) {
+    return std::vector<double>{func(mesh_state, mesh)};
+  });
 }
 
 void HistoryOutput::add_quantities(const std::vector<std::string> &names,

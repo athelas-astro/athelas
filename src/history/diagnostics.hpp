@@ -28,7 +28,7 @@ void compute_optical_depth(const MeshState &mesh_state, const Mesh &mesh);
 // Locate the photosphere (tau == tau_target) from the optical_depth field,
 // which must already be up to date (see compute_optical_depth).
 [[nodiscard]] auto detect_photosphere(const MeshState &mesh_state,
-                                    const Mesh &mesh, double tau_target)
+                                      const Mesh &mesh, double tau_target)
     -> PhotosphereResult;
 
 // Locate the strongest velocity compression (shock) from the current state.
