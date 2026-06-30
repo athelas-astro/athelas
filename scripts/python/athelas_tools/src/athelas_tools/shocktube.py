@@ -1,105 +1,148 @@
 #!/usr/bin/env python3
+"""Plot an Athelas Sod shock-tube checkpoint against the exact solution.
 
-import os
+A small, self-contained example of the ``athelas_tools`` API: load a
+checkpoint, derive primitive variables from the evolved state, and overlay the
+analytic Riemann solution and any tracker positions recorded in the run
+history.
+
+Usage::
+
+    python shocktube.py             # plots the "final" checkpoint
+    python shocktube.py 000010         # plots shocktube_0010.ath
+    python shocktube.py 000010 -o out.png --no-trackers
+"""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+from typing import Union
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 
-from athelas import Athelas
-from exactpack.solvers.riemann.ep_riemann import IGEOS_Solver  # , streakplot
+from exactpack.solvers.riemann.ep_riemann import IGEOS_Solver
 
-plt.style.use("style.mplstyle")
+try:
+  from .athelas import Athelas
+except ImportError:  # allow running this file directly, not just as a module
+  from athelas import Athelas
+
+plt.style.use(Path(__file__).resolve().parents[3] / "style.mplstyle")
+
+# Sod shock tube initial state, matching inputs/sod.lua.
+# TODO(astrobarker): [sod; python] pull Sod params in from .ath
+GAMMA = 1.4
+SOD_LEFT = {"rho": 1.0, "vel": 0.0, "pre": 1.0}
+SOD_RIGHT = {"rho": 0.125, "vel": 0.0, "pre": 0.1}
+SOD_INTERFACE = 0.5
+
+# One color per primitive variable, shared between the numerical lines and the
+# analytic markers. Keys match the exactpack solution field names.
+COLORS = {
+  "density": "#86e3a1",  # green
+  "velocity": "#ff9a8b",  # orange
+  "pressure": "#8cc8f3",  # blue
+}
 
 
-def plot_shocktube(chk):
-  problem = "sod"
-  fn = f"{problem}_{chk}.ath"
+def sod_exact(t: float, npoints: int = 32) -> tuple[np.ndarray, dict]:
+  """Return ``(x, solution)`` for the exact Sod Riemann problem at time ``t``."""
+  solver = IGEOS_Solver(
+    rl=SOD_LEFT["rho"],
+    ul=SOD_LEFT["vel"],
+    pl=SOD_LEFT["pre"],
+    gl=GAMMA,
+    rr=SOD_RIGHT["rho"],
+    ur=SOD_RIGHT["vel"],
+    pr=SOD_RIGHT["pre"],
+    gr=GAMMA,
+    xmin=0.0,
+    xd0=SOD_INTERFACE,
+    xmax=1.0,
+    t=t,
+  )
+  x = np.linspace(0.0, 1.0, npoints)
+  return x, solver._run(x, t)
 
-  a = Athelas(fn)
-  r = a.r
-  tau = a.get("specific_volume")
+
+def plot_shocktube(
+  chk: str = "final",
+  overlay_trackers: Union[bool, str, list[str]] = True,
+  output: Union[str, Path, None] = None,
+) -> Path:
+  """Plot shock-tube checkpoint ``chk`` against the exact solution.
+
+  Returns the path of the saved figure.
+  """
+  a = Athelas(f"shocktube_{chk}.ath")
+
+  # Derive primitive variables from the evolved cell averages.
   vel = a.get("velocity")
-  emT = a.get("specific_total_fluid_energy")
-  em = emT - 0.5 * vel * vel
-  rho = 1.0 / tau
-  gamma = 1.4
-  p = (gamma - 1.0) * em / tau
-  print(a.quadrature.weights)
+  tau = a.get("specific_volume")  # specific volume = 1 / density
+  sie = a.get("specific_total_fluid_energy") - 0.5 * vel * vel
+  primitives = {
+    "density": 1.0 / tau,
+    "velocity": vel,
+    "pressure": (GAMMA - 1.0) * sie / tau,
+  }
 
   fig, ax = plt.subplots(figsize=(3.5, 3.5))
-  plt.minorticks_on()
-  rho_color = "#86e3a1"  # green
-  vel_color = "#ff9a8b"  # orange
-  # sie_color = "#d287ef"  # purple
-  pre_color = "#8cc8f3"  # blue
+  ax.minorticks_on()
 
-  # --- analytic solution ---
-  t_final = a.time
-  solver = IGEOS_Solver(
-    rl=1.0,
-    ul=0.0,
-    pl=1.0,
-    gl=1.4,
-    rr=0.125,
-    ur=0.0,
-    pr=0.1,
-    gr=1.4,
-    xmin=0.0,
-    xd0=0.5,
-    xmax=1.0,
-    t=t_final,
-  )
+  # Analytic solution as markers (label only the first so the legend shows a
+  # single "Analytic Solution" entry).
+  x, sol = sod_exact(a.time)
+  for i, (name, color) in enumerate(COLORS.items()):
+    ax.scatter(
+      x,
+      sol[name],
+      s=18,
+      facecolor=mcolors.to_rgba(color, 0.25),
+      edgecolor=mcolors.to_rgba(color, 1.0),
+      linewidth=0.5,
+      label="Analytic Solution" if i == 0 else None,
+    )
 
-  xsol = np.linspace(0.0, 1.0, 32)
-  sol = solver._run(xsol, t_final)
-  # streakplot(solver=solver, soln=sol, xs=xsol, t=t_final, N=101, var_str="pressure")
-  plt.scatter(
-    xsol,
-    sol["density"],
-    s=18,
-    facecolor=mcolors.to_rgba(rho_color, alpha=0.25),
-    edgecolor=mcolors.to_rgba(rho_color, alpha=1.0),
-    linewidth=0.5,
-    label="Analytic Solution",
-  )
-  plt.scatter(
-    xsol,
-    sol["pressure"],
-    s=18,
-    facecolor=mcolors.to_rgba(pre_color, alpha=0.25),
-    edgecolor=mcolors.to_rgba(pre_color, alpha=1.0),
-    linewidth=0.5,
-  )
-  plt.scatter(
-    xsol,
-    sol["velocity"],
-    s=18,
-    facecolor=mcolors.to_rgba(vel_color, alpha=0.25),
-    edgecolor=mcolors.to_rgba(vel_color, alpha=1.0),
-    linewidth=0.5,
-  )
+  # Numerical solution as lines.
+  for name, color in COLORS.items():
+    ax.plot(a.r, primitives[name], label=name.capitalize(), color=color)
 
-  ax.plot(r, rho, label="Density", color=rho_color)
-  ax.plot(r, vel, label="Velocity", color=vel_color)
-  # ax.plot(r, em / 2.5, label="Energy / 2.5", color=sie_color)
-  ax.plot(r, p, label="Pressure", color=pre_color)
-
-  # limiting
-  #  for i in range(len(r)):
-  #    if a.slope_limiter[i] == 1:
-  #      ax.axvline(r[i], color="#7c8c8c", alpha=0.25)
+  if overlay_trackers:
+    a.plot_trackers(ax=ax, trackers=overlay_trackers)
 
   ax.legend(frameon=False, fontsize=6)
-  ax.set(ylabel=r"Solution", xlabel="x")
+  ax.set(xlabel="x", ylabel="Solution")
 
-  plt.savefig(f"shocktube_{chk}.png")
+  out = Path(output) if output else Path(f"shocktube_{chk}.png")
+  fig.savefig(out)
+  return out
 
 
-def main():
-  chk = "final"
-  plot_shocktube(chk)
-  return os.EX_OK
+def main() -> None:
+  parser = argparse.ArgumentParser(description=__doc__)
+  parser.add_argument(
+    "chk",
+    nargs="?",
+    default="final",
+    help="checkpoint id, e.g. '000010' or 'final' (default: final)",
+  )
+  parser.add_argument("-o", "--output", help="output image path")
+  parser.add_argument(
+    "--no-trackers",
+    action="store_true",
+    help="do not overlay history tracker positions",
+  )
+  args = parser.parse_args()
+
+  out = plot_shocktube(
+    args.chk,
+    overlay_trackers=not args.no_trackers,
+    output=args.output,
+  )
+  print(f"wrote {out}")
 
 
 if __name__ == "__main__":

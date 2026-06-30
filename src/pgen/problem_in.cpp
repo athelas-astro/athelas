@@ -666,6 +666,43 @@ ProblemIn::ProblemIn(
     params_->add("output.dt_fixed", *fixed_dt);
   }
 
+  // -------------------------------
+  // ---------- diagnostics --------
+  // -------------------------------
+  sol::optional<sol::table> diag_block = config_["diagnostics"];
+  sol::table diagnostics = diag_block.value_or(lua_.create_table());
+
+  sol::optional<sol::table> optical_depth_block = diagnostics["optical_depth"];
+  sol::table optical_depth = optical_depth_block.value_or(lua_.create_table());
+  const bool diag_optical_depth_enabled =
+      optical_depth.get_or("enabled", false);
+
+  sol::optional<sol::table> photosphere_block = diagnostics["photosphere"];
+  sol::table photosphere = photosphere_block.value_or(lua_.create_table());
+  const bool diag_photosphere_enabled = photosphere.get_or("enabled", false);
+  const double diag_photosphere_tau = photosphere.get_or("tau", 2.0 / 3.0);
+
+  sol::optional<sol::table> shock_block = diagnostics["shock"];
+  sol::table shock = shock_block.value_or(lua_.create_table());
+  const bool diag_shock_enabled = shock.get_or("enabled", false);
+
+  if (diag_photosphere_tau <= 0.0) {
+    throw_athelas_error("diagnostics.photosphere.tau must be > 0.0\n");
+  }
+  if (diag_photosphere_enabled && !diag_optical_depth_enabled) {
+    throw_athelas_error(
+        "diagnostics.photosphere requires diagnostics.optical_depth.");
+  }
+  if ((diag_optical_depth_enabled || diag_photosphere_enabled) && !*rad) {
+    throw_athelas_error("diagnostics.optical_depth and diagnostics.photosphere "
+                        "require physics.radiation = true.");
+  }
+
+  params_->add("diagnostics.optical_depth.enabled", diag_optical_depth_enabled);
+  params_->add("diagnostics.photosphere.enabled", diag_photosphere_enabled);
+  params_->add("diagnostics.photosphere.tau", diag_photosphere_tau);
+  params_->add("diagnostics.shock.enabled", diag_shock_enabled);
+
   // --------------------------
   // ---------- time ----------
   // --------------------------

@@ -3,18 +3,21 @@
 #include <fstream>
 #include <functional>
 #include <string>
-#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "geometry/mesh.hpp"
 #include "history/history.hpp"
 #include "interface/state.hpp"
+#include "utils/error.hpp"
 
 namespace athelas {
 
 using basis::NodalBasis;
 
 using QuantityFunction = std::function<double(const MeshState &, const Mesh &)>;
+using QuantityGroupFunction =
+    std::function<std::vector<double>(const MeshState &, const Mesh &)>;
 
 HistoryOutput::HistoryOutput(const std::string &filename,
                              const std::string &output_dir, const bool enabled)
@@ -37,11 +40,19 @@ HistoryOutput::HistoryOutput(const std::string &filename,
 
 void HistoryOutput::add_quantity(const std::string &name,
                                  QuantityFunction func) {
+  add_quantities(
+      {name}, [func = std::move(func)](const MeshState &mesh_state,
+                                       const Mesh &mesh) {
+        return std::vector<double>{func(mesh_state, mesh)};
+      });
+}
+
+void HistoryOutput::add_quantities(const std::vector<std::string> &names,
+                                   QuantityGroupFunction func) {
   if (!enabled_) {
     return;
   }
-  quantities_[name] = std::move(func);
-  quantity_names_.push_back(name);
+  quantities_.push_back({.names = names, .values = std::move(func)});
 }
 
 void HistoryOutput::write(const MeshState &mesh_state, const Mesh &mesh,
@@ -56,9 +67,11 @@ void HistoryOutput::write(const MeshState &mesh_state, const Mesh &mesh,
   if (!header_written_) {
     file_ << "# 0 Time [s]";
     int i = 1;
-    for (const auto &name : quantity_names_) {
-      file_ << " " << std::to_string(i) << " " << name;
-      ++i;
+    for (const auto &quantity : quantities_) {
+      for (const auto &name : quantity.names) {
+        file_ << " " << std::to_string(i) << " " << name;
+        ++i;
+      }
     }
     header_written_ = true;
   }
@@ -66,9 +79,15 @@ void HistoryOutput::write(const MeshState &mesh_state, const Mesh &mesh,
 
   Kokkos::Profiling::pushRegion("IO");
   Kokkos::Profiling::pushRegion("History");
-  for (const auto &name : quantity_names_) {
-    const double value = quantities_[name](mesh_state, mesh);
-    file_ << std::format(" {:.15e}", value);
+  for (const auto &quantity : quantities_) {
+    const auto values = quantity.values(mesh_state, mesh);
+    if (values.size() != quantity.names.size()) {
+      throw_athelas_error("History quantity group returned the wrong number "
+                          "of values");
+    }
+    for (const double value : values) {
+      file_ << std::format(" {:.15e}", value);
+    }
   }
   Kokkos::Profiling::popRegion();
   Kokkos::Profiling::popRegion();

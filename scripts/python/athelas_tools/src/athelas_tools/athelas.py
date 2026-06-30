@@ -6,7 +6,8 @@ Athelas HDF5 loader with dynamic field/variable discovery.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Optional, Union, Any
+import re
+from typing import Callable, Dict, Optional, Sequence, Union, Any
 
 from astropy import constants as consts
 import h5py
@@ -34,6 +35,11 @@ ParamValue = Union[
   np.typing.NDArray[Any],
   Dict[str, Any],
 ]
+
+TRACKER_LABELS = {
+  "photosphere": "Photosphere",
+  "shock": "Shock",
+}
 
 
 class Quadrature:
@@ -65,6 +71,64 @@ class Variable:
     return self.field.dataset[sl, :, self.index]
 
 
+class History:
+  def __init__(self, path: Path):
+    self.path = path
+    self.columns, self.data = load_history(path)
+
+  def nearest_row(self, time: float) -> np.typing.NDArray[Any]:
+    return self.data[np.argmin(np.abs(self.data[:, 0] - time))]
+
+  def value(self, name: str, time: float) -> float:
+    if name not in self.columns:
+      raise AthelasError(f"History file {self.path} has no column '{name}'")
+    return float(self.nearest_row(time)[self.columns[name]])
+
+  def breakout_time(self, *, interpolate: bool = True) -> Optional[float]:
+    """Time of shock breakout: the first time the shock reaches the photosphere.
+
+    Breakout is defined as the shock radius first crossing (reaching or
+    exceeding) the photosphere radius. Only rows with a finite shock radius and
+    a valid, finite photosphere radius are considered. Returns ``None`` if the
+    required tracker columns are absent or breakout never occurs in the run.
+
+    When ``interpolate`` is true (default) the crossing time is linearly
+    interpolated between the bracketing history samples, since the trackers are
+    only recorded at output cadence; otherwise the first post-crossing sample
+    time is returned.
+    """
+    needed = ("Shock Radius [cm]", "Photosphere Radius [cm]")
+    if any(col not in self.columns for col in needed):
+      return None
+
+    t = self.data[:, 0]
+    r_shock = self.data[:, self.columns["Shock Radius [cm]"]]
+    r_ph = self.data[:, self.columns["Photosphere Radius [cm]"]]
+
+    valid = np.isfinite(r_shock) & np.isfinite(r_ph)
+    if "Photosphere Valid" in self.columns:
+      valid &= self.data[:, self.columns["Photosphere Valid"]] >= 0.5
+    if not np.any(valid):
+      return None
+
+    tv = t[valid]
+    # gap = shock - photosphere; >= 0 once the shock has reached the surface.
+    gap = r_shock[valid] - r_ph[valid]
+    above = gap >= 0.0
+    if not np.any(above):
+      return None
+
+    first = int(np.argmax(above))
+    if first == 0 or not interpolate:
+      return float(tv[first])
+
+    g0, g1 = gap[first - 1], gap[first]
+    if g1 == g0:
+      return float(tv[first])
+    frac = (0.0 - g0) / (g1 - g0)
+    return float(tv[first - 1] + frac * (tv[first] - tv[first - 1]))
+
+
 # ============================================================================
 # Main dataset
 # ============================================================================
@@ -72,8 +136,23 @@ class Variable:
 
 class Athelas:
   def __init__(
-    self, filename: Union[str, Path], load_ghost_cells: bool = False
+    self,
+    filename: Union[str, Path],
+    load_ghost_cells: bool = False,
+    history: Union[None, str, Path, History] = None,
   ):
+    """Load an Athelas checkpoint.
+
+    ``history`` controls how the run's history (``.hst``) is resolved, which the
+    tracker and breakout helpers read:
+
+    * ``None`` (default) -- derive the location from the output parameters next
+      to the checkpoint (see :meth:`history_path`).
+    * ``str`` / ``Path`` -- load the history from this explicit location.
+    * ``History`` -- reuse an already-parsed history object. History is a
+      per-run artifact, so sharing one instance across many checkpoints avoids
+      re-reading and re-parsing the same file.
+    """
     self.filename = Path(filename)
     self.load_ghost_cells = load_ghost_cells
 
@@ -81,6 +160,13 @@ class Athelas:
     self.variables: Dict[str, Variable] = {}
     self._derived = {}
     self.params: Dict[str, ParamValue] = {}
+
+    self._history: Optional[History] = None
+    self._history_path: Optional[Path] = None
+    if isinstance(history, History):
+      self._history = history
+    elif history is not None:
+      self._history_path = Path(history)
 
     self._load()
 
@@ -384,6 +470,126 @@ class Athelas:
   # Plotting
   # ------------------------------------------------------------------
 
+  def history_path(self) -> Path:
+    hist_fn = as_string(self.params.get("output.hist_fn", "athelas.hst"))
+    path = Path(hist_fn)
+    if path.is_absolute() and path.exists():
+      return path
+
+    candidates = [
+      self.filename.parent / path,
+      Path(as_string(self.params.get("output.dir", self.filename.parent)))
+      / path,
+    ]
+    for candidate in candidates:
+      if candidate.exists():
+        return candidate
+
+    raise AthelasError(
+      "Could not find history file for tracker overlay. "
+      f"Tried: {', '.join(str(candidate) for candidate in candidates)}"
+    )
+
+  def history(self) -> History:
+    if self._history is None:
+      path = self._history_path or self.history_path()
+      self._history = History(path)
+    return self._history
+
+  def breakout_time(self, *, interpolate: bool = True) -> Optional[float]:
+    """Shock breakout time from the run's history (see History.breakout_time).
+
+    Useful as an analysis ``t = 0`` reference. Returns ``None`` if the shock and
+    photosphere trackers are not both present or breakout never occurs.
+    """
+    return self.history().breakout_time(interpolate=interpolate)
+
+  @property
+  def time_since_breakout(self) -> Optional[float]:
+    """This checkpoint's time relative to shock breakout (``t - t_breakout``).
+
+    Returns ``None`` if breakout cannot be determined from the history.
+    """
+    t_breakout = self.breakout_time()
+    if t_breakout is None:
+      return None
+    return self.time - t_breakout
+
+  def tracker_position(self, tracker: str) -> Optional[float]:
+    tracker = tracker.lower()
+    hist = self.history()
+
+    if tracker == "photosphere":
+      if "Photosphere Valid" in hist.columns:
+        valid = hist.value("Photosphere Valid", self.time)
+        if valid < 0.5:
+          return None
+      return hist.value("Photosphere Radius [cm]", self.time)
+
+    if tracker == "shock":
+      return hist.value("Shock Radius [cm]", self.time)
+
+    raise AthelasError(f"Unknown tracker '{tracker}'")
+
+  def tracker_positions(
+    self, trackers: Union[bool, str, Sequence[str]] = True
+  ) -> Dict[str, float]:
+    if trackers is True:
+      requested = ("photosphere", "shock")
+    elif trackers is False:
+      return {}
+    elif isinstance(trackers, str):
+      requested = (trackers,)
+    else:
+      requested = tuple(trackers)
+
+    positions: Dict[str, float] = {}
+    for tracker in requested:
+      try:
+        position = self.tracker_position(tracker)
+      except AthelasError:
+        continue
+      if position is None or not np.isfinite(position):
+        continue
+      positions[tracker] = position
+    return positions
+
+  def plot_trackers(
+    self,
+    ax: Optional[plt.Axes] = None,
+    trackers: Union[bool, str, Sequence[str]] = True,
+    *,
+    color: str = "k",
+    linestyle: str = "--",
+    linewidth: float = 1.0,
+    alpha: float = 0.9,
+    label: bool = True,
+    position_transform: Optional[Callable[[float], float]] = None,
+    **kwargs,
+  ) -> plt.Axes:
+    if ax is None:
+      ax = plt.gca()
+
+    positions = self.tracker_positions(trackers)
+    for tracker, position in positions.items():
+      if position_transform is not None:
+        position = position_transform(position)
+      line_label = TRACKER_LABELS.get(tracker, tracker) if label else None
+      ax.axvline(
+        position,
+        color=color,
+        linestyle=linestyle,
+        linewidth=linewidth,
+        alpha=alpha,
+        label=line_label,
+        **kwargs,
+      )
+
+    if label and positions:
+      ax.legend()
+
+    return ax
+
   def plot(
     self,
     name: str,
@@ -392,6 +598,8 @@ class Athelas:
     logx: bool = False,
     logy: bool = False,
     label: Optional[str] = None,
+    overlay_trackers: Union[bool, str, Sequence[str]] = False,
+    tracker_kwargs: Optional[dict[str, Any]] = None,
     **kwargs,
   ) -> plt.Axes:
     if ax is None:
@@ -416,6 +624,15 @@ class Athelas:
       label = f"{name} "
 
     ax.plot(x, y, label=label, **kwargs)
+    if overlay_trackers:
+      if logx:
+        tracker_kwargs = dict(tracker_kwargs or {})
+        tracker_kwargs.setdefault(
+          "position_transform", lambda value: np.log10(np.abs(value))
+        )
+      self.plot_trackers(
+        ax=ax, trackers=overlay_trackers, **(tracker_kwargs or {})
+      )
     ax.grid(alpha=0.3)
     ax.legend()
 
@@ -450,6 +667,46 @@ def read_hdf5_group(group: h5py.Group) -> Dict[str, ParamValue]:
         elif data.size == 1:
           data = data.reshape(()).item()
 
+      if isinstance(data, bytes):
+        data = str(data.decode())
+
       result[key] = data
 
   return result
+
+
+def parse_history_header(line: str) -> Dict[str, int]:
+  # The header is guaranteed to start with '#', followed by "<index> <name>"
+  # pairs, e.g. "# 0 Time [s] 1 Total Mass [g] ...". Names may contain spaces
+  # and brackets; column indices are standalone integers. Match each name
+  # lazily up to the next index token (or end of line).
+  body = line.lstrip("#").strip()
+  pairs = re.findall(r"(\d+)\s+(.+?)(?=\s+\d+\s+|$)", body)
+  return {name.strip(): int(index) for index, name in pairs}
+
+
+def load_history(path: Path) -> tuple[Dict[str, int], np.typing.NDArray[Any]]:
+  columns: Optional[Dict[str, int]] = None
+  rows: list[list[float]] = []
+  for line in path.read_text().splitlines():
+    if not line.strip():
+      continue
+    if line.startswith("#"):
+      columns = parse_history_header(line)
+    else:
+      rows.append([float(value) for value in line.split()])
+
+  if columns is None:
+    raise AthelasError(f"History file {path} has no header")
+  if not rows:
+    raise AthelasError(f"History file {path} has no rows")
+
+  return columns, np.asarray(rows)
+
+
+def as_string(value: Any) -> str:
+  if isinstance(value, bytes):
+    return value.decode("utf-8")
+  if isinstance(value, np.ndarray) and value.shape == ():
+    return as_string(value.item())
+  return str(value)

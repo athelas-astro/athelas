@@ -794,6 +794,35 @@ struct ArgMax {
     return this->value > rhs.value;
   }
 };
+
+// Reduces to the candidate with the largest `value`, carrying along an
+// associated coordinate (`position`) and integer id (`index`). For use with
+// Kokkos::Max, which joins via operator> and inits from reduction_identity::max.
+// Kokkos names these identities by the reducer that consumes them, so
+// reduction_identity<double>::max() is the identity for a max reduction
+// (-DBL_MAX), not the largest representable double.
+struct MaxValLoc {
+  double value;
+  double position;
+  int index;
+
+  KOKKOS_INLINE_FUNCTION
+  MaxValLoc()
+      : value(Kokkos::reduction_identity<double>::max()), position(0.0),
+        index(-1) {}
+
+  KOKKOS_INLINE_FUNCTION
+  MaxValLoc(double val, double pos, int idx)
+      : value(val), position(pos), index(idx) {}
+
+  KOKKOS_INLINE_FUNCTION
+  auto operator=(const MaxValLoc &other) -> MaxValLoc & = default;
+
+  KOKKOS_INLINE_FUNCTION
+  auto operator>(const MaxValLoc &rhs) const -> bool {
+    return value > rhs.value;
+  }
+};
 } // namespace custom_reductions
 
 } // namespace athelas
@@ -812,6 +841,13 @@ struct reduction_identity<athelas::custom_reductions::ArgMax> {
   static athelas::custom_reductions::ArgMax max() {
     return athelas::custom_reductions::ArgMax(
         -1, -Kokkos::reduction_identity<double>::max());
+  }
+};
+template <>
+struct reduction_identity<athelas::custom_reductions::MaxValLoc> {
+  KOKKOS_FORCEINLINE_FUNCTION
+  static athelas::custom_reductions::MaxValLoc max() {
+    return athelas::custom_reductions::MaxValLoc();
   }
 };
 } // namespace Kokkos

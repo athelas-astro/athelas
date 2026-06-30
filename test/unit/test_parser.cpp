@@ -1,3 +1,4 @@
+#include <filesystem>
 #include <print>
 
 #include <catch2/catch_test_macros.hpp>
@@ -122,7 +123,8 @@ TEST_CASE("Parser parses valid text file correctly", "[parser]") {
 
   SECTION("Parse file") {
     // This is pretty awful but oh well.
-    const std::string fn = "../../../test/unit/test.dat";
+    const std::string fn =
+        (std::filesystem::path(__FILE__).parent_path() / "test.dat").string();
 
     auto result = Parser::parse_file(fn, ' ');
     REQUIRE(result);

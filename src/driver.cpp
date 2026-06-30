@@ -1,8 +1,12 @@
 #include "driver.hpp"
+
+#include <vector>
+
 #include "basic_types.hpp"
 #include "basis/nodal_basis.hpp"
 #include "basis/polynomial_basis.hpp"
 #include "bc/boundary_conditions.hpp"
+#include "history/diagnostics.hpp"
 #include "engines/thermal.hpp"
 #include "eos/eos.hpp"
 #include "fluid/hydro_package.hpp"
@@ -88,6 +92,7 @@ auto Driver::execute() -> int {
                    .last_out_h5 = 0,
                    .last_out_hist = 0};
   if (!restart_) {
+    pre_output_work();
     write_output(mesh_state_, mesh_state_.mesh(), &sl_hydro_, pin_.get(), info,
                  0);
     history_->write(mesh_state_, mesh_state_.mesh(), time_);
@@ -157,9 +162,17 @@ auto Driver::execute() -> int {
     dt_info.stage = 0;
     post_step_work();
 
-    // Write state, other io
-    if (time_ >= i_out_h5 * dt_hdf5) {
+    // Write state, other io. Refresh derived state and output-only diagnostics
+    // once when either output is due, then run the (independent) IO blocks.
+    const double hist_dt = pin_->param()->get<double>("output.hist_dt");
+    const bool do_hdf5 = time_ >= i_out_h5 * dt_hdf5;
+    const bool do_hist = time_ >= i_out_hist * hist_dt;
+    if (do_hdf5 || do_hist) {
       manager_->fill_derived(sd0, dt_info);
+      pre_output_work();
+    }
+
+    if (do_hdf5) {
       // History is checked AFTER the HDF5 dump, so i_out_hist here is still
       // the pre-history-fire value. Record the index of the most-recently-
       // written history entry so restart's "next = recorded + 1" rule works
@@ -167,10 +180,7 @@ auto Driver::execute() -> int {
       // also due this cycle, the about-to-be-written entry counts as the
       // most-recent (= i_out_hist); otherwise the most-recent is one less
       // than the pending value.
-      const double hist_dt = pin_->param()->get<double>("output.hist_dt");
-      const bool hist_due_this_cycle = time_ >= i_out_hist * hist_dt;
-      const int last_out_hist =
-          hist_due_this_cycle ? i_out_hist : i_out_hist - 1;
+      const int last_out_hist = do_hist ? i_out_hist : i_out_hist - 1;
       info = {.time = time_,
               .dt = dt_,
               .last_cycle = cycle,
@@ -181,9 +191,7 @@ auto Driver::execute() -> int {
       i_out_h5 += 1;
     }
 
-    // history
-    if (time_ >= i_out_hist * pin_->param()->get<double>("output.hist_dt")) {
-      manager_->fill_derived(sd0, dt_info);
+    if (do_hist) {
       history_->write(mesh_state_, mesh_state_.mesh(), time_);
       i_out_hist += 1;
     }
@@ -200,6 +208,7 @@ auto Driver::execute() -> int {
   }
 
   manager_->fill_derived(sd0, dt_info);
+  pre_output_work();
   // Loop variables are post-increment here ("next-pending"). Normalize to the
   // "last completed" SimInfo convention so restart-from-_final (with extended
   // tf or nlim) doesn't skip a cycle / HDF5 / history index.
@@ -290,6 +299,17 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   mesh_state_.register_field("interface", DataPolicy::Staged,
                              "Interface variables", {"interface_velocity"},
                              nx + 2 + 1, 1);
+
+  // Optical-depth profile field, filled at output cadence (see
+  // pre_output_work). The photosphere tracker reads it, so it is registered
+  // whenever optical-depth output is enabled (a prerequisite for photosphere).
+  diag_optical_depth_enabled_ =
+      pin->param()->get<bool>("diagnostics.optical_depth.enabled");
+  if (diag_optical_depth_enabled_) {
+    mesh_state_.register_field("diagnostics", DataPolicy::OneCopy,
+                               "Diagnostic profile variables", {"optical_depth"},
+                               nx + 2, nnodes + 2, 1);
+  }
 
   // auto info = mesh_state_.field_info();
 
@@ -506,6 +526,28 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
     history_->add_quantity("Total 56Co Mass [g]", analysis::total_mass_co56);
     history_->add_quantity("Total 56Fe Mass [g]", analysis::total_mass_fe56);
   }
+
+  // diagnostics history trackers
+  if (pin->param()->get<bool>("diagnostics.photosphere.enabled")) {
+    const double tau = pin->param()->get<double>("diagnostics.photosphere.tau");
+    history_->add_quantities(
+        {"Photosphere Radius [cm]", "Photosphere Cell Index",
+         "Photosphere Valid"},
+        [tau](const MeshState &s, const Mesh &m) {
+          const auto ph = diagnostics::detect_photosphere(s, m, tau);
+          return std::vector<double>{ph.radius, ph.cell, ph.valid};
+        });
+  }
+
+  if (pin->param()->get<bool>("diagnostics.shock.enabled")) {
+    history_->add_quantities(
+        {"Shock Radius [cm]", "Shock Cell Index", "Shock Compression [1 / s]"},
+        [](const MeshState &s, const Mesh &m) {
+          const auto shock = diagnostics::detect_shock(s, m);
+          return std::vector<double>{shock.radius, shock.cell,
+                                     shock.compression};
+        });
+  }
 }
 
 /**
@@ -633,5 +675,17 @@ void Driver::post_step_work() {
   }
 #endif
 } // post_step_work
+
+/**
+ * @brief Refresh output-only diagnostics just before HDF5 / history IO.
+ * @details Kept off the per-substep path: the optical-depth field is a
+ * host-side sequential integral consumed only at output cadence (the
+ * photosphere tracker reads the field this fills).
+ */
+void Driver::pre_output_work() {
+  if (diag_optical_depth_enabled_) {
+    diagnostics::compute_optical_depth(mesh_state_, mesh_state_.mesh());
+  }
+} // pre_output_work
 
 } // namespace athelas

@@ -59,6 +59,10 @@ class Driver {
   void post_init_work();
   void post_step_work();
 
+  // Refresh output-only diagnostics (e.g. the optical-depth profile field).
+  // Called before HDF5 / history IO, never on the per-substep path.
+  void pre_output_work();
+
   std::shared_ptr<ProblemIn> pin_;
 
   std::unique_ptr<PackageManager> manager_;
@@ -90,6 +94,9 @@ class Driver {
 
   // history
   std::unique_ptr<HistoryOutput> history_;
+
+  // diagnostics: optical-depth profile field is filled at output cadence only
+  bool diag_optical_depth_enabled_{};
 }; // class Driver
 
 } // namespace athelas
