@@ -1,0 +1,557 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Slope Limiters &#8212; Athelas v26.03 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=a0fb6060" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=e738c134"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'src/limiters';</script>
+    <link rel="canonical" href="https://athelas-astro.github.io/athelas/src/limiters.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Saha Ionization Model" href="saha.html" />
+    <link rel="prev" title="History Output" href="history.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">Athelas v26.03 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="building.html">Building</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration.html">Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="diagnostics.html">Diagnostics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engines.html">Engines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="history.html">History Output</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Slope Limiters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="saha.html">Saha Ionization Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="schema_reference.html">Input Deck Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sphinx-doc.html">How to Use Sphinx for Writing Docs</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/src/limiters.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Slope Limiters</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#available-limiters">Available limiters</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-tvd-minmod-limiter">The TVD minmod limiter</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-hierarchical-moment-limiter">The hierarchical moment limiter</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#input-deck">Input Deck</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="slope-limiters">
+<h1>Slope Limiters<a class="headerlink" href="#slope-limiters" title="Link to this heading">#</a></h1>
+<p>Slope limiters are a critical component of a discontinuous Galerkin method.
+High order numerical methods applied to non-smooth problems (e.g., effectively
+all interesting hydrodynamic phenomena) are prone to Gibbs phenomena –
+artificial oscillations in the solution. It is the responsibility of a scheme
+to prevent spurious oscillations while not limiting smooth, physical extrema.</p>
+<p>Athelas damps spurious oscillations in the discontinuous Galerkin solution with
+<em>slope limiters</em>, applied to the modal (Legendre) coefficients of each field
+after every explicit stage. A limiter is selected per physics block
+(<code class="docutils literal notranslate"><span class="pre">fluid</span></code> and <code class="docutils literal notranslate"><span class="pre">radiation</span></code>) in the input deck; see <a class="reference internal" href="#input-deck">Input Deck</a> below.</p>
+<p>Setting <code class="docutils literal notranslate"><span class="pre">enabled</span> <span class="pre">=</span> <span class="pre">false</span></code> installs a no-op limiter. Limiting is never applied
+to a first-order (<code class="docutils literal notranslate"><span class="pre">basis.nnodes</span> <span class="pre">=</span> <span class="pre">1</span></code>) run.</p>
+<section id="available-limiters">
+<h2>Available limiters<a class="headerlink" href="#available-limiters" title="Link to this heading">#</a></h2>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">minmod</span></code> – TVD minmod</dt><dd><p>The classic Cockburn &amp; Shu TVD(B) limiter. It limits the cell <em>slope</em>
+(mode <code class="docutils literal notranslate"><span class="pre">k</span> <span class="pre">=</span> <span class="pre">1</span></code>) with a minmod of the slope against the forward/backward
+differences of the neighboring cell averages, and <strong>zeros every higher
+mode</strong> when the slope is touched. Robust, but it clips smooth extrema and
+degrades the order of the scheme when it activates.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">moment</span></code> – hierarchical moment limiter</dt><dd><p>Limits from the highest mode downward and stops as soon as a mode is
+left unchanged, so it leaves resolved smooth data alone while
+still controlling oscillations at discontinuities.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">weno</span></code> – WENO</dt><dd><p>Weighted essentially non-oscillatory reconstruction. (Currently unreliable;
+prefer <code class="docutils literal notranslate"><span class="pre">minmod</span></code> or <code class="docutils literal notranslate"><span class="pre">moment</span></code>.)</p>
+</dd>
+</dl>
+<p>The fluid limiters support optional characteristic-variable limiting
+(<code class="docutils literal notranslate"><span class="pre">characteristic</span> <span class="pre">=</span> <span class="pre">true</span></code>). Radiation characteristic limiting is currently
+unsupported. All limiters support a troubled-cell indicator
+(<code class="docutils literal notranslate"><span class="pre">tci_opt</span> <span class="pre">=</span> <span class="pre">true</span></code>) that restricts limiting to flagged cells.</p>
+</section>
+<section id="the-tvd-minmod-limiter">
+<h2>The TVD minmod limiter<a class="headerlink" href="#the-tvd-minmod-limiter" title="Link to this heading">#</a></h2>
+<p>The minmod limiter is the total-variation-diminishing slope limiter of the
+Runge-Kutta DG framework of <a class="reference external" href="https://doi.org/10.1090/S0025-5718-1989-0983311-4">Cockburn &amp; Shu (1989)</a>, with the TVB
+relaxation of <a class="reference external" href="https://doi.org/10.1090/S0025-5718-1987-0890256-5">Shu (1987)</a>. Writing the cell
+average as <span class="math notranslate nohighlight">\(\bar{u}_i = u_i^{(0)}\)</span> and the slope coefficient as
+<span class="math notranslate nohighlight">\(u_i^{(1)}\)</span>, the limited slope on a non-uniform mesh is</p>
+<div class="math notranslate nohighlight" id="equation-src-limiters-0">
+<span class="eqno">(1)<a class="headerlink" href="#equation-src-limiters-0" title="Link to this equation">#</a></span>\[\tilde{u}_i^{(1)} = \widetilde{m}\!\left(
+    u_i^{(1)},\;
+    b\,{h_i \over 2}\,{(\bar{u}_{i+1} - \bar{u}_i) \over d_{i,+}},\;
+    b\,{h_i \over 2}\,{(\bar{u}_i - \bar{u}_{i-1}) \over d_{i,-}}
+\right),\]</div>
+<p>where <span class="math notranslate nohighlight">\(h_i = \Delta x_i\)</span> is the local cell width,
+<span class="math notranslate nohighlight">\(d_{i,+} = (h_i + h_{i+1})/2\)</span>, and
+<span class="math notranslate nohighlight">\(d_{i,-} = (h_i + h_{i-1})/2\)</span>. Neighbor differences are first formed as
+physical slopes between cell centroids and then rescaled by the half width of
+the target cell. The factor <span class="math notranslate nohighlight">\(b\)</span> is the compression parameter
+(<code class="docutils literal notranslate"><span class="pre">b_tvd</span></code>), and the
+TVB-modified minmod function is</p>
+<div class="math notranslate nohighlight" id="equation-src-limiters-1">
+<span class="eqno">(2)<a class="headerlink" href="#equation-src-limiters-1" title="Link to this equation">#</a></span>\[\begin{split}\widetilde{m}(a_1, a_2, a_3) =
+\begin{cases}
+  a_1 &amp; \text{if } |a_1| \le M\,h_i^2, \\
+  \mathrm{minmod}(a_1, a_2, a_3) &amp; \text{otherwise,}
+\end{cases}\end{split}\]</div>
+<p>with the standard minmod returning <span class="math notranslate nohighlight">\(s\,\min_j |a_j|\)</span> when all three
+arguments share the sign <span class="math notranslate nohighlight">\(s\)</span> and zero otherwise. The threshold
+<span class="math notranslate nohighlight">\(M\)</span> (<code class="docutils literal notranslate"><span class="pre">m_tvb</span></code>) is the TVB constant: when it is comparable to the local
+second derivative of the solution the limiter leaves genuine smooth extrema
+untouched, recovering full accuracy there; with <span class="math notranslate nohighlight">\(M = 0\)</span> the scheme is
+strictly TVD and clips extrema.</p>
+<p>When the slope is modified the limiter discards every higher mode
+(<span class="math notranslate nohighlight">\(k \ge 2\)</span>), so a limited cell falls back to a (limited) linear profile.
+This local-width form is what makes the limiter appropriate for the moving
+Lagrangian mesh, where neighboring zones generally do not have equal widths.</p>
+</section>
+<section id="the-hierarchical-moment-limiter">
+<h2>The hierarchical moment limiter<a class="headerlink" href="#the-hierarchical-moment-limiter" title="Link to this heading">#</a></h2>
+<p>The moment limiter follows <a class="reference external" href="https://doi.org/10.1016/j.jcp.2007.05.011">Krivodonova (2007)</a>. Writing the solution on a cell
+as an expansion in Legendre modes <span class="math notranslate nohighlight">\(u_i = \sum_k u_i^{(k)} P_k\)</span>, it limits
+the coefficients from the highest mode down to the slope <span class="math notranslate nohighlight">\(k = 1\)</span>,
+comparing mode <span class="math notranslate nohighlight">\(k\)</span> against the differences of the <em>next-lower</em> mode in
+the neighboring cells:</p>
+<div class="math notranslate nohighlight" id="equation-src-limiters-2">
+<span class="eqno">(3)<a class="headerlink" href="#equation-src-limiters-2" title="Link to this equation">#</a></span>\[\tilde{u}_i^{(k)} = \widetilde{m}\!\left(
+    u_i^{(k)},\;
+    b\,\beta_k\,{h_i \over 2}\,
+      {(u_{i+1}^{(k-1)} - u_i^{(k-1)}) \over d_{i,+}},\;
+    b\,\beta_k\,{h_i \over 2}\,
+      {(u_i^{(k-1)} - u_{i-1}^{(k-1)}) \over d_{i,-}}
+\right).\]</div>
+<p>Here <span class="math notranslate nohighlight">\(\beta_k = 1/(2k-1)\)</span> for the un-normalized Legendre coefficients.
+On a uniform mesh the half-width scaling gives
+the usual inter-mode factor <span class="math notranslate nohighlight">\(1/[2(2k-1)]\)</span>. At <span class="math notranslate nohighlight">\(k = 1\)</span>,
+<span class="math notranslate nohighlight">\(\beta_k = 1\)</span>, so this reduces exactly to the TVD minmod slope step
+above.</p>
+<p>The cascade stops the moment a coefficient is returned unchanged: if the
+highest mode is already acceptable the cell is deemed smooth and <strong>all</strong> lower
+modes are kept. This is the key difference from the TVD minmod limiter, which
+unconditionally discards every mode above the slope. By limiting only the modes
+that fail the hierarchical test, the moment limiter preserves high-order
+accuracy at smooth extrema. The <code class="docutils literal notranslate"><span class="pre">b_tvd</span></code> and <code class="docutils literal notranslate"><span class="pre">m_tvb</span></code> controls carry the same
+meaning as in the TVD minmod limiter; the TVB threshold is applied to each modal
+coefficient with the local width <span class="math notranslate nohighlight">\(h_i\)</span>. The cell average
+(<span class="math notranslate nohighlight">\(k = 0\)</span>) is never modified, so the scheme remains conservative.</p>
+</section>
+<section id="input-deck">
+<h2>Input Deck<a class="headerlink" href="#input-deck" title="Link to this heading">#</a></h2>
+<p>A limiter is configured per physics block (here <code class="docutils literal notranslate"><span class="pre">fluid</span></code>):</p>
+<div class="highlight-lua notranslate"><div class="highlight"><pre><span></span><span class="nv">config</span><span class="p">.</span><span class="py">fluid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nv">limiter</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nv">enabled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">    </span><span class="nb">type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;moment&quot;</span><span class="p">,</span><span class="w">   </span><span class="c1">-- &quot;minmod&quot;, &quot;moment&quot;, or &quot;weno&quot;</span>
+<span class="w">    </span><span class="nv">b_tvd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span>
+<span class="w">    </span><span class="nv">m_tvb</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0</span><span class="p">,</span>
+<span class="w">    </span><span class="nv">characteristic</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">    </span><span class="nv">tci_opt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">    </span><span class="c1">-- tci_val = 1.0,   -- required when tci_opt = true</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>The controls are:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">b_tvd</span></code> – minmod compression factor on the neighbor-difference arguments.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">m_tvb</span></code> – TVB threshold <span class="math notranslate nohighlight">\(M\)</span>; coefficients with
+<span class="math notranslate nohighlight">\(|u_i^{(k)}| \le M\,h_i^2\)</span> are left untouched, which prevents
+limiting of genuine smooth extrema. A suitable <span class="math notranslate nohighlight">\(M\)</span> scales with the
+second derivative of the solution; too large a value disables limiting at
+real discontinuities, so it should be tuned per problem.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">characteristic</span></code> – limit in characteristic variables rather than
+conserved variables. This is currently supported for fluid limiting only.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tci_opt</span></code> / <code class="docutils literal notranslate"><span class="pre">tci_val</span></code> – enable the troubled-cell indicator and set its
+threshold, restricting limiting to flagged cells.</p></li>
+</ul>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="history.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">History Output</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="saha.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Saha Ionization Model</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#available-limiters">Available limiters</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-tvd-minmod-limiter">The TVD minmod limiter</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-hierarchical-moment-limiter">The hierarchical moment limiter</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#input-deck">Input Deck</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Brandon L. Barker
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2024-2026, Brandon L. Barker.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

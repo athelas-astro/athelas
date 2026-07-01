@@ -1,0 +1,600 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Diagnostics &#8212; Athelas v26.03 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=a0fb6060" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=e738c134"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'src/diagnostics';</script>
+    <link rel="canonical" href="https://athelas-astro.github.io/athelas/src/diagnostics.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Engines" href="engines.html" />
+    <link rel="prev" title="Contributing" href="contributing.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">Athelas v26.03 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="building.html">Building</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration.html">Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Diagnostics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engines.html">Engines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="history.html">History Output</a></li>
+<li class="toctree-l1"><a class="reference internal" href="limiters.html">Slope Limiters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="saha.html">Saha Ionization Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="schema_reference.html">Input Deck Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sphinx-doc.html">How to Use Sphinx for Writing Docs</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/src/diagnostics.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Diagnostics</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#optical-depth">Optical Depth</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#photosphere-tracker">Photosphere Tracker</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#shock-tracker">Shock Tracker</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#shock-breakout">Shock Breakout</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#plotting-trackers">Plotting Trackers</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#input-deck">Input Deck</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="diagnostics">
+<h1>Diagnostics<a class="headerlink" href="#diagnostics" title="Link to this heading">#</a></h1>
+<p><code class="docutils literal notranslate"><span class="pre">Athelas</span></code> supports optional diagnostics for derived quantities that are useful
+for interpreting a run but are not part of the evolved state. Diagnostics are
+opt-in and are configured under <code class="docutils literal notranslate"><span class="pre">config.diagnostics</span></code> in the input deck.</p>
+<p>The current diagnostics are:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">optical_depth</span></code></dt><dd><p>Computes the Rosseland optical depth from the outer boundary inward. The
+profile is written to the HDF5 <code class="docutils literal notranslate"><span class="pre">.ath</span></code> output in a field named
+<code class="docutils literal notranslate"><span class="pre">diagnostics/optical_depth</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">photosphere</span></code></dt><dd><p>Tracks the radius where the optical depth crosses a chosen threshold,
+defaulting to <span class="math notranslate nohighlight">\(\tau = 2/3\)</span>. The tracker is written to the history
+output.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">shock</span></code></dt><dd><p>Tracks the strongest velocity compression and records its radius, cell
+index, and compression strength in the history output.</p>
+</dd>
+</dl>
+<section id="optical-depth">
+<h2>Optical Depth<a class="headerlink" href="#optical-depth" title="Link to this heading">#</a></h2>
+<p>The optical depth diagnostic computes</p>
+<div class="math notranslate nohighlight" id="equation-src-diagnostics-0">
+<span class="eqno">(1)<a class="headerlink" href="#equation-src-diagnostics-0" title="Link to this equation">#</a></span>\[\tau(r) = \int_r^{R_\mathrm{out}} \rho \kappa_R \, dr,\]</div>
+<p>where <span class="math notranslate nohighlight">\(\kappa_R\)</span> is the Rosseland mean opacity provided by the active
+opacity model. The integration is performed from the outer boundary inward, so
+the outermost boundary has <span class="math notranslate nohighlight">\(\tau = 0\)</span> and deeper points have larger
+optical depth.</p>
+<p>When enabled, the optical-depth profile is stored in the HDF5 checkpoint output
+as a diagnostic field.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Optical depth requires opacity data, so it is only valid when radiation
+physics is enabled. The input parser rejects <code class="docutils literal notranslate"><span class="pre">diagnostics.optical_depth</span></code> if
+<code class="docutils literal notranslate"><span class="pre">physics.radiation</span> <span class="pre">=</span> <span class="pre">false</span></code>.</p>
+</div>
+</section>
+<section id="photosphere-tracker">
+<h2>Photosphere Tracker<a class="headerlink" href="#photosphere-tracker" title="Link to this heading">#</a></h2>
+<p>The photosphere tracker uses the optical-depth profile to locate the radius
+where</p>
+<div class="math notranslate nohighlight" id="equation-src-diagnostics-1">
+<span class="eqno">(2)<a class="headerlink" href="#equation-src-diagnostics-1" title="Link to this equation">#</a></span>\[\tau(r_\mathrm{ph}) = \tau_\mathrm{ph}.\]</div>
+<p>The threshold <code class="docutils literal notranslate"><span class="pre">tau</span></code> is configurable and defaults to <code class="docutils literal notranslate"><span class="pre">2.0</span> <span class="pre">/</span> <span class="pre">3.0</span></code>. If the
+threshold is bracketed by the computed optical-depth profile, the tracker
+linearly interpolates between neighboring diagnostic samples and writes the
+photosphere radius to the history output.</p>
+<p>The history quantities are:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Photosphere</span> <span class="pre">Radius</span> <span class="pre">[cm]</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Photosphere</span> <span class="pre">Cell</span> <span class="pre">Index</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Photosphere</span> <span class="pre">Valid</span></code></p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">Photosphere</span> <span class="pre">Valid</span></code> is <code class="docutils literal notranslate"><span class="pre">1</span></code> when the requested optical depth was found and
+<code class="docutils literal notranslate"><span class="pre">0</span></code> otherwise.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The photosphere tracker depends on the optical-depth diagnostic. The input
+parser rejects <code class="docutils literal notranslate"><span class="pre">diagnostics.photosphere</span></code> unless
+<code class="docutils literal notranslate"><span class="pre">diagnostics.optical_depth.enabled</span> <span class="pre">=</span> <span class="pre">true</span></code>.</p>
+</div>
+</section>
+<section id="shock-tracker">
+<h2>Shock Tracker<a class="headerlink" href="#shock-tracker" title="Link to this heading">#</a></h2>
+<p>The shock tracker locates the strongest velocity compression. It examines both
+nodal velocity gradients and velocity jumps across cell faces, then records the
+largest positive value of <span class="math notranslate nohighlight">\(-\partial v / \partial r\)</span>.</p>
+<p>Within each cell, the velocity is treated as the DG polynomial represented by
+the nodal values in that element. The tracker applies the basis differentiation
+matrix to those nodal values to estimate the reference-coordinate derivative,</p>
+<div class="math notranslate nohighlight" id="equation-src-diagnostics-2">
+<span class="eqno">(3)<a class="headerlink" href="#equation-src-diagnostics-2" title="Link to this equation">#</a></span>\[\left.{\partial v \over \partial \eta}\right|_{i,q}
+  = \sum_p D_{q p} v_{i,p},\]</div>
+<p>then converts to a physical gradient using the cell width,</p>
+<div class="math notranslate nohighlight" id="equation-src-diagnostics-3">
+<span class="eqno">(4)<a class="headerlink" href="#equation-src-diagnostics-3" title="Link to this equation">#</a></span>\[\left.{\partial v \over \partial r}\right|_{i,q}
+  = {1 \over \Delta r_i}
+    \left.{\partial v \over \partial \eta}\right|_{i,q}.\]</div>
+<p>The nodal compression candidate is therefore
+<span class="math notranslate nohighlight">\(-\partial v / \partial r\)</span> evaluated at each interpolation node. This is
+different from a cell-average shock indicator based only on neighboring average
+velocities; it uses the local DG representation directly and can see compression
+inside a high-order element.</p>
+<p>The tracker also checks jumps across cell faces. It evaluates the left cell
+polynomial at the outer face and the right cell polynomial at the inner face,
+then estimates</p>
+<div class="math notranslate nohighlight" id="equation-src-diagnostics-4">
+<span class="eqno">(5)<a class="headerlink" href="#equation-src-diagnostics-4" title="Link to this equation">#</a></span>\[- {v_R - v_L \over \Delta r_\mathrm{face}},\]</div>
+<p>where <span class="math notranslate nohighlight">\(\Delta r_\mathrm{face}\)</span> is the average width of the two cells
+adjacent to the face. This catches compression concentrated at an element
+interface, where a purely interior nodal derivative can miss the sharpest part
+of the jump.</p>
+<p>The reported shock position is the node or face with the largest positive
+compression. This is a lightweight tracker rather than a troubled-cell
+indicator or limiter; it does not modify the solution.</p>
+<p>The history quantities are:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Shock</span> <span class="pre">Radius</span> <span class="pre">[cm]</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Shock</span> <span class="pre">Cell</span> <span class="pre">Index</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Shock</span> <span class="pre">Compression</span> <span class="pre">[1</span> <span class="pre">/</span> <span class="pre">s]</span></code></p></li>
+</ul>
+</section>
+<section id="shock-breakout">
+<h2>Shock Breakout<a class="headerlink" href="#shock-breakout" title="Link to this heading">#</a></h2>
+<p>The shock and photosphere trackers are most useful together. <em>Shock breakout</em>
+– the point at which the shock reaches the stellar surface and its radiation is
+no longer trapped behind an optically thick layer – corresponds to the shock
+position crossing the photosphere. In terms of the tracked quantities, breakout
+is the first time</p>
+<div class="math notranslate nohighlight" id="equation-src-diagnostics-5">
+<span class="eqno">(6)<a class="headerlink" href="#equation-src-diagnostics-5" title="Link to this equation">#</a></span>\[r_\mathrm{shock} \gtrsim r_\mathrm{ph},\]</div>
+<p>i.e. when <code class="docutils literal notranslate"><span class="pre">Shock</span> <span class="pre">Radius</span> <span class="pre">[cm]</span></code> first reaches or exceeds <code class="docutils literal notranslate"><span class="pre">Photosphere</span> <span class="pre">Radius</span>
+<span class="pre">[cm]</span></code>. Before breakout the shock sits below the photosphere
+(<span class="math notranslate nohighlight">\(r_\mathrm{shock} &lt; r_\mathrm{ph}\)</span>); the ordering reverses at breakout.</p>
+<p>Breakout is detected in post-processing rather than flagged by the solver:
+enable both <code class="docutils literal notranslate"><span class="pre">shock</span></code> and <code class="docutils literal notranslate"><span class="pre">photosphere</span></code> (and therefore <code class="docutils literal notranslate"><span class="pre">optical_depth</span></code>), and
+the Python <code class="docutils literal notranslate"><span class="pre">athelas_tools</span></code> interface locates the crossing from the history
+file. The breakout time is often a convenient analysis <code class="docutils literal notranslate"><span class="pre">t</span> <span class="pre">=</span> <span class="pre">0</span></code> reference.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">athelas_tools.athelas</span><span class="w"> </span><span class="kn">import</span> <span class="n">Athelas</span>
+
+<span class="n">ds</span> <span class="o">=</span> <span class="n">Athelas</span><span class="p">(</span><span class="s2">&quot;model_final.ath&quot;</span><span class="p">)</span>
+<span class="n">t_breakout</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">breakout_time</span><span class="p">()</span>    <span class="c1"># None if breakout never occurs</span>
+<span class="n">t_rel</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">time_since_breakout</span>     <span class="c1"># this checkpoint&#39;s time minus t_breakout</span>
+</pre></div>
+</div>
+<p>The crossing time is linearly interpolated between the bracketing history
+samples (pass <code class="docutils literal notranslate"><span class="pre">interpolate=False</span></code> for the first post-crossing sample time).
+Only rows with a valid photosphere and finite shock radius are considered.</p>
+</section>
+<section id="plotting-trackers">
+<h2>Plotting Trackers<a class="headerlink" href="#plotting-trackers" title="Link to this heading">#</a></h2>
+<p>The Python <code class="docutils literal notranslate"><span class="pre">athelas_tools</span></code> plotting interface can overplot tracker positions
+from the history file on checkpoint profiles:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">athelas_tools.athelas</span><span class="w"> </span><span class="kn">import</span> <span class="n">Athelas</span>
+
+<span class="n">ds</span> <span class="o">=</span> <span class="n">Athelas</span><span class="p">(</span><span class="s2">&quot;sod_final.ath&quot;</span><span class="p">)</span>
+<span class="n">ax</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="s2">&quot;density&quot;</span><span class="p">,</span> <span class="n">overlay_trackers</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>By default, this overlays all known trackers that are present in the history
+output. Tracker lines use black dashed vertical markers with labels such as
+<code class="docutils literal notranslate"><span class="pre">Shock</span></code> and <code class="docutils literal notranslate"><span class="pre">Photosphere</span></code>.</p>
+</section>
+<section id="input-deck">
+<h2>Input Deck<a class="headerlink" href="#input-deck" title="Link to this heading">#</a></h2>
+<p>Diagnostics are configured in a dedicated input-deck table:</p>
+<div class="highlight-lua notranslate"><div class="highlight"><pre><span></span><span class="nv">config</span><span class="p">.</span><span class="py">diagnostics</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nv">optical_depth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nv">enabled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nv">photosphere</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nv">enabled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">    </span><span class="nv">tau</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">2.0</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mf">3.0</span><span class="p">,</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nv">shock</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nv">enabled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>The controls are:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">optical_depth.enabled</span></code> – compute and write the optical-depth profile.
+Requires <code class="docutils literal notranslate"><span class="pre">physics.radiation</span> <span class="pre">=</span> <span class="pre">true</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">photosphere.enabled</span></code> – write photosphere tracker quantities to the
+history output. Requires <code class="docutils literal notranslate"><span class="pre">optical_depth.enabled</span> <span class="pre">=</span> <span class="pre">true</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">photosphere.tau</span></code> – optical-depth threshold for the photosphere tracker.
+Must be positive. Defaults to <code class="docutils literal notranslate"><span class="pre">2.0</span> <span class="pre">/</span> <span class="pre">3.0</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">shock.enabled</span></code> – write shock tracker quantities to the history output.</p></li>
+</ul>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="contributing.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Contributing</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="engines.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Engines</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#optical-depth">Optical Depth</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#photosphere-tracker">Photosphere Tracker</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#shock-tracker">Shock Tracker</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#shock-breakout">Shock Breakout</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#plotting-trackers">Plotting Trackers</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#input-deck">Input Deck</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Brandon L. Barker
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2024-2026, Brandon L. Barker.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
