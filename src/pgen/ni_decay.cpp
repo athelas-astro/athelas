@@ -63,9 +63,11 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   auto ye = comps->ye();
   auto inv_atomic_mass = comps->inverse_atomic_mass();
   auto *species_indexer = comps->species_indexer();
-  species_indexer->add("ni56", 3);
-  species_indexer->add("co56", 4);
-  species_indexer->add("fe56", 5);
+  // Composition-local indices (into the mass-fraction subview); consumers
+  // needing full evolved-state indices add the composition offset.
+  species_indexer->add("ni56", 0);
+  species_indexer->add("co56", 1);
+  species_indexer->add("fe56", 2);
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Pgen :: NiDecay", DevExecSpace(), ib.s, ib.e, qb.s,
       qb.e, KOKKOS_LAMBDA(const int i, const int q) {
