@@ -260,6 +260,11 @@ schema.radiation = {
       default = 1.0e-8,
       doc = "Convergence tolerance for implicit transport Newton iteration.",
     },
+    atol = {
+      type = "double",
+      default = 0.0,
+      doc = "Absolute residual tolerance for the implicit transport Newton iteration. Accepts the solve when the residual norm falls below this value regardless of relative reduction. 0 disables.",
+    },
   },
   limiter = {
     enabled = {

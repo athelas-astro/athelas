@@ -33,9 +33,15 @@ NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,
                                             nq); // integration of e^-tau dOmega
   delta_ = AthelasArray4D<double>("nickel delta", n_stages, nx + 2, nq, 4);
 
-  ind_ni_ = indexer->get<int>("ni56");
-  ind_co_ = indexer->get<int>("co56");
-  ind_fe_ = indexer->get<int>("fe56");
+  ind_ni_local_ = indexer->get<int>("ni56");
+  ind_co_local_ = indexer->get<int>("co56");
+  ind_fe_local_ = indexer->get<int>("fe56");
+
+  const int comp_start = 3 + 2 * static_cast<int>(pin->param()->get<bool>(
+                                     "physics.radiation.enabled"));
+  ind_ni_ = comp_start + ind_ni_local_;
+  ind_co_ = comp_start + ind_co_local_;
+  ind_fe_ = comp_start + ind_fe_local_;
 }
 
 void NickelHeatingPackage::update_explicit(const StageData &stage_data,
@@ -68,26 +74,26 @@ void NickelHeatingPackage::ni_update(const StageData &stage_data,
 
   auto mass_fractions = stage_data.mass_fractions("evolved");
   const auto *const species_indexer = comps->species_indexer();
-  static const auto ind_ni = species_indexer->get<int>("ni56");
-  static const auto ind_co = species_indexer->get<int>("co56");
+  const auto ind_ni = species_indexer->get<int>("ni56");
+  const auto ind_co = species_indexer->get<int>("co56");
 
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "NickelHeating :: Update", DevExecSpace(), ib.s,
       ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-        const double x_ni = evolved(i, q, ind_ni);
-        const double x_co = evolved(i, q, ind_co);
+        const double x_ni = mass_fractions(i, q, ind_ni);
+        const double x_co = mass_fractions(i, q, ind_co);
         const double f_dep = this->template deposition_function<Model>(i, q);
         const double source = ni_source(x_ni, x_co, f_dep);
 
-        delta_(stage, i, q, pkg_vars::Energy) = f_dep * source;
+        delta_(stage, i, q, pkg_vars::Energy) = source;
       });
 
   // Realistically I don't need to integrate X_Fe, but oh well.
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "NickelHeating :: Decay network", DevExecSpace(),
       ib.s, ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-        const double x_ni = evolved(i, q, ind_ni);
-        const double x_co = evolved(i, q, ind_co);
+        const double x_ni = mass_fractions(i, q, ind_ni);
+        const double x_co = mass_fractions(i, q, ind_co);
         const double rhs_ni = -LAMBDA_NI_ * x_ni;
         const double rhs_co = LAMBDA_NI_ * x_ni - LAMBDA_CO_ * x_co;
         const double rhs_fe = LAMBDA_CO_ * x_co;
@@ -157,11 +163,39 @@ auto NickelHeatingPackage::min_timestep(const StageData & /*stage_data*/,
   return dt_out;
 }
 
+template <NiHeatingModel Model>
+void NickelHeatingPackage::fill_diagnostic_heating_rate(
+    const StageData &stage_data) const {
+  if (!stage_data.has_variable("diagnostics", "specific_nickel_heating_rate")) {
+    return;
+  }
+
+  auto diagnostics = stage_data.get_field("diagnostics");
+  auto mass_fractions = stage_data.mass_fractions("evolved");
+  const int idx_heating =
+      stage_data.var_index("diagnostics", "specific_nickel_heating_rate");
+
+  const int nNodes = static_cast<int>(mass_fractions.extent(1));
+  const IndexRange ib(1, static_cast<int>(mass_fractions.extent(0)) - 2);
+  const IndexRange qb(nNodes);
+
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "NickelHeating :: FillDiagnosticHeatingRate",
+      DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
+      KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+        const double x_ni = mass_fractions(i, q, ind_ni_local_);
+        const double x_co = mass_fractions(i, q, ind_co_local_);
+        const double f_dep = this->template deposition_function<Model>(i, q);
+        diagnostics(i, q + 1, idx_heating) = ni_source(x_ni, x_co, f_dep);
+      });
+}
+
 void NickelHeatingPackage::fill_derived(StageData &stage_data,
                                         const TimeStepInfo &dt_info) const {
   const auto &mesh = stage_data.mesh();
 
   if (model_ != NiHeatingModel::Jeffery) {
+    fill_diagnostic_heating_rate<NiHeatingModel::FullTrapping>(stage_data);
     return;
   }
   using math::interp::find_closest_cell;
@@ -230,7 +264,8 @@ void NickelHeatingPackage::fill_derived(StageData &stage_data,
               for (int l = 0; l < nr; ++l) {
                 const double rx = l * dr;
                 const double rj = std::sqrt(ri2 + rx * rx + two_ri_cos * rx);
-                const int index = find_closest_cell(centers, rj, nx);
+                const int index =
+                    std::min(find_closest_cell(centers, rj, nx), nx - 2);
                 const double rho_interp =
                     linterp(centers(index), centers(index + 1),
                             1.0 / evolved(index, q, idx_tau),
@@ -251,12 +286,15 @@ void NickelHeatingPackage::fill_derived(StageData &stage_data,
         athelas::par_reduce_inner(
             inner_loop_pattern_ttr_tag, member, 0, nangles,
             [=](const int iangle, double &local_sum) {
-              local_sum += std::exp(taugamma[iangle]) *
+              const double tau = taugamma[iangle];
+              local_sum += jeffery_attenuation(tau) *
                            std::sin(th_min + iangle * dtheta) * dtheta;
             },
             Kokkos::Sum<double>(angle_integrated_tau));
         int_etau_domega_(i, q) = angle_integrated_tau;
       });
+
+  fill_diagnostic_heating_rate<NiHeatingModel::Jeffery>(stage_data);
 }
 
 [[nodiscard]] KOKKOS_FUNCTION auto NickelHeatingPackage::name() const noexcept

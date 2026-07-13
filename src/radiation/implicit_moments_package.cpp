@@ -83,6 +83,8 @@ ImplicitRadiationMomentsPackage::ImplicitRadiationMomentsPackage(
                    pin->param()->get<int>("radiation.newton.max_iter"));
   params_.add<double>("newton.tol",
                       pin->param()->get<double>("radiation.newton.tol"));
+  params_.add<double>("newton.atol",
+                      pin->param()->get<double>("radiation.newton.atol", 0.0));
   params_.add<double>("ap_coefficient", pin->param()->get<double>(
                                             "radiation.ap_coefficient", 1.0));
 }
@@ -412,6 +414,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
 
   static auto max_iters = params_.get<int>("newton.max_iters");
   static auto tol = params_.get<double>("newton.tol");
+  static auto atol = params_.get<double>("newton.atol");
 
   // Converged is the gold standard corresponding to a converged residual.
   // Accepted is "good enough" -- perhaps a "converged" or stalled step size
@@ -430,7 +433,77 @@ void ImplicitRadiationMomentsPackage::update_implicit(
   constexpr double T_inversion_floor = 500.0;
   constexpr double T_inversion_ceiling = 1.0e12;
 
+  // Project the initial guess into the realizable set. The line-search trial
+  // converges to the initial iterate as lam -> 0, so an inadmissible guess
+  // makes every trial inadmissible and the solve can never move: the
+  // radiation field silently freezes. Nodal values only; face-edge
+  // realizability for nnodes > 1 remains the line search's job.
+  constexpr double f_proj = 1.0 - 1.0e-6; // keep |F| strictly inside c E
+  int n_projected = 0;
+  athelas::par_reduce(
+      DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Newton :: Project guess",
+      DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
+      KOKKOS_CLASS_LAMBDA(const int i, const int q, int &count) {
+        double er = newton_.u_rad_work(i, q, u_idx_er);
+        double fr = newton_.u_rad_work(i, q, u_idx_fr);
+        const double eg = newton_.u_rad_work(i, q, u_idx_ener);
+        const double vg = newton_.u_rad_work(i, q, u_idx_vel);
+        const double sie = eg - 0.5 * vg * vg;
+        bool projected = false;
+
+        if (!(er > 0.0)) {
+          er = U_floor;
+          projected = true;
+        }
+        if (std::abs(fr) > f_proj * c * er) {
+          fr = sgn(fr) * f_proj * c * er;
+          projected = true;
+        }
+
+        const double rho = 1.0 / evolved(i, q, idx_tau);
+        eos::EOSLambda lam_eos;
+        if (ionization_enabled) {
+          lam_eos.data[0] = number_density(i, q + 1);
+          lam_eos.data[1] = ye(i, q + 1);
+          lam_eos.data[2] = ybar(i, q + 1);
+          lam_eos.data[3] = sigma1(i, q + 1);
+          lam_eos.data[4] = sigma2(i, q + 1);
+          lam_eos.data[5] = sigma3(i, q + 1);
+          lam_eos.data[6] = e_ion_corr(i, q + 1);
+          lam_eos.data[7] = derived(i, q + 1, idx_tgas);
+        }
+        const double emin =
+            paczynski_eos ? eos::sie_from_density_temperature(
+                                eos, rho, T_inversion_floor, lam_eos.ptr())
+                          : min_sie(eos, rho, lam_eos.ptr());
+        const double emax =
+            paczynski_eos ? eos::sie_from_density_temperature(
+                                eos, rho, T_inversion_ceiling, lam_eos.ptr())
+                          : std::numeric_limits<double>::infinity();
+        // Twice the realizability-check margin so a projected node passes it.
+        const double e_margin = 128.0 * std::numeric_limits<double>::epsilon() *
+                                std::max({std::abs(eg), std::abs(emin), 1.0});
+        double sie_proj = sie;
+        if (sie < emin + e_margin) {
+          sie_proj = emin + e_margin;
+          projected = true;
+        } else if (sie > emax - e_margin) {
+          sie_proj = emax - e_margin;
+          projected = true;
+        }
+
+        if (projected) {
+          newton_.u_rad_work(i, q, u_idx_er) = er;
+          newton_.u_rad_work(i, q, u_idx_fr) = fr;
+          newton_.u_rad_work(i, q, u_idx_ener) = sie_proj + 0.5 * vg * vg;
+          count += 1;
+        }
+      },
+      Kokkos::Sum<int>(n_projected));
+  n_guess_projections_ += n_projected;
+
   double resid0 = 0.0;
+  bool any_step_applied = false;
   while (iter < max_iters && !converged && !accepted) {
 
     Kokkos::deep_copy(solver_.mat_diag, 0.0);
@@ -735,7 +808,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
     }
 
     // Should we break here or compute and apply the update?
-    if (norm_resid == 0.0 || norm_resid / resid0 < tol) {
+    if (norm_resid == 0.0 || norm_resid < atol || norm_resid / resid0 < tol) {
       converged = true;
       break;
     }
@@ -744,10 +817,128 @@ void ImplicitRadiationMomentsPackage::update_implicit(
     block_thomas_solve(nblocks, block_size, solver_.mat_lower, solver_.mat_diag,
                        solver_.mat_upper, solver_.b, scratch);
 
+    // Fraction-to-the-boundary bound: the largest step along the Newton
+    // direction keeping every node and face evaluation strictly inside the
+    // realizable set, in closed form. Every constraint is linear in the step
+    // length except the sie bracket, which is quadratic through the kinetic
+    // energy. Starting the line search here means a strictly interior
+    // iterate can never produce an empty step: halving from lam = 1 bottoms
+    // out at ~4e-6 and gives up, which froze the solve whenever a cell rode
+    // the causal boundary |F| ~ c E with a thinner gap than that.
+    double alpha_fb = 1.0;
+    athelas::par_reduce(
+        DEFAULT_FLAT_LOOP_PATTERN, "ImplicitMoments :: Newton :: Step bound",
+        DevExecSpace(), ib.s, ib.e,
+        KOKKOS_CLASS_LAMBDA(const int i, double &lmin) {
+          double amax = 1.0;
+          // Largest alpha with g0 + alpha * slope > 0. Skipped when the
+          // iterate is already outside (g0 <= 0); the realizability check in
+          // the line search remains the safety net there.
+          auto shrink_linear = [&](const double g0, const double slope) {
+            if (g0 > 0.0 && slope < 0.0) {
+              amax = std::min(amax, g0 / (-slope));
+            }
+          };
+
+          for (int q = qb.s; q <= qb.e; ++q) {
+            const double er = newton_.u_rad_work(i, q, u_idx_er);
+            const double fr = newton_.u_rad_work(i, q, u_idx_fr);
+            const double eg = newton_.u_rad_work(i, q, u_idx_ener);
+            const double vg = newton_.u_rad_work(i, q, u_idx_vel);
+            const double der = solver_.b(i - ib.s, idx(q, 0));
+            const double dfr = solver_.b(i - ib.s, idx(q, 1));
+            const double dvg = solver_.b(i - ib.s, idx(q, 2));
+            const double deg = solver_.b(i - ib.s, idx(q, 3));
+
+            // E > 0 and |F| < c E, all linear in alpha.
+            shrink_linear(er, der);
+            shrink_linear(c * er - fr, c * der - dfr);
+            shrink_linear(c * er + fr, c * der + dfr);
+
+            // sie bracket: sie(alpha) = sie0 + b_lin alpha - a_quad alpha²/2.
+            const double sie0 = eg - 0.5 * vg * vg;
+            const double a_quad = dvg * dvg;
+            const double b_lin = deg - vg * dvg;
+
+            const double rho = 1.0 / evolved(i, q, idx_tau);
+            eos::EOSLambda lam_eos;
+            if (ionization_enabled) {
+              lam_eos.data[0] = number_density(i, q + 1);
+              lam_eos.data[1] = ye(i, q + 1);
+              lam_eos.data[2] = ybar(i, q + 1);
+              lam_eos.data[3] = sigma1(i, q + 1);
+              lam_eos.data[4] = sigma2(i, q + 1);
+              lam_eos.data[5] = sigma3(i, q + 1);
+              lam_eos.data[6] = e_ion_corr(i, q + 1);
+              lam_eos.data[7] = derived(i, q + 1, idx_tgas);
+            }
+            const double emin =
+                paczynski_eos ? eos::sie_from_density_temperature(
+                                    eos, rho, T_inversion_floor, lam_eos.ptr())
+                              : min_sie(eos, rho, lam_eos.ptr());
+            const double e_margin =
+                64.0 * std::numeric_limits<double>::epsilon() *
+                std::max({std::abs(eg), std::abs(emin), 1.0});
+
+            // Lower edge: smallest positive root of sie(alpha) = emin + m.
+            const double c_lo = sie0 - (emin + e_margin);
+            if (c_lo > 0.0) {
+              if (a_quad > 0.0) {
+                const double s = std::sqrt(b_lin * b_lin + 2.0 * a_quad * c_lo);
+                amax = std::min(amax, b_lin > 0.0 ? (b_lin + s) / a_quad
+                                                  : 2.0 * c_lo / (s - b_lin));
+              } else if (b_lin < 0.0) {
+                amax = std::min(amax, c_lo / (-b_lin));
+              }
+            }
+
+            // Upper edge exists only for the Paczynski inversion bracket.
+            if (paczynski_eos) {
+              const double emax = eos::sie_from_density_temperature(
+                  eos, rho, T_inversion_ceiling, lam_eos.ptr());
+              const double c_hi = (emax - e_margin) - sie0;
+              if (c_hi > 0.0 && b_lin > 0.0) {
+                if (a_quad > 0.0) {
+                  const double disc = b_lin * b_lin - 2.0 * a_quad * c_hi;
+                  if (disc >= 0.0) {
+                    amax =
+                        std::min(amax, 2.0 * c_hi / (b_lin + std::sqrt(disc)));
+                  }
+                } else {
+                  amax = std::min(amax, c_hi / b_lin);
+                }
+              }
+            }
+          }
+
+          // Face-edge evaluations (E > 0, |F| < c E) are linear in alpha too.
+          for (int side = 0; side < 2; ++side) {
+            const int qf = side == 0 ? 0 : nNodes + 1;
+            double er0 = 0.0;
+            double fr0 = 0.0;
+            double der = 0.0;
+            double dfr = 0.0;
+            for (int p = 0; p < nNodes; ++p) {
+              const double ph = phi(i, qf, p);
+              er0 += ph * newton_.u_rad_work(i, p, u_idx_er);
+              fr0 += ph * newton_.u_rad_work(i, p, u_idx_fr);
+              der += ph * solver_.b(i - ib.s, idx(p, 0));
+              dfr += ph * solver_.b(i - ib.s, idx(p, 1));
+            }
+            shrink_linear(er0, der);
+            shrink_linear(c * er0 - fr0, c * der - dfr);
+            shrink_linear(c * er0 + fr0, c * der + dfr);
+          }
+
+          lmin = std::min(lmin, amax);
+        },
+        Kokkos::Min<double>(alpha_fb));
+
     // Realizability + Armijo line search with stagnation cutoff.
     //
-    // Realizability: the M1 closure requires E > 0 and |F| < c E. Halve lam
-    // until the trial state satisfies both.
+    // Realizability: the M1 closure requires E > 0 and |F| < c E. The
+    // fraction-to-the-boundary start makes the full first trial realizable
+    // up to floating-point slop; halving remains as the safety net.
     //
     // Armijo: once realizable, the trial squared residual must drop by at
     // least 2·alpha·lam relative to F0² (sufficient decrease).
@@ -761,7 +952,9 @@ void ImplicitRadiationMomentsPackage::update_implicit(
     // are filled per line-search iteration.
     Kokkos::deep_copy(newton_.u_rad_trial, newton_.u_rad_work);
 
-    double lam = 1.0;
+    // Keep a hair inside the boundary.
+    constexpr double tau_fb = 0.99;
+    double lam = std::min(1.0, tau_fb * alpha_fb);
     // Step length actually applied below: the realizable lam (Armijo-decreasing
     // if found, else the most-damped realizable one). Stays 0 — no update — if
     // no realizable step exists this iteration, so the iterate never leaves the
@@ -897,6 +1090,7 @@ void ImplicitRadiationMomentsPackage::update_implicit(
           newton_.u_rad_work(i, q, u_idx_ener) +=
               lam_accept * solver_.b(i - ib.s, idx(q, 3));
         });
+    any_step_applied = true;
 
     // Stagnation stopping criterion.
     // Should this be in the line search?
@@ -927,6 +1121,33 @@ void ImplicitRadiationMomentsPackage::update_implicit(
 
     ++iter;
   } // Newton-Raphson loop
+
+  // Solve verdict. "accepted" (stagnation) is success-adjacent and only
+  // counted; exhausting max_iters without either flag is a failure. Until a
+  // step-rejection path exists, a failed solve
+  // continues with the unconverged iterate.
+  if (accepted && !converged) {
+    ++n_stagnation_exits_;
+  }
+  if (!converged && !accepted) {
+    ++n_newton_failures_;
+    // With no accepted step the final iterate is just the projected initial
+    // guess; applying its delta would turn the projection into a fabricated
+    // source term. Restore ustar so such a solve contributes exactly nothing.
+    // TODO(astrobarker): [implicit_moments] This needs to be removed.
+    if (!any_step_applied) {
+      athelas::par_for(
+          DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Newton :: Restore ustar",
+          DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
+          KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+            newton_.u_rad_work(i, q, u_idx_tau) = ustar(i, q, idx_tau);
+            newton_.u_rad_work(i, q, u_idx_vel) = ustar(i, q, idx_vel);
+            newton_.u_rad_work(i, q, u_idx_ener) = ustar(i, q, idx_ener);
+            newton_.u_rad_work(i, q, u_idx_er) = ustar(i, q, idx_er);
+            newton_.u_rad_work(i, q, u_idx_fr) = ustar(i, q, idx_fr);
+          });
+    }
+  }
 
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "ImplicitMoments :: Increment delta",

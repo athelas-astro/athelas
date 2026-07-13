@@ -5,12 +5,14 @@
 
 namespace athelas::diagnostics {
 
-// Result of the photosphere search. Members are doubles so they can be exposed
-// directly as scalar history quantities (cell index / validity included).
-struct PhotosphereResult {
-  double radius; // NaN if no crossing found
-  double cell; // -1 if no crossing found
-  double valid; // 1.0 if found, else 0.0
+// Photosphere location and photospheric light-curve components. When no tau
+// crossing is found, found is false, cell is -1, and the doubles are NaN.
+struct PhotosphereDiagnostics {
+  double radius;
+  int cell;
+  bool found;
+  double photospheric_luminosity;
+  double exterior_radioactive_luminosity;
 };
 
 // Result of the shock search (strongest velocity compression).
@@ -26,10 +28,14 @@ struct ShockResult {
 void compute_optical_depth(const MeshState &mesh_state, const Mesh &mesh);
 
 // Locate the photosphere (tau == tau_target) from the optical_depth field,
-// which must already be up to date (see compute_optical_depth).
-[[nodiscard]] auto detect_photosphere(const MeshState &mesh_state,
-                                      const Mesh &mesh, double tau_target)
-    -> PhotosphereResult;
+// which must already be up to date (see compute_optical_depth), and estimate
+// the light curve there:
+//   L = 4 pi R_ph^2 rho F
+// plus any radioactive heating deposited exterior to the photosphere when the
+// nickel package has published specific_nickel_heating_rate.
+[[nodiscard]] auto photosphere_diagnostics(const MeshState &mesh_state,
+                                           const Mesh &mesh, double tau_target)
+    -> PhotosphereDiagnostics;
 
 // Locate the strongest velocity compression (shock) from the current state.
 [[nodiscard]] auto detect_shock(const MeshState &mesh_state, const Mesh &mesh)

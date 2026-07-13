@@ -7,7 +7,7 @@ local config = {}
 -- Note: The domain bounds xl and xr are overwritten.
 config.problem = {
   name = "supernova",
-  t_end = 1.0 * day,
+  t_end = 100.0 * day,
   nlim = -1,
   geometry = "spherical",
   xl = 100.0,
@@ -33,7 +33,7 @@ config.physics = {
   gravity = true,
   composition = true,
   ionization = true,
-  heating = false,
+  heating = true,
   engine = true,
 }
 
@@ -51,10 +51,10 @@ config.basis = {
 config.output = {
   ncycle_out = 5,
   dt_growth_frac = 2.0,
-  hist_dt = config.problem.t_end,
   dt_init = 1.0e-16,
   history = {
     fn = config.problem.name .. ".hst",
+    dt = 1.0,
   },
 }
 
@@ -83,8 +83,8 @@ config.ionization = {
 }
 
 config.bc = {
-  fluid = { bc_i = "reflecting", bc_o = "outflow" },
-  radiation = { bc_i = "reflecting", bc_o = "interior" },
+  fluid = { bc_i = "reflecting", bc_o = "surface" },
+  radiation = { bc_i = "reflecting", bc_o = "free_streaming" },
 }
 
 config.fluid = {
@@ -102,13 +102,13 @@ config.radiation = {
   discretization = "implicit",
   ap_coefficient = 3.0,
   timestep = {
-    max_fractional_change_e = 0.05,
-    max_change_f = 0.05,
-    energy_change_scale = 100.0,
+    max_fractional_change_e = 0.01,
+    max_change_f = 0.01,
+    energy_change_scale = 1.0e12,
   },
   newton = {
-    max_iter = 12,
-    tol = 8.0e-5,
+    max_iter = 48,
+    tol = 8.0e-8,
   },
   limiter = {
     type = "minmod",
@@ -122,7 +122,7 @@ config.radiation = {
 config.heating = {
   nickel = {
     enabled = true,
-    model = "jeffery",
+    model = "full_trapping",
     operator_split = true,
   },
 }

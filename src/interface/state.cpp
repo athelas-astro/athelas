@@ -27,6 +27,17 @@ auto StageData::get_var(const std::string &field, const std::string &var_name,
   return parent_->var_index(field, var_name);
 }
 
+[[nodiscard]] auto StageData::has_field(const std::string &field) const
+    -> bool {
+  return parent_->has_field(field);
+}
+
+[[nodiscard]] auto StageData::has_variable(const std::string &field,
+                                           const std::string &var_name) const
+    -> bool {
+  return parent_->has_variable(field, var_name);
+}
+
 [[nodiscard]] auto StageData::nvars(const std::string &field) const -> int {
   return parent_->nvars(field);
 }
@@ -171,6 +182,16 @@ MeshState::MeshState(const ProblemIn *const pin, const int nstages)
     throw std::runtime_error("Field " + field + " has no variable mapping");
   }
   return meta.var_map->name(index);
+}
+
+[[nodiscard]] auto MeshState::has_variable(const std::string &field,
+                                           const std::string &var_name) const
+    -> bool {
+  auto it = metadata_.find(field);
+  if (it == metadata_.end() || !it->second.var_map) {
+    return false;
+  }
+  return it->second.var_map->has(var_name);
 }
 
 /**
