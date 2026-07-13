@@ -7,7 +7,7 @@
 <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPL-blue.svg"></a>
 
 
-`Athelas` solves the 1D Lagrangian equation of non-relativistic radiation hydrodynamics using a discontinuous Galerkin scheme. 
+`Athelas` solves the 1D Lagrangian equation of non-relativistic radiation hydrodynamics using a nodal discontinuous Galerkin scheme. 
 Key features:
 * Two moment radiation transport with fully implicit integration and an IMEX treatment.
 * Lagrangian hydrodynamics
