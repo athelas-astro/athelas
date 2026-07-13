@@ -9,7 +9,7 @@ on:
 jobs:
     formatting:
       name: Check C++ Formatting
-      runs-on: ubuntu-latest
+      runs-on: blacksmith-4vcpu-ubuntu-2404
 
       steps:      
         - name: Checkout code
