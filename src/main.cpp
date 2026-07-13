@@ -207,6 +207,7 @@ auto main(int argc, char **argv) -> int {
   // create span of args
   // auto args = std::span( argv, static_cast<size_t>( argc ) );
 
+  int status = AthelasExitCodes::SUCCESS;
   Kokkos::initialize(argc, argv);
   {
     // pin
@@ -226,14 +227,16 @@ auto main(int argc, char **argv) -> int {
 
     // --- execute driver ---
     Kokkos::Profiling::pushRegion("Driver::execute");
-    driver.execute();
+    status = driver.execute();
     Kokkos::Profiling::popRegion();
 
     // --- Finalize timer ---
     double const time = timer_total.seconds();
-    std::println("# Athelas run complete! Elapsed time: {} seconds.", time);
+    if (status == AthelasExitCodes::SUCCESS) {
+      std::println("# Athelas run complete! Elapsed time: {} seconds.", time);
+    }
   }
   Kokkos::finalize();
 
-  return AthelasExitCodes::SUCCESS;
+  return status;
 } // main

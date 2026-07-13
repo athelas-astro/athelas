@@ -124,6 +124,9 @@ class StageData {
       -> double;
   [[nodiscard]] auto var_index(const std::string &field,
                                const std::string &var_name) const -> int;
+  [[nodiscard]] auto has_field(const std::string &field) const -> bool;
+  [[nodiscard]] auto has_variable(const std::string &field,
+                                  const std::string &var_name) const -> bool;
 
   [[nodiscard]] auto comps() const -> atom::CompositionData *;
   [[nodiscard]] auto ionization_state() const -> atom::IonizationState *;
@@ -258,6 +261,9 @@ class MeshState {
 
   [[nodiscard]] auto var_name(const std::string &field, int index) const
       -> std::string;
+
+  [[nodiscard]] auto has_variable(const std::string &field,
+                                  const std::string &var_name) const -> bool;
 
   [[nodiscard]] auto nvars(const std::string &field) const -> int;
 

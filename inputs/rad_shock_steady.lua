@@ -39,8 +39,8 @@ config.bc = {
     bc_o = "outflow",
   },
   radiation = {
-    bc_i = "outflow",
-    bc_o = "outflow",
+    bc_i = "interior",
+    bc_o = "interior",
   },
 }
 
@@ -62,6 +62,7 @@ config.fluid = {
 }
 
 config.radiation = {
+  discretization = "explicit",
   limiter = {
     tci_opt = false,
     tci_val = 0.1,

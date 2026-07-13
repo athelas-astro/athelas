@@ -121,6 +121,13 @@ class ImplicitRadiationMomentsPackage {
 
   AthelasArray4D<double> delta_;
 
+  // Lifetime solver-health counters (see the solve verdict in
+  // update_implicit): failed solves, stagnation-accepted exits, and initial
+  // guesses projected back into the realizable set.
+  long n_newton_failures_ = 0;
+  long n_stagnation_exits_ = 0;
+  long n_guess_projections_ = 0;
+
   // package params
   Params params_;
 

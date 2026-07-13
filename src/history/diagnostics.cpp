@@ -1,13 +1,70 @@
 #include "history/diagnostics.hpp"
 
+#include <algorithm>
 #include <limits>
 #include <vector>
 
+#include "basis/polynomial_basis.hpp"
 #include "eos/eos.hpp"
 #include "kokkos_abstraction.hpp"
 #include "kokkos_types.hpp"
+#include "utils/constants.hpp"
 
 namespace athelas::diagnostics {
+
+namespace {
+
+struct PhotosphereBracket {
+  double radius = std::numeric_limits<double>::quiet_NaN();
+  int cell = -1;
+  int q_outer = -1;
+  int q_inner = -1;
+  double theta = 0.0;
+  bool found = false;
+};
+
+auto find_photosphere_bracket(const MeshState &mesh_state, const Mesh &mesh,
+                              const double tau_target) -> PhotosphereBracket {
+  PhotosphereBracket bracket;
+  if (!mesh_state.has_field("diagnostics")) {
+    return bracket;
+  }
+
+  const int nnodes = mesh.n_nodes();
+  const auto field =
+      mesh_state.get_field<AthelasArray3D<double>>("diagnostics");
+  const auto field_h =
+      Kokkos::create_mirror_view_and_copy(HostMemSpace(), field);
+  const auto grid_h =
+      Kokkos::create_mirror_view_and_copy(HostMemSpace(), mesh.nodal_grid());
+  const int idx_tau = mesh_state.var_index("diagnostics", "optical_depth");
+
+  const int ilo = Mesh::get_ilo();
+  const int ihi = mesh.get_ihi();
+  for (int i = ihi; i >= ilo; --i) {
+    for (int q_outer = nnodes + 1; q_outer > 0; --q_outer) {
+      const int q_inner = q_outer - 1;
+      const double tau_outer = field_h(i, q_outer, idx_tau);
+      const double tau_inner = field_h(i, q_inner, idx_tau);
+      if (tau_outer <= tau_target && tau_target <= tau_inner) {
+        const double denom = tau_inner - tau_outer;
+        const double theta =
+            denom > 0.0 ? (tau_target - tau_outer) / denom : 0.0;
+        bracket.radius = grid_h(i, q_outer) +
+                         theta * (grid_h(i, q_inner) - grid_h(i, q_outer));
+        bracket.cell = i;
+        bracket.q_outer = q_outer;
+        bracket.q_inner = q_inner;
+        bracket.theta = theta;
+        bracket.found = true;
+        return bracket;
+      }
+    }
+  }
+  return bracket;
+}
+
+} // namespace
 
 void compute_optical_depth(const MeshState &mesh_state, const Mesh &mesh) {
   if (!mesh_state.has_field("diagnostics")) {
@@ -20,7 +77,7 @@ void compute_optical_depth(const MeshState &mesh_state, const Mesh &mesh) {
       Kokkos::create_mirror_view_and_copy(HostMemSpace(), derived);
   const auto h_dr =
       Kokkos::create_mirror_view_and_copy(HostMemSpace(), mesh.widths());
-  const auto h_weights =
+  const auto weights_h =
       Kokkos::create_mirror_view_and_copy(HostMemSpace(), mesh.weights());
 
   const bool composition_enabled = mesh_state.enabled("composition") &&
@@ -37,9 +94,15 @@ void compute_optical_depth(const MeshState &mesh_state, const Mesh &mesh) {
   const auto &opac = mesh_state.opac();
 
   auto field = mesh_state.get_field<AthelasArray3D<double>>("diagnostics");
-  auto h_field = Kokkos::create_mirror_view(field);
-  Kokkos::deep_copy(h_field, 0.0); // ghost cells stay zero
+  auto field_h = Kokkos::create_mirror_view_and_copy(HostMemSpace(), field);
   const int idx_tau = mesh_state.var_index("diagnostics", "optical_depth");
+  // Zero only the optical_depth column: the diagnostics field may hold other
+  // variables (e.g., specific_nickel_heating_rate) that must be preserved.
+  for (std::size_t i = 0; i < field_h.extent(0); ++i) {
+    for (std::size_t q = 0; q < field_h.extent(1); ++q) {
+      field_h(i, q, idx_tau) = 0.0;
+    }
+  }
 
   const int ilo = Mesh::get_ilo();
   const int ihi = mesh.get_ihi();
@@ -59,14 +122,13 @@ void compute_optical_depth(const MeshState &mesh_state, const Mesh &mesh) {
         Z = h_bulk(i, node, 2);
       }
       eos::EOSLambda lambda;
-      lambda.data[eos::EOS_LAMBDA_TEMPERATURE] = T;
       alpha[static_cast<std::size_t>(p)] =
           rho * opac.rosseland_mean(rho, T, X, Z, lambda.ptr());
-      cell_tau += h_weights(p) * alpha[static_cast<std::size_t>(p)] * h_dr(i);
+      cell_tau += weights_h(p) * alpha[static_cast<std::size_t>(p)] * h_dr(i);
     }
 
-    h_field(i, nnodes + 1, idx_tau) = cumulative_tau; // outer face
-    h_field(i, 0, idx_tau) = cumulative_tau + cell_tau; // inner face
+    field_h(i, nnodes + 1, idx_tau) = cumulative_tau; // outer face
+    field_h(i, 0, idx_tau) = cumulative_tau + cell_tau; // inner face
 
     for (int q = 0; q < nnodes; ++q) {
       double partial_left = 0.0;
@@ -74,53 +136,102 @@ void compute_optical_depth(const MeshState &mesh_state, const Mesh &mesh) {
         partial_left +=
             mesh.integration_matrix(q, p) * alpha[static_cast<std::size_t>(p)];
       }
-      h_field(i, q + 1, idx_tau) =
+      field_h(i, q + 1, idx_tau) =
           cumulative_tau + cell_tau - h_dr(i) * partial_left;
     }
 
     cumulative_tau += cell_tau;
   }
 
-  Kokkos::deep_copy(field, h_field);
+  Kokkos::deep_copy(field, field_h);
 }
 
-auto detect_photosphere(const MeshState &mesh_state, const Mesh &mesh,
-                        const double tau_target) -> PhotosphereResult {
-  PhotosphereResult result{.radius = std::numeric_limits<double>::quiet_NaN(),
-                           .cell = -1.0,
-                           .valid = 0.0};
-  if (!mesh_state.has_field("diagnostics")) {
+auto photosphere_diagnostics(const MeshState &mesh_state, const Mesh &mesh,
+                             const double tau_target)
+    -> PhotosphereDiagnostics {
+  const auto bracket = find_photosphere_bracket(mesh_state, mesh, tau_target);
+  PhotosphereDiagnostics result{.radius = bracket.radius,
+                                .cell = bracket.cell,
+                                .found = bracket.found,
+                                .photospheric_luminosity =
+                                    std::numeric_limits<double>::quiet_NaN(),
+                                .exterior_radioactive_luminosity =
+                                    std::numeric_limits<double>::quiet_NaN()};
+
+  if (!bracket.found) {
     return result;
   }
 
-  const int nnodes = mesh.n_nodes();
-  const auto field =
-      mesh_state.get_field<AthelasArray3D<double>>("diagnostics");
-  const auto h_field =
-      Kokkos::create_mirror_view_and_copy(HostMemSpace(), field);
-  const auto h_grid =
-      Kokkos::create_mirror_view_and_copy(HostMemSpace(), mesh.nodal_grid());
-  const int idx_tau = mesh_state.var_index("diagnostics", "optical_depth");
+  const int idx_tau = mesh_state.var_index("evolved", "specific_volume");
+  const int idx_rad_flux =
+      mesh_state.var_index("evolved", "specific_radiation_flux");
+  const auto evolved = mesh_state(0).get_field("evolved");
+  const auto h_evolved =
+      Kokkos::create_mirror_view_and_copy(HostMemSpace(), evolved);
+  const auto h_phi = Kokkos::create_mirror_view_and_copy(
+      HostMemSpace(), mesh_state.basis().phi());
 
-  const int ilo = Mesh::get_ilo();
-  const int ihi = mesh.get_ihi();
-  for (int i = ihi; i >= ilo; --i) {
-    for (int q_outer = nnodes + 1; q_outer > 0; --q_outer) {
-      const int q_inner = q_outer - 1;
-      const double tau_outer = h_field(i, q_outer, idx_tau);
-      const double tau_inner = h_field(i, q_inner, idx_tau);
-      if (tau_outer <= tau_target && tau_target <= tau_inner) {
-        const double denom = tau_inner - tau_outer;
-        const double theta =
-            denom > 0.0 ? (tau_target - tau_outer) / denom : 0.0;
-        result.radius = h_grid(i, q_outer) +
-                        theta * (h_grid(i, q_inner) - h_grid(i, q_outer));
-        result.cell = static_cast<double>(i);
-        result.valid = 1.0;
-        return result;
+  const int nnodes = mesh.n_nodes();
+  const int cell = bracket.cell;
+  auto evolved_at = [&](const int q_diag, const int var) -> double {
+    return basis::basis_eval(h_phi, h_evolved, cell, var, q_diag);
+  };
+
+  const double specific_volume_outer = evolved_at(bracket.q_outer, idx_tau);
+  const double specific_volume_inner = evolved_at(bracket.q_inner, idx_tau);
+  const double specific_flux_outer = evolved_at(bracket.q_outer, idx_rad_flux);
+  const double specific_flux_inner = evolved_at(bracket.q_inner, idx_rad_flux);
+  const double theta = bracket.theta;
+  const double specific_volume =
+      specific_volume_outer +
+      theta * (specific_volume_inner - specific_volume_outer);
+  const double specific_flux =
+      specific_flux_outer + theta * (specific_flux_inner - specific_flux_outer);
+  const double rho = 1.0 / specific_volume;
+  const double radius = bracket.radius;
+  const double area =
+      mesh.do_geometry() ? constants::FOURPI * radius * radius : 1.0;
+  result.photospheric_luminosity = area * rho * specific_flux;
+
+  result.exterior_radioactive_luminosity = 0.0;
+  if (mesh_state.has_variable("diagnostics", "specific_nickel_heating_rate")) {
+    const int idx_heating =
+        mesh_state.var_index("diagnostics", "specific_nickel_heating_rate");
+    const auto diag =
+        mesh_state.get_field<AthelasArray3D<double>>("diagnostics");
+    const auto diag_h =
+        Kokkos::create_mirror_view_and_copy(HostMemSpace(), diag);
+    const auto weights_h =
+        Kokkos::create_mirror_view_and_copy(HostMemSpace(), mesh.weights());
+    const auto dm_deta_h =
+        Kokkos::create_mirror_view_and_copy(HostMemSpace(), mesh.dm_deta());
+    const auto grid_h =
+        Kokkos::create_mirror_view_and_copy(HostMemSpace(), mesh.nodal_grid());
+
+    const int ihi = mesh.get_ihi();
+    double exterior_power = 0.0;
+    for (int i = cell + 1; i <= ihi; ++i) {
+      for (int q = 0; q < nnodes; ++q) {
+        exterior_power +=
+            weights_h(q) * dm_deta_h(i, q) * diag_h(i, q + 1, idx_heating);
       }
     }
+
+    double photosphere_cell_power = 0.0;
+    for (int q = 0; q < nnodes; ++q) {
+      photosphere_cell_power +=
+          weights_h(q) * dm_deta_h(cell, q) * diag_h(cell, q + 1, idx_heating);
+    }
+    const double r_inner = grid_h(cell, 0);
+    const double r_outer = grid_h(cell, nnodes + 1);
+    const double exterior_fraction =
+        std::clamp((r_outer - radius) / (r_outer - r_inner), 0.0, 1.0);
+    exterior_power += exterior_fraction * photosphere_cell_power;
+
+    result.exterior_radioactive_luminosity =
+        (mesh.do_geometry() ? constants::FOURPI : 1.0) * exterior_power;
   }
+
   return result;
 }
 

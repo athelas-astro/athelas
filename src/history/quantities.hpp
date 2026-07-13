@@ -451,7 +451,7 @@ inline auto total_mass_ni56(const MeshState &mesh_state, const Mesh &mesh) {
   auto weights = mesh.weights();
   auto dm_deta = mesh.dm_deta();
 
-  auto evolved = mesh_state(0).get_field("evolved");
+  auto mass_fractions = mesh_state.mass_fractions("evolved");
 
   const auto *const species_indexer = mesh_state.comps()->species_indexer();
   const auto ind_x = species_indexer->get<int>("ni56");
@@ -463,7 +463,7 @@ inline auto total_mass_ni56(const MeshState &mesh_state, const Mesh &mesh) {
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum += weights(q) * dm_deta(i, q) * evolved(i, q, ind_x);
+          local_sum += weights(q) * dm_deta(i, q) * mass_fractions(i, q, ind_x);
         }
         lsum += local_sum;
       },
@@ -481,7 +481,7 @@ inline auto total_mass_co56(const MeshState &mesh_state, const Mesh &mesh) {
   auto weights = mesh.weights();
   auto dm_deta = mesh.dm_deta();
 
-  auto evolved = mesh_state(0).get_field("evolved");
+  auto mass_fractions = mesh_state.mass_fractions("evolved");
 
   const auto *const species_indexer = mesh_state.comps()->species_indexer();
   const auto ind_x = species_indexer->get<int>("co56");
@@ -493,7 +493,7 @@ inline auto total_mass_co56(const MeshState &mesh_state, const Mesh &mesh) {
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum += weights(q) * dm_deta(i, q) * evolved(i, q, ind_x);
+          local_sum += weights(q) * dm_deta(i, q) * mass_fractions(i, q, ind_x);
         }
         lsum += local_sum;
       },
@@ -511,7 +511,7 @@ inline auto total_mass_fe56(const MeshState &mesh_state, const Mesh &mesh) {
   auto weights = mesh.weights();
   auto dm_deta = mesh.dm_deta();
 
-  auto evolved = mesh_state(0).get_field("evolved");
+  auto mass_fractions = mesh_state.mass_fractions("evolved");
 
   const auto *const species_indexer = mesh_state.comps()->species_indexer();
   const auto ind_x = species_indexer->get<int>("fe56");
@@ -523,7 +523,7 @@ inline auto total_mass_fe56(const MeshState &mesh_state, const Mesh &mesh) {
       KOKKOS_LAMBDA(const int i, double &lsum) {
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
-          local_sum += weights(q) * dm_deta(i, q) * evolved(i, q, ind_x);
+          local_sum += weights(q) * dm_deta(i, q) * mass_fractions(i, q, ind_x);
         }
         lsum += local_sum;
       },

@@ -73,12 +73,18 @@ auto Driver::execute() -> int {
     bel::apply_bound_enforcing_limiter(sd0);
   }
   manager_->fill_derived(sd0, dt_info);
+  if (operator_split_physics_) {
+    split_manager_->fill_derived(sd0, dt_info);
+  }
   if (!restart_) {
     // Refill derived after limiters because they mutate evolved variables.
     apply_slope_limiter(&sl_hydro_, sd0.get_field("evolved"), sd0, sd0.basis(),
                         sd0.eos());
     bel::apply_bound_enforcing_limiter(sd0);
     manager_->fill_derived(sd0, dt_info);
+    if (operator_split_physics_) {
+      split_manager_->fill_derived(sd0, dt_info);
+    }
   }
   // some startup io
   print_simulation_parameters(mesh_state_.mesh(), pin_.get());
@@ -169,6 +175,9 @@ auto Driver::execute() -> int {
     const bool do_hist = time_ >= i_out_hist * hist_dt;
     if (do_hdf5 || do_hist) {
       manager_->fill_derived(sd0, dt_info);
+      if (operator_split_physics_) {
+        split_manager_->fill_derived(sd0, dt_info);
+      }
       pre_output_work();
     }
 
@@ -208,6 +217,9 @@ auto Driver::execute() -> int {
   }
 
   manager_->fill_derived(sd0, dt_info);
+  if (operator_split_physics_) {
+    split_manager_->fill_derived(sd0, dt_info);
+  }
   pre_output_work();
   // Loop variables are post-increment here ("next-pending"). Normalize to the
   // "last completed" SimInfo convention so restart-from-_final (with extended
@@ -240,6 +252,8 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   const bool rad_active = pin->param()->get<bool>("physics.radiation.enabled");
   const bool comps_active =
       pin->param()->get<bool>("physics.composition.enabled");
+  const bool ni_heating_active =
+      pin->param()->get<bool>("physics.heating.nickel.enabled");
   // --- Set up mesh state ---
   // Field taxonomy:
   // - evolved: timestep state advanced by physics packages.
@@ -306,9 +320,14 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   diag_optical_depth_enabled_ =
       pin->param()->get<bool>("diagnostics.optical_depth.enabled");
   if (diag_optical_depth_enabled_) {
+    std::vector<std::string> diagnostic_varnames = {"optical_depth"};
+    if (ni_heating_active) {
+      diagnostic_varnames.emplace_back("specific_nickel_heating_rate");
+    }
     mesh_state_.register_field("diagnostics", DataPolicy::OneCopy,
                                "Diagnostic profile variables",
-                               {"optical_depth"}, nx + 2, nnodes + 2, 1);
+                               diagnostic_varnames, nx + 2, nnodes + 2,
+                               static_cast<int>(diagnostic_varnames.size()));
   }
 
   // auto info = mesh_state_.field_info();
@@ -384,8 +403,6 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
 
   const bool gravity_active =
       pin->param()->get<bool>("physics.gravity.enabled");
-  const bool ni_heating_active =
-      pin->param()->get<bool>("physics.heating.nickel.enabled");
   const bool geometry =
       pin->param()->get<std::string>("problem.geometry") == "spherical";
   const bool thermal_engine_active =
@@ -532,10 +549,13 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
     const double tau = pin->param()->get<double>("diagnostics.photosphere.tau");
     history_->add_quantities(
         {"Photosphere Radius [cm]", "Photosphere Cell Index",
-         "Photosphere Valid"},
+         "Photosphere Valid", "Photospheric Luminosity [erg / s]",
+         "Exterior Radioactive Heating [erg / s]"},
         [tau](const MeshState &s, const Mesh &m) {
-          const auto ph = diagnostics::detect_photosphere(s, m, tau);
-          return std::vector<double>{ph.radius, ph.cell, ph.valid};
+          const auto ph = diagnostics::photosphere_diagnostics(s, m, tau);
+          return std::vector<double>{
+              ph.radius, static_cast<double>(ph.cell), ph.found ? 1.0 : 0.0,
+              ph.photospheric_luminosity, ph.exterior_radioactive_luminosity};
         });
   }
 

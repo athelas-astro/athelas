@@ -1,5 +1,8 @@
 #pragma once
 
+#include <algorithm>
+#include <cmath>
+
 #include "Kokkos_Macros.hpp"
 
 #include "basic_types.hpp"
@@ -88,9 +91,21 @@ class NickelHeatingPackage {
       // Here we assume that the integral
       // (1/4pi) e^(-tau) dOmega is already done during fill_derived
       // and the results stored in int_etau_domega_
-      const double I = 1.0 - 0.5 * int_etau_domega_(i, q);
-      return I;
+      return jeffery_deposition_fraction(int_etau_domega_(i, q));
     }
+  }
+
+  KOKKOS_INLINE_FUNCTION
+  static auto jeffery_attenuation(const double signed_tau) -> double {
+    return std::isfinite(signed_tau) ? std::exp(std::min(signed_tau, 0.0))
+                                     : 0.0;
+  }
+
+  KOKKOS_INLINE_FUNCTION
+  static auto jeffery_deposition_fraction(const double escape_integral)
+      -> double {
+    const double f_dep = 1.0 - 0.5 * escape_integral;
+    return std::isfinite(f_dep) ? std::clamp(f_dep, 0.0, 1.0) : 0.0;
   }
 
   // TODO(astrobarker): use fma?
@@ -120,6 +135,9 @@ class NickelHeatingPackage {
   void set_active(bool active);
 
  private:
+  template <NiHeatingModel Model>
+  void fill_diagnostic_heating_rate(const StageData &stage_data) const;
+
   bool active_;
   NiHeatingModel model_;
   AthelasArray3D<double> tau_gamma_; // [nx][node][angle]
@@ -127,8 +145,11 @@ class NickelHeatingPackage {
 
   AthelasArray4D<double> delta_; // [nstages, nx, nq, nvars]
 
-  // We need to store the indices of our required species.
-  // These are indices in the "full" ucons.
+  // We need to store both composition-local indices and full evolved-state
+  // indices for our required species.
+  int ind_ni_local_;
+  int ind_co_local_;
+  int ind_fe_local_;
   int ind_ni_;
   int ind_co_;
   int ind_fe_;

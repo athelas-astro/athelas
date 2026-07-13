@@ -362,6 +362,7 @@ ProblemIn::ProblemIn(
       sol::table newton = newton_block.value_or(lua_.create_table());
       params_->add("radiation.newton.max_iter", newton.get_or("max_iter", 10));
       params_->add("radiation.newton.tol", newton.get_or("tol", 1.0e-6));
+      params_->add("radiation.newton.atol", newton.get_or("atol", 0.0));
     }
 
     sol::optional<sol::table> rad_limiter_block = radiation["limiter"];
