@@ -23,18 +23,18 @@ jobs:
       #
       # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
       matrix:
-        os: [ubuntu-latest]
+        os: [blacksmith-4vcpu-ubuntu-2404]
         build_type: [Release, Debug]
         c_compiler: [gcc, clang, cl]
         include:
-          - os: ubuntu-latest
+          - os: blacksmith-4vcpu-ubuntu-2404
             c_compiler: gcc
             cpp_compiler: g++
-          - os: ubuntu-latest
+          - os: blacksmith-4vcpu-ubuntu-2404
             c_compiler: clang
             cpp_compiler: clang++
         exclude:
-          - os: ubuntu-latest
+          - os: blacksmith-4vcpu-ubuntu-2404
             c_compiler: cl
 
     steps:
