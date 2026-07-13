@@ -44,8 +44,9 @@ NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,
   ind_fe_ = comp_start + ind_fe_local_;
 }
 
-void NickelHeatingPackage::update_explicit(const StageData &stage_data,
-                                           const TimeStepInfo &dt_info) {
+auto NickelHeatingPackage::update_explicit(const StageData &stage_data,
+                                           const TimeStepInfo &dt_info)
+    -> UpdateStatus {
   const auto &mesh = stage_data.mesh();
   auto *comps = stage_data.comps();
 
@@ -54,6 +55,8 @@ void NickelHeatingPackage::update_explicit(const StageData &stage_data,
   } else {
     ni_update<NiHeatingModel::FullTrapping>(stage_data, comps, mesh, dt_info);
   }
+
+  return UpdateStatus::Success;
 }
 
 /**

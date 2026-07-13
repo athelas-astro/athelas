@@ -302,9 +302,9 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
       });
 }
 
-void ImplicitRadiationMomentsPackage::update_implicit(
+auto ImplicitRadiationMomentsPackage::update_implicit(
     const StageData &stage_data, AthelasArray3D<double> ustar,
-    const TimeStepInfo &dt_info) {
+    const TimeStepInfo &dt_info) -> UpdateStatus {
   const auto &mesh = stage_data.mesh();
   using math::linalg::ThomasScratch, math::linalg::block_thomas_solve;
   using math::utils::sgn;
@@ -1123,13 +1123,15 @@ void ImplicitRadiationMomentsPackage::update_implicit(
   } // Newton-Raphson loop
 
   // Solve verdict. "accepted" (stagnation) is success-adjacent and only
-  // counted; exhausting max_iters without either flag is a failure. Until a
-  // step-rejection path exists, a failed solve
-  // continues with the unconverged iterate.
+  // counted; exhausting max_iters without either flag is a failure. The
+  // status is returned to the caller; until a step-rejection path exists,
+  // a failed solve continues with the unconverged iterate.
+  auto status = UpdateStatus::Success;
   if (accepted && !converged) {
     ++n_stagnation_exits_;
   }
   if (!converged && !accepted) {
+    status = UpdateStatus::Failure;
     ++n_newton_failures_;
     // With no accepted step the final iterate is just the projected initial
     // guess; applying its delta would turn the projection into a fabricated
@@ -1167,6 +1169,8 @@ void ImplicitRadiationMomentsPackage::update_implicit(
               dt_aii;
         }
       });
+
+  return status;
 } // update_implicit
 
 /**

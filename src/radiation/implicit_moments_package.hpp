@@ -73,9 +73,10 @@ class ImplicitRadiationMomentsPackage {
                                   int nq, BoundaryConditions *bcs, int nx,
                                   bool active = true);
 
-  void update_implicit(const StageData &stage_data,
-                       AthelasArray3D<double> ustar,
-                       const TimeStepInfo &dt_info);
+  [[nodiscard]] auto update_implicit(const StageData &stage_data,
+                                     AthelasArray3D<double> ustar,
+                                     const TimeStepInfo &dt_info)
+      -> UpdateStatus;
 
   // Compute the implicit-transport residual b_out = -R(U), where
   // R = M (U - U*) - dt_aii * (T(U) + S(U)), T is the DG transport operator

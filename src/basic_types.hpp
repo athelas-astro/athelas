@@ -49,6 +49,10 @@ struct TimeStepInfo {
   int cycle; // step count since run start; 0 on the very first dt-control call
 };
 
+// Result of a package update. Failure marks a rejected update (e.g., a
+// non-converged implicit solve) for future step-retry machinery.
+enum class UpdateStatus { Success, Failure };
+
 enum class GravityModel { Constant, Spherical };
 
 enum class IonizationPhysics { Active, Inactive };

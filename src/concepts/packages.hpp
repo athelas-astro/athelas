@@ -13,7 +13,9 @@ concept ExplicitPackage =
     requires(T &pkg, const StageData &stage_data, StageData &stage_data_derived,
              AthelasArray3D<double> lhs, AthelasArray3D<double> dU,
              const TimeStepInfo &dt_info) {
-      { pkg.update_explicit(stage_data, dt_info) } -> std::same_as<void>;
+      {
+        pkg.update_explicit(stage_data, dt_info)
+      } -> std::same_as<UpdateStatus>;
       { pkg.apply_delta(lhs, dt_info) } -> std::same_as<void>;
       { pkg.zero_delta() } -> std::same_as<void>;
       { pkg.min_timestep(stage_data, dt_info) } -> std::convertible_to<double>;
@@ -27,7 +29,9 @@ concept ImplicitPackage =
     requires(T &pkg, const StageData &stage_data, StageData &stage_data_derived,
              AthelasArray3D<double> lhs, AthelasArray3D<double> dU,
              const TimeStepInfo &dt_info) {
-      { pkg.update_implicit(stage_data, dU, dt_info) } -> std::same_as<void>;
+      {
+        pkg.update_implicit(stage_data, dU, dt_info)
+      } -> std::same_as<UpdateStatus>;
       { pkg.apply_delta(lhs, dt_info) } -> std::same_as<void>;
       { pkg.zero_delta() } -> std::same_as<void>;
       { pkg.min_timestep(stage_data, dt_info) } -> std::convertible_to<double>;
@@ -41,8 +45,12 @@ concept IMEXPackage =
     requires(T &pkg, const StageData &stage_data, StageData &stage_data_derived,
              AthelasArray3D<double> lhs, AthelasArray3D<double> dU,
              const TimeStepInfo &dt_info) {
-      { pkg.update_explicit(stage_data, dt_info) } -> std::same_as<void>;
-      { pkg.update_implicit(stage_data, dU, dt_info) } -> std::same_as<void>;
+      {
+        pkg.update_explicit(stage_data, dt_info)
+      } -> std::same_as<UpdateStatus>;
+      {
+        pkg.update_implicit(stage_data, dU, dt_info)
+      } -> std::same_as<UpdateStatus>;
       { pkg.apply_delta(lhs, dt_info) } -> std::same_as<void>;
       { pkg.zero_delta() } -> std::same_as<void>;
       { pkg.min_timestep(stage_data, dt_info) } -> std::convertible_to<double>;

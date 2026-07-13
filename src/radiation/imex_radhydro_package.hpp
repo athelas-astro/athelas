@@ -22,10 +22,13 @@ class RadHydroPackage {
                   BoundaryConditions *bcs, double cfl, int nx,
                   bool active = true);
 
-  void update_explicit(const StageData &stage_data,
-                       const TimeStepInfo &dt_info) const;
-  void update_implicit(const StageData &stage_data, AthelasArray3D<double> R,
-                       const TimeStepInfo &dt_info);
+  [[nodiscard]] auto update_explicit(const StageData &stage_data,
+                                     const TimeStepInfo &dt_info) const
+      -> UpdateStatus;
+  [[nodiscard]] auto update_implicit(const StageData &stage_data,
+                                     AthelasArray3D<double> R,
+                                     const TimeStepInfo &dt_info)
+      -> UpdateStatus;
 
   void apply_delta(AthelasArray3D<double> lhs,
                    const TimeStepInfo &dt_info) const;

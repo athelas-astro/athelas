@@ -27,8 +27,9 @@ HydroPackage::HydroPackage(const ProblemIn * /*pin*/, int n_stages, int order,
       u_f_l_("hydro::u_f_l_", nx + 2, 3), u_f_r_("hydro::u_f_r_", nx + 2, 3),
       delta_("hydro :: delta", n_stages, nx_ + 2, order, 3) {}
 
-void HydroPackage::update_explicit(const StageData &stage_data,
-                                   const TimeStepInfo &dt_info) const {
+auto HydroPackage::update_explicit(const StageData &stage_data,
+                                   const TimeStepInfo &dt_info) const
+    -> UpdateStatus {
   const auto &mesh = stage_data.mesh();
   const int stage = dt_info.stage;
   auto evolved = stage_data.get_field("evolved");
@@ -57,6 +58,8 @@ void HydroPackage::update_explicit(const StageData &stage_data,
           delta_(stage, i, q, v) *= invmkk;
         }
       });
+
+  return UpdateStatus::Success;
 }
 
 // Compute the dvbergence of the flux term for the update
