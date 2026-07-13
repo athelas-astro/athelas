@@ -27,8 +27,9 @@ class GravityPackage {
   GravityPackage(const ProblemIn *pin, const std::string &model, double gval,
                  double cfl, int n_stages, bool active = true);
 
-  void update_explicit(const StageData &stage_data,
-                       const TimeStepInfo &dt_info) const;
+  [[nodiscard]] auto update_explicit(const StageData &stage_data,
+                                     const TimeStepInfo &dt_info) const
+      -> UpdateStatus;
 
   template <GravityModel Model>
   void gravity_update(AthelasArray3D<double> evolved, const Mesh &mesh,

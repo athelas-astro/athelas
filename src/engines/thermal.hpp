@@ -18,8 +18,9 @@ class ThermalEnginePackage {
   ThermalEnginePackage(const ProblemIn *pin, const StageData &stage_data,
                        const Mesh *mesh, int n_stages, bool active = true);
 
-  void update_explicit(const StageData &stage_data,
-                       const TimeStepInfo &dt_info);
+  [[nodiscard]] auto update_explicit(const StageData &stage_data,
+                                     const TimeStepInfo &dt_info)
+      -> UpdateStatus;
 
   void apply_delta(AthelasArray3D<double> lhs,
                    const TimeStepInfo &dt_info) const;

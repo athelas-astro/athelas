@@ -140,12 +140,13 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
   b_int_ = b_int;
 }
 
-void ThermalEnginePackage::update_explicit(const StageData &stage_data,
-                                           const TimeStepInfo &dt_info) {
+auto ThermalEnginePackage::update_explicit(const StageData &stage_data,
+                                           const TimeStepInfo &dt_info)
+    -> UpdateStatus {
   const auto time = dt_info.t;
   // Avoid accidentally accruing an extra update.
   if (time >= tend_) {
-    return;
+    return UpdateStatus::Success;
   }
 
   const auto &mesh = stage_data.mesh();
@@ -167,6 +168,8 @@ void ThermalEnginePackage::update_explicit(const StageData &stage_data,
         const double source = b_coeff * std::exp(-a_coeff_ * menc(i, q + 1));
         delta_(stage, i, q, pkg_vars::Energy) = source;
       });
+
+  return UpdateStatus::Success;
 }
 
 /**

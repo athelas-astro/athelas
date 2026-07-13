@@ -38,11 +38,12 @@ class PackageWrapper {
   }
 
   // Explicit update
-  void update_explicit(const StageData &stage_data,
-                       const TimeStepInfo &dt_info) {
+  auto update_explicit(const StageData &stage_data, const TimeStepInfo &dt_info)
+      -> UpdateStatus {
     if (package_->has_explicit()) {
-      package_->update_explicit(stage_data, dt_info);
+      return package_->update_explicit(stage_data, dt_info);
     }
+    return UpdateStatus::Success;
   }
 
   /**
@@ -50,11 +51,12 @@ class PackageWrapper {
    * Solves:
    * u^i = R^i + dt a_ii S(u^i)
    **/
-  void update_implicit(const StageData &stage_data, AthelasArray3D<double> dU,
-                       const TimeStepInfo &dt_info) {
+  auto update_implicit(const StageData &stage_data, AthelasArray3D<double> dU,
+                       const TimeStepInfo &dt_info) -> UpdateStatus {
     if (package_->has_implicit()) {
-      package_->update_implicit(stage_data, dU, dt_info);
+      return package_->update_implicit(stage_data, dU, dt_info);
     }
+    return UpdateStatus::Success;
   }
 
   // apply_delta
@@ -101,9 +103,10 @@ class PackageWrapper {
  private:
   struct PackageConcept {
     virtual ~PackageConcept() = default;
-    virtual void update_explicit(const StageData &, const TimeStepInfo &) = 0;
-    virtual void update_implicit(const StageData &, AthelasArray3D<double>,
-                                 const TimeStepInfo &) = 0;
+    virtual auto update_explicit(const StageData &, const TimeStepInfo &)
+        -> UpdateStatus = 0;
+    virtual auto update_implicit(const StageData &, AthelasArray3D<double>,
+                                 const TimeStepInfo &) -> UpdateStatus = 0;
     virtual void apply_delta(AthelasArray3D<double>,
                              const TimeStepInfo &) const = 0;
     virtual void zero_delta() const noexcept = 0;
@@ -127,18 +130,20 @@ class PackageWrapper {
     // Get original package
     auto get_package() -> T & { return package_; }
 
-    void update_explicit(const StageData &stage_data,
-                         const TimeStepInfo &dt_info) override {
+    auto update_explicit(const StageData &stage_data,
+                         const TimeStepInfo &dt_info) -> UpdateStatus override {
       if constexpr (has_explicit_update_v<T>) {
-        package_.update_explicit(stage_data, dt_info);
+        return package_.update_explicit(stage_data, dt_info);
       }
+      return UpdateStatus::Success;
     }
 
-    void update_implicit(const StageData &stage_data, AthelasArray3D<double> dU,
-                         const TimeStepInfo &dt_info) override {
+    auto update_implicit(const StageData &stage_data, AthelasArray3D<double> dU,
+                         const TimeStepInfo &dt_info) -> UpdateStatus override {
       if constexpr (has_implicit_update_v<T>) {
-        package_.update_implicit(stage_data, dU, dt_info);
+        return package_.update_implicit(stage_data, dU, dt_info);
       }
+      return UpdateStatus::Success;
     }
 
     void apply_delta(AthelasArray3D<double> lhs,
@@ -200,22 +205,33 @@ class PackageManager {
     all_packages_.push_back(std::move(wrapper));
   }
 
-  void update_explicit(const StageData &stage_data,
-                       const TimeStepInfo &dt_info) {
+  // Update calls reduce to the worst status across packages.
+  auto update_explicit(const StageData &stage_data, const TimeStepInfo &dt_info)
+      -> UpdateStatus {
+    auto status = UpdateStatus::Success;
     for (auto *pkg : explicit_packages_) {
       if (pkg->is_active()) {
-        pkg->update_explicit(stage_data, dt_info);
+        if (pkg->update_explicit(stage_data, dt_info) ==
+            UpdateStatus::Failure) {
+          status = UpdateStatus::Failure;
+        }
       }
     }
+    return status;
   }
 
-  void update_implicit(const StageData &stage_data, AthelasArray3D<double> dU,
-                       const TimeStepInfo &dt_info) {
+  auto update_implicit(const StageData &stage_data, AthelasArray3D<double> dU,
+                       const TimeStepInfo &dt_info) -> UpdateStatus {
+    auto status = UpdateStatus::Success;
     for (auto *pkg : implicit_packages_) {
       if (pkg->is_active()) {
-        pkg->update_implicit(stage_data, dU, dt_info);
+        if (pkg->update_implicit(stage_data, dU, dt_info) ==
+            UpdateStatus::Failure) {
+          status = UpdateStatus::Failure;
+        }
       }
     }
+    return status;
   }
 
   void apply_delta(AthelasArray3D<double> lhs,

@@ -166,8 +166,9 @@ RadHydroPackage::RadHydroPackage(const ProblemIn *pin, int n_stages, int nq,
       delta_("radhydro delta", n_stages, nx + 2, nq, 5),
       delta_im_("radhydro delta implicit", n_stages, nx + 2, nq, 4) {}
 
-void RadHydroPackage::update_explicit(const StageData &stage_data,
-                                      const TimeStepInfo &dt_info) const {
+auto RadHydroPackage::update_explicit(const StageData &stage_data,
+                                      const TimeStepInfo &dt_info) const
+    -> UpdateStatus {
   const auto &mesh = stage_data.mesh();
   const auto &basis = stage_data.basis();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
@@ -192,14 +193,19 @@ void RadHydroPackage::update_explicit(const StageData &stage_data,
           delta_(stage, i, q, v) *= inv_mm;
         }
       });
+
+  return UpdateStatus::Success;
 } // update_explicit
 
-void RadHydroPackage::update_implicit(const StageData &stage_data,
+auto RadHydroPackage::update_implicit(const StageData &stage_data,
                                       AthelasArray3D<double> R,
-                                      const TimeStepInfo &dt_info) {
+                                      const TimeStepInfo &dt_info)
+    -> UpdateStatus {
   const auto &mesh = stage_data.mesh();
   // compute radiation-matter coupling sources implicitly with Newton-Raphson.
   radiation_source_implicit(stage_data, R, delta_im_, mesh, dt_info);
+
+  return UpdateStatus::Success;
 }
 
 /**

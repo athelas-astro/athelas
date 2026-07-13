@@ -25,8 +25,9 @@ GeometryPackage::GeometryPackage(const ProblemIn *pin, const int n_stages,
                                   nvars_geom);
 }
 
-void GeometryPackage::update_explicit(const StageData &stage_data,
-                                      const TimeStepInfo &dt_info) {
+auto GeometryPackage::update_explicit(const StageData &stage_data,
+                                      const TimeStepInfo &dt_info)
+    -> UpdateStatus {
   const auto &mesh = stage_data.mesh();
   static const int nNodes = mesh.n_nodes();
   static const IndexRange qb(nNodes);
@@ -74,6 +75,8 @@ void GeometryPackage::update_explicit(const StageData &stage_data,
               (c2 * p_perp * geom_source) * inv_mkk(i, q);
         });
   }
+
+  return UpdateStatus::Success;
 }
 
 /**

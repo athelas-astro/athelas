@@ -39,8 +39,9 @@ GravityPackage::GravityPackage(const ProblemIn *pin, const std::string &model,
   }
 }
 
-void GravityPackage::update_explicit(const StageData &stage_data,
-                                     const TimeStepInfo &dt_info) const {
+auto GravityPackage::update_explicit(const StageData &stage_data,
+                                     const TimeStepInfo &dt_info) const
+    -> UpdateStatus {
   const auto &mesh = stage_data.mesh();
   const auto stage = dt_info.stage;
   auto evolved = stage_data.get_field("evolved");
@@ -54,6 +55,8 @@ void GravityPackage::update_explicit(const StageData &stage_data,
     gravity_update<GravityModel::Constant>(evolved, mesh, basis, stage,
                                            idx_vel);
   }
+
+  return UpdateStatus::Success;
 }
 
 template <GravityModel Model>

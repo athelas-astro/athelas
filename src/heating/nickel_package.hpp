@@ -44,8 +44,9 @@ class NickelHeatingPackage {
   NickelHeatingPackage(const ProblemIn *pin, const Params *indexer,
                        int n_stages, int nq, bool active = true);
 
-  void update_explicit(const StageData &stage_data,
-                       const TimeStepInfo &dt_info);
+  [[nodiscard]] auto update_explicit(const StageData &stage_data,
+                                     const TimeStepInfo &dt_info)
+      -> UpdateStatus;
 
   template <NiHeatingModel Model>
   void ni_update(const StageData &stage_data, atom::CompositionData *comps,
