@@ -2,14 +2,7 @@ local config = {}
 
 config.problem = {
   name = "rad_diffusion_wave",
-  t_end = 2.0e-8,
-  nlim = -1,
-  geometry = "planar",
-  xl = 0.0,
-  xr = 1.0,
   cfl = 0.1,
-  nx = 256,
-  grid_type = "uniform",
 
   params = {
     profile = "diffusion_mode",
@@ -22,6 +15,14 @@ config.problem = {
   },
 }
 
+config.mesh = {
+  geometry = "planar",
+  nx = 256,
+  xl = 0.0,
+  xr = 1.0,
+  grid_type = "uniform",
+}
+
 config.physics = {
   radiation = true,
   gravity = false,
@@ -32,6 +33,8 @@ config.physics = {
 }
 
 config.time = {
+  t_end = 2.0e-8,
+  nlim = -1,
   -- integrator = "IMEX_SSPRK11",
   integrator = "IMEX_PDARS_ESDIRK",
 }
@@ -52,7 +55,7 @@ config.bc = {
 }
 
 config.output = {
-  dt_hdf5 = config.problem.t_end / 10000.0,
+  dt_hdf5 = config.time.t_end / 10000.0,
   ncycle_out = 10,
   dt_growth_frac = 1.2,
   dt_init = 1.0e-10,

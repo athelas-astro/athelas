@@ -37,7 +37,7 @@ using basis::NodalBasis;
 using io::write_output, io::print_simulation_parameters;
 
 auto Driver::execute() -> int {
-  static const auto nx = pin_->param()->get<int>("problem.nx");
+  static const auto nx = pin_->param()->get<int>("mesh.nx");
   static const bool rad_active =
       pin_->param()->get<bool>("physics.radiation.enabled");
 
@@ -45,9 +45,9 @@ auto Driver::execute() -> int {
   Kokkos::Timer timer_zone_cycles;
   double zc_ws = 0.0; // zone cycles / wall second
 
-  const double nlim = (pin_->param()->get<double>("problem.nlim")) < 0
+  const double nlim = (pin_->param()->get<double>("time.nlim")) < 0
                           ? std::numeric_limits<double>::infinity()
-                          : pin_->param()->get<double>("problem.nlim");
+                          : pin_->param()->get<double>("time.nlim");
   const auto ncycle_out = pin_->param()->get<int>("output.ncycle_out");
   const auto dt_init = pin_->param()->get<double>("output.dt_init");
   const auto dt_growth_frac =
@@ -244,7 +244,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   using radiation::RadHydroPackage;
   using thermal_engine::ThermalEnginePackage;
 
-  const auto nx = pin_->param()->get<int>("problem.nx");
+  const auto nx = pin_->param()->get<int>("mesh.nx");
   const int nnodes = pin_->param()->get<int>("basis.nnodes");
   // For nodal DG, evolved is (ix, node, var); for modal, (ix, mode, var)
   const auto cfl =
@@ -404,7 +404,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   const bool gravity_active =
       pin->param()->get<bool>("physics.gravity.enabled");
   const bool geometry =
-      pin->param()->get<std::string>("problem.geometry") == "spherical";
+      pin->param()->get<std::string>("mesh.geometry") == "spherical";
   const bool thermal_engine_active =
       pin->param()->get<bool>("physics.engine.thermal.enabled");
 

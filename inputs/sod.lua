@@ -2,14 +2,7 @@ local config = {}
 
 config.problem = {
   name = "shocktube",
-  t_end = 0.2,
-  nlim = -1,
-  geometry = "planar",
-  xl = 0.0,
-  xr = 1.0,
   cfl = 0.5,
-  nx = 256,
-  grid_type = "uniform",
 
   params = {
     vL = 0.0,
@@ -22,6 +15,14 @@ config.problem = {
   },
 }
 
+config.mesh = {
+  geometry = "planar",
+  nx = 256,
+  xl = 0.0,
+  xr = 1.0,
+  grid_type = "uniform",
+}
+
 config.physics = {
   radiation = false,
   gravity = false,
@@ -32,6 +33,8 @@ config.physics = {
 }
 
 config.time = {
+  t_end = 0.2,
+  nlim = -1,
   integrator = "EX_SSPRK33",
 }
 

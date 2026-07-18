@@ -52,8 +52,8 @@ class RadDiffusionWaveTest(AthelasRegressionTest):
     kappa_r = ds.params["opacity.kR"]
     mode = ds.params["problem.params.mode"]
     perturbation = ds.params["problem.params.perturbation"]
-    length = ds.params["problem.xr"] - ds.params["problem.xl"]
-    t_end = ds.params["problem.tf"]
+    length = ds.params["mesh.xr"] - ds.params["mesh.xl"]
+    t_end = ds.params["time.t_end"]
     c_cgs = 2.99792458e10  # constants::c_cgs
 
     # Diffusion-mode amplitude decays as exp(-D k^2 t), D = c / (3 rho kappa_R).

@@ -66,8 +66,8 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
                        velocity_profile == "homologous",
                    "Radiation advection velocity_profile must be 'constant' "
                    "or 'homologous'.");
-  const double xL = pin->param()->get<double>("problem.xl");
-  const double xR = pin->param()->get<double>("problem.xr");
+  const double xL = pin->param()->get<double>("mesh.xl");
+  const double xR = pin->param()->get<double>("mesh.xr");
   const double length = xR - xL;
   athelas_requires(length > 0.0, "Radiation advection requires xr > xl.");
   const double kR = pin->param()->get<double>("opacity.kR", 1.0);

@@ -2,14 +2,7 @@ local config = {}
 
 config.problem = {
   name = "rad_advection",
-  t_end = 1.0e-10,
-  nlim = -1,
-  geometry = "planar",
-  xl = 0.0,
-  xr = 1.0,
   cfl = 0.85,
-  nx = 128,
-  grid_type = "uniform",
 
   params = {
     v0 = 0.0,
@@ -17,6 +10,14 @@ config.problem = {
     amp = 1.0,
     width = 0.05,
   },
+}
+
+config.mesh = {
+  geometry = "planar",
+  nx = 128,
+  xl = 0.0,
+  xr = 1.0,
+  grid_type = "uniform",
 }
 
 config.physics = {
@@ -69,6 +70,8 @@ config.radiation = {
 }
 
 config.time = {
+  t_end = 1.0e-10,
+  nlim = -1,
   integrator = "IMEX_SSPRK22_DIRK",
 }
 

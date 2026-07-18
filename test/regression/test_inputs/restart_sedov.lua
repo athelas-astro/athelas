@@ -6,20 +6,21 @@ local config = {}
 
 config.problem = {
   name = "sedov",
-  t_end = 0.05,
-  nlim = -1,
-  geometry = "spherical",
-  xl = 0.0,
-  xr = 1.0,
   cfl = 0.25,
-  nx = 64,
-  grid_type = "uniform",
 
   params = {
     v0 = 0.0,
     rho0 = 1.0,
     E0 = 0.5,
   },
+}
+
+config.mesh = {
+  geometry = "spherical",
+  nx = 64,
+  xl = 0.0,
+  xr = 1.0,
+  grid_type = "uniform",
 }
 
 config.physics = {
@@ -62,6 +63,8 @@ config.fluid = {
 }
 
 config.time = {
+  t_end = 0.05,
+  nlim = -1,
   integrator = "EX_SSPRK22",
 }
 

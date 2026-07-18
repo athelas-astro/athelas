@@ -37,7 +37,7 @@ class Driver {
         bcs_(std::make_unique<BoundaryConditions>(
             bc::make_boundary_conditions(pin.get()))),
         time_(0.0), dt_(pin_->param()->get<double>("output.dt_init")),
-        t_end_(pin->param()->get<double>("problem.tf")), ssprk_(pin.get()),
+        t_end_(pin->param()->get<double>("time.t_end")), ssprk_(pin.get()),
         mesh_state_(pin.get(), ssprk_.n_stages()),
         sl_hydro_(initialize_slope_limiter("fluid", &mesh_state_.mesh(),
                                            pin.get(), {0, 2})),

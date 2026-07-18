@@ -26,7 +26,7 @@ NickelHeatingPackage::NickelHeatingPackage(const ProblemIn *pin,
       to_lower(pin->param()->get<std::string>("heating.nickel.model"));
   model_ = parse_model(model_str);
 
-  const int nx = pin->param()->get<int>("problem.nx");
+  const int nx = pin->param()->get<int>("mesh.nx");
   tau_gamma_ = AthelasArray3D<double>("tau_gamma", nx + 2, nq,
                                       8); // TODO(astrobarker): make runtime
   int_etau_domega_ = AthelasArray2D<double>("int_etau_domega", nx + 2,

@@ -2,14 +2,7 @@ local config = {}
 
 config.problem = {
   name = "shu_osher",
-  t_end = 1.8,
-  nlim = -1,
-  geometry = "planar",
-  xl = -10.0,
-  xr = 10.0,
   cfl = 0.35,
-  nx = 128,
-  grid_type = "uniform",
 
   params = {
     v0 = 2.629369,
@@ -17,6 +10,14 @@ config.problem = {
     pL = 10.33333333,
     pR = 1.0,
   },
+}
+
+config.mesh = {
+  geometry = "planar",
+  nx = 128,
+  xl = -10.0,
+  xr = 10.0,
+  grid_type = "uniform",
 }
 
 config.physics = {
@@ -60,6 +61,8 @@ config.fluid = {
 }
 
 config.time = {
+  t_end = 1.8,
+  nlim = -1,
   integrator = "EX_SSPRK33",
 }
 

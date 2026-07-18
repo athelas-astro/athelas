@@ -36,10 +36,10 @@ throughout the file.
 
     local config = {}
 
-    config.problem = {
-        name      = "supernova",
+    config.time = {
+        integrator = "IMEX_SSPRK11",
         ...
-        t_end     = 150.0 * DAY,
+        t_end      = 150.0 * DAY,
         ...
     }
 
@@ -93,10 +93,10 @@ deck-level assertions still apply to the merged configuration.
 
 .. code:: bash
 
-   ./athelas -i ../inputs/marshak.lua --problem.nx=16
+   ./athelas -i ../inputs/marshak.lua --mesh.nx=16
    ./athelas -i ../inputs/marshak.lua --radiation.newton.tol=1e-12
    ./athelas -i ../inputs/marshak.lua --physics.gravity=true
-   ./athelas -i ../inputs/marshak.lua --problem.t_end='2*1e-14'
+   ./athelas -i ../inputs/marshak.lua --time.t_end='2*1e-14'
 
 Because the value is Lua source, **strings must be Lua-quoted**, and
 table or expression values typically need shell-quoting as well:

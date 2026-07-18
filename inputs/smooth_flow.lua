@@ -2,19 +2,20 @@ local config = {}
 
 config.problem = {
   name = "smooth_flow",
-  t_end = 0.15,
-  nlim = -1,
-  geometry = "planar",
-  xl = -1.0,
-  xr = 1.0,
   cfl = 0.1,
-  nx = 2048,
-  grid_type = "uniform",
 
   params = {
     amp = 0.1,
     -- amp = 0.99999999999999,
   },
+}
+
+config.mesh = {
+  geometry = "planar",
+  nx = 2048,
+  xl = -1.0,
+  xr = 1.0,
+  grid_type = "uniform",
 }
 
 config.physics = {
@@ -27,6 +28,8 @@ config.physics = {
 }
 
 config.time = {
+  t_end = 0.15,
+  nlim = -1,
   integrator = "EX_SSPRK33",
 }
 

@@ -26,20 +26,30 @@ schema.problem = {
     required = true,
     doc = "Unique identifier for this simulation problem.",
   },
-  t_end = {
+  cfl = {
     type = "double",
     required = true,
-    doc = "End time of the simulation.",
+    doc = "CFL double for timestep control. Must be > 0.",
   },
-  nlim = {
-    type = "double",
-    default = -1,
-    doc = "Maximum double of cycles. -1 for unlimited.",
+  params = {
+    required = true,
+    doc = "Problem-specific parameters. Validated by the problem generator.",
   },
+}
+
+-- -------------------------
+-- mesh
+-- -------------------------
+schema.mesh = {
   geometry = {
     type = "string",
     required = true,
     doc = "Domain geometry. Options: 'planar', 'spherical'.",
+  },
+  nx = {
+    type = "double",
+    required = true,
+    doc = "Number of grid cells. Must be > 0.",
   },
   xl = {
     type = "double",
@@ -51,24 +61,10 @@ schema.problem = {
     required = true,
     doc = "Right boundary of the domain. Must be > xl.",
   },
-  cfl = {
-    type = "double",
-    required = true,
-    doc = "CFL double for timestep control. Must be > 0.",
-  },
-  nx = {
-    type = "double",
-    required = true,
-    doc = "Number of grid cells. Must be > 0.",
-  },
   grid_type = {
     type = "string",
     required = true,
     doc = "Grid spacing type. Options: 'uniform', 'logarithmic'.",
-  },
-  params = {
-    required = true,
-    doc = "Problem-specific parameters. Validated by the problem generator.",
   },
 }
 
@@ -124,6 +120,16 @@ schema.basis = {
 -- time
 -- -------------------------
 schema.time = {
+  t_end = {
+    type = "double",
+    required = true,
+    doc = "End time of the simulation.",
+  },
+  nlim = {
+    type = "double",
+    default = -1,
+    doc = "Maximum number of cycles. -1 for unlimited.",
+  },
   integrator = {
     type = "string",
     required = true,

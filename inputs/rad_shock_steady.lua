@@ -2,14 +2,7 @@ local config = {}
 
 config.problem = {
   name = "rad_shock_steady",
-  t_end = 1.000000e-11,
-  nlim = -1,
-  geometry = "planar",
-  xl = -0.03,
-  xr = 0.03,
   cfl = 0.8,
-  nx = 128,
-  grid_type = "uniform",
 
   params = {
     v0 = 0.0,
@@ -18,6 +11,14 @@ config.problem = {
     T_L = 1.160452e+06,
     T_R = 2.410900e+06,
   },
+}
+
+config.mesh = {
+  geometry = "planar",
+  nx = 128,
+  xl = -0.03,
+  xr = 0.03,
+  grid_type = "uniform",
 }
 
 config.physics = {
@@ -71,6 +72,8 @@ config.radiation = {
 }
 
 config.time = {
+  t_end = 1.000000e-11,
+  nlim = -1,
   integrator = "IMEX_SSPRK22_DIRK",
 }
 

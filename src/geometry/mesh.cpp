@@ -31,12 +31,12 @@
 namespace athelas {
 
 Mesh::Mesh(const ProblemIn *pin)
-    : nElements_(pin->param()->get<int>("problem.nx")),
+    : nElements_(pin->param()->get<int>("mesh.nx")),
       nNodes_(pin->param()->get<int>("basis.nnodes")), mSize_(nElements_ + 2),
-      xL_(pin->param()->get<double>("problem.xl")),
-      xR_(pin->param()->get<double>("problem.xr")),
-      geometry_(pin->param()->get<std::string>("problem.geometry")),
-      grid_type_(pin->param()->get<std::string>("problem.grid_type")),
+      xL_(pin->param()->get<double>("mesh.xl")),
+      xR_(pin->param()->get<double>("mesh.xr")),
+      geometry_(pin->param()->get<std::string>("mesh.geometry")),
+      grid_type_(pin->param()->get<std::string>("mesh.grid_type")),
       nodes_("Nodes", nNodes_), weights_("weights_", nNodes_),
       centers_("Centers", mSize_), widths_("widths_", mSize_),
       x_l_("Left Interface", mSize_ + 1), mass_("Cell mass_", mSize_),
@@ -150,7 +150,7 @@ void Mesh::create_grid(const ProblemIn *pin) {
                       ". You might consider setting a more appropriate value.");
 
       // update outer boundary in params and in class
-      auto &xl_pin = pin->param()->get_mutable_ref<double>("problem.xl");
+      auto &xl_pin = pin->param()->get_mutable_ref<double>("mesh.xl");
       xl_pin = new_xl;
       xL_ = new_xl;
     }

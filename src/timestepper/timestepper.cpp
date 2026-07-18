@@ -18,7 +18,7 @@ namespace athelas {
  **/
 TimeStepper::TimeStepper(const ProblemIn *pin)
     : nvars_evolved_(nvars_evolved(pin)),
-      mSize_(pin->param()->get<int>("problem.nx") + 2),
+      mSize_(pin->param()->get<int>("mesh.nx") + 2),
       nNodes_(pin->param()->get<int>("basis.nnodes")),
       integrator_(
           create_tableau(pin->param()->get<MethodID>("time.integrator"))),

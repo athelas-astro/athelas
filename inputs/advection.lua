@@ -2,20 +2,21 @@ local config = {}
 
 config.problem = {
   name = "smooth_advection",
-  t_end = 1.0,
-  nlim = -1,
-  geometry = "planar",
-  xl = 0.0,
-  xr = 1.0,
   cfl = 0.2,
-  nx = 2048,
-  grid_type = "uniform",
 
   params = {
     v0 = 1.0,
     p0 = 0.1,
     amp = 1.0,
   },
+}
+
+config.mesh = {
+  geometry = "planar",
+  nx = 2048,
+  xl = 0.0,
+  xr = 1.0,
+  grid_type = "uniform",
 }
 
 config.physics = {
@@ -28,6 +29,8 @@ config.physics = {
 }
 
 config.time = {
+  t_end = 1.0,
+  nlim = -1,
   integrator = "EX_SSPRK54",
 }
 

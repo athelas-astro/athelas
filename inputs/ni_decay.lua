@@ -2,19 +2,20 @@ local config = {}
 
 config.problem = {
   name = "ni_decay",
-  t_end = 524880.0,
-  nlim = -1,
-  geometry = "spherical",
-  xl = 0.0,
-  xr = 3.622000e+09,
   cfl = 0.5,
-  nx = 16,
-  grid_type = "uniform",
 
   params = {
     temperature = 1000.0,
     rho = 1000.0,
   },
+}
+
+config.mesh = {
+  geometry = "spherical",
+  nx = 16,
+  xl = 0.0,
+  xr = 3.622000e+09,
+  grid_type = "uniform",
 }
 
 config.physics = {
@@ -67,6 +68,8 @@ config.fluid = {
 }
 
 config.time = {
+  t_end = 524880.0,
+  nlim = -1,
   integrator = "EX_SSPRK22",
 }
 

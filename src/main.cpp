@@ -84,14 +84,14 @@ auto parse_input_options(std::span<char *> args)
     std::println("Examples:");
     std::println("  ./athelas -i ../inputs/sod.lua");
     std::println("  ./athelas -i ../inputs/supernova.lua -o run/output");
-    std::println("  ./athelas -i ../inputs/marshak.lua --problem.nx=256 "
+    std::println("  ./athelas -i ../inputs/marshak.lua --mesh.nx=256 "
                  "--radiation.newton.tol=1e-12");
     std::println("  ./athelas -i ../inputs/sedov.lua "
                  "--output.history.fn='\"sedov.hst\"'");
     std::println("  ./athelas -i ../inputs/marshak.lua "
                  "--bc.radiation.marshak_incoming_energy_i=1.1e12");
     std::println("  ./athelas -r run/sedov_000050.ath -o run/");
-    std::println("  ./athelas -r run/sedov_000050.ath --problem.tf=0.2");
+    std::println("  ./athelas -r run/sedov_000050.ath --time.t_end=0.2");
     std::exit(get_help ? AthelasExitCodes::SUCCESS : AthelasExitCodes::FAILURE);
   }
 

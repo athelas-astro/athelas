@@ -30,7 +30,7 @@ ThermalEnginePackage::ThermalEnginePackage(const ProblemIn *pin,
                                            const bool active)
     : active_(active), mend_idx_(0) {
 
-  const int nx = pin->param()->get<int>("problem.nx");
+  const int nx = pin->param()->get<int>("mesh.nx");
   const int nq = mesh->n_nodes();
   delta_ =
       AthelasArray4D<double>("thermal engine delta", n_stages, nx + 2, nq, 1);

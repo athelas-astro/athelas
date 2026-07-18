@@ -14,7 +14,7 @@ using basis::NodalBasis, basis::geometric_weak_eta_derivative;
 GeometryPackage::GeometryPackage(const ProblemIn *pin, const int n_stages,
                                  const bool active)
     : active_(active) {
-  const int nx = pin->param()->get<int>("problem.nx");
+  const int nx = pin->param()->get<int>("mesh.nx");
   bool rad_active = pin->param()->get<bool>("physics.radiation.enabled");
   int nvars_geom = 1; // sources velocity
   if (rad_active) {
