@@ -4,8 +4,6 @@
 name: lint python
 
 on:
-  push:
-    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
