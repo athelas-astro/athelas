@@ -645,8 +645,7 @@ ProblemIn::ProblemIn(
   sol::table output = *out_block;
 
   const int ncycle_out = output.get_or("ncycle_out", 1);
-  const double dt_hdf5 =
-      output.get_or("dt_hdf5", t_end.value_or(1.0) / 100.0);
+  const double dt_hdf5 = output.get_or("dt_hdf5", t_end.value_or(1.0) / 100.0);
   const double dt_growth_frac = output.get_or("dt_growth_frac", 1.05);
   const double dt_init = output.get_or("dt_init", 1.0e-16);
 
