@@ -6,6 +6,7 @@
 #include "geometry/mesh.hpp"
 #include "interface/params.hpp"
 #include "interface/state.hpp"
+#include "math/linear_algebra.hpp"
 #include "pgen/problem_in.hpp"
 #include "radiation/rad_utilities.hpp"
 
@@ -42,6 +43,9 @@ struct BlockTridiagSolver {
   AthelasArray3D<double> W; // Thomas scratch
   AthelasArray2D<double> Y;
   AthelasArray2D<double> Bi_lu;
+  math::linalg::PivotStore piv;
+  AthelasArray2D<double> row_scale;
+  AthelasArray2D<double> col_scale;
 };
 
 // Newton iterate and line-search trial state.

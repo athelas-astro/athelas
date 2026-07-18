@@ -5,7 +5,24 @@
 #include "test_utils.hpp"
 
 using athelas::math::linalg::block_thomas_solve;
+using athelas::math::linalg::newton_norm_l2;
 using athelas::math::linalg::ThomasScratch;
+
+TEST_CASE("Newton residual norm avoids intermediate overflow", "[radiation]") {
+  athelas::AthelasArray2D<double> residual("residual", 1, 4);
+  athelas::AthelasArray2D<double> sqrt_gm("sqrt_gm", 1, 3);
+  athelas::AthelasArray1D<double> dr("dr", 1);
+  athelas::AthelasArray1D<double> weights("weights", 1);
+
+  Kokkos::deep_copy(residual, 1.0e200);
+  Kokkos::deep_copy(sqrt_gm, 1.0);
+  Kokkos::deep_copy(dr, 1.0);
+  Kokkos::deep_copy(weights, 1.0);
+
+  const double norm = newton_norm_l2(residual, sqrt_gm, dr, weights);
+  REQUIRE(std::isfinite(norm));
+  REQUIRE(norm == Catch::Approx(2.0e200).epsilon(1.0e-14));
+}
 
 TEST_CASE("Block Thomas Solver", "[Block Thomas]") {
 
@@ -21,7 +38,8 @@ TEST_CASE("Block Thomas Solver", "[Block Thomas]") {
     VecStore Y("Y", (N > 0 ? N - 1 : 0), m);
 
     Kokkos::View<Scalar **, Layout, MemSpace> Bi_lu("Bi_lu", m, m);
-    ThomasScratch scratch{.W = W, .Y = Y, .Bi_lu = Bi_lu};
+    PivotStore piv("piv", m);
+    ThomasScratch scratch{.W = W, .Y = Y, .Bi_lu = Bi_lu, .piv = piv};
 
     // B(0) = 2*I,  b = [2, 4, 6]  =>  x = [1, 2, 3]
     set_block(B, 0, m, {2, 0, 0, 0, 2, 0, 0, 0, 2});
@@ -36,6 +54,40 @@ TEST_CASE("Block Thomas Solver", "[Block Thomas]") {
   }
 
   // -----------------------------------------------------------------
+  // TC-1b: A nonsingular block whose first diagonal entry is zero.
+  // This requires a row interchange during factorization; the former
+  // unpivoted factorization divided by the zero pivot.
+  // -----------------------------------------------------------------
+  SECTION("N=1 dense block requiring partial pivoting") {
+    constexpr int N = 1, m = 2;
+    BlockStore A("A", N, m, m), B("B", N, m, m), C("C", N, m, m);
+    VecStore d("d", N, m);
+    BlockStore W("W", 0, m, m);
+    VecStore Y("Y", 0, m);
+    VecStore row_scale("row_scale", N, m);
+    VecStore col_scale("col_scale", N, m);
+
+    Kokkos::View<Scalar **, Layout, MemSpace> Bi_lu("Bi_lu", m, m);
+    PivotStore piv("piv", m);
+    ThomasScratch scratch{.W = W,
+                          .Y = Y,
+                          .Bi_lu = Bi_lu,
+                          .piv = piv,
+                          .row_scale = row_scale,
+                          .col_scale = col_scale};
+
+    // [[0, 1], [1, 1]] * [1, 2] = [2, 3].
+    set_block(B, 0, m, {0.0, 1.0, 1.0, 1.0});
+    set_vec(d, 0, m, {2.0, 3.0});
+
+    block_thomas_solve(N, m, A, B, C, d, scratch);
+
+    const auto x = get_vec(d, 0, m);
+    REQUIRE(x[0] == Catch::Approx(1.0).epsilon(1e-10));
+    REQUIRE(x[1] == Catch::Approx(2.0).epsilon(1e-10));
+  }
+
+  // -----------------------------------------------------------------
   // TC-2: N=2 — one forward step and one back-sub step.
   // -----------------------------------------------------------------
   SECTION("N=2 minimal tridiagonal") {
@@ -46,7 +98,8 @@ TEST_CASE("Block Thomas Solver", "[Block Thomas]") {
     VecStore Y("Y", N - 1, m);
 
     Kokkos::View<Scalar **, Layout, MemSpace> Bi_lu("Bi_lu", m, m);
-    ThomasScratch scratch{.W = W, .Y = Y, .Bi_lu = Bi_lu};
+    PivotStore piv("piv", m);
+    ThomasScratch scratch{.W = W, .Y = Y, .Bi_lu = Bi_lu, .piv = piv};
 
     // B(i) = 3*I,  C(0) = A(0) = -I,  x_exact = ones
     set_block(B, 0, m, {3, 0, 0, 3});
@@ -67,6 +120,39 @@ TEST_CASE("Block Thomas Solver", "[Block Thomas]") {
   }
 
   // -----------------------------------------------------------------
+  // TC-2b: asymmetric lower and upper blocks. Symmetric test systems cannot
+  // expose an A/C interchange or a transposed block update in the sweep.
+  // -----------------------------------------------------------------
+  SECTION("N=3 m=2 asymmetric coupled blocks") {
+    constexpr int N = 3, m = 2;
+    BlockStore A("A", N - 1, m, m), B("B", N, m, m), C("C", N - 1, m, m);
+    VecStore d("d", N, m);
+    BlockStore W("W", N - 1, m, m);
+    VecStore Y("Y", N - 1, m);
+    Kokkos::View<Scalar **, Layout, MemSpace> Bi_lu("Bi_lu", m, m);
+    PivotStore piv("piv", m);
+    ThomasScratch scratch{.W = W, .Y = Y, .Bi_lu = Bi_lu, .piv = piv};
+
+    set_block(B, 0, m, {5.0, 1.0, 2.0, 4.0});
+    set_block(B, 1, m, {8.0, -2.0, 1.0, 7.0});
+    set_block(B, 2, m, {6.0, 3.0, -2.0, 5.0});
+    set_block(A, 0, m, {1.0, 2.0, 3.0, -1.0});
+    set_block(A, 1, m, {-2.0, 0.5, 1.0, 4.0});
+    set_block(C, 0, m, {2.0, -1.0, 0.5, 3.0});
+    set_block(C, 1, m, {-1.0, 2.0, 4.0, 1.0});
+
+    // A*x below corresponds to x = ([1,-1], [2,0.5], [-0.5,3]).
+    set_vec(d, 0, m, {7.5, 0.5});
+    set_vec(d, 1, m, {20.5, 10.5});
+    set_vec(d, 2, m, {2.25, 20.0});
+
+    block_thomas_solve(N, m, A, B, C, d, scratch);
+
+    const std::vector<double> x_exact = {1.0, -1.0, 2.0, 0.5, -0.5, 3.0};
+    REQUIRE(max_error(d, N, m, x_exact) < 1e-10);
+  }
+
+  // -----------------------------------------------------------------
   // TC-3: N=5, m=3 — canonical demo case, x_exact = ones.
   // -----------------------------------------------------------------
   SECTION("N=5 m=3 diagonal block system, x_exact=ones") {
@@ -78,7 +164,8 @@ TEST_CASE("Block Thomas Solver", "[Block Thomas]") {
 
     build_identity_block_problem(N, m, A, B, C, d);
     Kokkos::View<Scalar **, Layout, MemSpace> Bi_lu("Bi_lu", m, m);
-    ThomasScratch scratch{.W = W, .Y = Y, .Bi_lu = Bi_lu};
+    PivotStore piv("piv", m);
+    ThomasScratch scratch{.W = W, .Y = Y, .Bi_lu = Bi_lu, .piv = piv};
 
     block_thomas_solve(N, m, A, B, C, d, scratch);
 
@@ -99,7 +186,8 @@ TEST_CASE("Block Thomas Solver", "[Block Thomas]") {
 
     build_identity_block_problem(N, m, A, B, C, d);
     Kokkos::View<Scalar **, Layout, MemSpace> Bi_lu("Bi_lu", m, m);
-    ThomasScratch scratch{.W = W, .Y = Y, .Bi_lu = Bi_lu};
+    PivotStore piv("piv", m);
+    ThomasScratch scratch{.W = W, .Y = Y, .Bi_lu = Bi_lu, .piv = piv};
 
     block_thomas_solve(N, m, A, B, C, d, scratch);
 
@@ -124,7 +212,8 @@ TEST_CASE("Block Thomas Solver", "[Block Thomas]") {
     VecStore Y("Y", N - 1, m);
 
     Kokkos::View<Scalar **, Layout, MemSpace> Bi_lu("Bi_lu", m, m);
-    ThomasScratch scratch{.W = W, .Y = Y, .Bi_lu = Bi_lu};
+    PivotStore piv("piv", m);
+    ThomasScratch scratch{.W = W, .Y = Y, .Bi_lu = Bi_lu, .piv = piv};
 
     auto A_h = Kokkos::create_mirror_view(A);
     auto B_h = Kokkos::create_mirror_view(B);
@@ -191,7 +280,8 @@ TEST_CASE("Block Thomas Solver", "[Block Thomas]") {
     VecStore Y("Y", N - 1, m);
 
     Kokkos::View<Scalar **, Layout, MemSpace> Bi_lu("Bi_lu", m, m);
-    ThomasScratch scratch{.W = W, .Y = Y, .Bi_lu = Bi_lu};
+    PivotStore piv("piv", m);
+    ThomasScratch scratch{.W = W, .Y = Y, .Bi_lu = Bi_lu, .piv = piv};
 
     auto A_h = Kokkos::create_mirror_view(A);
     auto B_h = Kokkos::create_mirror_view(B);

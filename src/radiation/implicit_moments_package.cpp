@@ -54,6 +54,12 @@ ImplicitRadiationMomentsPackage::ImplicitRadiationMomentsPackage(
                                       4 * nq),
           .Bi_lu = AthelasArray2D<double>("ImplicitMoments::solver.Bi_lu",
                                           4 * nq, 4 * nq),
+          .piv =
+              math::linalg::PivotStore("ImplicitMoments::solver.piv", 4 * nq),
+          .row_scale = AthelasArray2D<double>(
+              "ImplicitMoments::solver.row_scale", nx, 4 * nq),
+          .col_scale = AthelasArray2D<double>(
+              "ImplicitMoments::solver.col_scale", nx, 4 * nq),
       },
       newton_{
           .u_rad_work = AthelasArray3D<double>(
@@ -378,6 +384,9 @@ auto ImplicitRadiationMomentsPackage::update_implicit(
       .W = solver_.W,
       .Y = solver_.Y,
       .Bi_lu = solver_.Bi_lu,
+      .piv = solver_.piv,
+      .row_scale = solver_.row_scale,
+      .col_scale = solver_.col_scale,
   };
 
   athelas::par_for(

@@ -87,6 +87,7 @@ class TimeStepper {
 
   // Hold stage data
   AthelasArray3D<double> SumVar_U_;
+  AthelasArray3D<double> u0_buffer_;
 
   // Per-stage accumulated inner-face radius for mesh reconstruction.
   AthelasArray1D<double> x_inner_sumvar_;

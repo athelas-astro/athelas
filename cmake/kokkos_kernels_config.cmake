@@ -17,6 +17,7 @@ set(KokkosKernels_INST_OFFSET_SIZE_T      OFF CACHE BOOL "")
 
 set(KokkosKernels_ENABLE_ALL_COMPONENTS   OFF CACHE BOOL "")
 set(KokkosKernels_ENABLE_COMPONENT_BATCHED ON  CACHE BOOL "")
+set(KokkosKernels_ENABLE_COMPONENT_BLAS    ON  CACHE BOOL "")
 
 set(KokkosKernels_ENABLE_TPL_BLAS         OFF CACHE BOOL "")
 set(KokkosKernels_ENABLE_TPL_LAPACK       OFF CACHE BOOL "")

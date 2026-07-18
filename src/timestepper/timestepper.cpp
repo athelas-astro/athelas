@@ -24,6 +24,7 @@ TimeStepper::TimeStepper(const ProblemIn *pin)
           create_tableau(pin->param()->get<MethodID>("time.integrator"))),
       nStages_(integrator_.num_stages), tOrder_(integrator_.explicit_order),
       SumVar_U_("SumVar_U", mSize_, nNodes_, nvars_evolved_),
+      u0_buffer_("u0_buffer", mSize_, nNodes_, nvars_evolved_),
       x_inner_sumvar_("x_inner_sumvar_", nStages_) {}
 
 void TimeStepper::reset_stage_sumvar(AthelasArray3D<double> u0,
@@ -203,12 +204,17 @@ void TimeStepper::update_rad_hydro_imex(PackageManager *pkgs,
   const auto &eos = mesh_state.eos();
 
   auto u0 = mesh_state(0).get_field("evolved");
+  auto initial_state = mesh_state(0);
+  bel::apply_bound_enforcing_limiter_rad(initial_state);
+  bel::apply_bound_enforcing_limiter(initial_state);
+  Kokkos::deep_copy(u0_buffer_, u0);
   for (int iS = 0; iS < nStages_; ++iS) {
     dt_info.stage = iS;
     dt_info.t = t + integrator_.explicit_tableau.c_i(iS) * dt;
     auto stage_data = mesh_state.stage(iS);
     auto u = stage_data.get_field("evolved");
-    reset_stage_sumvar(u0, ib, qb, vb, "Timestepper :: IMEX :: Reset sumvar");
+    reset_stage_sumvar(u0_buffer_, ib, qb, vb,
+                       "Timestepper :: IMEX :: Reset sumvar");
     reset_x_inner_buffer(mesh, iS);
 
     // --- Inner update loop ---
@@ -239,8 +245,11 @@ void TimeStepper::update_rad_hydro_imex(PackageManager *pkgs,
     dt_info.t = t + integrator_.explicit_tableau.c_i(iS) * dt;
     dt_info.dt_coef = dt * integrator_.implicit_tableau.a_ij(iS, iS);
 
-    // Need a fill derived?
-    // pkgs->fill_derived(stage_data, dt_info);
+    // The implicit source and EOS Jacobian must use temperature, composition,
+    // and ionization data derived from this stage state. In particular,
+    // Paczynski/Saha data from the previous stage can define a different
+    // Newton system from the one represented by this stage state.
+    pkgs->fill_derived(stage_data, dt_info);
     if (dt_info.dt_coef != 0.0) {
       pkgs->update_implicit(stage_data, SumVar_U_, dt_info);
     }
@@ -248,8 +257,8 @@ void TimeStepper::update_rad_hydro_imex(PackageManager *pkgs,
 
     apply_slope_limiter(sl_hydro, u, stage_data, basis, eos);
     apply_slope_limiter(sl_rad, u, stage_data, basis, eos);
-    bel::apply_bound_enforcing_limiter(stage_data);
     bel::apply_bound_enforcing_limiter_rad(stage_data);
+    bel::apply_bound_enforcing_limiter(stage_data);
     update_stage_mesh(mesh_state, iS, u);
 
     dt_info.stage = iS;
@@ -257,6 +266,9 @@ void TimeStepper::update_rad_hydro_imex(PackageManager *pkgs,
     pkgs->update_explicit(stage_data, dt_info);
   } // end outer loop
 
+  // Stage 0 shares storage with the canonical state. Restore U^n before
+  // accumulating the explicit and implicit RK weights from every stage.
+  Kokkos::deep_copy(u0, u0_buffer_);
   for (int iS = 0; iS < nStages_; ++iS) {
     dt_info.stage = iS;
     dt_info.t = t + integrator_.explicit_tableau.c_i(iS) * dt;
@@ -274,8 +286,8 @@ void TimeStepper::update_rad_hydro_imex(PackageManager *pkgs,
   auto sd0 = mesh_state(0);
   apply_slope_limiter(sl_hydro, u0, sd0, basis, eos);
   apply_slope_limiter(sl_rad, u0, sd0, basis, eos);
-  bel::apply_bound_enforcing_limiter(sd0);
   bel::apply_bound_enforcing_limiter_rad(sd0);
+  bel::apply_bound_enforcing_limiter(sd0);
   mesh.reconstruct_mesh(u0, x_inner);
 
   pkgs->zero_delta();

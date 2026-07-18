@@ -1,3 +1,6 @@
+#include <algorithm>
+#include <cmath>
+#include <limits>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -10,8 +13,8 @@
 #include "utils/error.hpp"
 
 #include <KokkosBatched_Gemm_Decl.hpp>
-#include <KokkosBatched_LU_Decl.hpp>
-#include <KokkosBatched_Trsm_Decl.hpp>
+#include <KokkosBatched_Getrf.hpp>
+#include <KokkosBatched_Getrs.hpp>
 
 namespace athelas::math::linalg {
 
@@ -25,20 +28,40 @@ auto newton_norm_l2(AthelasArray2D<double> du, AthelasArray2D<double> sqrt_gm,
   static const IndexRange ib(nx);
   static const IndexRange qb(nq);
 
-  double norm_sq = 0.0;
+  // Scale before squaring. Radiation residuals can be large enough that
+  // r*r overflows even though the weighted L2 norm is representable.
+  double max_abs = 0.0;
+  athelas::par_reduce(
+      DEFAULT_LOOP_PATTERN, "norm_l2_max", DevExecSpace(), ib.s, ib.e, qb.s,
+      qb.e,
+      KOKKOS_LAMBDA(const int i, const int q, double &lmax) {
+        for (int v = 0; v < 4; ++v) {
+          const double r = du(i, idx(q, v));
+          lmax = std::max(lmax, std::isfinite(r)
+                                    ? std::abs(r)
+                                    : std::numeric_limits<double>::infinity());
+        }
+      },
+      Kokkos::Max<double>(max_abs));
+
+  if (max_abs == 0.0 || !std::isfinite(max_abs)) {
+    return max_abs;
+  }
+
+  double norm_sq_scaled = 0.0;
   athelas::par_reduce(
       DEFAULT_LOOP_PATTERN, "norm_l2", DevExecSpace(), ib.s, ib.e, qb.s, qb.e,
-      KOKKOS_LAMBDA(const int i, const int q, double &lnorm_sq) {
+      KOKKOS_LAMBDA(const int i, const int q, double &lnorm_sq_scaled) {
         const double w = wgts(q);
         const double gm = sqrt_gm(i, q + 1);
         for (int v = 0; v < 4; ++v) {
-          const double r = du(i, idx(q, v));
-          lnorm_sq += w * r * r * gm * dr(i);
+          const double r_scaled = du(i, idx(q, v)) / max_abs;
+          lnorm_sq_scaled += w * r_scaled * r_scaled * gm * dr(i);
         }
       },
-      Kokkos::Sum<double>(norm_sq));
+      Kokkos::Sum<double>(norm_sq_scaled));
 
-  return Kokkos::sqrt(norm_sq);
+  return max_abs * Kokkos::sqrt(norm_sq_scaled);
 }
 
 void block_thomas_solve(const int N, const int m, BlockStore A, BlockStore B,
@@ -49,18 +72,96 @@ void block_thomas_solve(const int N, const int m, BlockStore A, BlockStore B,
   auto W = scratch.W;
   auto Y = scratch.Y;
   auto Bi_lu = scratch.Bi_lu;
+  auto piv = scratch.piv;
+  auto factor_info = scratch.factor_info;
+  auto min_relative_pivot = scratch.min_relative_pivot;
+  auto row_scale = scratch.row_scale;
+  auto col_scale = scratch.col_scale;
+  const bool collect_diagnostics =
+      factor_info.extent(0) == 1 && min_relative_pivot.extent(0) == 1;
+  const bool equilibrate =
+      row_scale.extent_int(0) == N && row_scale.extent_int(1) == m &&
+      col_scale.extent_int(0) == N && col_scale.extent_int(1) == m;
 
-  using LU = KokkosBatched::SerialLU<KokkosBatched::Algo::LU::Unblocked>;
+  if (collect_diagnostics) {
+    Kokkos::deep_copy(factor_info, 0);
+    Kokkos::deep_copy(min_relative_pivot,
+                      std::numeric_limits<double>::infinity());
+  }
 
-  using TrsmLL = KokkosBatched::SerialTrsm<
-      KokkosBatched::Side::Left, KokkosBatched::Uplo::Lower,
-      KokkosBatched::Trans::NoTranspose, KokkosBatched::Diag::Unit,
-      KokkosBatched::Algo::Trsm::Unblocked>;
+  if (equilibrate) {
+    // Row then column max-norm equilibration. With R and C diagonal, solve
+    // R A C y = R b and return x = C y. Bounds passed to par_for are
+    // inclusive in this codebase, hence N - 1 and m - 1 below.
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN, "block_thomas_row_scale", DevExecSpace(), 0,
+        N - 1, 0, m - 1, KOKKOS_LAMBDA(const int i, const int r) {
+          double row_max = 0.0;
+          for (int c = 0; c < m; ++c) {
+            row_max = std::max(row_max, Kokkos::abs(B(i, r, c)));
+            if (i > 0) {
+              row_max = std::max(row_max, Kokkos::abs(A(i - 1, r, c)));
+            }
+            if (i < N - 1) {
+              row_max = std::max(row_max, Kokkos::abs(C(i, r, c)));
+            }
+          }
+          row_scale(i, r) =
+              row_max > 0.0 && std::isfinite(row_max) ? 1.0 / row_max : 1.0;
+        });
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN, "block_thomas_apply_row_scale", DevExecSpace(), 0,
+        N - 1, 0, m - 1, KOKKOS_LAMBDA(const int i, const int r) {
+          const double scale = row_scale(i, r);
+          d(i, r) *= scale;
+          for (int c = 0; c < m; ++c) {
+            B(i, r, c) *= scale;
+            if (i > 0) {
+              A(i - 1, r, c) *= scale;
+            }
+            if (i < N - 1) {
+              C(i, r, c) *= scale;
+            }
+          }
+        });
 
-  using TrsmLU = KokkosBatched::SerialTrsm<
-      KokkosBatched::Side::Left, KokkosBatched::Uplo::Upper,
-      KokkosBatched::Trans::NoTranspose, KokkosBatched::Diag::NonUnit,
-      KokkosBatched::Algo::Trsm::Unblocked>;
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN, "block_thomas_col_scale", DevExecSpace(), 0,
+        N - 1, 0, m - 1, KOKKOS_LAMBDA(const int i, const int c) {
+          double col_max = 0.0;
+          for (int r = 0; r < m; ++r) {
+            col_max = std::max(col_max, Kokkos::abs(B(i, r, c)));
+            if (i < N - 1) {
+              col_max = std::max(col_max, Kokkos::abs(A(i, r, c)));
+            }
+            if (i > 0) {
+              col_max = std::max(col_max, Kokkos::abs(C(i - 1, r, c)));
+            }
+          }
+          col_scale(i, c) =
+              col_max > 0.0 && std::isfinite(col_max) ? 1.0 / col_max : 1.0;
+        });
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN, "block_thomas_apply_col_scale", DevExecSpace(), 0,
+        N - 1, 0, m - 1, KOKKOS_LAMBDA(const int i, const int c) {
+          const double scale = col_scale(i, c);
+          for (int r = 0; r < m; ++r) {
+            B(i, r, c) *= scale;
+            if (i < N - 1) {
+              A(i, r, c) *= scale;
+            }
+            if (i > 0) {
+              C(i - 1, r, c) *= scale;
+            }
+          }
+        });
+  }
+
+  using Getrf =
+      KokkosBatched::SerialGetrf<KokkosBatched::Algo::Getrf::Unblocked>;
+  using Getrs =
+      KokkosBatched::SerialGetrs<KokkosBatched::Trans::NoTranspose,
+                                 KokkosBatched::Algo::Getrs::Unblocked>;
 
   using Gemm = KokkosBatched::SerialGemm<KokkosBatched::Trans::NoTranspose,
                                          KokkosBatched::Trans::NoTranspose,
@@ -79,21 +180,26 @@ void block_thomas_solve(const int N, const int m, BlockStore A, BlockStore B,
   athelas::par_for(
       DEFAULT_FLAT_LOOP_PATTERN, "block_thomas", DevExecSpace(), 0, 0,
       KOKKOS_LAMBDA(const int) {
-        // Apply already-factored Bi_lu to a 1D vector in-place.
-        // Forward substitution (unit lower), then back substitution (non-unit
-        // upper).
-        auto trsv = [&](auto vec) {
+        int first_factor_info = 0;
+        double min_pivot_ratio = std::numeric_limits<double>::infinity();
+
+        auto factor = [&](auto mat) {
+          double max_entry = 0.0;
           for (int r = 0; r < m; ++r) {
-            for (int k = 0; k < r; ++k) {
-              vec(r) = Kokkos::fma(-Bi_lu(r, k), vec(k), vec(r));
+            for (int c = 0; c < m; ++c) {
+              max_entry = std::max(max_entry, Kokkos::abs(mat(r, c)));
             }
-            // unit diagonal - no division
           }
-          for (int r = m - 1; r >= 0; --r) {
-            for (int k = r + 1; k < m; ++k) {
-              vec(r) = Kokkos::fma(-Bi_lu(r, k), vec(k), vec(r));
+
+          const int info = Getrf::invoke(mat, piv);
+          if (first_factor_info == 0 && info != 0) {
+            first_factor_info = info;
+          }
+          if (max_entry > 0.0) {
+            for (int r = 0; r < m; ++r) {
+              min_pivot_ratio =
+                  std::min(min_pivot_ratio, Kokkos::abs(mat(r, r)) / max_entry);
             }
-            vec(r) /= Bi_lu(r, r);
           }
         };
 
@@ -121,18 +227,20 @@ void block_thomas_solve(const int N, const int m, BlockStore A, BlockStore B,
 
           // Factor B(i) into Bi_lu, leaving B untouched
           mat_copy(Bi, Bi_lu);
-          LU::invoke(Bi_lu);
+          factor(Bi_lu);
 
           // W(i) = B(i)^{-1} C(i)
           mat_copy(Ci, Wi);
-          TrsmLL::invoke(1.0, Bi_lu, Wi);
-          TrsmLU::invoke(1.0, Bi_lu, Wi);
+          for (int col = 0; col < m; ++col) {
+            auto W_col = Kokkos::subview(Wi, Kokkos::ALL, col);
+            Getrs::invoke(Bi_lu, piv, W_col);
+          }
 
           // Y(i) = B(i)^{-1} d(i)
           for (int r = 0; r < m; ++r) {
             Yi(r) = di(r);
           }
-          trsv(Yi);
+          Getrs::invoke(Bi_lu, piv, Yi);
 
           // B(i+1) -= A(i+1) * W(i)
           Gemm::invoke(-1.0, Ai1, Wi, 1.0, Bi1);
@@ -146,8 +254,8 @@ void block_thomas_solve(const int N, const int m, BlockStore A, BlockStore B,
         auto dN = Kokkos::subview(d, N - 1, Kokkos::ALL);
 
         mat_copy(BN, Bi_lu);
-        LU::invoke(Bi_lu);
-        trsv(dN); // dN overwritten with x(N-1)
+        factor(Bi_lu);
+        Getrs::invoke(Bi_lu, piv, dN); // dN overwritten with x(N-1)
 
         // Back substitution: x(i) = Y(i) - W(i) * x(i+1)
         // Solution written into d in-place.
@@ -162,7 +270,20 @@ void block_thomas_solve(const int N, const int m, BlockStore A, BlockStore B,
           }
           gemv_sub(Wi, xi1, xi);
         }
+
+        if (collect_diagnostics) {
+          factor_info(0) = first_factor_info;
+          min_relative_pivot(0) = min_pivot_ratio;
+        }
       });
+
+  if (equilibrate) {
+    athelas::par_for(
+        DEFAULT_LOOP_PATTERN, "block_thomas_restore_col_scale", DevExecSpace(),
+        0, N - 1, 0, m - 1, KOKKOS_LAMBDA(const int i, const int c) {
+          d(i, c) *= col_scale(i, c);
+        });
+  }
 
   Kokkos::Profiling::popRegion();
 }
