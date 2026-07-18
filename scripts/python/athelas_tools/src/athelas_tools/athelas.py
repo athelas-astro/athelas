@@ -200,7 +200,7 @@ class Athelas:
     self.cycle = int(f["info/last_cycle"][0])
 
     self.params = read_hdf5_group(f["params"])
-    self.geometry = self.params["problem.geometry"]
+    self.geometry = self.params["mesh.geometry"]
 
     # ----------------------
     # Grid

@@ -2,14 +2,7 @@ local config = {}
 
 config.problem = {
   name = "gas_collapse",
-  t_end = 0.0368,
-  nlim = -1,
-  geometry = "spherical",
-  xl = 0.0,
-  xr = 6.5e+08,
   cfl = 0.5,
-  nx = 1024,
-  grid_type = "logarithmic",
 
   params = {
     rho0 = 1.0e9,
@@ -17,6 +10,14 @@ config.problem = {
     p0 = 5.0e25,
     v0 = 0.0,
   },
+}
+
+config.mesh = {
+  geometry = "spherical",
+  nx = 1024,
+  xl = 0.0,
+  xr = 6.5e+08,
+  grid_type = "logarithmic",
 }
 
 config.physics = {
@@ -29,6 +30,8 @@ config.physics = {
 }
 
 config.time = {
+  t_end = 0.0368,
+  nlim = -1,
   integrator = "EX_SSPRK33",
 }
 
@@ -46,7 +49,7 @@ config.bc = {
 config.output = {
   ncycle_out = 100,
   dt_growth_frac = 1.05,
-  dt_hdf5 = config.problem.t_end / 100.0,
+  dt_hdf5 = config.time.t_end / 100.0,
   history = {
     fn = "gas_collapse.hst",
   },

@@ -2,19 +2,20 @@ local config = {}
 
 config.problem = {
   name = "one_zone_ionization",
-  t_end = 1.0,
-  nlim = 2,
-  geometry = "planar",
-  xl = 0.0,
-  xr = 1.0,
   cfl = 0.8,
-  nx = 1,
-  grid_type = "uniform",
 
   params = {
     temperature = 20000.0,
     rho = 1.000000e-04,
   },
+}
+
+config.mesh = {
+  geometry = "planar",
+  nx = 1,
+  xl = 0.0,
+  xr = 1.0,
+  grid_type = "uniform",
 }
 
 config.physics = {
@@ -65,6 +66,8 @@ config.fluid = {
 }
 
 config.time = {
+  t_end = 1.0,
+  nlim = 2,
   integrator = "EX_SSPRK11",
 }
 

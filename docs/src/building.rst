@@ -101,7 +101,7 @@ using ``--<dotted.key>=<lua_expr>``:
 
 .. code:: bash
 
-   ./athelas -i ../inputs/marshak.lua --problem.nx=16 --radiation.newton.tol=1e-12
+   ./athelas -i ../inputs/marshak.lua --mesh.nx=16 --radiation.newton.tol=1e-12
 
 See :ref:`cli-overrides` for the full syntax.
 
@@ -119,13 +119,13 @@ simulation state, so no Lua file is needed.
 
    ./athelas -r run/sedov_000050.ath
    ./athelas -r run/sedov_000050.ath -o new_run/
-   ./athelas -r run/sedov_final.ath  --problem.tf=0.1
+   ./athelas -r run/sedov_final.ath  --time.t_end=0.1
 
 Both numbered dumps (``sedov_000050.ath``) and the post-loop ``_final``
 file are valid restart sources. CLI ``--<key>=<value>`` overrides apply on
 top of the checkpoint's params, parsed the same way as for new runs (see
-:ref:`cli-overrides`), so a run can be extended (``--problem.tf=...``,
-``--problem.nlim=...``) or retuned without editing the checkpoint or
+:ref:`cli-overrides`), so a run can be extended (``--time.t_end=...``,
+``--time.nlim=...``) or retuned without editing the checkpoint or
 re-running the deck.
 
 A few currently-unsupported configurations to be aware of:

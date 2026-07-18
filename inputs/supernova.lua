@@ -4,17 +4,9 @@ local day = 86400.0 -- s
 
 local config = {}
 
--- Note: The domain bounds xl and xr are overwritten.
 config.problem = {
   name = "supernova",
-  t_end = 100.0 * day,
-  nlim = -1,
-  geometry = "spherical",
-  xl = 100.0,
-  xr = 7.0e5,
   cfl = 0.5,
-  nx = 512,
-  grid_type = "logarithmic",
 
   -- Parameters unique to a setup.
   params = {
@@ -25,6 +17,15 @@ config.problem = {
     ni_mass = 0.07,
     ni_boundary = 3.0,
   },
+}
+
+-- Note: The domain bounds xl and xr are overwritten.
+config.mesh = {
+  geometry = "spherical",
+  nx = 512,
+  xl = 100.0,
+  xr = 7.0e5,
+  grid_type = "logarithmic",
 }
 
 -- Enable physics units. Their individual controls appear in tables below.
@@ -38,6 +39,8 @@ config.physics = {
 }
 
 config.time = {
+  t_end = 100.0 * day,
+  nlim = -1,
   integrator = "IMEX_SSPRK11",
   -- integrator = "IMEX_SSPRK22_DIRK",
   -- integrator = "IMEX_ARK32_ESDIRK",

@@ -2,14 +2,7 @@ local config = {}
 
 config.problem = {
   name = "marshak",
-  t_end = 1.0e-14,
-  nlim = -1,
-  geometry = "planar",
-  xl = 0.0,
-  xr = 0.003466205,
   cfl = 0.3,
-  nx = 512,
-  grid_type = "uniform",
 
   params = {
     v0 = 0.0,
@@ -17,6 +10,14 @@ config.problem = {
     T0 = 10000.0,
     epsilon = 1.0,
   },
+}
+
+config.mesh = {
+  geometry = "planar",
+  nx = 512,
+  xl = 0.0,
+  xr = 0.003466205,
+  grid_type = "uniform",
 }
 
 config.physics = {
@@ -29,6 +30,8 @@ config.physics = {
 }
 
 config.time = {
+  t_end = 1.0e-14,
+  nlim = -1,
   integrator = "IMEX_ARK32_ESDIRK",
 }
 

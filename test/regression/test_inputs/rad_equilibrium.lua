@@ -2,15 +2,8 @@ local config = {}
 
 config.problem = {
   name = "rad_equilibrium",
-  t_end = 1.0e-07,
-  nlim = -1,
-  geometry = "planar",
-  xl = 0.0,
-  xr = 1.0,
   bc = "homogenous",
   cfl = 0.9,
-  nx = 1,
-  grid_type = "uniform",
 
   params = {
     v0 = 0.0,
@@ -18,6 +11,14 @@ config.problem = {
     logE_gas = 10.0,
     logE_rad = 12.0,
   },
+}
+
+config.mesh = {
+  geometry = "planar",
+  nx = 1,
+  xl = 0.0,
+  xr = 1.0,
+  grid_type = "uniform",
 }
 
 config.physics = {
@@ -30,6 +31,8 @@ config.physics = {
 }
 
 config.time = {
+  t_end = 1.0e-07,
+  nlim = -1,
   integrator = "IMEX_ARK32_ESDIRK",
 }
 

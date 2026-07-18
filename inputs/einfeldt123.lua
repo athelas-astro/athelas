@@ -2,8 +2,8 @@ local config = dofile("../inputs/sod.lua")
 -- NOTE: This relies on the path. We may want to embed this logic into the C++.
 
 -- Override key pieces
-config.problem.xr = 1.0
-config.problem.nx = 2048
+config.mesh.xr = 1.0
+config.mesh.nx = 2048
 
 config.problem.params = {
   vL = -2.0,

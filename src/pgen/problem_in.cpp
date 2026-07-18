@@ -71,44 +71,12 @@ ProblemIn::ProblemIn(
   sol::optional<std::string> pname = problem["name"];
   params_->add("problem.name", *pname);
 
-  sol::optional<double> tf = problem["t_end"];
-  if (*tf <= 0.0) {
-    throw_athelas_error("tf must be > 0.0!");
-  }
-  params_->add("problem.tf", *tf);
-
-  const double nlim = problem.get_or("nlim", -1.0);
-  params_->add("problem.nlim", nlim);
-
-  sol::optional<double> xl = problem["xl"];
-  params_->add("problem.xl", *xl);
-
-  sol::optional<double> xr = problem["xr"];
-  if (*xr <= *xl) {
-    throw_athelas_error("xr must be > xl!");
-  }
-  params_->add("problem.xr", *xr);
-
-  sol::optional<int> nx = problem["nx"];
-  if (*nx <= 0) {
-    throw_athelas_error("nx must be > 0!");
-  }
-  params_->add("problem.nx", *nx);
-
   // NOTE: It may be worthwhile to have cfl be registered per physics.
   sol::optional<double> cfl = problem["cfl"];
   if (*cfl <= 0.0) {
     throw_athelas_error("cfl must be > 0.0!");
   }
   params_->add("problem.cfl", *cfl);
-
-  sol::optional<std::string> geom = problem["geometry"];
-  params_->add("problem.geometry", *geom);
-
-  // TODO(astrobarker): move mesh stuff into own section, not problem
-  // Begs the question: what is "problem" and what is "grid"? xl and xr?
-  sol::optional<std::string> grid_type = problem["grid_type"];
-  params_->add("problem.grid_type", *grid_type);
 
   // ---------------------------------------------
   // ---------- handle [problem.params] ----------
@@ -135,6 +103,53 @@ ProblemIn::ProblemIn(
       throw_athelas_error("Unsupported Lua type for key: " + key);
     }
   }
+
+  // --------------------------------
+  // ---------- mesh block ----------
+  // --------------------------------
+  sol::optional<sol::table> mesh_block = config_["mesh"];
+  sol::table mesh = *mesh_block;
+
+  sol::optional<std::string> geom = mesh["geometry"];
+  params_->add("mesh.geometry", *geom);
+
+  sol::optional<int> nx = mesh["nx"];
+  if (*nx <= 0) {
+    throw_athelas_error("nx must be > 0!");
+  }
+  params_->add("mesh.nx", *nx);
+
+  sol::optional<double> xl = mesh["xl"];
+  params_->add("mesh.xl", *xl);
+
+  sol::optional<double> xr = mesh["xr"];
+  if (*xr <= *xl) {
+    throw_athelas_error("xr must be > xl!");
+  }
+  params_->add("mesh.xr", *xr);
+
+  sol::optional<std::string> grid_type = mesh["grid_type"];
+  params_->add("mesh.grid_type", *grid_type);
+
+  // --------------------------------
+  // ---------- time block ----------
+  // --------------------------------
+  sol::optional<sol::table> time_block = config_["time"];
+  sol::table time = *time_block;
+
+  sol::optional<double> t_end = time["t_end"];
+  if (*t_end <= 0.0) {
+    throw_athelas_error("t_end must be > 0.0!");
+  }
+  params_->add("time.t_end", *t_end);
+
+  const double nlim = time.get_or("nlim", -1.0);
+  params_->add("time.nlim", nlim);
+
+  sol::optional<std::string> integrator = time["integrator"];
+  const MethodID method_id = string_to_id(utilities::to_lower(*integrator));
+  params_->add("time.integrator", method_id);
+  params_->add("time.integrator_string", *integrator); // for IO
 
   // -----------------------------------
   // ---------- physics block ----------
@@ -630,7 +645,7 @@ ProblemIn::ProblemIn(
   sol::table output = *out_block;
 
   const int ncycle_out = output.get_or("ncycle_out", 1);
-  const double dt_hdf5 = output.get_or("dt_hdf5", tf.value_or(1.0) / 100.0);
+  const double dt_hdf5 = output.get_or("dt_hdf5", t_end.value_or(1.0) / 100.0);
   const double dt_growth_frac = output.get_or("dt_growth_frac", 1.05);
   const double dt_init = output.get_or("dt_init", 1.0e-16);
 
@@ -703,15 +718,6 @@ ProblemIn::ProblemIn(
   params_->add("diagnostics.photosphere.enabled", diag_photosphere_enabled);
   params_->add("diagnostics.photosphere.tau", diag_photosphere_tau);
   params_->add("diagnostics.shock.enabled", diag_shock_enabled);
-
-  // --------------------------
-  // ---------- time ----------
-  // --------------------------
-  sol::optional<sol::table> time_block = config_["time"];
-  sol::optional<std::string> integrator = (*time_block)["integrator"];
-  const MethodID method_id = string_to_id(utilities::to_lower(*integrator));
-  params_->add("time.integrator", method_id);
-  params_->add("time.integrator_string", *integrator); // for IO
 
   // -------------------------
   // ---------- eos ----------

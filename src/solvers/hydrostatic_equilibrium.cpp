@@ -114,7 +114,7 @@ void HydrostaticEquilibrium::solve(MeshState &mesh_state, Mesh *mesh,
                1.0 / std::sqrt(constants::G_GRAV * rho_c_));
 
   // update domain boundary and mesh
-  auto &xr = pin->param()->get_mutable_ref<double>("problem.xr");
+  auto &xr = pin->param()->get_mutable_ref<double>("mesh.xr");
   xr = radius.back();
   // this is awful
   // TODO(astrobarker): when cleaning up mesh, get this

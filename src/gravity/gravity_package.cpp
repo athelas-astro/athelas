@@ -23,11 +23,10 @@ GravityPackage::GravityPackage(const ProblemIn *pin, const std::string &model,
                                const double gval, const double cfl,
                                const int n_stages, const bool active)
     : active_(active), gval_(gval), cfl_(cfl),
-      delta_("gravity delta", n_stages,
-             pin->param()->get<int>("problem.nx") + 2,
+      delta_("gravity delta", n_stages, pin->param()->get<int>("mesh.nx") + 2,
              pin->param()->get<int>("basis.nnodes"), 2),
       gravity_pressure_("gravity pressure",
-                        pin->param()->get<int>("problem.nx") + 2,
+                        pin->param()->get<int>("mesh.nx") + 2,
                         pin->param()->get<int>("basis.nnodes") + 2) {
   if (model == "constant") {
     model_ = GravityModel::Constant;

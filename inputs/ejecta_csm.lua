@@ -2,18 +2,19 @@ local config = {}
 
 config.problem = {
   name = "ejecta_csm",
-  t_end = 1.0,
-  nlim = -1,
-  geometry = "spherical",
-  xl = 0.0,
-  xr = 1.25,
   cfl = 0.5,
-  nx = 256,
-  grid_type = "uniform",
   params = {
     rstar = 0.01,
     vmax = math.sqrt(10.0 / 3.0),
   },
+}
+
+config.mesh = {
+  geometry = "spherical",
+  nx = 256,
+  xl = 0.0,
+  xr = 1.25,
+  grid_type = "uniform",
 }
 
 config.physics = {
@@ -58,6 +59,8 @@ config.fluid = {
 }
 
 config.time = {
+  t_end = 1.0,
+  nlim = -1,
   integrator = "EX_SSPRK22",
 }
 

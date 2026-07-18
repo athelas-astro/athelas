@@ -2,20 +2,21 @@ local config = {}
 
 config.problem = {
   name = "noh",
-  t_end = 0.5,
-  nlim = -1,
-  geometry = "planar",
-  xl = 0.0,
-  xr = 1.0,
   cfl = 0.1,
-  nx = 128,
-  grid_type = "uniform",
 
   params = {
     v0 = -1.0,
     rho0 = 1.0,
     p0 = 1.000000e-06,
   },
+}
+
+config.mesh = {
+  geometry = "planar",
+  nx = 128,
+  xl = 0.0,
+  xr = 1.0,
+  grid_type = "uniform",
 }
 
 config.physics = {
@@ -60,6 +61,8 @@ config.fluid = {
 }
 
 config.time = {
+  t_end = 0.5,
+  nlim = -1,
   integrator = "EX_SSPRK22",
 }
 

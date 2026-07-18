@@ -2,19 +2,20 @@ local config = {}
 
 config.problem = {
   name = "hydrostatic_balance",
-  t_end = 600.0,
-  nlim = -1,
-  geometry = "spherical",
-  xl = 0.0,
-  xr = 7.000000e+08,
   cfl = 0.5,
-  nx = 1024,
-  grid_type = "uniform",
 
   params = {
     rho_c = 150.0,
     p_threshold = 0.2,
   },
+}
+
+config.mesh = {
+  geometry = "spherical",
+  nx = 1024,
+  xl = 0.0,
+  xr = 7.000000e+08,
+  grid_type = "uniform",
 }
 
 config.physics = {
@@ -62,6 +63,8 @@ config.gravity = {
 }
 
 config.time = {
+  t_end = 600.0,
+  nlim = -1,
   integrator = "EX_SSPRK54",
 }
 

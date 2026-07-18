@@ -58,7 +58,7 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
                    "Problem 'supernova' requires ionization enabled!");
   athelas_requires(pin->param()->get<bool>("physics.gravity.enabled"),
                    "Problem 'supernova' requires gravity enabled!");
-  athelas_requires(pin->param()->get<std::string>("problem.geometry") ==
+  athelas_requires(pin->param()->get<std::string>("mesh.geometry") ==
                        "spherical",
                    "Problem 'supernova' requires spherical geometry!");
 
@@ -221,8 +221,8 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   }
 
   // --- Rebuild the mesh after making the mass cut. ---
-  auto &xl = pin->param()->get_mutable_ref<double>("problem.xl");
-  auto &xr = pin->param()->get_mutable_ref<double>("problem.xr");
+  auto &xl = pin->param()->get_mutable_ref<double>("mesh.xl");
+  auto &xr = pin->param()->get_mutable_ref<double>("mesh.xr");
   xl = r_cut;
   xr = rstar;
   auto newgrid = Mesh(pin);
@@ -505,7 +505,7 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   // needed in the Saha solves to come.
   mesh->compute_mass_measure(evolved);
   auto basis_tmp = std::make_unique<basis::NodalBasis>(
-      derived, mesh, nNodes, pin->param()->get<int>("problem.nx"));
+      derived, mesh, nNodes, pin->param()->get<int>("mesh.nx"));
   mesh_state.setup_basis(std::move(basis_tmp));
 
   // There is one subtelty that must be taken care of:
