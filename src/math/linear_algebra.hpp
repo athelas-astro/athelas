@@ -34,9 +34,9 @@ using PivotStore = Kokkos::View<int *, Layout, MemSpace>; // [m]
  * iteration.
  *
  * @param du      2D Kokkos view of shape (nx, 4*nNodes) containing the Newton
- * update vector
+ * residual vector
  * @param wgts    1D Kokkos view of length nNodes containing quadrature weights
- * @return Dimensionless L2 norm of the scaled update vector
+ * @return Quadrature- and geometry-weighted L2 norm of the residual
  */
 auto newton_norm_l2(AthelasArray2D<double> du, AthelasArray2D<double> sqrt_gm,
                     AthelasArray1D<double> dr, AthelasArray1D<double> wgts)
@@ -53,6 +53,17 @@ struct ThomasScratch {
 
   // Per-block solve scratch (reused for each block).
   AthelasArray2D<double> Bi_lu; // [m, m]
+  PivotStore piv; // [m], partial-pivot indices for Bi_lu
+
+  // Optional one-element diagnostics. Leave default-constructed outside the
+  // implicit moments solve to avoid diagnostic storage in other callers.
+  AthelasArray1D<int> factor_info;
+  AthelasArray1D<double> min_relative_pivot;
+
+  // Optional two-sided equilibration storage, [N, m].  The solve applies
+  // R * A * C y = R * b and returns x = C y.
+  VecStore row_scale;
+  VecStore col_scale;
 };
 
 /**

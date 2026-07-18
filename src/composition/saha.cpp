@@ -1,10 +1,12 @@
 #include "composition/saha.hpp"
 
+#include <limits>
+
 namespace athelas::atom {
 
 template <eos::EOSInversion Inversion, SahaSolver SolverType>
 void compute_temperature_with_saha(StageData &stage_data, const Mesh &mesh) {
-  using root_finders::AAFixedPointAlgorithm;
+  using root_finders::RegulaFalsiAlgorithm;
   const auto nnodes = mesh.n_nodes();
   const IndexRange ib(mesh.domain<Domain::Interior>());
   const IndexRange qb(nnodes + 2);
@@ -56,8 +58,12 @@ void compute_temperature_with_saha(StageData &stage_data, const Mesh &mesh) {
   auto species_offsets = atomic_data->offsets();
   auto prefix_sum_pots = atomic_data->sum_pots();
 
-  static root_finders::RootFinder<double, AAFixedPointAlgorithm<double>> solver(
-      {.abs_tol = 1.0e-8, .rel_tol = 1.0e-8, .max_iterations = 16});
+  // Bracketed solve of the root-form coupled residual
+  // f(T) = model(rho, T, lambda(T)) - target. abs_tol applies to |f| in
+  // model units (erg/g or dyn/cm^2), where no meaningful absolute scale
+  // exists; disable it and converge on the relative change in T.
+  static root_finders::RootFinder<double, RegulaFalsiAlgorithm<double>> solver(
+      {.abs_tol = 0.0, .rel_tol = 1.0e-10, .max_iterations = 64});
 
   auto phi = basis.phi();
   const std::size_t nstates_total = ionization_fractions.extent(3);
@@ -116,14 +122,75 @@ void compute_temperature_with_saha(StageData &stage_data, const Mesh &mesh) {
                                            q,
                                            target_var};
 
-        double res = solver.solve(temperature_residual<Inversion, SolverType>,
-                                  temperature_guess, rho, eos, content);
-        if (!std::isfinite(res) || res < saha_min_temperature) {
-          static_cast<void>(temperature_residual<Inversion, SolverType>(
-              saha_min_temperature, rho, eos, content));
+        // The coupled residual f(T) = model(rho, T, lambda(T)) - target is
+        // monotone increasing, so its root on a sign-changing bracket is the
+        // consistent temperature. A bracketed solve cannot be trapped by its
+        // starting point: the previous fixed-point iteration was warm-started
+        // from the last accepted temperature, so a cell once pinned at the
+        // 500 K floor re-seeded itself every stage and could not climb back
+        // through the stiff recombination range. A hot interior cell stuck
+        // reading 500 K stops emitting, drains its radiation energy to the
+        // floor one-way, and freezes the implicit transport solve.
+        double res;
+        const double f_floor =
+            coupled_temperature_residual<Inversion, SolverType>(
+                saha_min_temperature, rho, eos, content);
+        if (!std::isfinite(f_floor)) {
+          // Do not reinterpret a failed thermodynamic evaluation as a cold
+          // state. Propagate the failure to the caller.
+          res = std::numeric_limits<double>::quiet_NaN();
+        } else if (!(f_floor < 0.0)) {
+          // The target sits at or below the floor-temperature branch.
           res = saha_min_temperature;
+        } else {
+          constexpr double bracket_widen = 1.5;
+          constexpr double bracket_expand = 8.0;
+          double lo = saha_min_temperature;
+          double hi = saha_max_temperature;
+          bool have_hi = false;
+
+          // Warm probes near the previous temperature tighten the bracket to
+          // a few Saha evaluations in the common quasi-static case.
+          const double t_probe =
+              std::max(temperature_guess / bracket_widen, saha_min_temperature);
+          if (t_probe > saha_min_temperature) {
+            const double f_probe =
+                coupled_temperature_residual<Inversion, SolverType>(
+                    t_probe, rho, eos, content);
+            if (f_probe < 0.0) {
+              lo = t_probe;
+            } else if (std::isfinite(f_probe)) {
+              hi = t_probe;
+              have_hi = true;
+            }
+          }
+          if (!have_hi) {
+            double t_hi =
+                std::min(std::max(bracket_widen * temperature_guess, 1.0e4),
+                         saha_max_temperature);
+            double f_hi = coupled_temperature_residual<Inversion, SolverType>(
+                t_hi, rho, eos, content);
+            while (f_hi < 0.0 && t_hi < saha_max_temperature) {
+              lo = t_hi;
+              t_hi = std::min(bracket_expand * t_hi, saha_max_temperature);
+              f_hi = coupled_temperature_residual<Inversion, SolverType>(
+                  t_hi, rho, eos, content);
+            }
+            hi = t_hi;
+          }
+
+          res =
+              solver.solve(coupled_temperature_residual<Inversion, SolverType>,
+                           lo, hi, temperature_guess, rho, eos, content);
         }
 
+        // Leave the stored ionization state and lambda consistent with the
+        // returned temperature; the solver's last internal evaluation is
+        // generally not at the root it returns.
+        if (std::isfinite(res)) {
+          static_cast<void>(coupled_temperature_residual<Inversion, SolverType>(
+              res, rho, eos, content));
+        }
         derived(i, q, idx_tgas) = res;
       });
 }

@@ -20,6 +20,9 @@
 namespace athelas::atom {
 
 static constexpr double saha_min_temperature = 500.0; // K
+// Upper end of the coupled temperature solve's bracket; matches the
+// Paczynski temperature-inversion ceiling.
+static constexpr double saha_max_temperature = 1.0e12; // K
 static constexpr double NEUTRAL_ZBAR = 1.0e-16;
 
 // NOTE: a lot of logic in here is 1-indexed.
@@ -510,11 +513,15 @@ void set_low_temperature_ionization_state(const double temperature,
       temperature > saha_min_temperature ? temperature : saha_min_temperature;
 }
 
+// Compute the coupled Saha ionization state at a trial temperature, writing
+// the per-cell ionization views and the EOS lambda as side effects. At or
+// below saha_min_temperature this is the floor state: Saha species neutral,
+// non-Saha species fully ionized.
 KOKKOS_FUNCTION
-template <eos::EOSInversion Inversion, SahaSolver SolverType>
-auto temperature_residual(const double temperature, const double rho,
-                          const eos::EOS &eos,
-                          const CoupledSolverContent &content) -> double {
+template <SahaSolver SolverType>
+void compute_coupled_saha_state(const double temperature, const double rho,
+                                const CoupledSolverContent &content,
+                                double *lambda) {
   auto evolved = content.evolved;
   auto derived = content.derived;
 
@@ -557,16 +564,9 @@ auto temperature_residual(const double temperature, const double rho,
   const double N = number_density(i, q);
   const auto abar = content.abar(i, q);
 
-  double lambda[eos::EOS_LAMBDA_SIZE];
-
   if (temperature <= saha_min_temperature) {
     set_low_temperature_ionization_state(temperature, rho, content, lambda);
-    if constexpr (Inversion == eos::EOSInversion::Pressure) {
-      return temperature_from_density_pressure(eos, rho, content.target_var,
-                                               lambda);
-    } else {
-      return temperature_from_density_sie(eos, rho, content.target_var, lambda);
-    }
+    return;
   }
 
   // Loop over Saha species – solve ionization for the Saha subset
@@ -678,21 +678,28 @@ auto temperature_residual(const double temperature, const double rho,
   lambda[eos::paczynski_lambda::sigma3] = sigma3(i, q);
   lambda[eos::paczynski_lambda::e_ion_corr] = e_ion_corr(i, q);
   lambda[eos::EOS_LAMBDA_TEMPERATURE] = temperature;
+}
 
+// Root-form residual of the coupled temperature/ionization system:
+// f(T) = model(rho, T, lambda(T)) - target, with lambda(T) the Saha state
+// evaluated at the trial temperature. Thermal, ionization, and degeneracy
+// contributions all grow with temperature, so f is monotone increasing and
+// its root on a sign-changing bracket is the consistent temperature.
+// Side effect: leaves the stored ionization state evaluated at `temperature`.
+KOKKOS_FUNCTION
+template <eos::EOSInversion Inversion, SahaSolver SolverType>
+auto coupled_temperature_residual(const double temperature, const double rho,
+                                  const eos::EOS &eos,
+                                  const CoupledSolverContent &content)
+    -> double {
+  double lambda[eos::EOS_LAMBDA_SIZE];
+  compute_coupled_saha_state<SolverType>(temperature, rho, content, lambda);
   if constexpr (Inversion == eos::EOSInversion::Pressure) {
-    const double inv_dfdt =
-        1.0 / eos::Paczynski::dp_dt(temperature, rho, lambda);
-    const double f =
-        pressure_from_density_temperature(eos, rho, temperature, lambda) -
-        content.target_var;
-    return temperature - inv_dfdt * f;
+    return pressure_from_density_temperature(eos, rho, temperature, lambda) -
+           content.target_var;
   } else { // sie inversion
-    const double inv_dfdt =
-        1.0 / eos::Paczynski::dsie_dt(temperature, rho, lambda);
-    const double sie =
-        sie_from_density_temperature(eos, rho, temperature, lambda);
-    const double f = sie - content.target_var;
-    return temperature - inv_dfdt * f;
+    return sie_from_density_temperature(eos, rho, temperature, lambda) -
+           content.target_var;
   }
 }
 
