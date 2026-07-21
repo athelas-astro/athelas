@@ -108,15 +108,6 @@ consistent with the *discrete* :math:`\tilde\Pi_h`.
    acceleration. Machine-precision well-balancing requires projecting the
    initial state onto :math:`\tilde\Pi_h`.
 
-The frozen reference mass
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The material invariance of :math:`M(r)` is realized by freezing the
-reference-mass measure :math:`\mu_q` and the enclosed mass at every node at their
-initial values; ``Mesh::reconstruct_mesh`` never recomputes them. The exact
-semi-discrete cancellation of the energy source relies on this, so the mass
-measure must not be recomputed mid-evolution (see ``Mesh::compute_mass_measure``).
-
 Gauge freedom
 ^^^^^^^^^^^^^
 
@@ -240,10 +231,6 @@ correction cancels the committed-state limiter work exactly up to the floor. It
 does **not** remove the per-stage-limiting and temporal residuals described
 above, which is why some drift remains with the correction on.
 
-On the production supernova configuration the correction reduces the
-post-injection total-energy drift by two to three orders of magnitude,
-depending on resolution and integrator.
-
 .. warning::
 
    The correction is **opt-in and off by default** because it is not robust in
@@ -257,11 +244,6 @@ depending on resolution and integrator.
      As the collapse accelerates, the limiter fires hard and the per-cell
      correction grows relative to the tiny internal energy, tipping the run into
      a nonfinite state before the uncorrected run fails.
-   * **Violent radiation-coupled phases with weak dissipation.** With
-     ``ap_coefficient = 0`` the asymptotic-preserving dissipation is off, so
-     violent phases (e.g. thermal-engine injection) leave the radiation solve
-     noisy and the correction cannot cleanly offset the (then very large)
-     limiter mesh work. Use ``ap_coefficient > 0`` on radiation-coupled runs.
 
    Enable the correction on smooth, subsonic, well-resolved problems where
    conservation is the priority, and watch ``Cumulative Limiter Energy Clamp
