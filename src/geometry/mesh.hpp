@@ -64,6 +64,11 @@ class Mesh {
   [[nodiscard]] auto nodal_grid() -> AthelasArray2D<double>;
   [[nodiscard]] auto nodal_grid() const -> AthelasArray2D<double>;
   [[nodiscard]] auto sqrt_gm() const -> AthelasArray2D<double>;
+  // Per-cell flag recorded by reconstruct_mesh: 1 if the interior nodes were
+  // placed by the high-order (monotone) cumulative-volume integral, 0 if the
+  // fixed clamped mass-fraction fallback was used. The gravity energy source
+  // must differentiate the same placement, so it reads this flag.
+  [[nodiscard]] auto node_placement_high_order() const -> AthelasArray1D<int>;
   [[nodiscard]] KOKKOS_INLINE_FUNCTION auto integration_matrix(int i,
                                                                int q) const
       -> double {
@@ -144,6 +149,7 @@ class Mesh {
   AthelasArray2D<double> sqrt_gm_;
   AthelasArray2D<double> integration_matrix_;
   AthelasArray2D<double> grid_;
+  AthelasArray1D<int> node_placement_high_order_;
 
   void build_integration_matrix();
 };

@@ -250,6 +250,8 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   const auto cfl =
       compute_cfl(pin_->param()->get<double>("problem.cfl"), nnodes);
   const bool rad_active = pin->param()->get<bool>("physics.radiation.enabled");
+  const double radiation_ap_coefficient =
+      pin->param()->get<double>("radiation.ap_coefficient", 0.0);
   const bool comps_active =
       pin->param()->get<bool>("physics.composition.enabled");
   const bool ni_heating_active =
@@ -313,6 +315,12 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   mesh_state_.register_field("interface", DataPolicy::Staged,
                              "Interface variables", {"interface_velocity"},
                              nx + 2 + 1, 1);
+
+  // The final mass-matrix-scaled explicit specific-volume RHS. It is shared
+  // across stages because packages publish it immediately before gravity reads
+  // it for the same stage.
+  mesh_state_.register_field("dtau_dt", DataPolicy::OneCopy,
+                             "Specific-volume RHS", nx + 2, nnodes);
 
   // Optical-depth profile field, filled at output cadence (see
   // pre_output_work). The photosphere tracker reads it, so it is registered
@@ -500,10 +508,27 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   }
 
   // --- Add history outputs ---
-  // NOTE: Could be nice to have gravitational energy added
-  // to total, conditionally.
+  // Gravity model and constant-model coefficient for the gravitational
+  // potential. Read here (safe even when gravity is disabled -- total_energy
+  // only consults them when the gravity package is active) so the energy
+  // history uses the same potential the package does.
+  const GravityModel gravity_model =
+      pin_->param()->get<std::string>("gravity.model", "spherical") ==
+              "constant"
+          ? GravityModel::Constant
+          : GravityModel::Spherical;
+  const auto gravity_gval = pin_->param()->get<double>("gravity.gval", 1.0);
+
   history_->add_quantity("Total Mass [g]", analysis::total_mass);
-  history_->add_quantity("Total Energy [erg]", analysis::total_energy);
+
+  // Work around the history function API
+  history_->add_quantity(
+      "Total Energy [erg]",
+      [gravity_model, gravity_gval](const MeshState &mesh_state,
+                                    const Mesh &mesh) {
+        return analysis::total_energy(mesh_state, mesh, gravity_model,
+                                      gravity_gval);
+      });
   history_->add_quantity("Total Fluid Energy [erg]",
                          analysis::total_fluid_energy);
   history_->add_quantity("Total Fluid Momentum [g cm / s]",
@@ -520,8 +545,27 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
                          });
 
   if (gravity_active) {
-    history_->add_quantity("Total Gravitational Energy [erg]",
-                           analysis::total_gravitational_energy);
+    // Work around the history function API
+    history_->add_quantity(
+        "Total Gravitational Energy [erg]",
+        [gravity_model, gravity_gval](const MeshState &mesh_state,
+                                      const Mesh &mesh) {
+          return analysis::total_gravitational_energy(mesh_state, mesh,
+                                                      gravity_model,
+                                                      gravity_gval);
+        });
+    history_->add_quantities(
+        {"Cumulative Limiter Mesh Work [erg]",
+         "Cumulative Limiter Energy Correction [erg]",
+         "Cumulative Limiter Energy Clamp Residual [erg]"},
+        [this](const MeshState &, const Mesh &) {
+          const auto &budget = ssprk_.energy_budget();
+          return std::vector<double>{
+              budget.cumulative_limiter_mesh_work,
+              budget.cumulative_limiter_energy_correction,
+              budget.cumulative_limiter_energy_clamp_residual,
+          };
+        });
   }
 
   if (rad_active) {
@@ -529,12 +573,13 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
                            analysis::total_rad_momentum);
     history_->add_quantity("Total Radiation Energy [erg]",
                            analysis::total_rad_energy);
-    history_->add_quantity(
-        "Radiation Boundary Energy Rate [erg / s]",
-        [this](const MeshState &mesh_state, const Mesh &mesh) {
-          return analysis::radiation_boundary_energy_rate(mesh_state, mesh,
-                                                          bcs_.get());
-        });
+    history_->add_quantity("Radiation Boundary Energy Rate [erg / s]",
+                           [this, radiation_ap_coefficient](
+                               const MeshState &mesh_state, const Mesh &mesh) {
+                             return analysis::radiation_boundary_energy_rate(
+                                 mesh_state, mesh, bcs_.get(),
+                                 radiation_ap_coefficient);
+                           });
   }
 
   // total nickel56, cobalt56, iron56

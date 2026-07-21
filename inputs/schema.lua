@@ -458,6 +458,11 @@ schema.gravity = {
     default = false,
     doc = "Apply gravity as an operator-split source.",
   },
+  limiter_energy_correction = {
+    type = "bool",
+    default = false,
+    doc = "Experimental. Return to the fluid the gravitational potential energy that the end-of-step limiter moves by relocating interior mesh nodes, as a uniform per-cell specific-energy shift clamped to the EOS internal-energy floor. Cancels the committed-state limiter mesh work exactly, but not the per-stage-limiting or temporal residuals, so some drift remains. Not robust in violent/cold-supersonic regimes; see the gravity docs.",
+  },
   gval = {
     type = "double",
     --    default = 1.0,

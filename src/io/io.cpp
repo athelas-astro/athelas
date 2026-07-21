@@ -282,7 +282,8 @@ class HDF5Writer {
 
     for (const auto &field_name : mesh_state.list_fields()) {
       // skip list
-      if (field_name == "interface" || field_name == "eos_lambda_avg") {
+      if (field_name == "interface" || field_name == "eos_lambda_avg" ||
+          field_name == "dtau_dt") {
         continue;
       }
       write_field(mesh_state, field_name, base_group, stage);
