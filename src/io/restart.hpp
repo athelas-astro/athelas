@@ -19,6 +19,7 @@
 
 #include "composition/compdata.hpp"
 #include "geometry/mesh.hpp"
+#include "interface/packages_base.hpp"
 #include "interface/state.hpp"
 #include "io/io.hpp"
 #include "kokkos_types.hpp"
@@ -101,6 +102,14 @@ class RestartReader {
  * @brief Read /info group into a SimInfo struct.
  */
 auto load_info_from_h5(const RestartReader &reader) -> SimInfo;
+
+/**
+ * @brief Read optional package-owned scalar restart state from /package_state.
+ * Missing groups are accepted for checkpoints written before package state was
+ * introduced.
+ */
+auto load_package_restart_scalars(const RestartReader &reader)
+    -> PackageRestartState;
 
 /**
  * @brief Overwrite mesh arrays (centers, widths, x_l, mass, mass_r, sqrt_gm,

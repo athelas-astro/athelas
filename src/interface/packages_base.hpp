@@ -9,7 +9,10 @@
 
 #include <algorithm>
 #include <limits>
+#include <string>
 #include <string_view>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "basic_types.hpp"
@@ -17,6 +20,12 @@
 #include "interface/state.hpp"
 
 namespace athelas {
+
+// Optional, package-owned scalar state that belongs in a restart checkpoint.
+// The outer key is Package::name(); scalar keys are package-local.
+using PackageRestartScalars = std::vector<std::pair<std::string, double>>;
+using PackageRestartState =
+    std::unordered_map<std::string, PackageRestartScalars>;
 
 // Package wrapper that erases types while maintaining performance
 // TODO(astrobarker) move to a CRTP pattern
@@ -99,6 +108,12 @@ class PackageWrapper {
   [[nodiscard]] auto has_implicit() const noexcept -> bool {
     return package_->has_implicit();
   }
+  [[nodiscard]] auto restart_scalars() const -> PackageRestartScalars {
+    return package_->restart_scalars();
+  }
+  void load_restart_scalars(const PackageRestartScalars &scalars) {
+    package_->load_restart_scalars(scalars);
+  }
 
  private:
   struct PackageConcept {
@@ -121,6 +136,12 @@ class PackageWrapper {
     [[nodiscard]] virtual auto is_active() const noexcept -> bool = 0;
     [[nodiscard]] virtual auto has_explicit() const noexcept -> bool = 0;
     [[nodiscard]] virtual auto has_implicit() const noexcept -> bool = 0;
+    [[nodiscard]] virtual auto restart_scalars() const
+        -> PackageRestartScalars {
+      return {};
+    }
+    virtual void
+    load_restart_scalars(const PackageRestartScalars & /*scalars*/) {}
   };
 
   template <PhysicsPackage T>
@@ -175,6 +196,20 @@ class PackageWrapper {
     }
     [[nodiscard]] auto has_implicit() const noexcept -> bool override {
       return has_implicit_update_v<T>;
+    }
+    [[nodiscard]] auto restart_scalars() const
+        -> PackageRestartScalars override {
+      if constexpr (requires(const T &package) { package.restart_scalars(); }) {
+        return package_.restart_scalars();
+      }
+      return {};
+    }
+    void load_restart_scalars(const PackageRestartScalars &scalars) override {
+      if constexpr (requires(T &package, const PackageRestartScalars &values) {
+                      package.load_restart_scalars(values);
+                    }) {
+        package_.load_restart_scalars(scalars);
+      }
     }
 
    private:
@@ -291,6 +326,26 @@ class PackageManager {
       names.push_back(pkg->name());
     }
     return names;
+  }
+
+  [[nodiscard]] auto restart_scalars() const -> PackageRestartState {
+    PackageRestartState state;
+    for (const auto &pkg : all_packages_) {
+      auto scalars = pkg->restart_scalars();
+      if (!scalars.empty()) {
+        state.emplace(std::string(pkg->name()), std::move(scalars));
+      }
+    }
+    return state;
+  }
+
+  void load_restart_scalars(const PackageRestartState &state) {
+    for (const auto &pkg : all_packages_) {
+      const auto found = state.find(std::string(pkg->name()));
+      if (found != state.end()) {
+        pkg->load_restart_scalars(found->second);
+      }
+    }
   }
 
   /**

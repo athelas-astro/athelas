@@ -1,254 +1,240 @@
 Gravity
 =======
 
-Athelas evolves Newtonian self-gravity in spherical symmetry, with a constant
-gravitational acceleration available for test problems. Gravity is implemented
-as a *package*: it contributes a momentum source and an energy source to every
-explicit stage, and is registered automatically when ``physics.gravity = true``.
-The configuration options are collected under :ref:`gravity-configuration` at
-the end of this page.
+Overview
+--------
+
+Athelas provides Newtonian gravity as an explicit physics package. The default
+*coupled* formulation is designed for spherical self-gravity: it holds
+hydrostatic balance to the order of the scheme and conserves fluid plus
+gravitational energy in the semi-discrete limit. A constant acceleration model
+is also available for test problems.
+
+Enable gravity with ``physics.gravity = true``. Coupled gravity is the
+recommended mode. ``gravity.operator_split = true`` is a deliberately simpler
+compatibility mode; it uses a direct velocity kick and gives up well-balancing
+and total-energy conservation. The available options are summarized in
+:ref:`gravity-configuration`.
 
 Physical model
 --------------
 
-In spherical symmetry the gravitational acceleration at radius :math:`r` is
+Gravity enters through the Newtonian potential :math:`\varphi`. In spherical
+symmetry,
 
 .. math::
 
-   g(r) = -\frac{G M(r)}{r^2},
+   \varphi(r) = -\frac{G M(r)}{r},
 
-where :math:`M(r)` is the mass enclosed within :math:`r`. For the ``constant``
-model :math:`g` is a fixed input, independent of :math:`r`.
-
-Gravity enters the evolution as source terms in the momentum and total-energy
-equations. Athelas is Lagrangian, so the independent spatial variable is the
-mass coordinate :math:`m` rather than the radius, and the evolved fluid state is
-the specific volume :math:`\tau`, velocity :math:`v`, and specific total energy
-:math:`E`. Neglecting the pressure terms (which the hydro package supplies),
-gravity accelerates each fluid element and does work on it as it moves:
+where :math:`M(r)` is the mass enclosed within :math:`r`; the ``constant``
+model uses :math:`\varphi(r) = g_{\rm val}\,r`. The acceleration is minus its
+gradient,
 
 .. math::
 
-   \left(\frac{\partial v}{\partial t}\right)_{\!g} = g ,
+   g = -\frac{\partial\varphi}{\partial r},
+
+recovering :math:`g = -GM/r^2` and :math:`g = -g_{\rm val}` respectively.
+
+Gravity contributes acceleration and work to the Lagrangian fluid equations:
+
+.. math::
+
+   \frac{\partial v}{\partial t} = -\frac{\partial\varphi}{\partial r} ,
    \qquad
-   \left(\frac{\partial E}{\partial t}\right)_{\!g} = g\,v .
+   \frac{\partial E}{\partial t} = -v\,\frac{\partial\varphi}{\partial r} .
 
-These two terms --- the acceleration :math:`g` and the rate of work
-:math:`g\,v` --- are what the package supplies to each stage. Everything in the
-numerical model below is how they are discretized.
-
-Because the mesh is Lagrangian, each element carries a fixed mass, so the
-enclosed mass :math:`M(r)` at a given element is materially conserved --- it does
-not change as the star expands or contracts. Self-gravity is thus a function of
-the *fixed* mass distribution and the *evolving* nodal radii alone.
-
-The total energy the scheme conserves is the sum of fluid (kinetic plus
-internal), radiation, and gravitational potential energy,
-
-.. math::
-
-   W = -\int \frac{G M}{r}\,\mathrm{d}m .
-
-The numerical construction below is built so that the discrete analogue of
-:math:`W` is conserved together with the fluid and radiation energy.
+Here :math:`v` is velocity and :math:`E` is specific total fluid energy.
 
 Numerical model
 ---------------
 
-A pointwise discretization of :math:`g` and :math:`g\,v` would neither preserve
-hydrostatic balance nor conserve the discrete potential energy. Athelas instead
-recasts both sources through a single discrete object, the *gravity pressure*
-:math:`\tilde\Pi` (the symbol :math:`\Pi` is reserved for the stress tensor, of
-which this is nominally the gravitational part), defined so that in the continuum
+Coupled gravity
+^^^^^^^^^^^^^^^
+
+A pointwise discretization of these source terms would neither preserve
+hydrostatic balance nor conserve the discrete potential energy.
+We seek a representation of gravitational sources that is consistent with the
+operators used for the hydrodynamic flux divergence and geometric source.
+Moreover, in the Lagrangian picture, the gravitational potential evolves
+through mesh advection, so any treatment of gravity must be consistent with
+mesh motion.
+The coupled package builds a *gravity pressure* :math:`\tilde\Pi`, defined in
+the continuum by
 
 .. math::
 
-   g = \sqrt{\gamma} \, \partial_m \tilde\Pi ,
+   \frac{\partial\tilde\Pi}{\partial r}
+     = -\rho\,\frac{\partial\varphi}{\partial r} .
 
-with :math:`\sqrt{\gamma} = r^2` the spherical metric factor and :math:`m` the
-mass coordinate. Discretely, :math:`\tilde\Pi` is built by a reverse scan over
-cells, inward from the outer boundary, as the transpose of the mesh
-reconstruction:
+This is precisely the equation of hydrostatic equilibrium: :math:`\tilde\Pi` is
+the pressure profile that balances the potential :math:`\varphi`. Equilibrium is
+therefore the statement :math:`P = \tilde\Pi + \text{constant}`.
+In the mass coordinate, dropping factors of :math:`4\pi` so that
+:math:`\mathrm{d}m = \rho\sqrt{\gamma}\,\mathrm{d}r` and :math:`\sqrt{\gamma}=r^2`
+in spherical geometry, this reads
 
 .. math::
 
-   M \tilde\Pi = J^{\mathsf T} M f , \qquad f = -g/\sqrt{\gamma} ,
+   \partial_m \tilde\Pi = -\rho\,\partial_m\varphi .
 
-where :math:`M` is the diagonal nodal mass matrix, with entries
-:math:`M_q = w_q \mu_q`, and :math:`J` is the tangent of the map from specific
-volume :math:`\tau` to the volume coordinate :math:`X = r^3/3`. Making
-:math:`\tilde\Pi` the exact discrete adjoint of the reconstruction --- rather
-than a merely consistent approximation --- is what lets the energy source
-conserve energy at second order and above.
+Discretely, :math:`\tilde\Pi` is built as the gravitational analogue of a
+pressure. A gas pressure is how the internal energy resists compression;
+:math:`\tilde\Pi` is how the *gravitational* energy resists it. Let
+:math:`W_h=\sum_q M_q\,\varphi(r_q)` be the discrete gravitational energy
+(nodal mass :math:`M_q=w_q\mu_q` times the potential at each node), and define
+
+.. math::
+
+   M\tilde\Pi = \frac{\partial W_h}{\partial\tau} .
+
+Nudging the specific volume :math:`\tau` in a cell repacks the gas, which moves
+the nodes and so shifts where mass sits in the potential; :math:`\tilde\Pi` is
+precisely how much :math:`W_h` responds. That is exactly the sense in which the
+gas and gravity pressures balance in equilibrium.
+
+Computing that response is a single **inward sweep**.
+The change in :math:`W_h` at a cell accumulates the
+gravitational pull of everything exterior to it, which the package assembles as
+one surface-to-centre running sum. Formally that sum is the transpose of the
+mesh reconstruction :math:`r(\tau)` -- the map that integrates :math:`\mu\tau`
+to the volume coordinate :math:`X=r^3/3`. Writing
+:math:`J_X=\partial X/\partial\tau` for its tangent (the same object that
+advances the grid, :math:`\dot r=J_X\dot\tau/r^2`) and
+:math:`f=\rho\,\partial_m\varphi=\partial\varphi/\partial X` for the force per
+unit volume coordinate,
+
+.. math::
+
+   M\tilde\Pi = J_X^{\mathsf T} M f ,
+
+which is the **adjoint** of the reconstruction.
+
+Building :math:`\tilde\Pi` this way is what makes the scheme *conservative*.
+Any :math:`\tilde\Pi` obeying the
+continuum relation above would balance the momentum equation for a hydrostatic
+state, but only the exact adjoint satisfies
+:math:`\dot W_h=\tilde\Pi^{\mathsf T} M\dot\tau`: the gravity work returned to the
+fluid then equals the rate of change of the discrete potential energy, term for
+term. That identity is the engine of the energy source below.
+
+Well-balancing
+~~~~~~~~~~~~~~
+
+The momentum source applies the same weak divergence operator to
+:math:`\tilde\Pi` that hydro applies to fluid pressure :math:`P`. For a discrete
+state satisfying
+
+.. math::
+
+   P_h - \tilde\Pi_h = \mathrm{constant} ,
+
+the interior (volume) and curvature parts of the two operators cancel term for
+term to roundoff -- the payoff of building :math:`\tilde\Pi` as the exact
+adjoint. What survives is a residual confined to the cell faces, because the two
+packages compute the face pressure by different rules: gravity uses a single
+continuous scan value, while hydro uses a Riemann solve of two independently
+reconstructed traces. These agree at the boundaries -- the inner face carries
+:math:`\sqrt\gamma = 0`, and the outer face is exact under the surface gauge
+with a matching surface pressure -- but only to truncation order at interior
+faces.
+
+The balance is therefore high order in the mesh spacing, not exact to
+roundoff: the spurious equilibrium acceleration converges away under
+refinement at the order of the scheme. That convergence, rather than a
+machine-zero residual, is the operative well-balancing criterion.
+Making the balance exact would additionally require the fluid flux to reuse
+:math:`\tilde\Pi` at the face -- a hydrostatic-reconstruction-style well-balanced
+flux -- which is a possible extension, not the current scheme.
+
+Gauge choice
+~~~~~~~~~~~~
+
+:math:`\tilde\Pi` is defined up to a constant. Both the momentum and energy
+operators are invariant under :math:`\tilde\Pi\to\tilde\Pi+c`: the constant
+cancels in the weak momentum operator, and the energy contribution reduces to
+the discrete specific-volume identity. We take
+:math:`\tilde\Pi=0` at the stellar surface, where :math:`P\to0`; this avoids
+subtractive cancellation in :math:`P-\tilde\Pi`.
+
+Energy conservation
+~~~~~~~~~~~~~~~~~~~
+
+The coupled energy source uses a weak product rule,
+
+.. math::
+
+   M\dot E_g = \mathcal{D}_h(\sqrt{\gamma}\,v\tilde\Pi)
+                - M(\tilde\Pi\dot\tau),
+
+assembled as ``(face - volume - dilatation)``. The face term telescopes across
+cells, the summed volume term vanishes, and the dilatation term is
+:math:`\tilde\Pi^{\mathsf T}M\dot\tau`. Therefore the total gravity work is
+exactly :math:`-\mathrm{d}W_h/\mathrm{d}t` in the semi-discrete sense.
+
+The hydro or IMEX rad-hydro package publishes the complete mass-matrix-scaled
+specific-volume RHS in ``dtau_dt`` earlier in the same Runge--Kutta stage.
+Hydro must be registered before coupled gravity. This same-stage dependency is
+why the weak source cannot be used as an operator-split package.
+
+Operator-split gravity
+^^^^^^^^^^^^^^^^^^^^^^
+
+Split gravity holds the mesh fixed and applies a direct kick after the hydro
+step. With :math:`g` evaluated on that post-hydro mesh, it uses
+
+.. math::
+
+   v^{n+1}=v^n+g\Delta t, \qquad
+   E^{n+1}=E^n+\tfrac12\big[(v^{n+1})^2-(v^n)^2\big].
+
+This leaves specific internal energy unchanged to roundoff. It does *not* move
+the mesh or update :math:`W_h`, so it is not well-balanced and does not conserve
+fluid plus gravitational energy. The limiter-energy correction is unavailable
+in split mode.
 
 .. note::
 
-   :math:`M_q` (a bare node subscript) is the mass-matrix diagonal; :math:`M(r)`
-   (a function of radius) is the enclosed mass. They are different objects that
-   share the letter :math:`M`.
+   Operator splitting is not recommended for gravity. The gravity update is not
+   a large computational expense, so there is no real gain and a demonstrable
+   loss of accuracy.
 
-The **momentum source** discretizes :math:`g` by applying the same weak pressure
-operator to :math:`\tilde\Pi` that the hydro package applies to the fluid
-pressure :math:`P`. Consequently any state with
+Diagnostics and conservation
+----------------------------
 
-.. math::
-
-   P_h - \tilde\Pi_h = \mathrm{constant}
-
-is annihilated exactly, to roundoff. This is the well-balancing property, and it
-holds for **any** :math:`\tilde\Pi` --- what matters is that the initial data be
-consistent with the *discrete* :math:`\tilde\Pi_h`.
-
-.. note::
-
-   A hydrostatic profile obtained by integrating the ODE
-   :math:`\mathrm{d}P/\mathrm{d}r = -G M \rho / r^2` and sampling it at the
-   nodes is **not** exactly :math:`\tilde\Pi_h + \text{const}`. It agrees only to
-   truncation order, so such an initial condition carries a residual
-   acceleration. Machine-precision well-balancing requires projecting the
-   initial state onto :math:`\tilde\Pi_h`.
-
-Gauge freedom
-^^^^^^^^^^^^^
-
-:math:`\tilde\Pi` is only defined up to an additive constant, and both operators
-are exactly invariant under :math:`\tilde\Pi \to \tilde\Pi + c`:
-
-* In the momentum operator the flux and curvature terms cancel term by term.
-* In the energy source the cell total of a constant :math:`\tilde\Pi` is
-  :math:`c\,[(\sqrt{\gamma}_R\, v^*_R - \sqrt{\gamma}_L\, v^*_L) -
-  \sum_q M_q \dot\tau_q]`, which vanishes identically because the bracket is an
-  exact identity of the discrete specific-volume equation.
-
-The reverse scan anchors :math:`\tilde\Pi = 0` at the stellar surface. For a
-star this is the well-conditioned choice, since :math:`P \to 0` there as well, so
-the constant is small and :math:`P - \tilde\Pi` involves no catastrophic
-cancellation.
-
-The energy source
-^^^^^^^^^^^^^^^^^
-
-The gravitational work :math:`g\,v` is applied in weak form, as a discrete
-product rule rather than pointwise:
-
-.. math::
-
-   M \dot E_g = -\mathcal{D}_h(\sqrt{\gamma}\, v \tilde\Pi)
-                + M (\tilde\Pi \dot\tau) ,
-
-assembled per test function as ``(face - volume - dilatation)``. Summed over the
-nodal test functions of a cell:
-
-* the face term telescopes across cells, because
-  :math:`\sum_q \phi_q = 1` at each face, leaving only boundary work;
-* the volume term vanishes identically, because
-  :math:`\sum_q \phi_q' = 0`;
-* the dilatation term reproduces :math:`\tilde\Pi^{\mathsf T} M \dot\tau`.
-
-The result is that the total gravitational work is exactly
-:math:`-\mathrm{d}W_h/\mathrm{d}t`, where
-
-.. math::
-
-   W_h = \sum_q M_q \varphi_q , \qquad \varphi_q = -G\, M(r_q) / r_q
-
-is the discrete gravitational potential energy reported as
-``Total Gravitational Energy`` in the history file (here :math:`M_q` is the
-mass-matrix diagonal and :math:`M(r_q)` the enclosed mass). **This identity is
-exact in the semi-discrete sense**, not merely consistent, which is why the weak
-form is preferred over a direct :math:`g\,v` source.
-
-The :math:`\dot\tau` used in the dilatation term is the complete
-mass-matrix-scaled specific-volume right-hand side --- including both face lifts
-and the volume term --- which the hydro (or IMEX rad-hydro) package publishes
-into the ``dtau_dt`` field earlier in the same stage. Hydro must therefore be
-registered before gravity, and the source cannot run operator-split (it would
-consume a stale right-hand side).
-
-Sources of residual error
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Since the semi-discrete identity is exact, any measured drift in total energy
-comes from one of the following. Each is diagnosed by a history column.
+The history file reports ``Total Gravitational Energy [erg]`` as the discrete
+form of :math:`W = \int\varphi\,\mathrm{d}m`, using the same potential
+:math:`\varphi` as the source. Together with total fluid and radiation energy,
+this is the conservation audit for coupled gravity.
 
 Limiter mesh work
-   The limiters preserve the mass-weighted cell average, so cell *faces* do not
-   move. But changing the :math:`\tau` profile within a cell relocates the
-   *interior nodes*, since node position is defined by
-   :math:`X_q = X_L + \sum_p I_{qp} \mu_p \tau_p`. Moving nodes changes
-   :math:`W_h` with no compensating source --- a form of limiter dissipation.
-   ``Cumulative Limiter Mesh Work`` reports this for the **end-of-step limiter
-   block on the committed state**, and is the quantity the limiter energy
-   correction below cancels. The per-stage limiters act on discarded
-   intermediate RK states, so their :math:`W_h` changes are not committed
-   non-conservation --- they reach the committed state only indirectly, through
-   the stage right-hand sides, and are not reported here.
+^^^^^^^^^^^^^^^^^
 
-   .. important::
-
-      This argument requires the limiter to be conservative with respect to the
-      **mass-weighted** average :math:`\sum_q w_q \mu_q U_q`, which is what
-      ``conservative_correction`` enforces. A limiter that instead preserves the
-      plain average :math:`\sum_q w_q U_q` will change the cell volume increment
-      and displace every face outward of it.
-
-Per-stage limiting and temporal error
-   :math:`W_h` is a nonlinear function of the nodal radii, so a Runge-Kutta step
-   conserves it only to the order of the integrator; and the per-stage limiters
-   perturb the stage right-hand sides. Neither is captured by the committed-state
-   mesh-work metric or its correction, so a residual drift remains even with the
-   correction on. Both converge away under timestep refinement.
+Limiters preserve each cell's mass-weighted average, so they do not move cell
+faces. They can nevertheless reshape :math:`\tau` within a cell, relocate its
+interior nodes, and change :math:`W_h` without a physical energy source.
+``Cumulative Limiter Mesh Work [erg]`` measures this change for the
+end-of-step limiter block on the committed state.
 
 Limiter energy correction
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The committed-state limiter mesh work above is a genuine non-conservation: the
-limiter changes :math:`W_h` with no source. Enabling
-``gravity.limiter_energy_correction`` (default off) returns it. After the
-end-of-step limiter block, for each cell the correction computes the exact
-potential change the limiter caused,
+``gravity.limiter_energy_correction`` returns the committed limiter's potential
+change to the fluid. For each cell it computes
 
 .. math::
 
-   \delta W_i = 4\pi \sum_q w_q \mu_q
-       \big[ \varphi(r_q^{\text{new}}) - \varphi(r_q^{\text{old}}) \big],
+   \delta W_i = 4\pi\sum_q w_q\mu_q
+      \left[\varphi(r_q^{\rm new})-\varphi(r_q^{\rm old})\right]
 
-using the same potential :math:`\varphi` as ``Total Gravitational Energy``
-(:math:`-G\, M(r) / r` for spherical self-gravity, :math:`+G\,g_{\rm val}\,r`
-for the constant model), and subtracts :math:`\delta W_i / m_i` uniformly from
-that cell's specific energy. Because only :math:`\tau` moves the mesh, correcting
-:math:`E` has no geometric feedback: it changes only the cell-average level of
-:math:`E`, not the limiter's shape, and cannot move :math:`W_h`.
+and adds :math:`-\delta W_i/m_i` uniformly to the cell's specific energy. The
+correction is clamped at the EOS internal-energy floor. The associated history
+columns are ``Cumulative Limiter Energy Correction [erg]`` and
+``Cumulative Limiter Energy Clamp Residual [erg]``. They satisfy
 
-The correction is clamped so the specific internal energy stays at or above the
-EOS floor ``min_sie(eos, rho, lambda)`` at every node --- it never removes more
-than a cell's available internal energy. The applied amount is reported as
-``Cumulative Limiter Energy Correction`` and the shortfall the clamp prevents
-(the residual non-conservation) as ``Cumulative Limiter Energy Clamp Residual``.
-By construction the reported quantities satisfy
-:math:`\text{correction} + \text{clamp residual} = -\,\text{mesh work}`, so the
-correction cancels the committed-state limiter work exactly up to the floor. It
-does **not** remove the per-stage-limiting and temporal residuals described
-above, which is why some drift remains with the correction on.
+.. math::
 
-.. warning::
-
-   The correction is **opt-in and off by default** because it is not robust in
-   every regime. It adjusts the total energy :math:`E` at the gravitational
-   scale, and in flows where the specific internal energy
-   :math:`e = E - \tfrac{1}{2}v^2` is a small difference of large numbers, that
-   adjustment can destabilize the solution even though the EOS floor is
-   respected. Two regimes seen to misbehave:
-
-   * **Supersonic cold collapse** (e.g. the pressureless dust-collapse test).
-     As the collapse accelerates, the limiter fires hard and the per-cell
-     correction grows relative to the tiny internal energy, tipping the run into
-     a nonfinite state before the uncorrected run fails.
-
-   Enable the correction on smooth, subsonic, well-resolved problems where
-   conservation is the priority, and watch ``Cumulative Limiter Energy Clamp
-   Residual`` --- a growing clamp residual signals the correction is being
-   fought by the internal-energy floor.
+   \text{correction}+\text{clamp residual}=-\text{mesh work}.
 
 .. _gravity-configuration:
 
@@ -261,15 +247,10 @@ Enable the package and select a model:
 
    config.physics = { gravity = true }
    config.gravity = {
-     model = "spherical",              -- or "constant"
-     gval  = 1000.0,                   -- required for model = "constant"
-     limiter_energy_correction = false, -- opt-in; see "Limiter energy correction"
+     model = "spherical",               -- or "constant"
+     gval = 1000.0,                     -- acceleration [cm s^-2], for "constant"
+     operator_split = false,            -- coupled gravity is recommended
+     limiter_energy_correction = false, -- opt-in
    }
 
-.. warning::
-
-   ``gravity.operator_split = true`` is not supported. The energy source
-   consumes the specific-volume right-hand side published by the hydro package
-   within the same stage, which an operator-split package cannot see.
-
-See :doc:`schema_reference` for the full ``config.gravity`` table.
+See :doc:`schema_reference` for the complete option table.

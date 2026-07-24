@@ -99,8 +99,8 @@ auto Driver::execute() -> int {
                    .last_out_hist = 0};
   if (!restart_) {
     pre_output_work();
-    write_output(mesh_state_, mesh_state_.mesh(), &sl_hydro_, pin_.get(), info,
-                 0);
+    write_output(mesh_state_, mesh_state_.mesh(), manager_.get(),
+                 split_manager_.get(), &sl_hydro_, pin_.get(), info, 0);
     history_->write(mesh_state_, mesh_state_.mesh(), time_);
   }
 
@@ -119,8 +119,12 @@ auto Driver::execute() -> int {
     dt_info.cycle = cycle;
 
     if (!fixed_dt) {
-      dt_ = std::min(manager_->min_timestep(mesh_state_(0), dt_info),
-                     dt_ * dt_growth_frac);
+      double physics_dt = manager_->min_timestep(mesh_state_(0), dt_info);
+      if (operator_split_physics_) {
+        physics_dt = std::min(
+            physics_dt, split_manager_->min_timestep(mesh_state_(0), dt_info));
+      }
+      dt_ = std::min(physics_dt, dt_ * dt_growth_frac);
     } else {
       dt_ = pin_->param()->get<double>("output.dt_fixed");
     }
@@ -195,8 +199,9 @@ auto Driver::execute() -> int {
               .last_cycle = cycle,
               .last_out_h5 = i_out_h5,
               .last_out_hist = last_out_hist};
-      write_output(mesh_state_, mesh_state_.mesh(), &sl_hydro_, pin_.get(),
-                   info, i_out_h5);
+      write_output(mesh_state_, mesh_state_.mesh(), manager_.get(),
+                   split_manager_.get(), &sl_hydro_, pin_.get(), info,
+                   i_out_h5);
       i_out_h5 += 1;
     }
 
@@ -229,8 +234,8 @@ auto Driver::execute() -> int {
           .last_cycle = cycle - 1,
           .last_out_h5 = i_out_h5 - 1,
           .last_out_hist = i_out_hist - 1};
-  write_output(mesh_state_, mesh_state_.mesh(), &sl_hydro_, pin_.get(), info,
-               -1);
+  write_output(mesh_state_, mesh_state_.mesh(), manager_.get(),
+               split_manager_.get(), &sl_hydro_, pin_.get(), info, -1);
 
   return AthelasExitCodes::SUCCESS;
 }
@@ -351,6 +356,7 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
     // fields are loaded and before any package queries comps()/ion_state().
     io::RestartReader reader(restart_filename_);
     restart_info_ = io::load_info_from_h5(reader);
+    restart_package_state_ = io::load_package_restart_scalars(reader);
 
     if (comps_active) {
       const auto ncomps = pin->param()->get<int>("composition.ncomps");
@@ -488,6 +494,11 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
     operator_split_physics_ = true;
   }
 
+  if (restart_) {
+    manager_->load_restart_scalars(restart_package_state_);
+    split_manager_->load_restart_scalars(restart_package_state_);
+  }
+
   auto registered_pkgs = manager_->get_package_names();
   auto split_pkgs = split_manager_->get_package_names();
   std::print("# Registered Packages ::");
@@ -522,13 +533,12 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
   history_->add_quantity("Total Mass [g]", analysis::total_mass);
 
   // Work around the history function API
-  history_->add_quantity(
-      "Total Energy [erg]",
-      [gravity_model, gravity_gval](const MeshState &mesh_state,
-                                    const Mesh &mesh) {
-        return analysis::total_energy(mesh_state, mesh, gravity_model,
-                                      gravity_gval);
-      });
+  history_->add_quantity("Total Energy [erg]",
+                         [gravity_model, gravity_gval](
+                             const MeshState &mesh_state, const Mesh &mesh) {
+                           return analysis::total_energy(
+                               mesh_state, mesh, gravity_model, gravity_gval);
+                         });
   history_->add_quantity("Total Fluid Energy [erg]",
                          analysis::total_fluid_energy);
   history_->add_quantity("Total Fluid Momentum [g cm / s]",
@@ -546,24 +556,28 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
 
   if (gravity_active) {
     // Work around the history function API
-    history_->add_quantity(
-        "Total Gravitational Energy [erg]",
-        [gravity_model, gravity_gval](const MeshState &mesh_state,
-                                      const Mesh &mesh) {
-          return analysis::total_gravitational_energy(mesh_state, mesh,
-                                                      gravity_model,
-                                                      gravity_gval);
-        });
+    history_->add_quantity("Total Gravitational Energy [erg]",
+                           [gravity_model, gravity_gval](
+                               const MeshState &mesh_state, const Mesh &mesh) {
+                             return analysis::total_gravitational_energy(
+                                 mesh_state, mesh, gravity_model, gravity_gval);
+                           });
+  }
+
+  // The limiter mesh-work diagnostics accompany the (opt-in) coupled limiter
+  // energy correction; they are only measured when it is enabled.
+  if (gravity_active &&
+      pin->param()->get<bool>("gravity.limiter_energy_correction", false)) {
+    const auto *const grav = manager_->get_package<GravityPackage>("Gravity");
     history_->add_quantities(
         {"Cumulative Limiter Mesh Work [erg]",
          "Cumulative Limiter Energy Correction [erg]",
          "Cumulative Limiter Energy Clamp Residual [erg]"},
-        [this](const MeshState &, const Mesh &) {
-          const auto &budget = ssprk_.energy_budget();
+        [grav](const MeshState &, const Mesh &) {
           return std::vector<double>{
-              budget.cumulative_limiter_mesh_work,
-              budget.cumulative_limiter_energy_correction,
-              budget.cumulative_limiter_energy_clamp_residual,
+              grav->cumulative_limiter_mesh_work(),
+              grav->cumulative_limiter_energy_correction(),
+              grav->cumulative_limiter_energy_clamp_residual(),
           };
         });
   }
@@ -699,6 +713,22 @@ void Driver::post_init_work() {
  *  - In debug mode calls check_state
  */
 void Driver::post_step_work() {
+  // Return the gravitational energy the end-of-step limiter moved: the W_h
+  // change bracketed by the timestepper's pre-limiter radius snapshot and the
+  // current (post-limiter) mesh. Done here (once per step, after the RK and any
+  // operator-split substeps) rather than in the timestepper, which only takes
+  // the snapshot. Coupled gravity with the correction enabled; a split package
+  // is not in manager_.
+  if (auto *const grav =
+          manager_->get_package<gravity::GravityPackage>("Gravity");
+      grav != nullptr && grav->is_active() && grav->corrects_limiter_energy()) {
+    auto sd0 = mesh_state_(0);
+    grav->apply_limiter_energy_correction(
+        sd0, mesh_state_.mesh(), sd0.get_field("evolved"),
+        mesh_state_.var_index("evolved", "velocity"),
+        mesh_state_.var_index("evolved", "specific_total_fluid_energy"));
+  }
+
   bool &thermal_engine_active =
       pin_->param()->get_mutable_ref<bool>("physics.engine.thermal.enabled");
 
@@ -735,8 +765,8 @@ void Driver::post_step_work() {
                            .last_cycle = -1,
                            .last_out_h5 = -1,
                            .last_out_hist = -1};
-    write_output(mesh_state_, mesh_state_.mesh(), &sl_hydro_, pin_.get(), info,
-                 -1);
+    write_output(mesh_state_, mesh_state_.mesh(), manager_.get(),
+                 split_manager_.get(), &sl_hydro_, pin_.get(), info, -1);
   }
 #endif
 } // post_step_work

@@ -10,7 +10,6 @@
 
 #pragma once
 
-
 #include "geometry/mesh.hpp"
 #include "kokkos_types.hpp"
 #include "limiters/slope_limiter.hpp"
@@ -27,23 +26,6 @@ struct TimeStepInfo;
 class TimeStepper {
 
  public:
-  struct EnergyBudget {
-    // Change in the discrete gravitational potential energy W_h caused purely
-    // by the limiters moving interior nodes. The limiters preserve the
-    // mass-weighted cell average (see conservative_correction), so cell faces
-    // do not move; but any change to the tau profile relocates the interior
-    // nodes through X_q = X_L + sum_p I(q,p) mu_p tau_p, and W_h depends on the
-    // nodal radii. No source term accounts for this, so it is a pure
-    // conservation defect -- a form of limiter dissipation.
-    double limiter_mesh_work_step{};
-    double cumulative_limiter_mesh_work{};
-    // Energy the limiter energy correction returned to the fluid, and the
-    // portion the EOS internal-energy floor prevented returning (residual
-    // non-conservation). Both zero unless gravity.limiter_energy_correction.
-    double cumulative_limiter_energy_correction{};
-    double cumulative_limiter_energy_clamp_residual{};
-  };
-
   explicit TimeStepper(const ProblemIn *pin);
 
   void initialize_timestepper();
@@ -76,7 +58,6 @@ class TimeStepper {
 
   [[nodiscard]] auto n_stages() const noexcept -> int;
   [[nodiscard]] static auto nvars_evolved(const ProblemIn *pin) noexcept -> int;
-  [[nodiscard]] auto energy_budget() const noexcept -> const EnergyBudget &;
 
  private:
   void reset_stage_sumvar(AthelasArray3D<double> u0, const IndexRange &ib,
@@ -110,7 +91,6 @@ class TimeStepper {
 
   // Per-stage accumulated inner-face radius for mesh reconstruction.
   AthelasArray1D<double> x_inner_sumvar_;
-  EnergyBudget energy_budget_{};
 };
 
 } // namespace athelas

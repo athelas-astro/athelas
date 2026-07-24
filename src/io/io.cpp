@@ -13,6 +13,7 @@
 
 #include "build_info.hpp"
 #include "geometry/mesh.hpp"
+#include "interface/packages_base.hpp"
 #include "limiters/slope_limiter.hpp"
 
 namespace athelas {
@@ -346,7 +347,9 @@ class HDF5Writer {
   }
 };
 
-void write_output(const MeshState &mesh_state, Mesh &mesh, ProblemIn *pin,
+void write_output(const MeshState &mesh_state, Mesh &mesh,
+                  const PackageManager *packages,
+                  const PackageManager *split_packages, ProblemIn *pin,
                   const std::string &filename, const SimInfo &info) {
   HDF5Writer writer(filename);
 
@@ -357,6 +360,7 @@ void write_output(const MeshState &mesh_state, Mesh &mesh, ProblemIn *pin,
   writer.create_group("/metadata");
   writer.create_group("/info");
   writer.create_group("/basis");
+  writer.create_group("/package_state");
   if (mesh_state.enabled("radiation")) {
     writer.create_group("/basis/radiation");
   }
@@ -372,6 +376,22 @@ void write_output(const MeshState &mesh_state, Mesh &mesh, ProblemIn *pin,
                       H5::PredType::NATIVE_INT);
   writer.write_scalar("/info/n_stages", mesh_state.n_stages(),
                       H5::PredType::NATIVE_INT);
+
+  const auto write_package_state = [&writer](const PackageManager *manager) {
+    if (manager == nullptr) {
+      return;
+    }
+    for (const auto &[package_name, scalars] : manager->restart_scalars()) {
+      const std::string package_path = "/package_state/" + package_name;
+      writer.create_group(package_path);
+      for (const auto &[scalar_name, value] : scalars) {
+        writer.write_scalar(package_path + "/" + scalar_name, value,
+                            H5::PredType::NATIVE_DOUBLE);
+      }
+    }
+  };
+  write_package_state(packages);
+  write_package_state(split_packages);
 
   // Write the mesh.
   writer.write_view(mesh.widths(), "/mesh/dr");
@@ -521,7 +541,9 @@ auto generate_filename(const std::string &problem_name,
 /**
  * @brief write to hdf5
  */
-void write_output(const MeshState &mesh_state, Mesh &mesh, SlopeLimiter *SL,
+void write_output(const MeshState &mesh_state, Mesh &mesh,
+                  const PackageManager *packages,
+                  const PackageManager *split_packages, SlopeLimiter *SL,
                   ProblemIn *pin, const SimInfo &info, int i_write) {
   Kokkos::Profiling::pushRegion("IO");
   Kokkos::Profiling::pushRegion("HDF5");
@@ -534,7 +556,7 @@ void write_output(const MeshState &mesh_state, Mesh &mesh, SlopeLimiter *SL,
   std::string filename =
       generate_filename(problem_name, output_dir, i_write, max_digits);
 
-  write_output(mesh_state, mesh, pin, filename, info);
+  write_output(mesh_state, mesh, packages, split_packages, pin, filename, info);
 
   Kokkos::Profiling::popRegion();
   Kokkos::Profiling::popRegion();

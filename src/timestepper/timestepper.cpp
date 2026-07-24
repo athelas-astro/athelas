@@ -5,7 +5,6 @@
 
 #include "geometry/mesh.hpp"
 #include "gravity/gravity_package.hpp"
-#include "history/quantities.hpp"
 #include "interface/packages_base.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
@@ -115,30 +114,15 @@ void TimeStepper::update_fluid_explicit(PackageManager *pkgs,
   const auto &basis = mesh_state.basis();
   const auto &eos = mesh_state.eos();
 
+  // Snapshot the pre-limiter mesh so the driver's post_step_work can settle the
+  // gravitational energy the end-of-step limiter moves. Only when the coupled
+  // gravity package has the correction enabled; a split package lives in the
+  // operator-split manager and is not visible here.
   const auto *const gravity_package =
       pkgs->get_package<gravity::GravityPackage>("Gravity");
-
-  // Gravitational potential energy moved by the limiters rather than by a
-  // physical source. Only meaningful when gravity is active. Measured only at
-  // the end-of-step limiter block on the committed state u0
-  const bool measure_limiter_work =
-      gravity_package != nullptr && gravity_package->is_active();
-  const GravityModel gravity_model =
-      measure_limiter_work ? gravity_package->model() : GravityModel::Spherical;
-  const double gravity_gval =
-      measure_limiter_work ? gravity_package->gval() : 0.0;
-  double limiter_mesh_work = 0.0;
-  // Flag-gated correction that returns that energy to the fluid.
-  const bool correct_limiter_work =
-      measure_limiter_work && gravity_package->corrects_limiter_energy();
-  const int idx_vel_lec =
-      correct_limiter_work ? mesh_state.var_index("evolved", "velocity") : -1;
-  const int idx_energy_lec =
-      correct_limiter_work
-          ? mesh_state.var_index("evolved", "specific_total_fluid_energy")
-          : -1;
-  double limiter_energy_correction = 0.0;
-  double limiter_energy_clamp = 0.0;
+  const bool snapshot_limiter = gravity_package != nullptr &&
+                                gravity_package->is_active() &&
+                                gravity_package->corrects_limiter_energy();
 
   auto u0 = mesh_state(0).get_field("evolved");
   for (int iS = 0; iS < nStages_; ++iS) {
@@ -198,31 +182,12 @@ void TimeStepper::update_fluid_explicit(PackageManager *pkgs,
   mesh.reconstruct_mesh(u0, x_inner);
 
   auto sd0 = mesh_state(0);
-  const double w_h_pre_final_limiter =
-      measure_limiter_work ? analysis::total_gravitational_energy(
-                                 mesh_state, mesh, gravity_model, gravity_gval)
-                           : 0.0;
-  if (correct_limiter_work) {
+  if (snapshot_limiter) {
     gravity_package->snapshot_limiter_radii(mesh);
   }
   apply_slope_limiter(sl_hydro, u0, sd0, sd0.basis(), sd0.eos());
   bel::apply_bound_enforcing_limiter(sd0);
   mesh.reconstruct_mesh(u0, x_inner);
-  if (measure_limiter_work) {
-    limiter_mesh_work += analysis::total_gravitational_energy(
-                             mesh_state, mesh, gravity_model, gravity_gval) -
-                         w_h_pre_final_limiter;
-  }
-  if (correct_limiter_work) {
-    const auto corr = gravity_package->apply_limiter_energy_correction(
-        sd0, mesh, u0, idx_vel_lec, idx_energy_lec);
-    limiter_energy_correction += corr.applied;
-    limiter_energy_clamp += corr.clamp_residual;
-  }
-  energy_budget_.limiter_mesh_work_step = limiter_mesh_work;
-  energy_budget_.cumulative_limiter_mesh_work += limiter_mesh_work;
-  energy_budget_.cumulative_limiter_energy_correction += limiter_energy_correction;
-  energy_budget_.cumulative_limiter_energy_clamp_residual += limiter_energy_clamp;
 
   pkgs->zero_delta();
 }
@@ -253,33 +218,14 @@ void TimeStepper::update_rad_hydro_imex(PackageManager *pkgs,
   const auto &basis = mesh_state.basis();
   const auto &eos = mesh_state.eos();
 
+  // Snapshot the pre-limiter mesh for the driver's post_step_work
+  // limiter-energy correction (see update_fluid_explicit). Coupled gravity with
+  // the correction enabled only.
   const auto *const gravity_package =
       pkgs->get_package<gravity::GravityPackage>("Gravity");
-
-  // Gravitational potential energy moved by the end-of-step limiter block on
-  // the committed state u0. Only meaningful when gravity is active; the
-  // per-stage limiters act on discarded intermediate states (see the explicit
-  // path).
-  const bool measure_limiter_work =
-      gravity_package != nullptr && gravity_package->is_active();
-  const GravityModel gravity_model =
-      measure_limiter_work ? gravity_package->model() : GravityModel::Spherical;
-  const double gravity_gval =
-      measure_limiter_work ? gravity_package->gval() : 0.0;
-  double limiter_mesh_work = 0.0;
-  // Flag-gated correction, applied only at the end-of-step limiter block on the
-  // committed state u0 (stage-field corrections do not survive; see the
-  // explicit path).
-  const bool correct_limiter_work =
-      measure_limiter_work && gravity_package->corrects_limiter_energy();
-  const int idx_vel_lec =
-      correct_limiter_work ? mesh_state.var_index("evolved", "velocity") : -1;
-  const int idx_energy_lec =
-      correct_limiter_work
-          ? mesh_state.var_index("evolved", "specific_total_fluid_energy")
-          : -1;
-  double limiter_energy_correction = 0.0;
-  double limiter_energy_clamp = 0.0;
+  const bool snapshot_limiter = gravity_package != nullptr &&
+                                gravity_package->is_active() &&
+                                gravity_package->corrects_limiter_energy();
 
   auto u0 = mesh_state(0).get_field("evolved");
   auto initial_state = mesh_state(0);
@@ -362,11 +308,7 @@ void TimeStepper::update_rad_hydro_imex(PackageManager *pkgs,
   mesh.reconstruct_mesh(u0, x_inner);
 
   auto sd0 = mesh_state(0);
-  const double w_h_pre_final_limiter =
-      measure_limiter_work ? analysis::total_gravitational_energy(
-                                 mesh_state, mesh, gravity_model, gravity_gval)
-                           : 0.0;
-  if (correct_limiter_work) {
+  if (snapshot_limiter) {
     gravity_package->snapshot_limiter_radii(mesh);
   }
   apply_slope_limiter(sl_hydro, u0, sd0, basis, eos);
@@ -374,27 +316,8 @@ void TimeStepper::update_rad_hydro_imex(PackageManager *pkgs,
   bel::apply_bound_enforcing_limiter_rad(sd0);
   bel::apply_bound_enforcing_limiter(sd0);
   mesh.reconstruct_mesh(u0, x_inner);
-  if (measure_limiter_work) {
-    limiter_mesh_work += analysis::total_gravitational_energy(
-                             mesh_state, mesh, gravity_model, gravity_gval) -
-                         w_h_pre_final_limiter;
-  }
-  if (correct_limiter_work) {
-    const auto corr = gravity_package->apply_limiter_energy_correction(
-        sd0, mesh, u0, idx_vel_lec, idx_energy_lec);
-    limiter_energy_correction += corr.applied;
-    limiter_energy_clamp += corr.clamp_residual;
-  }
-  energy_budget_.limiter_mesh_work_step = limiter_mesh_work;
-  energy_budget_.cumulative_limiter_mesh_work += limiter_mesh_work;
-  energy_budget_.cumulative_limiter_energy_correction += limiter_energy_correction;
-  energy_budget_.cumulative_limiter_energy_clamp_residual += limiter_energy_clamp;
 
   pkgs->zero_delta();
-}
-
-auto TimeStepper::energy_budget() const noexcept -> const EnergyBudget & {
-  return energy_budget_;
 }
 
 [[nodiscard]] auto TimeStepper::n_stages() const noexcept -> int {

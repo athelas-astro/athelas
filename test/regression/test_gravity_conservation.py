@@ -120,24 +120,19 @@ class GravityEnergyConservationTest(unittest.TestCase):
     self.assertTrue(finite(off), "off run produced non-finite history values")
     self.assertTrue(finite(on), "on run produced non-finite history values")
 
-    mesh_work_off = off["Cumulative Limiter Mesh Work [erg]"][-1]
+    # The limiter-energy diagnostics are only present when the correction is
+    # enabled, so they come from the on run.
     mesh_work_on = on["Cumulative Limiter Mesh Work [erg]"][-1]
     correction = on["Cumulative Limiter Energy Correction [erg]"][-1]
     clamp = on["Cumulative Limiter Energy Clamp Residual [erg]"][-1]
 
     # The problem must actually exercise the limiter, otherwise the test is
-    # vacuous. The limiter behaves identically with the flag off or on, so the
-    # mesh-work columns should match.
+    # vacuous.
     self.assertGreater(
-      abs(mesh_work_off),
+      abs(mesh_work_on),
       1.0e40,
       "limiter moved no gravitational energy; problem does not exercise the "
       "correction",
-    )
-    self.assertTrue(
-      np.isclose(mesh_work_off, mesh_work_on, rtol=1.0e-6),
-      "limiter mesh work differs between off and on runs; the correction "
-      "should not change the limiter itself",
     )
 
     # The correction fired and has the opposite sign to the mesh work it offsets.

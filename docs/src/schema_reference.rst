@@ -342,7 +342,7 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - double
      - —
      - No
-     - Gravitational acceleration (constant model). Must be > 0.
+     - Acceleration [cm s^-2] for the constant gravity model. Must be > 0.
    * - ``limiter_energy_correction``
      - bool
      - ``false``
@@ -357,7 +357,7 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - bool
      - ``false``
      - No
-     - Apply gravity as an operator-split source.
+     - Apply gravity as an operator-split source. Uses a self-contained direct source (pointwise g and g*v) instead of the coupled weak form, giving up well-balancing and exact energy conservation. Incompatible with limiter_energy_correction.
 
 
 ``config.heating``
@@ -882,4 +882,3 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - —
      - No
      - End time of the simulation.
-

@@ -49,4 +49,28 @@ auto find_closest_cell(T r_view, const double target_r, int num_cells) -> int {
 
   return (r_view[left] < target_r) ? left : left - 1;
 }
+
+/**
+ * @brief Degree-(count-1) Lagrange interpolation.
+ *
+ * Value at `target` of the polynomial through values[j0 + a] sampled at
+ * nodes[j0 + a], for a in [0, count) (e.g. count = 4 for a cubic).  The caller
+ * keeps [j0, j0 + count) in range and the nodes distinct.
+ */
+KOKKOS_FUNCTION
+template <VectorLike T>
+auto lagrange_interp(const T &nodes, const T &values, const int j0,
+                     const int count, const double target) -> double {
+  double y = 0.0;
+  for (int a = 0; a < count; ++a) {
+    double term = values[j0 + a];
+    for (int b = 0; b < count; ++b) {
+      if (b != a) {
+        term *= (target - nodes[j0 + b]) / (nodes[j0 + a] - nodes[j0 + b]);
+      }
+    }
+    y += term;
+  }
+  return y;
+}
 } // namespace athelas::math::interp

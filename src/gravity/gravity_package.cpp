@@ -1,9 +1,3 @@
-/**
- * @file gravity_package.cpp
- * --------------
- *
- * @brief Gravitational source package
- **/
 #include <algorithm>
 #include <limits>
 
@@ -27,6 +21,7 @@ GravityPackage::GravityPackage(const ProblemIn *pin, const std::string &model,
                                const double gval, const double cfl,
                                const int n_stages, const bool active)
     : active_(active), gval_(gval), cfl_(cfl),
+      split_(pin->param()->get<bool>("physics.gravity.split")),
       correct_limiter_energy_(
           pin->param()->get<bool>("gravity.limiter_energy_correction", false)),
       delta_("gravity delta", n_stages, pin->param()->get<int>("mesh.nx") + 2,
@@ -45,18 +40,18 @@ GravityPackage::GravityPackage(const ProblemIn *pin, const std::string &model,
   } else if (model == "spherical") {
     model_ = GravityModel::Spherical;
   } else {
-    throw_athelas_error("Bad gravity model in GRavityPackage constructor. How "
+    throw_athelas_error("Bad gravity model in GravityPackage constructor. How "
                         "did this happen?");
   }
 
   // The weak gravity-pressure energy companion reads the specific-volume RHS
-  // that hydro publishes into `dtau_dt` earlier in the same stage. An
-  // operator-split gravity package runs outside that stage and would consume a
-  // stale RHS.
-  if (pin->param()->get<bool>("physics.gravity.split")) {
-    throw_athelas_error("Gravity does not support physics.gravity.split=true: "
-                        "the weak energy source requires the specific-volume "
-                        "RHS published within the same stage.");
+  // that hydro publishes into `dtau_dt` earlier in the same stage; an
+  // operator-split package runs outside that stage. When split, gravity instead
+  // uses a self-contained direct source
+  if (split_ && correct_limiter_energy_) {
+    throw_athelas_error(
+        "gravity.limiter_energy_correction requires coupled (non-split) "
+        "gravity.");
   }
 }
 
@@ -65,10 +60,25 @@ auto GravityPackage::update_explicit(const StageData &stage_data,
     -> UpdateStatus {
   const auto &mesh = stage_data.mesh();
   const auto stage = dt_info.stage;
+  const auto &basis = stage_data.basis();
+
+  // Operator-split gravity uses a self-contained direct source
+  if (split_) {
+    auto evolved = stage_data.get_field("evolved");
+    const int idx_vel = stage_data.var_index("evolved", "velocity");
+    if (model_ == GravityModel::Spherical) {
+      update_split<GravityModel::Spherical>(mesh, evolved, stage, idx_vel,
+                                            dt_info.dt_coef);
+    } else [[unlikely]] {
+      update_split<GravityModel::Constant>(mesh, evolved, stage, idx_vel,
+                                           dt_info.dt_coef);
+    }
+    return UpdateStatus::Success;
+  }
+
   auto interface = stage_data.get_field<AthelasArray2D<double>>("interface");
   const int idx_vstar = stage_data.var_index("interface", "interface_velocity");
   auto dtau_dt = stage_data.get_field<AthelasArray2D<double>>("dtau_dt");
-  const auto &basis = stage_data.basis();
 
   // Hydro/RadHydro publish the mass-matrix-scaled tau RHS before gravity runs.
   // Differentiate the same branch of Mesh::reconstruct_mesh to obtain the
@@ -84,6 +94,34 @@ auto GravityPackage::update_explicit(const StageData &stage_data,
   }
 
   return UpdateStatus::Success;
+}
+
+template <GravityModel Model>
+void GravityPackage::update_split(const Mesh &mesh,
+                                  AthelasArray3D<double> evolved,
+                                  const int stage, const int idx_vel,
+                                  const double dt) const {
+  static const int nNodes = mesh.n_nodes();
+  static const IndexRange ib(mesh.domain<Domain::Interior>());
+  static const IndexRange qb(nNodes);
+
+  auto r = mesh.nodal_grid();
+  auto enclosed_mass = mesh.enclosed_mass();
+  const double gval = gval_;
+
+  athelas::par_for(
+      DEFAULT_LOOP_PATTERN, "Gravity :: Update (split)", DevExecSpace(), ib.s,
+      ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
+        double accel = -gval;
+        if constexpr (Model == GravityModel::Spherical) {
+          const double radius = r(i, q + 1);
+          accel =
+              -constants::G_GRAV * enclosed_mass(i, q + 1) / (radius * radius);
+        }
+        const double v = evolved(i, q, idx_vel);
+        delta_(stage, i, q, pkg_vars::Velocity) = accel;
+        delta_(stage, i, q, pkg_vars::Energy) = accel * (v + 0.5 * dt * accel);
+      });
 }
 
 template <GravityModel Model>
@@ -104,13 +142,13 @@ void GravityPackage::gravity_update(const Mesh &mesh, const NodalBasis &basis,
   auto phi = basis.phi();
   auto dphi = basis.dphi();
   auto inv_mkk = basis.inv_mass_matrix();
-  auto psi_g = gravity_pressure_;
+  auto pi_g = gravity_pressure_;
   auto velocity = tau_dot_mesh_velocity_;
 
   const double gval = gval_;
   // Gravity pressure Pi: the discrete variational derivative of the
   // gravitational potential energy W_h with respect to the specific volume,
-  //   H Pi = J^T H (-g/A),
+  //   M Pi = J^T M (-g/A),
   // where J is the tangent of Mesh::reconstruct_mesh (tau -> spherical volume
   // coordinate). It is built as the reverse-mode sweep of that reconstruction:
   // an inward (outer -> inner) prefix scan whose face accumulator lambda_right
@@ -120,7 +158,6 @@ void GravityPackage::gravity_update(const Mesh &mesh, const NodalBasis &basis,
   // well-conditioned gauge P = Pi + p_surface for a star. Making Pi the exact
   // adjoint of the reconstruction is what lets the weak energy source conserve
   // hydrodynamic + gravitational energy at P1; see docs/src/gravity.rst.
-  {
     const auto high_order = mesh.node_placement_high_order();
     athelas::par_scan(
         DEFAULT_FLAT_LOOP_PATTERN, "Gravity :: Adjoint pressure",
@@ -131,7 +168,7 @@ void GravityPackage::gravity_update(const Mesh &mesh, const NodalBasis &basis,
           Kokkos::Array<double, MAX_ORDER> a;
           double cell_adjoint = 0.0;
           for (int q = 0; q < nNodes; ++q) {
-            double accel = -constants::G_GRAV * gval;
+            double accel = -gval;
             if constexpr (Model == GravityModel::Spherical) {
               const double radius = r(i, q + 1);
               accel = -constants::G_GRAV * enclosed_mass(i, q + 1) /
@@ -144,17 +181,15 @@ void GravityPackage::gravity_update(const Mesh &mesh, const NodalBasis &basis,
           if (is_final) {
             const bool ho = high_order(i) != 0;
             const double mass_left = enclosed_mass(i, 0);
-            const double mass_width =
-                enclosed_mass(i, nNodes + 1) - mass_left;
-            psi_g(i, nNodes + 1) = lambda_right;
+            const double mass_width = enclosed_mass(i, nNodes + 1) - mass_left;
+            pi_g(i, nNodes + 1) = lambda_right;
             for (int p = 0; p < nNodes; ++p) {
               double local_adjoint = 0.0;
               if (ho) {
                 for (int q = 0; q < nNodes; ++q) {
                   local_adjoint += mesh.integration_matrix(q, p) * a[q];
                 }
-                psi_g(i, p + 1) =
-                    lambda_right + local_adjoint / weights(p);
+                pi_g(i, p + 1) = lambda_right + local_adjoint / weights(p);
               } else {
                 for (int q = 0; q < nNodes; ++q) {
                   const double theta =
@@ -166,70 +201,57 @@ void GravityPackage::gravity_update(const Mesh &mesh, const NodalBasis &basis,
                           : 0.5;
                   local_adjoint += theta * a[q];
                 }
-                psi_g(i, p + 1) = lambda_right + local_adjoint;
+                pi_g(i, p + 1) = lambda_right + local_adjoint;
               }
             }
-            psi_g(i, 0) = lambda_right + cell_adjoint;
+            pi_g(i, 0) = lambda_right + cell_adjoint;
           }
           lambda_right += cell_adjoint;
         });
-  }
 
+  // Gravity updates
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Gravity :: Update", DevExecSpace(), ib.s, ib.e,
       qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-        // Weak pressure operator applied to psi_g: the flux part
-        // (interior - boundary) plus the shared curvature term psi_g * <phi_q,
-        // d sqrt_gm/deta>. The hydro pressure flux applies the same operator,
-        // so a hydrostatic state P = psi_g + const cancels through it exactly.
-        const double boundary = phi(i, nNodes + 1, q) * sqrt_gm(i, nNodes + 1) *
-                                    psi_g(i, nNodes + 1) -
-                                phi(i, 0, q) * sqrt_gm(i, 0) * psi_g(i, 0);
+        // Gravity-pressure flux at the two cell interfaces, shared by the
+        // momentum boundary term and the energy face term.
+        const double flux_r = phi(i, nNodes + 1, q) * sqrt_gm(i, nNodes + 1) *
+                              pi_g(i, nNodes + 1);
+        const double flux_l = phi(i, 0, q) * sqrt_gm(i, 0) * pi_g(i, 0);
+
+        // Interior weak-derivative sum of pi_g: momentum needs it plain, the
+        // energy companion needs it weighted by the nodal velocity.
         double interior = 0.0;
-        for (int p = 0; p < nNodes; ++p) {
-          interior += weights(p) * dphi(i, p + 1, q) * sqrt_gm(i, p + 1) *
-                      psi_g(i, p + 1);
-        }
-        const double curvature =
-            psi_g(i, q + 1) * geometric_weak_eta_derivative(
-                                  phi, dphi, sqrt_gm, weights, i, q, nNodes);
-
-        const double pressure_operator = interior - boundary + curvature;
-        const double accel = -pressure_operator * inv_mkk(i, q);
-        delta_(stage, i, q, pkg_vars::Velocity) = accel;
-
-        // Filled below by the weak gravity-pressure energy companion.
-        delta_(stage, i, q, pkg_vars::Energy) = 0.0;
-      });
-
-  // Weak gravity-pressure energy companion: the discrete product rule
-  //   g w = d_m(A psi_g w) - psi_g dtau_dt,
-  // assembled as (face - volume - dilatation). Summed over the nodal test
-  // functions of a cell the face term telescopes (sum_q phi_q = 1 at each
-  // face), the volume term vanishes identically (sum_q dphi_q = 0), and the
-  // dilatation term reproduces Pi^T H taudot -- so the cell total is exactly
-  // -dW_h/dt up to boundary work, and is invariant under a constant shift of
-  // psi_g.
-  athelas::par_for(
-      DEFAULT_LOOP_PATTERN, "Gravity :: Energy companion", DevExecSpace(), ib.s,
-      ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
-        const double w_left = interface(i, idx_vstar);
-        const double w_right = interface(i + 1, idx_vstar);
-        const double face = phi(i, nNodes + 1, q) * sqrt_gm(i, nNodes + 1) *
-                                psi_g(i, nNodes + 1) * w_right -
-                            phi(i, 0, q) * sqrt_gm(i, 0) * psi_g(i, 0) * w_left;
-
         double volume = 0.0;
         for (int p = 0; p < nNodes; ++p) {
-          volume += weights(p) * dphi(i, p + 1, q) * sqrt_gm(i, p + 1) *
-                    psi_g(i, p + 1) * velocity(i, p);
+          const double term = weights(p) * dphi(i, p + 1, q) *
+                              sqrt_gm(i, p + 1) * pi_g(i, p + 1);
+          interior += term;
+          volume += term * velocity(i, p);
         }
+
+        // Momentum: the weak pressure operator (interior - boundary + curvature)
+        // applied to pi_g.  The hydro pressure flux applies the same operator to
+        // P, so a hydrostatic state P = pi_g + const cancels through it exactly.
+        const double curvature =
+            pi_g(i, q + 1) * geometric_weak_eta_derivative(
+                                 phi, dphi, sqrt_gm, weights, i, q, nNodes);
+        const double pressure_operator =
+            interior - (flux_r - flux_l) + curvature;
+        delta_(stage, i, q, pkg_vars::Velocity) =
+            -pressure_operator * inv_mkk(i, q);
+
+        // Energy: the discrete product rule g w = d_m(A pi_g w) - pi_g dtau_dt,
+        // assembled as (face - volume - dilatation).  Summed over a cell's test
+        // functions the face telescopes (sum_q phi_q = 1), the volume vanishes
+        // (sum_q dphi_q = 0), and the dilatation reproduces Pi^T H taudot -- so
+        // the cell total is exactly -dW_h/dt up to boundary work and is
+        // invariant under pi_g -> pi_g + const.
+        const double w_left = interface(i, idx_vstar);
+        const double w_right = interface(i + 1, idx_vstar);
+        const double face = flux_r * w_right - flux_l * w_left;
         const double dilatation =
-            weights(q) * dm_deta(i, q) * psi_g(i, q + 1) * dtau_dt(i, q);
-        // The product-rule expression is a weak residual for test function q.
-        // Convert it to the nodal energy RHS with the same inverse lumped mass
-        // used by the gravity momentum operator above.  The legacy g*w branch
-        // is already a pointwise (mass-inverted) RHS and must not be scaled.
+            weights(q) * dm_deta(i, q) * pi_g(i, q + 1) * dtau_dt(i, q);
         delta_(stage, i, q, pkg_vars::Energy) =
             (face - volume - dilatation) * inv_mkk(i, q);
       });
@@ -348,10 +370,10 @@ void GravityPackage::snapshot_limiter_radii(const Mesh &mesh) const {
       });
 }
 
-auto GravityPackage::apply_limiter_energy_correction(
+void GravityPackage::apply_limiter_energy_correction(
     const StageData &stage_data, const Mesh &mesh,
     AthelasArray3D<double> evolved, const int idx_vel,
-    const int idx_energy) const -> LimiterCorrection {
+    const int idx_energy) const {
   const int n_nodes = mesh.n_nodes();
   const IndexRange ib(mesh.domain<Domain::Interior>());
   const auto weights = mesh.weights();
@@ -377,12 +399,17 @@ auto GravityPackage::apply_limiter_energy_correction(
     e_ion_corr = stage_data.ionization_state()->e_ion_corr();
   }
 
+  // mesh_work is the total W_h change the limiter caused (always measured);
+  // applied/clamped are what the correction returned / the floor blocked (only
+  // nonzero when correcting). By construction mesh_work = -(applied + clamped).
+  double mesh_work_total = 0.0;
   double applied_total = 0.0;
   double clamp_total = 0.0;
   athelas::par_reduce(
-      DEFAULT_FLAT_LOOP_PATTERN, "Gravity :: Limiter energy correction",
-      DevExecSpace(), ib.s, ib.e,
-      KOKKOS_CLASS_LAMBDA(const int i, double &applied, double &clamped) {
+      DEFAULT_FLAT_LOOP_PATTERN, "Gravity :: Limiter energy", DevExecSpace(),
+      ib.s, ib.e,
+      KOKKOS_CLASS_LAMBDA(const int i, double &mesh_work, double &applied,
+                          double &clamped) {
         // Potential energy the limiter moved (per cell, without 4pi), and the
         // cell reference mass.
         double dW = 0.0;
@@ -403,6 +430,7 @@ auto GravityPackage::apply_limiter_energy_correction(
         if (m_cell <= 0.0) {
           return;
         }
+        mesh_work += dW;
 
         // Uniform specific-energy shift that returns -dW to the fluid. Only tau
         // moves the mesh, so this has no geometric feedback.
@@ -411,8 +439,8 @@ auto GravityPackage::apply_limiter_energy_correction(
         // Clamp so the specific internal energy e = E - v^2/2 stays at or above
         // the EOS floor e_min at every node. Only limit a *removal* (dE < 0):
         // the headroom is the smallest nodal (e - e_min), and is zero if some
-        // node is already at or below its floor -- never inject energy to lift a
-        // pre-existing violation, which would run away.
+        // node is already at or below its floor -- never inject energy to lift
+        // a pre-existing violation, which would run away.
         double headroom = std::numeric_limits<double>::max();
         for (int q = 0; q < n_nodes; ++q) {
           const double v = evolved(i, q, idx_vel);
@@ -435,10 +463,47 @@ auto GravityPackage::apply_limiter_energy_correction(
         applied += m_cell * dE_applied;
         clamped += m_cell * (dE - dE_applied);
       },
-      Kokkos::Sum<double>(applied_total), Kokkos::Sum<double>(clamp_total));
+      Kokkos::Sum<double>(mesh_work_total), Kokkos::Sum<double>(applied_total),
+      Kokkos::Sum<double>(clamp_total));
 
   const double geom = mesh.do_geometry() ? constants::FOURPI : 1.0;
-  return {geom * applied_total, geom * clamp_total};
+  cumulative_limiter_mesh_work_ += geom * mesh_work_total;
+  cumulative_limiter_energy_correction_ += geom * applied_total;
+  cumulative_limiter_energy_clamp_residual_ += geom * clamp_total;
+}
+
+auto GravityPackage::cumulative_limiter_mesh_work() const noexcept -> double {
+  return cumulative_limiter_mesh_work_;
+}
+
+auto GravityPackage::cumulative_limiter_energy_correction() const noexcept
+    -> double {
+  return cumulative_limiter_energy_correction_;
+}
+
+auto GravityPackage::cumulative_limiter_energy_clamp_residual() const noexcept
+    -> double {
+  return cumulative_limiter_energy_clamp_residual_;
+}
+
+auto GravityPackage::restart_scalars() const -> PackageRestartScalars {
+  return {{"limiter_mesh_work", cumulative_limiter_mesh_work_},
+          {"limiter_energy_correction", cumulative_limiter_energy_correction_},
+          {"limiter_energy_clamp_residual",
+           cumulative_limiter_energy_clamp_residual_}};
+}
+
+void GravityPackage::load_restart_scalars(
+    const PackageRestartScalars &scalars) {
+  for (const auto &[name, value] : scalars) {
+    if (name == "limiter_mesh_work") {
+      cumulative_limiter_mesh_work_ = value;
+    } else if (name == "limiter_energy_correction") {
+      cumulative_limiter_energy_correction_ = value;
+    } else if (name == "limiter_energy_clamp_residual") {
+      cumulative_limiter_energy_clamp_residual_ = value;
+    }
+  }
 }
 
 /**
@@ -471,25 +536,33 @@ auto GravityPackage::min_timestep(const StageData &stage_data,
   static constexpr double MIN_DT =
       100.0 * std::numeric_limits<double>::min() * 10.0;
 
-  if (model_ == GravityModel::Constant) {
-    return MAX_DT;
-  }
-
   const auto &mesh = stage_data.mesh();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
   auto dr = mesh.widths();
   auto r = mesh.centers();
   auto m = mesh.enclosed_mass();
 
+  const GravityModel model = model_;
+  const double gval = gval_;
+
+  // Gravitational acceleration timescale: the time for gravity to move a fluid
+  // element across a cell, dt ~ sqrt(dr / |g|), with g = G M / r^2 (spherical)
+  // or the fixed |g| = gval (constant). This is essentially never the binding
+  // constraint -- it scales as sqrt(dr) while the sound CFL scales as dr, so
+  // hydro always tightens faster under refinement -- but it is a cheap safety
+  // net against gravity overshooting in under-resolved cold flows.
   double dt_out = 0.0;
   athelas::par_reduce(
-      DEFAULT_FLAT_LOOP_PATTERN, "Hydro :: Timestep", DevExecSpace(), ib.s,
+      DEFAULT_FLAT_LOOP_PATTERN, "Gravity :: Timestep", DevExecSpace(), ib.s,
       ib.e,
       KOKKOS_CLASS_LAMBDA(const int i, double &lmin) {
-        const double dt_old =
-            std::sqrt((r(i) * r(i) * dr(i)) / (constants::G_GRAV * m(i, 1)));
+        double accel = gval;
+        if (model == GravityModel::Spherical) {
+          accel = constants::G_GRAV * m(i, 1) / (r(i) * r(i));
+        }
+        const double dt_cell = std::sqrt(dr(i) / accel);
 
-        lmin = std::min(dt_old, lmin);
+        lmin = std::min(dt_cell, lmin);
       },
       Kokkos::Min<double>(dt_out));
 
@@ -510,14 +583,6 @@ void GravityPackage::fill_derived(StageData & /*stage_data*/,
 [[nodiscard]] KOKKOS_FUNCTION auto GravityPackage::is_active() const noexcept
     -> bool {
   return active_;
-}
-
-[[nodiscard]] auto GravityPackage::model() const noexcept -> GravityModel {
-  return model_;
-}
-
-[[nodiscard]] auto GravityPackage::gval() const noexcept -> double {
-  return gval_;
 }
 
 KOKKOS_FUNCTION

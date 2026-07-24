@@ -119,6 +119,24 @@ auto load_info_from_h5(const RestartReader &reader) -> SimInfo {
   };
 }
 
+auto load_package_restart_scalars(const RestartReader &reader)
+    -> PackageRestartState {
+  PackageRestartState state;
+  if (!reader.has("/package_state")) {
+    return state;
+  }
+  for (const auto &package_name : reader.list_group("/package_state")) {
+    PackageRestartScalars scalars;
+    const std::string package_path = "/package_state/" + package_name;
+    for (const auto &scalar_name : reader.list_group(package_path)) {
+      scalars.emplace_back(scalar_name, reader.read_scalar<double>(
+                                            package_path + "/" + scalar_name));
+    }
+    state.emplace(package_name, std::move(scalars));
+  }
+  return state;
+}
+
 void load_grid_from_h5(Mesh &mesh, const RestartReader &reader) {
   reader.read_view(mesh.widths(), "/mesh/dr");
   reader.read_view(mesh.centers(), "/mesh/r");

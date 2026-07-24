@@ -456,7 +456,7 @@ schema.gravity = {
   operator_split = {
     type = "bool",
     default = false,
-    doc = "Apply gravity as an operator-split source.",
+    doc = "Apply gravity as an operator-split source. Uses a self-contained direct source (pointwise g and g*v) instead of the coupled weak form, giving up well-balancing and exact energy conservation. Incompatible with limiter_energy_correction.",
   },
   limiter_energy_correction = {
     type = "bool",
@@ -466,7 +466,7 @@ schema.gravity = {
   gval = {
     type = "double",
     --    default = 1.0,
-    doc = "Gravitational acceleration (constant model). Must be > 0.",
+    doc = "Acceleration [cm s^-2] for the constant gravity model. Must be > 0.",
     required = { when = "gravity.model", equals = "constant" },
   },
 }
