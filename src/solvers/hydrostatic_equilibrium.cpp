@@ -22,8 +22,8 @@ auto HydrostaticEquilibrium::rhs(const double mass_enc, const double p,
                                  const double r) const -> double {
   // Valid over the whole physical range p > 0 (matching dm/dr).  The surface
   // pressure p_threshold_ is a loop event located by the caller, NOT a term in
-  // the equation: cutting the RHS off at p_threshold_ would let an RK stage that
-  // dips below it -- while still positive -- evaluate a different (zeroed)
+  // the equation: cutting the RHS off at p_threshold_ would let an RK stage
+  // that dips below it -- while still positive -- evaluate a different (zeroed)
   // equation than dm/dr, making the final step internally inconsistent.
   if (p <= 0.0) {
     return 0.0;
@@ -95,7 +95,7 @@ void HydrostaticEquilibrium::solve(MeshState &mesh_state, Mesh *mesh,
     const double p = pressure[i];
     // Coupled RK4 for the (pressure, enclosed-mass) system,
     //   dp/dr = -G m rho / r^2,   dm/dr = 4 pi rho r^2,
-    // advancing both together 
+    // advancing both together
     const double kp1 = rhs(m_enc, p, r);
     const double km1 = dm_dr(p, r);
     // Center-and-surface-refined step: bound dr by r (resolving the stiff
@@ -190,7 +190,8 @@ void HydrostaticEquilibrium::solve(MeshState &mesh_state, Mesh *mesh,
       const double rq = h_r(ix * (nNodes + 2) + q);
       const int idx = find_closest_cell(radius, rq, npts);
       const int j0 = std::clamp(idx - 1, 0, std::max(npts - stencil, 0));
-      h_derived(ix, q, iP_) = lagrange_interp(radius, pressure, j0, stencil, rq);
+      h_derived(ix, q, iP_) =
+          lagrange_interp(radius, pressure, j0, stencil, rq);
     }
   }
 

@@ -38,13 +38,13 @@ class GravityPackage {
                       AthelasArray2D<double> dtau_dt, int stage,
                       int idx_vstar) const;
 
-  // Direct, self-contained gravity source for operator-split mode. Each node gets
-  // the pointwise acceleration g and an exact frozen-mesh kinetic-energy kick:
-  // dE / dt = g * (v + 0.5 dt g). Generic apply_delta then gives
-  // E_new - E_old = 0.5 [(v + dt g)^2 - v^2], preserving internal energy. This
-  // still gives up the coupled form's well-balancing and total-energy
-  // conservation: the gravity substep does not move the mesh, so its work is not
-  // matched by a change in the discrete potential energy W_h.
+  // Direct, self-contained gravity source for operator-split mode. Each node
+  // gets the pointwise acceleration g and an exact frozen-mesh kinetic-energy
+  // kick: dE / dt = g * (v + 0.5 dt g). Generic apply_delta then gives E_new -
+  // E_old = 0.5 [(v + dt g)^2 - v^2], preserving internal energy. This still
+  // gives up the coupled form's well-balancing and total-energy conservation:
+  // the gravity substep does not move the mesh, so its work is not matched by a
+  // change in the discrete potential energy W_h.
   template <GravityModel Model>
   void update_split(const Mesh &mesh, AthelasArray3D<double> evolved, int stage,
                     int idx_vel, double dt) const;
@@ -81,7 +81,7 @@ class GravityPackage {
   // and returns -dW_i / m_i uniformly to the cell's specific energy, clamped so
   // the specific internal energy e = E - v^2/2 stays at or above the EOS floor
   // min_sie(eos, rho, lambda) at every node; only tau moves the mesh, so this
-  // energy change has no geometric feedback. 
+  // energy change has no geometric feedback.
   // Accumulates the mesh work, applied
   // correction, and clamp residual into the cumulative diagnostics below.
   void apply_limiter_energy_correction(const StageData &stage_data,
@@ -89,7 +89,7 @@ class GravityPackage {
                                        AthelasArray3D<double> evolved,
                                        int idx_vel, int idx_energy) const;
 
-  // Cumulative limiter-energy diagnostics, accumulated across steps. 
+  // Cumulative limiter-energy diagnostics, accumulated across steps.
   // mesh work is the total change in W_h the limiter
   // caused; correction is what was returned to the fluid; clamp residual is
   // what the EOS floor prevented returning.

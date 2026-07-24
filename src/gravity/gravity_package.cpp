@@ -158,56 +158,55 @@ void GravityPackage::gravity_update(const Mesh &mesh, const NodalBasis &basis,
   // well-conditioned gauge P = Pi + p_surface for a star. Making Pi the exact
   // adjoint of the reconstruction is what lets the weak energy source conserve
   // hydrodynamic + gravitational energy at P1; see docs/src/gravity.rst.
-    const auto high_order = mesh.node_placement_high_order();
-    athelas::par_scan(
-        DEFAULT_FLAT_LOOP_PATTERN, "Gravity :: Adjoint pressure",
-        DevExecSpace(), ib.s, ib.e,
-        KOKKOS_CLASS_LAMBDA(const int k, double &lambda_right,
-                            const bool is_final) {
-          const int i = ib.e - (k - ib.s);
-          Kokkos::Array<double, MAX_ORDER> a;
-          double cell_adjoint = 0.0;
-          for (int q = 0; q < nNodes; ++q) {
-            double accel = -gval;
-            if constexpr (Model == GravityModel::Spherical) {
-              const double radius = r(i, q + 1);
-              accel = -constants::G_GRAV * enclosed_mass(i, q + 1) /
-                      (radius * radius);
-            }
-            a[q] = -weights(q) * dm_deta(i, q) * accel / sqrt_gm(i, q + 1);
-            cell_adjoint += a[q];
+  const auto high_order = mesh.node_placement_high_order();
+  athelas::par_scan(
+      DEFAULT_FLAT_LOOP_PATTERN, "Gravity :: Adjoint pressure", DevExecSpace(),
+      ib.s, ib.e,
+      KOKKOS_CLASS_LAMBDA(const int k, double &lambda_right,
+                          const bool is_final) {
+        const int i = ib.e - (k - ib.s);
+        Kokkos::Array<double, MAX_ORDER> a;
+        double cell_adjoint = 0.0;
+        for (int q = 0; q < nNodes; ++q) {
+          double accel = -gval;
+          if constexpr (Model == GravityModel::Spherical) {
+            const double radius = r(i, q + 1);
+            accel = -constants::G_GRAV * enclosed_mass(i, q + 1) /
+                    (radius * radius);
           }
+          a[q] = -weights(q) * dm_deta(i, q) * accel / sqrt_gm(i, q + 1);
+          cell_adjoint += a[q];
+        }
 
-          if (is_final) {
-            const bool ho = high_order(i) != 0;
-            const double mass_left = enclosed_mass(i, 0);
-            const double mass_width = enclosed_mass(i, nNodes + 1) - mass_left;
-            pi_g(i, nNodes + 1) = lambda_right;
-            for (int p = 0; p < nNodes; ++p) {
-              double local_adjoint = 0.0;
-              if (ho) {
-                for (int q = 0; q < nNodes; ++q) {
-                  local_adjoint += mesh.integration_matrix(q, p) * a[q];
-                }
-                pi_g(i, p + 1) = lambda_right + local_adjoint / weights(p);
-              } else {
-                for (int q = 0; q < nNodes; ++q) {
-                  const double theta =
-                      (mass_width > 0.0)
-                          ? Kokkos::clamp(
-                                (enclosed_mass(i, q + 1) - mass_left) /
-                                    mass_width,
-                                0.0, 1.0)
-                          : 0.5;
-                  local_adjoint += theta * a[q];
-                }
-                pi_g(i, p + 1) = lambda_right + local_adjoint;
+        if (is_final) {
+          const bool ho = high_order(i) != 0;
+          const double mass_left = enclosed_mass(i, 0);
+          const double mass_width = enclosed_mass(i, nNodes + 1) - mass_left;
+          pi_g(i, nNodes + 1) = lambda_right;
+          for (int p = 0; p < nNodes; ++p) {
+            double local_adjoint = 0.0;
+            if (ho) {
+              for (int q = 0; q < nNodes; ++q) {
+                local_adjoint += mesh.integration_matrix(q, p) * a[q];
               }
+              pi_g(i, p + 1) = lambda_right + local_adjoint / weights(p);
+            } else {
+              for (int q = 0; q < nNodes; ++q) {
+                const double theta =
+                    (mass_width > 0.0)
+                        ? Kokkos::clamp((enclosed_mass(i, q + 1) - mass_left) /
+                                            mass_width,
+                                        0.0, 1.0)
+                        : 0.5;
+                local_adjoint += theta * a[q];
+              }
+              pi_g(i, p + 1) = lambda_right + local_adjoint;
             }
-            pi_g(i, 0) = lambda_right + cell_adjoint;
           }
-          lambda_right += cell_adjoint;
-        });
+          pi_g(i, 0) = lambda_right + cell_adjoint;
+        }
+        lambda_right += cell_adjoint;
+      });
 
   // Gravity updates
   athelas::par_for(
@@ -230,9 +229,10 @@ void GravityPackage::gravity_update(const Mesh &mesh, const NodalBasis &basis,
           volume += term * velocity(i, p);
         }
 
-        // Momentum: the weak pressure operator (interior - boundary + curvature)
-        // applied to pi_g.  The hydro pressure flux applies the same operator to
-        // P, so a hydrostatic state P = pi_g + const cancels through it exactly.
+        // Momentum: the weak pressure operator (interior - boundary +
+        // curvature) applied to pi_g.  The hydro pressure flux applies the same
+        // operator to P, so a hydrostatic state P = pi_g + const cancels
+        // through it exactly.
         const double curvature =
             pi_g(i, q + 1) * geometric_weak_eta_derivative(
                                  phi, dphi, sqrt_gm, weights, i, q, nNodes);
