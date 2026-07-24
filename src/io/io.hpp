@@ -16,7 +16,9 @@
 
 #include "H5Cpp.h"
 
-namespace athelas::io {
+namespace athelas {
+class PackageManager;
+namespace io {
 
 /**
  * @brief Helper struct for organizing HDF5 output
@@ -91,11 +93,16 @@ auto h5_predtype() -> H5::PredType {
   }
 }
 
-void write_output(const MeshState &mesh_state, Mesh &mesh, ProblemIn *pin,
+void write_output(const MeshState &mesh_state, Mesh &mesh,
+                  const PackageManager *packages,
+                  const PackageManager *split_packages, ProblemIn *pin,
                   const std::string &filename, const SimInfo &info);
 
-void write_output(const MeshState &mesh_state, Mesh &mesh, SlopeLimiter *SL,
+void write_output(const MeshState &mesh_state, Mesh &mesh,
+                  const PackageManager *packages,
+                  const PackageManager *split_packages, SlopeLimiter *SL,
                   ProblemIn *pin, const SimInfo &info, int i_write);
 
 void print_simulation_parameters(Mesh &mesh, ProblemIn *pin);
-} // namespace athelas::io
+} // namespace io
+} // namespace athelas

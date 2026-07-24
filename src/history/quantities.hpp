@@ -20,6 +20,7 @@
 #include "bc/boundary_conditions.hpp"
 #include "fluid/fluid_utilities.hpp"
 #include "geometry/mesh.hpp"
+#include "gravity/gravity_potential.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
 #include "loop_layout.hpp"
@@ -33,8 +34,10 @@ inline auto geometry_factor(const Mesh &mesh) -> double {
   return mesh.do_geometry() ? constants::FOURPI : 1.0;
 }
 
-inline auto total_gravitational_energy(const MeshState &mesh_state,
-                                       const Mesh &mesh) -> double {
+inline auto total_gravitational_energy(const MeshState & /*mesh_state*/,
+                                       const Mesh &mesh,
+                                       const GravityModel model,
+                                       const double gval) -> double {
   const auto &nNodes = mesh.n_nodes();
   static const IndexRange ib(mesh.domain<Domain::Interior>());
   auto weights = mesh.weights();
@@ -50,7 +53,8 @@ inline auto total_gravitational_energy(const MeshState &mesh_state,
         double local_sum = 0.0;
         for (int q = 0; q < nNodes; ++q) {
           local_sum += weights(q) * dm_deta(i, q) *
-                       (enclosed_mass(i, q + 1) / r(i, q + 1));
+                       gravity::gravitational_potential(
+                           model, gval, enclosed_mass(i, q + 1), r(i, q + 1));
         }
         lsum += local_sum;
       },
@@ -59,7 +63,7 @@ inline auto total_gravitational_energy(const MeshState &mesh_state,
   if (mesh.do_geometry()) {
     output *= constants::FOURPI;
   }
-  return -constants::G_GRAV * output;
+  return output;
 }
 
 inline auto total_fluid_energy(const MeshState &mesh_state, const Mesh &mesh)
@@ -302,7 +306,8 @@ inline auto fluid_boundary_energy_rate(const MeshState &mesh_state,
 
 inline auto radiation_boundary_energy_rate(const MeshState &mesh_state,
                                            const Mesh &mesh,
-                                           bc::BoundaryConditions *bcs)
+                                           bc::BoundaryConditions *bcs,
+                                           const double ap_coefficient = 0.0)
     -> double {
   using basis::basis_eval;
   using fluid::FluidRiemannState;
@@ -320,6 +325,7 @@ inline auto radiation_boundary_energy_rate(const MeshState &mesh_state,
   auto evolved = mesh_state(0).get_field("evolved");
   auto derived = mesh_state.get_field<AthelasArray3D<double>>("derived");
   auto sqrt_gm = mesh.sqrt_gm();
+  auto dr = mesh.widths();
   auto phi = mesh_state.basis().phi();
   const auto fluid_bcs = bc::fluid_bc_data(bcs);
   const auto rad_bcs = bc::radiation_bc_data(bcs);
@@ -332,6 +338,13 @@ inline auto radiation_boundary_energy_rate(const MeshState &mesh_state,
       mesh_state.var_index("evolved", "specific_radiation_energy");
   const int idx_rad_flux =
       mesh_state.var_index("evolved", "specific_radiation_flux");
+  const int idx_tgas = mesh_state.var_index("derived", "gas_temperature");
+  const auto &opac = mesh_state(0).opac();
+  const bool composition_enabled = mesh_state.enabled("composition");
+  AthelasArray3D<double> bulk;
+  if (composition_enabled) {
+    bulk = mesh_state(0).get_field("bulk_composition");
+  }
 
   double output = 0.0;
   athelas::par_reduce(
@@ -375,8 +388,20 @@ inline auto radiation_boundary_energy_rate(const MeshState &mesh_state,
             .F = basis_eval<Interface::Left>(phi, evolved, face, idx_rad_flux) *
                  rho_r};
 
+        double beta = 1.0;
+        if (ap_coefficient > 0.0) {
+          const int state_cell = inner ? face : face - 1;
+          const int state_node = inner ? 0 : nNodes + 1;
+          const double rho = inner ? rho_r : rho_l;
+          const double tau = radiation::cell_optical_depth(
+              opac, derived, bulk, composition_enabled, idx_tgas, state_cell,
+              state_node, rho, dr(state_cell));
+          beta = radiation::ap_dissipation_factor(tau, ap_coefficient);
+        }
+
         const auto rad_flux = numerical_flux_rad_with_boundary(
-            face, ib.s, ib.e + 1, rad_bcs, rad_left, rad_right, fluid_flux.u);
+            face, ib.s, ib.e + 1, rad_bcs, rad_left, rad_right, fluid_flux.u,
+            beta);
         const double sign = inner ? 1.0 : -1.0;
         lsum += sign * rad_flux.e * sqrt_gm(cell, q_face);
       },
@@ -385,9 +410,11 @@ inline auto radiation_boundary_energy_rate(const MeshState &mesh_state,
   return geometry_factor(mesh) * output;
 }
 
-// This total_energy is all sources
+// This total_energy is all sources. `model` and `gval` are only consulted when
+// gravity is enabled; callers that never enable gravity may pass any value.
 // NOTE: Pattern is somewhat suboptimal
-inline auto total_energy(const MeshState &mesh_state, const Mesh &mesh)
+inline auto total_energy(const MeshState &mesh_state, const Mesh &mesh,
+                         const GravityModel model, const double gval)
     -> double {
   // Probably could be optimized, but it is history..
   double output = total_fluid_energy(mesh_state, mesh);
@@ -399,7 +426,7 @@ inline auto total_energy(const MeshState &mesh_state, const Mesh &mesh)
 
   const bool gravity_enabled = mesh_state.enabled("gravity");
   if (gravity_enabled) {
-    output += total_gravitational_energy(mesh_state, mesh);
+    output += total_gravitational_energy(mesh_state, mesh, model, gval);
   }
   return output;
 }

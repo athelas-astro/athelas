@@ -518,6 +518,10 @@ ProblemIn::ProblemIn(
     params_->add("gravity.gval", gval);
     const std::string gmodel = gravity.get_or<std::string>("model", "constant");
     params_->add("gravity.model", gmodel);
+    const bool limiter_energy_correction =
+        gravity.get_or("limiter_energy_correction", false);
+    params_->add("gravity.limiter_energy_correction",
+                 limiter_energy_correction);
     if (gmodel == "constant" && gval <= 0.0) {
       throw_athelas_error(
           "Constant gravitational potential requested but g <= 0.0!");

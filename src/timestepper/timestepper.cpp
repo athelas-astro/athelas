@@ -1,6 +1,10 @@
 #include "timestepper/timestepper.hpp"
 
+#include <algorithm>
+#include <vector>
+
 #include "geometry/mesh.hpp"
+#include "gravity/gravity_package.hpp"
 #include "interface/packages_base.hpp"
 #include "interface/state.hpp"
 #include "kokkos_abstraction.hpp"
@@ -110,6 +114,16 @@ void TimeStepper::update_fluid_explicit(PackageManager *pkgs,
   const auto &basis = mesh_state.basis();
   const auto &eos = mesh_state.eos();
 
+  // Snapshot the pre-limiter mesh so the driver's post_step_work can settle the
+  // gravitational energy the end-of-step limiter moves. Only when the coupled
+  // gravity package has the correction enabled; a split package lives in the
+  // operator-split manager and is not visible here.
+  const auto *const gravity_package =
+      pkgs->get_package<gravity::GravityPackage>("Gravity");
+  const bool snapshot_limiter = gravity_package != nullptr &&
+                                gravity_package->is_active() &&
+                                gravity_package->corrects_limiter_energy();
+
   auto u0 = mesh_state(0).get_field("evolved");
   for (int iS = 0; iS < nStages_; ++iS) {
     dt_info.stage = iS;
@@ -143,8 +157,6 @@ void TimeStepper::update_fluid_explicit(PackageManager *pkgs,
 
     update_stage_mesh(mesh_state, iS, u);
 
-    // stage_data.mesh() resolves to this stage's mesh (canonical for stage 0,
-    // the work buffer otherwise).
     apply_slope_limiter(sl_hydro, u, stage_data, basis, eos);
     bel::apply_bound_enforcing_limiter(stage_data);
     update_stage_mesh(mesh_state, iS, u);
@@ -170,6 +182,9 @@ void TimeStepper::update_fluid_explicit(PackageManager *pkgs,
   mesh.reconstruct_mesh(u0, x_inner);
 
   auto sd0 = mesh_state(0);
+  if (snapshot_limiter) {
+    gravity_package->snapshot_limiter_radii(mesh);
+  }
   apply_slope_limiter(sl_hydro, u0, sd0, sd0.basis(), sd0.eos());
   bel::apply_bound_enforcing_limiter(sd0);
   mesh.reconstruct_mesh(u0, x_inner);
@@ -202,6 +217,15 @@ void TimeStepper::update_rad_hydro_imex(PackageManager *pkgs,
 
   const auto &basis = mesh_state.basis();
   const auto &eos = mesh_state.eos();
+
+  // Snapshot the pre-limiter mesh for the driver's post_step_work
+  // limiter-energy correction (see update_fluid_explicit). Coupled gravity with
+  // the correction enabled only.
+  const auto *const gravity_package =
+      pkgs->get_package<gravity::GravityPackage>("Gravity");
+  const bool snapshot_limiter = gravity_package != nullptr &&
+                                gravity_package->is_active() &&
+                                gravity_package->corrects_limiter_energy();
 
   auto u0 = mesh_state(0).get_field("evolved");
   auto initial_state = mesh_state(0);
@@ -284,6 +308,9 @@ void TimeStepper::update_rad_hydro_imex(PackageManager *pkgs,
   mesh.reconstruct_mesh(u0, x_inner);
 
   auto sd0 = mesh_state(0);
+  if (snapshot_limiter) {
+    gravity_package->snapshot_limiter_radii(mesh);
+  }
   apply_slope_limiter(sl_hydro, u0, sd0, basis, eos);
   apply_slope_limiter(sl_rad, u0, sd0, basis, eos);
   bel::apply_bound_enforcing_limiter_rad(sd0);

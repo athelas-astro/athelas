@@ -101,7 +101,10 @@ def walk(node: dict, path: str, level: int, out: list[str]) -> None:
   leaves: list[tuple] = []
   children: list[tuple[str, dict]] = []
 
-  for key, val in node.items():
+  # Sort: Lua string-key iteration order is unspecified, so an unsorted walk
+  # reshuffles every table on each regeneration. generate_rst already sorts the
+  # top-level sections; this makes the whole document reproducible.
+  for key, val in sorted(node.items()):
     if not isinstance(val, dict):
       continue
     if val.get("ignore"):
