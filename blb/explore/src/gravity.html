@@ -1,0 +1,712 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Gravity &#8212; Athelas v26.03 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=4418a689" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=a0fb6060" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../_static/documentation_options.js?v=e738c134"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'src/gravity';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="canonical" href="https://athelas-astro.github.io/athelas/src/gravity.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="History Output" href="history.html" />
+    <link rel="prev" title="Engines" href="engines.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">Athelas v26.03 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="building.html">Building</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration.html">Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="diagnostics.html">Diagnostics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engines.html">Engines</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Gravity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="history.html">History Output</a></li>
+<li class="toctree-l1"><a class="reference internal" href="limiters.html">Slope Limiters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="saha.html">Saha Ionization Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="schema_reference.html">Input Deck Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sphinx-doc.html">How to Use Sphinx for Writing Docs</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/src/gravity.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Gravity</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#physical-model">Physical model</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#numerical-model">Numerical model</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#coupled-gravity">Coupled gravity</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#well-balancing">Well-balancing</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gauge-choice">Gauge choice</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#energy-conservation">Energy conservation</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#operator-split-gravity">Operator-split gravity</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#diagnostics-and-conservation">Diagnostics and conservation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#limiter-mesh-work">Limiter mesh work</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#limiter-energy-correction">Limiter energy correction</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="gravity">
+<h1>Gravity<a class="headerlink" href="#gravity" title="Link to this heading">#</a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<p>Athelas provides Newtonian gravity as an explicit physics package. The default
+<em>coupled</em> formulation is designed for spherical self-gravity: it holds
+hydrostatic balance to the order of the scheme and conserves fluid plus
+gravitational energy in the semi-discrete limit. A constant acceleration model
+is also available for test problems.</p>
+<p>Enable gravity with <code class="docutils literal notranslate"><span class="pre">physics.gravity</span> <span class="pre">=</span> <span class="pre">true</span></code>. Coupled gravity is the
+recommended mode. <code class="docutils literal notranslate"><span class="pre">gravity.operator_split</span> <span class="pre">=</span> <span class="pre">true</span></code> is a deliberately simpler
+compatibility mode; it uses a direct velocity kick and gives up well-balancing
+and total-energy conservation. The available options are summarized in
+<a class="reference internal" href="#gravity-configuration"><span class="std std-ref">Configuration</span></a>.</p>
+</section>
+<section id="physical-model">
+<h2>Physical model<a class="headerlink" href="#physical-model" title="Link to this heading">#</a></h2>
+<p>Gravity enters through the Newtonian potential <span class="math notranslate nohighlight">\(\varphi\)</span>. In spherical
+symmetry,</p>
+<div class="math notranslate nohighlight" id="equation-src-gravity-0">
+<span class="eqno">(1)<a class="headerlink" href="#equation-src-gravity-0" title="Link to this equation">#</a></span>\[\varphi(r) = -\frac{G M(r)}{r},\]</div>
+<p>where <span class="math notranslate nohighlight">\(M(r)\)</span> is the mass enclosed within <span class="math notranslate nohighlight">\(r\)</span>; the <code class="docutils literal notranslate"><span class="pre">constant</span></code>
+model uses <span class="math notranslate nohighlight">\(\varphi(r) = g_{\rm val}\,r\)</span>. The acceleration is minus its
+gradient,</p>
+<div class="math notranslate nohighlight" id="equation-src-gravity-1">
+<span class="eqno">(2)<a class="headerlink" href="#equation-src-gravity-1" title="Link to this equation">#</a></span>\[g = -\frac{\partial\varphi}{\partial r},\]</div>
+<p>recovering <span class="math notranslate nohighlight">\(g = -GM/r^2\)</span> and <span class="math notranslate nohighlight">\(g = -g_{\rm val}\)</span> respectively.</p>
+<p>Gravity contributes acceleration and work to the Lagrangian fluid equations:</p>
+<div class="math notranslate nohighlight" id="equation-src-gravity-2">
+<span class="eqno">(3)<a class="headerlink" href="#equation-src-gravity-2" title="Link to this equation">#</a></span>\[\frac{\partial v}{\partial t} = -\frac{\partial\varphi}{\partial r} ,
+\qquad
+\frac{\partial E}{\partial t} = -v\,\frac{\partial\varphi}{\partial r} .\]</div>
+<p>Here <span class="math notranslate nohighlight">\(v\)</span> is velocity and <span class="math notranslate nohighlight">\(E\)</span> is specific total fluid energy.</p>
+</section>
+<section id="numerical-model">
+<h2>Numerical model<a class="headerlink" href="#numerical-model" title="Link to this heading">#</a></h2>
+<section id="coupled-gravity">
+<h3>Coupled gravity<a class="headerlink" href="#coupled-gravity" title="Link to this heading">#</a></h3>
+<p>A pointwise discretization of these source terms would neither preserve
+hydrostatic balance nor conserve the discrete potential energy.
+We seek a representation of gravitational sources that is consistent with the
+operators used for the hydrodynamic flux divergence and geometric source.
+Moreover, in the Lagrangian picture, the gravitational potential evolves
+through mesh advection, so any treatment of gravity must be consistent with
+mesh motion.
+The coupled package builds a <em>gravity pressure</em> <span class="math notranslate nohighlight">\(\tilde\Pi\)</span>, defined in
+the continuum by</p>
+<div class="math notranslate nohighlight" id="equation-src-gravity-3">
+<span class="eqno">(4)<a class="headerlink" href="#equation-src-gravity-3" title="Link to this equation">#</a></span>\[\frac{\partial\tilde\Pi}{\partial r}
+  = -\rho\,\frac{\partial\varphi}{\partial r} .\]</div>
+<p>This is precisely the equation of hydrostatic equilibrium: <span class="math notranslate nohighlight">\(\tilde\Pi\)</span> is
+the pressure profile that balances the potential <span class="math notranslate nohighlight">\(\varphi\)</span>. Equilibrium is
+therefore the statement <span class="math notranslate nohighlight">\(P = \tilde\Pi + \text{constant}\)</span>.
+In the mass coordinate, dropping factors of <span class="math notranslate nohighlight">\(4\pi\)</span> so that
+<span class="math notranslate nohighlight">\(\mathrm{d}m = \rho\sqrt{\gamma}\,\mathrm{d}r\)</span> and <span class="math notranslate nohighlight">\(\sqrt{\gamma}=r^2\)</span>
+in spherical geometry, this reads</p>
+<div class="math notranslate nohighlight" id="equation-src-gravity-4">
+<span class="eqno">(5)<a class="headerlink" href="#equation-src-gravity-4" title="Link to this equation">#</a></span>\[\partial_m \tilde\Pi = -\rho\,\partial_m\varphi .\]</div>
+<p>Discretely, <span class="math notranslate nohighlight">\(\tilde\Pi\)</span> is built as the gravitational analogue of a
+pressure. A gas pressure is how the internal energy resists compression;
+<span class="math notranslate nohighlight">\(\tilde\Pi\)</span> is how the <em>gravitational</em> energy resists it. Let
+<span class="math notranslate nohighlight">\(W_h=\sum_q M_q\,\varphi(r_q)\)</span> be the discrete gravitational energy
+(nodal mass <span class="math notranslate nohighlight">\(M_q=w_q\mu_q\)</span> times the potential at each node), and define</p>
+<div class="math notranslate nohighlight" id="equation-src-gravity-5">
+<span class="eqno">(6)<a class="headerlink" href="#equation-src-gravity-5" title="Link to this equation">#</a></span>\[M\tilde\Pi = \frac{\partial W_h}{\partial\tau} .\]</div>
+<p>Nudging the specific volume <span class="math notranslate nohighlight">\(\tau\)</span> in a cell repacks the gas, which moves
+the nodes and so shifts where mass sits in the potential; <span class="math notranslate nohighlight">\(\tilde\Pi\)</span> is
+precisely how much <span class="math notranslate nohighlight">\(W_h\)</span> responds. That is exactly the sense in which the
+gas and gravity pressures balance in equilibrium.</p>
+<p>Computing that response is a single <strong>inward sweep</strong>.
+The change in <span class="math notranslate nohighlight">\(W_h\)</span> at a cell accumulates the
+gravitational pull of everything exterior to it, which the package assembles as
+one surface-to-centre running sum. Formally that sum is the transpose of the
+mesh reconstruction <span class="math notranslate nohighlight">\(r(\tau)\)</span> – the map that integrates <span class="math notranslate nohighlight">\(\mu\tau\)</span>
+to the volume coordinate <span class="math notranslate nohighlight">\(X=r^3/3\)</span>. Writing
+<span class="math notranslate nohighlight">\(J_X=\partial X/\partial\tau\)</span> for its tangent (the same object that
+advances the grid, <span class="math notranslate nohighlight">\(\dot r=J_X\dot\tau/r^2\)</span>) and
+<span class="math notranslate nohighlight">\(f=\rho\,\partial_m\varphi=\partial\varphi/\partial X\)</span> for the force per
+unit volume coordinate,</p>
+<div class="math notranslate nohighlight" id="equation-src-gravity-6">
+<span class="eqno">(7)<a class="headerlink" href="#equation-src-gravity-6" title="Link to this equation">#</a></span>\[M\tilde\Pi = J_X^{\mathsf T} M f ,\]</div>
+<p>which is the <strong>adjoint</strong> of the reconstruction.</p>
+<p>Building <span class="math notranslate nohighlight">\(\tilde\Pi\)</span> this way is what makes the scheme <em>conservative</em>.
+Any <span class="math notranslate nohighlight">\(\tilde\Pi\)</span> obeying the
+continuum relation above would balance the momentum equation for a hydrostatic
+state, but only the exact adjoint satisfies
+<span class="math notranslate nohighlight">\(\dot W_h=\tilde\Pi^{\mathsf T} M\dot\tau\)</span>: the gravity work returned to the
+fluid then equals the rate of change of the discrete potential energy, term for
+term. That identity is the engine of the energy source below.</p>
+<section id="well-balancing">
+<h4>Well-balancing<a class="headerlink" href="#well-balancing" title="Link to this heading">#</a></h4>
+<p>The momentum source applies the same weak divergence operator to
+<span class="math notranslate nohighlight">\(\tilde\Pi\)</span> that hydro applies to fluid pressure <span class="math notranslate nohighlight">\(P\)</span>. For a discrete
+state satisfying</p>
+<div class="math notranslate nohighlight" id="equation-src-gravity-7">
+<span class="eqno">(8)<a class="headerlink" href="#equation-src-gravity-7" title="Link to this equation">#</a></span>\[P_h - \tilde\Pi_h = \mathrm{constant} ,\]</div>
+<p>the interior (volume) and curvature parts of the two operators cancel term for
+term to roundoff – the payoff of building <span class="math notranslate nohighlight">\(\tilde\Pi\)</span> as the exact
+adjoint. What survives is a residual confined to the cell faces, because the two
+packages compute the face pressure by different rules: gravity uses a single
+continuous scan value, while hydro uses a Riemann solve of two independently
+reconstructed traces. These agree at the boundaries – the inner face carries
+<span class="math notranslate nohighlight">\(\sqrt\gamma = 0\)</span>, and the outer face is exact under the surface gauge
+with a matching surface pressure – but only to truncation order at interior
+faces.</p>
+<p>The balance is therefore high order in the mesh spacing, not exact to
+roundoff: the spurious equilibrium acceleration converges away under
+refinement at the order of the scheme. That convergence, rather than a
+machine-zero residual, is the operative well-balancing criterion.
+Making the balance exact would additionally require the fluid flux to reuse
+<span class="math notranslate nohighlight">\(\tilde\Pi\)</span> at the face – a hydrostatic-reconstruction-style well-balanced
+flux – which is a possible extension, not the current scheme.</p>
+</section>
+<section id="gauge-choice">
+<h4>Gauge choice<a class="headerlink" href="#gauge-choice" title="Link to this heading">#</a></h4>
+<p><span class="math notranslate nohighlight">\(\tilde\Pi\)</span> is defined up to a constant. Both the momentum and energy
+operators are invariant under <span class="math notranslate nohighlight">\(\tilde\Pi\to\tilde\Pi+c\)</span>: the constant
+cancels in the weak momentum operator, and the energy contribution reduces to
+the discrete specific-volume identity. We take
+<span class="math notranslate nohighlight">\(\tilde\Pi=0\)</span> at the stellar surface, where <span class="math notranslate nohighlight">\(P\to0\)</span>; this avoids
+subtractive cancellation in <span class="math notranslate nohighlight">\(P-\tilde\Pi\)</span>.</p>
+</section>
+<section id="energy-conservation">
+<h4>Energy conservation<a class="headerlink" href="#energy-conservation" title="Link to this heading">#</a></h4>
+<p>The coupled energy source uses a weak product rule,</p>
+<div class="math notranslate nohighlight" id="equation-src-gravity-8">
+<span class="eqno">(9)<a class="headerlink" href="#equation-src-gravity-8" title="Link to this equation">#</a></span>\[M\dot E_g = \mathcal{D}_h(\sqrt{\gamma}\,v\tilde\Pi)
+             - M(\tilde\Pi\dot\tau),\]</div>
+<p>assembled as <code class="docutils literal notranslate"><span class="pre">(face</span> <span class="pre">-</span> <span class="pre">volume</span> <span class="pre">-</span> <span class="pre">dilatation)</span></code>. The face term telescopes across
+cells, the summed volume term vanishes, and the dilatation term is
+<span class="math notranslate nohighlight">\(\tilde\Pi^{\mathsf T}M\dot\tau\)</span>. Therefore the total gravity work is
+exactly <span class="math notranslate nohighlight">\(-\mathrm{d}W_h/\mathrm{d}t\)</span> in the semi-discrete sense.</p>
+<p>The hydro or IMEX rad-hydro package publishes the complete mass-matrix-scaled
+specific-volume RHS in <code class="docutils literal notranslate"><span class="pre">dtau_dt</span></code> earlier in the same Runge–Kutta stage.
+Hydro must be registered before coupled gravity. This same-stage dependency is
+why the weak source cannot be used as an operator-split package.</p>
+</section>
+</section>
+<section id="operator-split-gravity">
+<h3>Operator-split gravity<a class="headerlink" href="#operator-split-gravity" title="Link to this heading">#</a></h3>
+<p>Split gravity holds the mesh fixed and applies a direct kick after the hydro
+step. With <span class="math notranslate nohighlight">\(g\)</span> evaluated on that post-hydro mesh, it uses</p>
+<div class="math notranslate nohighlight" id="equation-src-gravity-9">
+<span class="eqno">(10)<a class="headerlink" href="#equation-src-gravity-9" title="Link to this equation">#</a></span>\[v^{n+1}=v^n+g\Delta t, \qquad
+E^{n+1}=E^n+\tfrac12\big[(v^{n+1})^2-(v^n)^2\big].\]</div>
+<p>This leaves specific internal energy unchanged to roundoff. It does <em>not</em> move
+the mesh or update <span class="math notranslate nohighlight">\(W_h\)</span>, so it is not well-balanced and does not conserve
+fluid plus gravitational energy. The limiter-energy correction is unavailable
+in split mode.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Operator splitting is not recommended for gravity. The gravity update is not
+a large computational expense, so there is no real gain and a demonstrable
+loss of accuracy.</p>
+</div>
+</section>
+</section>
+<section id="diagnostics-and-conservation">
+<h2>Diagnostics and conservation<a class="headerlink" href="#diagnostics-and-conservation" title="Link to this heading">#</a></h2>
+<p>The history file reports <code class="docutils literal notranslate"><span class="pre">Total</span> <span class="pre">Gravitational</span> <span class="pre">Energy</span> <span class="pre">[erg]</span></code> as the discrete
+form of <span class="math notranslate nohighlight">\(W = \int\varphi\,\mathrm{d}m\)</span>, using the same potential
+<span class="math notranslate nohighlight">\(\varphi\)</span> as the source. Together with total fluid and radiation energy,
+this is the conservation audit for coupled gravity.</p>
+<section id="limiter-mesh-work">
+<h3>Limiter mesh work<a class="headerlink" href="#limiter-mesh-work" title="Link to this heading">#</a></h3>
+<p>Limiters preserve each cell’s mass-weighted average, so they do not move cell
+faces. They can nevertheless reshape <span class="math notranslate nohighlight">\(\tau\)</span> within a cell, relocate its
+interior nodes, and change <span class="math notranslate nohighlight">\(W_h\)</span> without a physical energy source.
+<code class="docutils literal notranslate"><span class="pre">Cumulative</span> <span class="pre">Limiter</span> <span class="pre">Mesh</span> <span class="pre">Work</span> <span class="pre">[erg]</span></code> measures this change for the
+end-of-step limiter block on the committed state.</p>
+</section>
+<section id="limiter-energy-correction">
+<h3>Limiter energy correction<a class="headerlink" href="#limiter-energy-correction" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">gravity.limiter_energy_correction</span></code> returns the committed limiter’s potential
+change to the fluid. For each cell it computes</p>
+<div class="math notranslate nohighlight" id="equation-src-gravity-10">
+<span class="eqno">(11)<a class="headerlink" href="#equation-src-gravity-10" title="Link to this equation">#</a></span>\[\delta W_i = 4\pi\sum_q w_q\mu_q
+   \left[\varphi(r_q^{\rm new})-\varphi(r_q^{\rm old})\right]\]</div>
+<p>and adds <span class="math notranslate nohighlight">\(-\delta W_i/m_i\)</span> uniformly to the cell’s specific energy. The
+correction is clamped at the EOS internal-energy floor. The associated history
+columns are <code class="docutils literal notranslate"><span class="pre">Cumulative</span> <span class="pre">Limiter</span> <span class="pre">Energy</span> <span class="pre">Correction</span> <span class="pre">[erg]</span></code> and
+<code class="docutils literal notranslate"><span class="pre">Cumulative</span> <span class="pre">Limiter</span> <span class="pre">Energy</span> <span class="pre">Clamp</span> <span class="pre">Residual</span> <span class="pre">[erg]</span></code>. They satisfy</p>
+<div class="math notranslate nohighlight" id="equation-src-gravity-11">
+<span class="eqno">(12)<a class="headerlink" href="#equation-src-gravity-11" title="Link to this equation">#</a></span>\[\text{correction}+\text{clamp residual}=-\text{mesh work}.\]</div>
+</section>
+</section>
+<section id="configuration">
+<span id="gravity-configuration"></span><h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>
+<p>Enable the package and select a model:</p>
+<div class="highlight-lua notranslate"><div class="highlight"><pre><span></span><span class="nv">config</span><span class="p">.</span><span class="py">physics</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nv">gravity</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">}</span>
+<span class="nv">config</span><span class="p">.</span><span class="py">gravity</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nv">model</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;spherical&quot;</span><span class="p">,</span><span class="w">               </span><span class="c1">-- or &quot;constant&quot;</span>
+<span class="w">  </span><span class="nv">gval</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1000.0</span><span class="p">,</span><span class="w">                     </span><span class="c1">-- acceleration [cm s^-2], for &quot;constant&quot;</span>
+<span class="w">  </span><span class="nv">operator_split</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">            </span><span class="c1">-- coupled gravity is recommended</span>
+<span class="w">  </span><span class="nv">limiter_energy_correction</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="c1">-- opt-in</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>See <a class="reference internal" href="schema_reference.html"><span class="doc">Input Deck Reference</span></a> for the complete option table.</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="engines.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Engines</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="history.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">History Output</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#physical-model">Physical model</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#numerical-model">Numerical model</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#coupled-gravity">Coupled gravity</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#well-balancing">Well-balancing</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gauge-choice">Gauge choice</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#energy-conservation">Energy conservation</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#operator-split-gravity">Operator-split gravity</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#diagnostics-and-conservation">Diagnostics and conservation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#limiter-mesh-work">Limiter mesh work</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#limiter-energy-correction">Limiter energy correction</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Brandon L. Barker
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2024-2026, Brandon L. Barker.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
