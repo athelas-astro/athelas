@@ -49,6 +49,6 @@ commit_parsers = [
 protect_breaking_commits = true
 filter_commits = true
 fail_on_unmatched_commit = false
-tag_pattern = "^v(?:26\\.03|[0-9]+\\.[0-9]+\\.[0-9]+)$"
+tag_pattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
 topo_order = false
 sort_commits = "newest"
