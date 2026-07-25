@@ -58,7 +58,6 @@ config.fluid = {
     tci_val = 0.1,
     characteristic = false,
     gamma_i = 0.998,
-    weno_p = 1.0,
   },
 }
 
