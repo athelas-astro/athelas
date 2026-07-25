@@ -46,7 +46,6 @@ config.bc = {
 config.output = {
   ncycle_out = 100000,
   dt_hdf5 = 1.0,
-  dt_init_frac = 1.5,
 }
 
 config.fluid = {

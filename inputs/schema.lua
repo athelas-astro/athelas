@@ -14,6 +14,8 @@
 --     { when = "section.key", equals = val }  -- required when another key equals val
 --     { when = "section.key", is_true = true } -- required when another key is true
 --   ignore   (bool, optional)                 -- skip this subtable entirely (no validation)
+--   allow_unknown (bool, optional)            -- allow arbitrary contents and skip
+--                                                generic validation below this node
 
 local schema = {}
 
@@ -33,6 +35,7 @@ schema.problem = {
   },
   params = {
     required = true,
+    allow_unknown = true,
     doc = "Problem-specific parameters. Validated by the problem generator.",
   },
 }

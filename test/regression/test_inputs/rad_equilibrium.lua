@@ -2,7 +2,6 @@ local config = {}
 
 config.problem = {
   name = "rad_equilibrium",
-  bc = "homogenous",
   cfl = 0.9,
 
   params = {
@@ -53,7 +52,6 @@ config.bc = {
 
 config.output = {
   ncycle_out = 100,
-  dt_init_frac = 1.05,
 }
 
 config.fluid = {

@@ -43,7 +43,6 @@ config.output = {
   basename = "regression",
   ncycle_out = 100,
   dt_hdf5 = 0.05,
-  dt_init_frac = 1.05,
 }
 
 config.fluid = {
@@ -56,7 +55,6 @@ config.fluid = {
     tci_val = 0.1,
     characteristic = false,
     gamma_i = 0.998,
-    weno_p = 1.0,
   },
 }
 

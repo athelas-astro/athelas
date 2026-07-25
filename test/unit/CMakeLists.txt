@@ -34,6 +34,7 @@ add_executable( unit_tests
   ../../src/interface/params.cpp
   ../../src/interface/state.cpp
   test_parser.cpp
+  test_lua_validator.cpp
   test_legendre.cpp
   test_characteristic_decomposition.cpp
   test_paczynski.cpp

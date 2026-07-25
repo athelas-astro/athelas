@@ -48,7 +48,6 @@ config.bc = {
 
 config.output = {
   ncycle_out = 1000,
-  dt_growth_frac = 1.05,
   history = {
     fn = "gravity_energy_conservation.hst",
     dt = 0.05,

@@ -39,7 +39,6 @@ config.bc = {
 
 config.output = {
   ncycle_out = 100,
-  dt_init_frac = 1.01,
   history = {
     fn = "ejecta_csm.hst",
     dt = 0.001,

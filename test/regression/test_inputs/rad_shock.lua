@@ -2,7 +2,6 @@ local config = {}
 
 config.problem = {
   name = "rad_shock",
-  x_d = 0.0132,
   cfl = 0.5,
 
   params = {
@@ -54,8 +53,8 @@ config.bc = {
 }
 
 config.output = {
-  ncycle_out = 100,
   dt_growth_frac = 1.1,
+  ncycle_out = 100,
   dt_init = 1.0e-17,
   history = {
     fn = config.problem.name .. ".hst",
