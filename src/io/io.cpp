@@ -26,15 +26,9 @@ namespace io {
 
 /**
  * Write to standard output a curated, human-readable summary of the run
- * configuration before time evolution begins. This is the single startup
- * banner: it leads with build provenance, mirrors the actually-registered
- * packages, and prints only the parameters relevant to the enabled physics.
  * The complete parameter set is always captured in the HDF5 output; this is a
  * curated view, not an exhaustive dump.
- *
- * Every line is prefixed with `# ` (gnuplot / log friendly), matching the
- * in-loop cycle table. Conditional keys are guarded with `contains()`; we
- * never use the mutating `get<T>(key, default)` overload here.
+ * Every line is prefixed with `# `.
  **/
 void print_simulation_parameters(Mesh &mesh, ProblemIn *pin,
                                  const PackageManager *packages,
@@ -46,6 +40,8 @@ void print_simulation_parameters(Mesh &mesh, ProblemIn *pin,
   const auto section = [](std::string_view name) -> void {
     std::println("# --- {} ---", name);
   };
+
+  // TODO(astrobarker): add option for scientific formatting.
   const auto row = [](std::string_view label, const auto &value) -> void {
     std::println("#   {:<18}{}", label, value);
   };
@@ -69,9 +65,6 @@ void print_simulation_parameters(Mesh &mesh, ProblemIn *pin,
     return p->get<std::string>(std::string(prefix) + ".limiter.type");
   };
 
-  // The identity + build-provenance header is printed earlier, at program
-  // start (see main.cpp), so it precedes problem-generator output. This
-  // summary picks up with the curated run parameters.
   std::println("# --- Run parameters ---");
   std::println("");
 
@@ -93,7 +86,7 @@ void print_simulation_parameters(Mesh &mesh, ProblemIn *pin,
   row("integrator", p->get<std::string>("time.integrator_string"));
   row("spatial order", nnodes);
   row("t_end", p->get<double>("time.t_end"));
-  const double nlim = p->get<double>("time.nlim");
+  const auto nlim = p->get<double>("time.nlim");
   row("cycle limit",
       nlim < 0 ? std::string("none") : std::format("{:.0f}", nlim));
   std::println("");
