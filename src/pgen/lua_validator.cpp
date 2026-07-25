@@ -7,6 +7,19 @@
 
 namespace athelas {
 
+namespace {
+
+auto is_schema_directive(const std::string &key) -> bool {
+  return key == "allow_unknown";
+}
+
+auto allows_unknown(sol::table schema) -> bool {
+  sol::optional<bool> allow_unknown = schema["allow_unknown"];
+  return allow_unknown.value_or(false);
+}
+
+} // namespace
+
 Validator::Validator(sol::table schema) : schema_(schema) {}
 
 void Validator::validate(sol::table config) {
@@ -39,7 +52,16 @@ sol::object Validator::get_path(sol::table root, const std::string &path) {
 }
 
 auto Validator::subtree_requires(sol::table schema, sol::table root) -> bool {
+  if (allows_unknown(schema)) {
+    return false;
+  }
+
   for (auto &kv : schema) {
+    const std::string key = kv.first.as<std::string>();
+    if (is_schema_directive(key)) {
+      continue;
+    }
+
     sol::table node = kv.second;
 
     if (node["ignore"].valid()) {
@@ -90,8 +112,31 @@ auto Validator::required_dep(sol::object rule, sol::table root) -> bool {
 
 void Validator::validate_table(sol::table config, sol::table schema,
                                sol::table root, const std::string &prefix) {
+  if (allows_unknown(schema)) {
+    return;
+  }
+
+  for (auto &kv : config) {
+    if (!kv.first.is<std::string>()) {
+      const std::string table_name = prefix.empty() ? "<root>" : prefix;
+      throw_athelas_error("Non-string key in configuration table: " +
+                          table_name);
+    }
+
+    const std::string key = kv.first.as<std::string>();
+    sol::object node = schema[key];
+    if (!node.valid() || is_schema_directive(key)) {
+      const std::string full = prefix.empty() ? key : prefix + "." + key;
+      throw_athelas_error("Unrecognized field: " + full);
+    }
+  }
+
   for (auto &kv : schema) {
     std::string key = kv.first.as<std::string>();
+    if (is_schema_directive(key)) {
+      continue;
+    }
+
     sol::table node = kv.second;
 
     std::string full = prefix.empty() ? key : prefix + "." + key;
