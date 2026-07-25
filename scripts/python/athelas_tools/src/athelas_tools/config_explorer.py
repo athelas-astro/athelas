@@ -202,7 +202,7 @@ class BrandingBanner(Static):
     """
 
   def render(self) -> str:
-    return "Athelas  v26.03\nSchema Explorer"
+    return "Athelas Schema Explorer"
 
 
 class DetailPanel(Static):

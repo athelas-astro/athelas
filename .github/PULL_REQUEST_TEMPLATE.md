@@ -1,6 +1,6 @@
-<!--Provide a general summary of your changes in the title above, for
-example "fix bug in ideal gas EOS.".  Please avoid
-non-descriptive titles such as "Addresses issue #8576".-->
+<!--Use a Conventional Commit title, for example
+"fix(eos): handle the ideal gas energy floor". Please avoid non-descriptive
+titles such as "Addresses issue #8576".-->
 
 ## PR Summary
 
