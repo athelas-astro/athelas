@@ -53,7 +53,7 @@ config.bc = {
 
 config.output = {
   ncycle_out = 100,
-  dt_init_frac = 1.0005,
+  dt_growth_frac = 1.0005,
   dt_hdf5 = 1.0,
 }
 

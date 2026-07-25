@@ -49,7 +49,7 @@ config.bc = {
 
 config.output = {
   ncycle_out = 1,
-  dt_init_frac = 1.005,
+  dt_growth_frac = 1.005,
   history = {
     fn = "one_zone_ionization.hst",
   },
