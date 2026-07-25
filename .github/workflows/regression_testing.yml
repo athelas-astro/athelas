@@ -6,12 +6,16 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     
     strategy:
       fail-fast: false
       matrix:
-        build_type: [Release, Debug]
+        include:
+          - build_type: Release
+            omp_num_threads: 2
+          - build_type: Debug
+            omp_num_threads: 1
     
     steps:
     - uses: actions/checkout@v3
@@ -70,5 +74,7 @@ jobs:
       
     - name: Run Regression Tests
       working-directory: test/regression
+      env:
+        OMP_NUM_THREADS: ${{ matrix.omp_num_threads }}
       run: |
         python run_regression_tests.py -e ${{ steps.strings.outputs.build-output-dir }}/athelas
