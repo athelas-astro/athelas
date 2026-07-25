@@ -207,13 +207,39 @@ radiation_four_force(const double D, const double V, const double T,
   return chi * E;
 }
 
-[[nodiscard]] KOKKOS_INLINE_FUNCTION auto p_rad_perp(const double E,
-                                                     const double F) -> double {
-  assert(E > 0.0 && "Radiation :: p_rad_perp :: Non positive definite "
-                    "radiation energy density.");
+/**
+ * @struct RadPerpendicularPressure
+ * @brief Holds the radiation perpendicular pressure and its derivatives.
+ * Used in the geometric source.
+ */
+struct RadPerpendicularPressure {
+  double pressure;
+  double d_pressure_dE;
+  double d_pressure_dF;
+};
+
+[[nodiscard]] KOKKOS_INLINE_FUNCTION auto
+p_rad_perp_with_derivatives(const double E, const double F)
+    -> RadPerpendicularPressure {
+  assert(E > 0.0 &&
+         "Radiation :: p_rad_perp_with_derivatives :: Non positive definite "
+         "radiation energy density.");
   const double f = flux_factor(E, F);
   const double chi = eddington_factor(f);
-  return E * (1.0 - chi) * 0.5;
+  const double chi_prime = eddington_factor_prime(f);
+  return {
+      .pressure = 0.5 * E * (1.0 - chi),
+      .d_pressure_dE = 0.5 * (1.0 - chi + f * chi_prime),
+      .d_pressure_dF =
+          -0.5 * chi_prime * math::utils::sgn(F) / constants::c_cgs,
+  };
+}
+
+[[nodiscard]] KOKKOS_INLINE_FUNCTION auto p_rad_perp(const double E,
+                                                     const double F) -> double {
+  const double f = flux_factor(E, F);
+  const double chi = eddington_factor(f);
+  return 0.5 * E * (1.0 - chi);
 }
 
 /**

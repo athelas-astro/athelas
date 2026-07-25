@@ -39,6 +39,7 @@ class GeometryPackage {
 
  private:
   bool active_;
+  bool radiation_explicit_;
   AthelasArray4D<double> delta_; // [nstages, nx, order, nvars]
 };
 

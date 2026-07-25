@@ -1,5 +1,7 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include "constants.hpp"
 #include "radiation/rad_utilities.hpp"
 #include "test_utils.hpp"
 
@@ -40,5 +42,33 @@ TEST_CASE("Radiation AP LLF face flux remains conservative", "[radiation]") {
     const double left_increment = -face_flux;
     const double right_increment = face_flux;
     REQUIRE(soft_equal(left_increment + right_increment, 0.0, 1.0e-15));
+  }
+}
+
+TEST_CASE("Perpendicular radiation pressure derivatives match finite "
+          "differences",
+          "[radiation]") {
+  using athelas::constants::c_cgs;
+  using athelas::radiation::p_rad_perp;
+  using athelas::radiation::p_rad_perp_with_derivatives;
+
+  constexpr double E = 4.0;
+  constexpr double h_E = 1.0e-6 * E;
+  constexpr double h_F = 1.0e-6 * c_cgs * E;
+
+  for (const double reduced_flux : {-0.95, -0.4, 0.0, 0.25, 0.85}) {
+    const double F = reduced_flux * c_cgs * E;
+    const auto pressure = p_rad_perp_with_derivatives(E, F);
+    const double finite_difference_E =
+        (p_rad_perp(E + h_E, F) - p_rad_perp(E - h_E, F)) / (2.0 * h_E);
+    const double finite_difference_F =
+        (p_rad_perp(E, F + h_F) - p_rad_perp(E, F - h_F)) / (2.0 * h_F);
+
+    REQUIRE(pressure.pressure ==
+            Catch::Approx(p_rad_perp(E, F)).epsilon(1.0e-14));
+    REQUIRE(pressure.d_pressure_dE ==
+            Catch::Approx(finite_difference_E).epsilon(1.0e-9));
+    REQUIRE(pressure.d_pressure_dF ==
+            Catch::Approx(finite_difference_F).epsilon(1.0e-9).margin(1.0e-20));
   }
 }
