@@ -2,11 +2,13 @@
 
 #include <array>
 #include <cstddef>
+#include <format>
 #include <iomanip>
 #include <map>
 #include <print>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "H5Cpp.h"
@@ -23,111 +25,224 @@ using basis::NodalBasis;
 namespace io {
 
 /**
- * Write to standard output some initialization info
- * for the current simulation.
+ * Write to standard output a curated, human-readable summary of the run
+ * The complete parameter set is always captured in the HDF5 output; this is a
+ * curated view, not an exhaustive dump.
+ * Every line is prefixed with `# `.
  **/
-void print_simulation_parameters(Mesh &mesh, ProblemIn *pin) {
-  const int nX = mesh.n_elements();
-  const int nNodes = mesh.n_nodes();
-  // NOTE: If I properly support more bases again, adjust here.
-  const bool rad_enabled = pin->param()->get<bool>("physics.radiation.enabled");
-  const bool gravity_enabled =
-      pin->param()->get<bool>("physics.gravity.enabled");
-  const bool comps_enabled =
-      pin->param()->get<bool>("physics.composition.enabled");
-  const bool ionization_enabled =
-      pin->param()->get<bool>("physics.ionization.enabled");
-  const bool heating_enabled =
-      pin->param()->get<bool>("physics.heating.active");
-  const bool engine_enabled = pin->param()->get<bool>("physics.engine.enabled");
+void print_simulation_parameters(Mesh &mesh, ProblemIn *pin,
+                                 const PackageManager *packages,
+                                 const PackageManager *split_packages,
+                                 const bool restart) {
+  auto *const p = pin->param();
 
-  std::println("# --- General --- ");
-  std::println("# Problem Name    : {}",
-               pin->param()->get<std::string>("problem.name"));
-  std::println("# CFL             : {}",
-               pin->param()->get<double>("problem.cfl"));
+  // --- local formatting helpers ---
+  const auto section = [](std::string_view name) -> void {
+    std::println("# --- {} ---", name);
+  };
+
+  const auto row = [](std::string_view label, const auto &value) -> void {
+    std::println("#   {:<18}{}", label, value);
+  };
+  // Wrap a value with sci() to flag it for scientific notation; the result is a
+  // string, so it composes with row() and with larger std::format() rows.
+  const auto sci = [](double value) -> std::string {
+    return std::format("{:.3e}", value);
+  };
+
+  const int nnodes = p->get<int>("basis.nnodes");
+  const bool rad_enabled = p->get<bool>("physics.radiation.enabled");
+  const bool gravity_enabled = p->get<bool>("physics.gravity.enabled");
+  const bool comps_enabled = p->get<bool>("physics.composition.enabled");
+  const bool ionization_enabled = p->get<bool>("physics.ionization.enabled");
+  const bool heating_enabled = p->get<bool>("physics.heating.active");
+  const bool engine_enabled = p->get<bool>("physics.engine.enabled");
+
+  // limiter description shared by the fluid and radiation blocks
+  const auto limiter_desc = [&](std::string_view prefix) -> std::string {
+    if (nnodes == 1) {
+      return "n/a (spatial order 1)";
+    }
+    if (!p->get<bool>(std::string(prefix) + ".limiter.enabled")) {
+      return "disabled";
+    }
+    return p->get<std::string>(std::string(prefix) + ".limiter.type");
+  };
+
+  std::println("# --- Run parameters ---");
   std::println("");
 
-  std::println("# --- Mesh Parameters --- ");
-  std::println("# Mesh Elements  : {}", nX);
-  std::println("# Number Nodes   : {}", nNodes);
-  std::println("# Lower Boundary : {}", mesh.get_x_l());
-  std::println("# Upper Boundary : {}", mesh.get_x_r());
+  section("General");
+  row("problem", p->get<std::string>("problem.name"));
+  row("mode", restart ? "restart" : "new run");
+  row("cfl", p->get<double>("problem.cfl"));
   std::println("");
 
-  std::println("# --- Physics Parameters --- ");
-  std::println("# Radiation      : {}", rad_enabled);
-  std::println("# Gravity        : {}", gravity_enabled);
-  std::println("# Composition    : {}", comps_enabled);
-  std::println("# Ionization     : {}", ionization_enabled);
-  std::println("# Heating        : {}", heating_enabled);
-  std::println("# Engine         : {}", engine_enabled);
-  std::println("# EOS            : {}",
-               pin->param()->get<std::string>("eos.type"));
+  section("Grid");
+  row("geometry", std::format("{} ({})", p->get<std::string>("mesh.geometry"),
+                              p->get<std::string>("mesh.grid_type")));
+  row("cells", mesh.n_elements());
+  row("nodes / cell", mesh.n_nodes());
+  row("domain",
+      std::format("[{}, {}]", sci(mesh.get_x_l()), sci(mesh.get_x_r())));
   std::println("");
 
-  std::println("# --- Discretization Parameters --- ");
-  std::println("# Spatial Order  : {}", pin->param()->get<int>("basis.nnodes"));
-  std::println("# Integrator     : {}",
-               pin->param()->get<std::string>("time.integrator_string"));
+  section("Time integration");
+  row("integrator", p->get<std::string>("time.integrator_string"));
+  row("spatial order", nnodes);
+  row("t_end", sci(p->get<double>("time.t_end")));
+  const auto nlim = p->get<double>("time.nlim");
+  row("cycle limit",
+      nlim < 0 ? std::string("none") : std::format("{:.0f}", nlim));
   std::println("");
 
-  std::println("# --- Fluid Parameters --- ");
-  std::println("# Inner BC       : {}",
-               pin->param()->get<std::string>("fluid.bc.i"));
-  std::println("# Outer BC       : {}",
-               pin->param()->get<std::string>("fluid.bc.o"));
-  std::println("");
-
-  std::println("# --- Fluid Limiter --- ");
-  if (pin->param()->get<int>("basis.nnodes") == 1) {
-    std::println("# Spatial Order 1: Slope limiter not applied.");
-  }
-  if (!pin->param()->get<bool>("fluid.limiter.enabled")) {
-    std::println("# Limiter Disabled");
+  section("Output");
+  row("directory", p->get<std::string>("output.dir"));
+  row("dt_hdf5", sci(p->get<double>("output.dt_hdf5")));
+  if (p->get<bool>("output.history_enabled")) {
+    row("history",
+        std::format("{} (dt {})", p->get<std::string>("output.hist_fn"),
+                    sci(p->get<double>("output.hist_dt"))));
   } else {
-    const auto limiter_type =
-        pin->param()->get<std::string>("fluid.limiter.type");
-    std::println("# Limiter        : {}", limiter_type);
+    row("history", "disabled");
   }
+  row("ncycle_out", p->get<int>("output.ncycle_out"));
+  if (p->contains("output.dt_fixed")) {
+    row("dt_fixed", sci(p->get<double>("output.dt_fixed")));
+  } else {
+    row("dt_init", sci(p->get<double>("output.dt_init")));
+    row("dt_growth", p->get<double>("output.dt_growth_frac"));
+  }
+  std::println("");
+
+  section("EOS");
+  const auto eos_type = p->get<std::string>("eos.type");
+  row("type", eos_type);
+  if (eos_type == "polytropic" && p->contains("eos.k")) {
+    row("k", p->get<double>("eos.k"));
+    row("n", p->get<double>("eos.n"));
+  } else if (eos_type == "ideal" || eos_type == "marshak") {
+    // Only these consume eos.gamma; paczynski ignores it.
+    row("gamma", p->get<double>("eos.gamma"));
+  }
+  std::println("");
+
+  section("Fluid");
+  row("BC (inner)", p->get<std::string>("fluid.bc.i"));
+  row("BC (outer)", p->get<std::string>("fluid.bc.o"));
+  row("limiter", limiter_desc("fluid"));
   std::println("");
 
   if (rad_enabled) {
-    std::println("# --- Radiation Parameters --- ");
-    std::println("# Spatial Order  : {}",
-                 pin->param()->get<int>("basis.nnodes"));
-    std::println("# Inner BC       : {}",
-                 pin->param()->get<std::string>("radiation.bc.i"));
-    std::println("# Outer BC       : {}",
-                 pin->param()->get<std::string>("radiation.bc.o"));
-    std::println("");
-
-    std::println("# --- Radiation Limiter Parameters --- ");
-    if (pin->param()->get<int>("basis.nnodes") == 1) {
-      std::println("# Spatial Order 1: Slope limiter not applied.");
-    }
-    if (!pin->param()->get<bool>("radiation.limiter.enabled")) {
-      std::println("# Limiter Disabled");
+    section("Radiation");
+    const auto disc = p->get<std::string>("radiation.discretization");
+    row("discretization", disc);
+    row("BC (inner)", p->get<std::string>("radiation.bc.i"));
+    row("BC (outer)", p->get<std::string>("radiation.bc.o"));
+    const auto opac_type = p->get<std::string>("opacity.type");
+    if (opac_type == "tabular") {
+      row("opacity",
+          std::format("tabular ({})", p->get<std::string>("opacity.filename")));
+    } else if (opac_type == "constant") {
+      row("opacity",
+          std::format("constant  kR={}  kP={}", p->get<double>("opacity.kR"),
+                      p->get<double>("opacity.kP")));
+    } else if (opac_type == "powerlaw") {
+      row("opacity", std::format("powerlaw  kR={}  kP={}  rho^{}  T^{}",
+                                 p->get<double>("opacity.kR"),
+                                 p->get<double>("opacity.kP"),
+                                 p->get<double>("opacity.rho_exp"),
+                                 p->get<double>("opacity.t_exp")));
     } else {
-      const auto limiter_type =
-          pin->param()->get<std::string>("radiation.limiter.type");
-      std::println("# Limiter        : {}", limiter_type);
+      row("opacity", opac_type);
     }
+    row("opacity floor", p->get<std::string>("opacity.floors.type"));
+    if (disc == "implicit") {
+      row("newton", std::format("tol {} (atol {}, max {} it)",
+                                sci(p->get<double>("radiation.newton.tol")),
+                                sci(p->get<double>("radiation.newton.atol")),
+                                p->get<int>("radiation.newton.max_iter")));
+    }
+    row("limiter", limiter_desc("radiation"));
     std::println("");
   }
 
   if (gravity_enabled) {
-    std::println("# --- Gravity Parameters --- ");
-    std::println("# Model           : {}",
-                 pin->param()->get<std::string>("gravity.model"));
+    section("Gravity");
+    row("model", p->get<std::string>("gravity.model"));
+    row("g", p->get<double>("gravity.gval"));
     std::println("");
   }
 
   if (heating_enabled) {
-    std::println("# Nickel         : {}",
-                 pin->param()->get<bool>("physics.heating.nickel.enabled"));
+    section("Heating");
+    const bool nickel = p->get<bool>("physics.heating.nickel.enabled");
+    row("nickel", nickel ? "enabled" : "disabled");
+    if (nickel && p->contains("heating.nickel.model")) {
+      row("model", p->get<std::string>("heating.nickel.model"));
+    }
     std::println("");
   }
+
+  if (comps_enabled) {
+    section("Composition");
+    row("species", p->get<int>("composition.ncomps"));
+    if (ionization_enabled) {
+      row("ionization", std::format("{} solver, {} species",
+                                    p->get<std::string>("ionization.solver"),
+                                    p->get<int>("ionization.ncomps")));
+    }
+    std::println("");
+  }
+
+  if (engine_enabled && p->get<bool>("physics.engine.thermal.enabled")) {
+    section("Thermal engine");
+    row("energy", sci(p->get<double>("physics.engine.thermal.energy")));
+    row("mode", p->get<std::string>("physics.engine.thermal.mode"));
+    row("t_end", p->get<double>("physics.engine.thermal.tend"));
+    row("mass range",
+        std::format("[{}, {}]", p->get<int>("physics.engine.thermal.mstart"),
+                    p->get<double>("physics.engine.thermal.mend")));
+    std::println("");
+  }
+
+  const bool diag_od = p->get<bool>("diagnostics.optical_depth.enabled");
+  const bool diag_ph = p->get<bool>("diagnostics.photosphere.enabled");
+  const bool diag_sh = p->get<bool>("diagnostics.shock.enabled");
+  if (diag_od || diag_ph || diag_sh) {
+    section("Diagnostics");
+    if (diag_od) {
+      row("optical depth", "enabled");
+    }
+    if (diag_ph) {
+      row("photosphere",
+          std::format("tau = {}",
+                      p->get<double>("diagnostics.photosphere.tau")));
+    }
+    if (diag_sh) {
+      row("shock", "enabled");
+    }
+    std::println("");
+  }
+
+  // authoritative package list, sourced from the managers
+  section("Registered packages");
+  std::print("#   ");
+  bool first = true;
+  if (packages != nullptr) {
+    for (const auto name : packages->get_package_names()) {
+      std::print("{}{}", first ? "" : ", ", name);
+      first = false;
+    }
+  }
+  if (split_packages != nullptr) {
+    for (const auto name : split_packages->get_package_names()) {
+      std::print("{}{} (operator split)", first ? "" : ", ", name);
+      first = false;
+    }
+  }
+  std::println("{}", first ? "(none)" : "");
+  std::println("");
 }
 
 /**
