@@ -5,14 +5,15 @@ Athelas HDF5 loader with dynamic field/variable discovery.
 
 from __future__ import annotations
 
-from pathlib import Path
 import re
-from typing import Callable, Dict, Optional, Sequence, Union, Any
+from collections.abc import Callable, Sequence
+from pathlib import Path
+from typing import Any
 
-from astropy import constants as consts
 import h5py
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+from astropy import constants as consts
 
 # ============================================================================
 # Errors
@@ -27,14 +28,7 @@ class AthelasError(RuntimeError):
 # Data containers
 # ============================================================================
 
-ParamValue = Union[
-  int,
-  float,
-  bool,
-  str,
-  np.typing.NDArray[Any],
-  Dict[str, Any],
-]
+ParamValue = int | float | bool | str | np.typing.NDArray[Any] | dict[str, Any]
 
 TRACKER_LABELS = {
   "photosphere": "Photosphere",
@@ -84,7 +78,7 @@ class History:
       raise AthelasError(f"History file {self.path} has no column '{name}'")
     return float(self.nearest_row(time)[self.columns[name]])
 
-  def breakout_time(self, *, interpolate: bool = True) -> Optional[float]:
+  def breakout_time(self, *, interpolate: bool = True) -> float | None:
     """Time of shock breakout: the first time the shock reaches the photosphere.
 
     Breakout is defined as the shock radius first crossing (reaching or
@@ -137,9 +131,9 @@ class History:
 class Athelas:
   def __init__(
     self,
-    filename: Union[str, Path],
+    filename: str | Path,
     load_ghost_cells: bool = False,
-    history: Union[None, str, Path, History] = None,
+    history: None | str | Path | History = None,
   ):
     """Load an Athelas checkpoint.
 
@@ -156,13 +150,13 @@ class Athelas:
     self.filename = Path(filename)
     self.load_ghost_cells = load_ghost_cells
 
-    self.fields: Dict[str, Field] = {}
-    self.variables: Dict[str, Variable] = {}
+    self.fields: dict[str, Field] = {}
+    self.variables: dict[str, Variable] = {}
     self._derived = {}
-    self.params: Dict[str, ParamValue] = {}
+    self.params: dict[str, ParamValue] = {}
 
-    self._history: Optional[History] = None
-    self._history_path: Optional[Path] = None
+    self._history: History | None = None
+    self._history_path: Path | None = None
     if isinstance(history, History):
       self._history = history
     elif history is not None:
@@ -185,10 +179,7 @@ class Athelas:
   # end __repr__
 
   def _load(self):
-    try:
-      self._f = h5py.File(self.filename, "r")
-    except Exception as e:
-      raise AthelasError(f"Failed to open {self.filename}: {e}")
+    self._f = h5py.File(self.filename, "r")
 
     f = self._f
 
@@ -248,7 +239,7 @@ class Athelas:
       field_name = vgrp["location"][0]
       field_name = field_name.decode("utf-8")
 
-      if field_name not in self.fields.keys():
+      if field_name not in self.fields:
         continue
 
       self.variables[varname] = Variable(
@@ -410,8 +401,8 @@ class Athelas:
   def require(
     self,
     *vars: str,
-    field: Optional[str] = None,
-    basis: Optional[str] = None,
+    field: str | None = None,
+    basis: str | None = None,
     composition: bool = False,
     ionization: bool = False,
   ) -> None:
@@ -438,16 +429,18 @@ class Athelas:
     # ------------------------------------------------------------
     # Field
     # ------------------------------------------------------------
-    if field is not None:
-      if field not in self.fields:
-        missing.append(f"field '{field}'")
+    if field is not None and field not in self.fields:
+      missing.append(f"field '{field}'")
 
     # ------------------------------------------------------------
     # Basis
     # ------------------------------------------------------------
-    if basis is not None:
-      if not hasattr(self, "basis") or basis not in self.basis:
-        missing.append(f"basis '{basis}'")
+    if (
+      basis is not None
+      and not hasattr(self, "basis")
+      or basis not in self.basis
+    ):
+      missing.append(f"basis '{basis}'")
 
     # ------------------------------------------------------------
     # Optional physics modules
@@ -496,7 +489,7 @@ class Athelas:
       self._history = History(path)
     return self._history
 
-  def breakout_time(self, *, interpolate: bool = True) -> Optional[float]:
+  def breakout_time(self, *, interpolate: bool = True) -> float | None:
     """Shock breakout time from the run's history (see History.breakout_time).
 
     Useful as an analysis ``t = 0`` reference. Returns ``None`` if the shock and
@@ -505,7 +498,7 @@ class Athelas:
     return self.history().breakout_time(interpolate=interpolate)
 
   @property
-  def time_since_breakout(self) -> Optional[float]:
+  def time_since_breakout(self) -> float | None:
     """This checkpoint's time relative to shock breakout (``t - t_breakout``).
 
     Returns ``None`` if breakout cannot be determined from the history.
@@ -515,7 +508,7 @@ class Athelas:
       return None
     return self.time - t_breakout
 
-  def tracker_position(self, tracker: str) -> Optional[float]:
+  def tracker_position(self, tracker: str) -> float | None:
     tracker = tracker.lower()
     hist = self.history()
 
@@ -532,8 +525,8 @@ class Athelas:
     raise AthelasError(f"Unknown tracker '{tracker}'")
 
   def tracker_positions(
-    self, trackers: Union[bool, str, Sequence[str]] = True
-  ) -> Dict[str, float]:
+    self, trackers: bool | str | Sequence[str] = True
+  ) -> dict[str, float]:
     if trackers is True:
       requested = ("photosphere", "shock")
     elif trackers is False:
@@ -543,7 +536,7 @@ class Athelas:
     else:
       requested = tuple(trackers)
 
-    positions: Dict[str, float] = {}
+    positions: dict[str, float] = {}
     for tracker in requested:
       try:
         position = self.tracker_position(tracker)
@@ -556,15 +549,15 @@ class Athelas:
 
   def plot_trackers(
     self,
-    ax: Optional[plt.Axes] = None,
-    trackers: Union[bool, str, Sequence[str]] = True,
+    ax: plt.Axes | None = None,
+    trackers: bool | str | Sequence[str] = True,
     *,
     color: str = "k",
     linestyle: str = "--",
     linewidth: float = 1.0,
     alpha: float = 0.9,
     label: bool = True,
-    position_transform: Optional[Callable[[float], float]] = None,
+    position_transform: Callable[[float], float] | None = None,
     **kwargs,
   ) -> plt.Axes:
     if ax is None:
@@ -594,12 +587,12 @@ class Athelas:
     self,
     name: str,
     *,
-    ax: Optional[plt.Axes] = None,
+    ax: plt.Axes | None = None,
     logx: bool = False,
     logy: bool = False,
-    label: Optional[str] = None,
-    overlay_trackers: Union[bool, str, Sequence[str]] = False,
-    tracker_kwargs: Optional[dict[str, Any]] = None,
+    label: str | None = None,
+    overlay_trackers: bool | str | Sequence[str] = False,
+    tracker_kwargs: dict[str, Any] | None = None,
     **kwargs,
   ) -> plt.Axes:
     if ax is None:
@@ -641,11 +634,11 @@ class Athelas:
   # ------------------------------------------------------------------
 
 
-def read_hdf5_group(group: h5py.Group) -> Dict[str, ParamValue]:
+def read_hdf5_group(group: h5py.Group) -> dict[str, ParamValue]:
   """
   Recursively read an HDF5 group into a nested Python dict.
   """
-  result: Dict[str, ParamValue] = {}
+  result: dict[str, ParamValue] = {}
 
   for key, item in group.items():
     if isinstance(item, h5py.Group):
@@ -675,7 +668,7 @@ def read_hdf5_group(group: h5py.Group) -> Dict[str, ParamValue]:
   return result
 
 
-def parse_history_header(line: str) -> Dict[str, int]:
+def parse_history_header(line: str) -> dict[str, int]:
   # The header is guaranteed to start with '#', followed by "<index> <name>"
   # pairs, e.g. "# 0 Time [s] 1 Total Mass [g] ...". Names may contain spaces
   # and brackets; column indices are standalone integers. Match each name
@@ -685,8 +678,8 @@ def parse_history_header(line: str) -> Dict[str, int]:
   return {name.strip(): int(index) for index, name in pairs}
 
 
-def load_history(path: Path) -> tuple[Dict[str, int], np.typing.NDArray[Any]]:
-  columns: Optional[Dict[str, int]] = None
+def load_history(path: Path) -> tuple[dict[str, int], np.typing.NDArray[Any]]:
+  columns: dict[str, int] | None = None
   rows: list[list[float]] = []
   for line in path.read_text().splitlines():
     if not line.strip():

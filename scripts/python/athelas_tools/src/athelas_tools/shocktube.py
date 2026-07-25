@@ -17,12 +17,10 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Union
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
-
 from exactpack.solvers.riemann.ep_riemann import IGEOS_Solver
 
 try:
@@ -70,8 +68,8 @@ def sod_exact(t: float, npoints: int = 32) -> tuple[np.ndarray, dict]:
 
 def plot_shocktube(
   chk: str = "final",
-  overlay_trackers: Union[bool, str, list[str]] = True,
-  output: Union[str, Path, None] = None,
+  overlay_trackers: bool | str | list[str] = True,
+  output: str | Path | None = None,
 ) -> Path:
   """Plot shock-tube checkpoint ``chk`` against the exact solution.
 

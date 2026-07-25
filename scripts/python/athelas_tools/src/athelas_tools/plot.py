@@ -2,7 +2,6 @@ import argparse
 import concurrent.futures
 
 import matplotlib.pyplot as plt
-
 from athelas import Athelas
 
 plt.style.use("style.mplstyle")

@@ -3,16 +3,16 @@
 Todui: TODO Parser TUI - A tool to find and organize TODO comments in C++ codebases
 """
 
+import argparse
+import curses
 import os
 import re
-import argparse
-import subprocess
 import shutil
-from pathlib import Path
-from dataclasses import dataclass
-from typing import List, Dict, Optional
+import subprocess
+import sys
 from collections import defaultdict
-import curses
+from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass
@@ -54,61 +54,56 @@ class TodoParser:
       re.IGNORECASE | re.DOTALL,
     )
 
-  def scan_file(self, file_path: Path) -> List[TodoItem]:
+  def scan_file(self, file_path: Path) -> list[TodoItem]:
     """Scan a single file for TODO comments"""
     todos = []
-    try:
-      with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-        content = f.read()
+    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+      content = f.read()
 
-        # Scan for single-line comments (// and #)
-        for line_num, line in enumerate(content.splitlines(), 1):
-          match = self.single_line_pattern.search(line)
-          if match:
-            user = match.group(1).strip()
-            message = match.group(2).strip()
-            todos.append(
-              TodoItem(
-                file_path=str(file_path),
-                line_number=line_num,
-                user=user,
-                message=message,
-                line_content=line.strip(),
-              )
-            )
-
-        # Scan for block comments (/* */)
-        for match in self.block_comment_pattern.finditer(content):
+      # Scan for single-line comments (// and #)
+      for line_num, line in enumerate(content.splitlines(), 1):
+        match = self.single_line_pattern.search(line)
+        if match:
           user = match.group(1).strip()
           message = match.group(2).strip()
-
-          # Clean up the message (remove extra whitespace and asterisks)
-          message = re.sub(r"\s*\*\s*", " ", message).strip()
-
-          # Find the line number where this block comment starts
-          line_num = content[: match.start()].count("\n") + 1
-
-          # Get the first line of the block comment for display
-          block_start = match.start()
-          block_end = content.find("\n", block_start)
-          if block_end == -1:
-            block_end = len(content)
-          first_line = content[block_start:block_end].strip()
-
           todos.append(
             TodoItem(
               file_path=str(file_path),
               line_number=line_num,
               user=user,
               message=message,
-              line_content=first_line,
+              line_content=line.strip(),
             )
           )
 
-    except Exception as e:
-      # Skip files that can't be read
-      print(f"Exception: {e}")
-      pass
+      # Scan for block comments (/* */)
+      for match in self.block_comment_pattern.finditer(content):
+        user = match.group(1).strip()
+        message = match.group(2).strip()
+
+        # Clean up the message (remove extra whitespace and asterisks)
+        message = re.sub(r"\s*\*\s*", " ", message).strip()
+
+        # Find the line number where this block comment starts
+        line_num = content[: match.start()].count("\n") + 1
+
+        # Get the first line of the block comment for display
+        block_start = match.start()
+        block_end = content.find("\n", block_start)
+        if block_end == -1:
+          block_end = len(content)
+        first_line = content[block_start:block_end].strip()
+
+        todos.append(
+          TodoItem(
+            file_path=str(file_path),
+            line_number=line_num,
+            user=user,
+            message=message,
+            line_content=first_line,
+          )
+        )
+
     return todos
 
   def _should_exclude_file(self, file_path: Path) -> bool:
@@ -126,7 +121,7 @@ class TodoParser:
 
     return False
 
-  def scan_directory(self, directory: Path) -> List[TodoItem]:
+  def scan_directory(self, directory: Path) -> list[TodoItem]:
     """Recursively scan directory for TODO comments"""
     all_todos = []
 
@@ -145,7 +140,7 @@ class TodoParser:
 class TodoTUI:
   """Terminal User Interface for TODO management"""
 
-  def __init__(self, todos: List[TodoItem]):
+  def __init__(self, todos: list[TodoItem]):
     self.todos = todos
     self.grouped_todos = self._group_todos()
     self.current_view = "users"  # 'users', 'files', 'all'
@@ -160,7 +155,7 @@ class TodoTUI:
     self.filtered_todos = todos
     self.search_history = []
 
-  def _group_todos(self) -> Dict:
+  def _group_todos(self) -> dict:
     """Group TODOs by user and file"""
     by_user = defaultdict(list)
     by_file = defaultdict(list)
@@ -171,7 +166,7 @@ class TodoTUI:
 
     return {"by_user": dict(by_user), "by_file": dict(by_file)}
 
-  def _filter_todos(self, query: str) -> List[TodoItem]:
+  def _filter_todos(self, query: str) -> list[TodoItem]:
     """Filter TODOs based on search query"""
     if not query:
       return self.todos
@@ -471,7 +466,7 @@ class TodoTUI:
       self.current_selection = 0
       self.scroll_offset = 0
 
-  def _get_current_todo(self) -> Optional[TodoItem]:
+  def _get_current_todo(self) -> TodoItem | None:
     """Get the currently selected TODO item"""
     if self.current_view == "all":
       # Use filtered results if search is active
@@ -524,9 +519,7 @@ class TodoTUI:
       if editor_name in ["vim", "nvim", "vi"]:
         # Use -c command to ensure we go to the line after opening
         cmd = [editor, "-c", f"{todo.line_number}", todo.file_path]
-      elif editor_name in ["emacs", "emacsclient"]:
-        cmd = [editor, f"+{todo.line_number}", todo.file_path]
-      elif editor_name == "nano":
+      elif editor_name in ["emacs", "emacsclient"] or editor_name == "nano":
         cmd = [editor, f"+{todo.line_number}", todo.file_path]
       elif editor_name == "code":  # VS Code
         cmd = [editor, "-g", f"{todo.file_path}:{todo.line_number}"]
@@ -537,11 +530,8 @@ class TodoTUI:
         cmd = [editor, todo.file_path]
 
       # Execute the editor and wait for it to complete
-      _ = subprocess.run(cmd, stdin=None, stdout=None, stderr=None)
+      _ = subprocess.run(cmd, stdin=None, stdout=None, stderr=None, check=False)
 
-    except Exception as _:
-      # If editor fails, just continue
-      pass
     finally:
       # Clear screen and reinitialize curses properly
       print("\033[2J\033[H")  # Clear screen and move cursor to top
@@ -601,7 +591,7 @@ class TodoTUI:
       self._apply_search()
 
 
-def print_summary(todos: List[TodoItem]):
+def print_summary(todos: list[TodoItem]):
   """Print a summary of found TODOs"""
   if not todos:
     print("No TODO comments found.")
@@ -682,4 +672,4 @@ def main():
 
 
 if __name__ == "__main__":
-  exit(main())
+  sys.exit(main())

@@ -20,7 +20,7 @@ Output format:
 import sys
 from pathlib import Path
 
-from athelas_tools.schema_load import load_schema, is_leaf
+from athelas_tools.schema_load import is_leaf, load_schema
 
 # -----------------------------------------------------------------------
 # Formatting helpers

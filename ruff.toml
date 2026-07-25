@@ -8,4 +8,4 @@ docstring-code-format = true
 docstring-code-line-length = 70
 
 [lint]
-ignore = ["E701"]
+ignore = ["E701", "EXE001"]
