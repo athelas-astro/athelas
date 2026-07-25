@@ -41,9 +41,13 @@ void print_simulation_parameters(Mesh &mesh, ProblemIn *pin,
     std::println("# --- {} ---", name);
   };
 
-  // TODO(astrobarker): add option for scientific formatting.
   const auto row = [](std::string_view label, const auto &value) -> void {
     std::println("#   {:<18}{}", label, value);
+  };
+  // Wrap a value with sci() to flag it for scientific notation; the result is a
+  // string, so it composes with row() and with larger std::format() rows.
+  const auto sci = [](double value) -> std::string {
+    return std::format("{:.3e}", value);
   };
 
   const int nnodes = p->get<int>("basis.nnodes");
@@ -79,13 +83,14 @@ void print_simulation_parameters(Mesh &mesh, ProblemIn *pin,
                               p->get<std::string>("mesh.grid_type")));
   row("cells", mesh.n_elements());
   row("nodes / cell", mesh.n_nodes());
-  row("domain", std::format("[{}, {}]", mesh.get_x_l(), mesh.get_x_r()));
+  row("domain",
+      std::format("[{}, {}]", sci(mesh.get_x_l()), sci(mesh.get_x_r())));
   std::println("");
 
   section("Time integration");
   row("integrator", p->get<std::string>("time.integrator_string"));
   row("spatial order", nnodes);
-  row("t_end", p->get<double>("time.t_end"));
+  row("t_end", sci(p->get<double>("time.t_end")));
   const auto nlim = p->get<double>("time.nlim");
   row("cycle limit",
       nlim < 0 ? std::string("none") : std::format("{:.0f}", nlim));
@@ -93,19 +98,19 @@ void print_simulation_parameters(Mesh &mesh, ProblemIn *pin,
 
   section("Output");
   row("directory", p->get<std::string>("output.dir"));
-  row("dt_hdf5", p->get<double>("output.dt_hdf5"));
+  row("dt_hdf5", sci(p->get<double>("output.dt_hdf5")));
   if (p->get<bool>("output.history_enabled")) {
     row("history",
         std::format("{} (dt {})", p->get<std::string>("output.hist_fn"),
-                    p->get<double>("output.hist_dt")));
+                    sci(p->get<double>("output.hist_dt"))));
   } else {
     row("history", "disabled");
   }
   row("ncycle_out", p->get<int>("output.ncycle_out"));
   if (p->contains("output.dt_fixed")) {
-    row("dt_fixed", p->get<double>("output.dt_fixed"));
+    row("dt_fixed", sci(p->get<double>("output.dt_fixed")));
   } else {
-    row("dt_init", p->get<double>("output.dt_init"));
+    row("dt_init", sci(p->get<double>("output.dt_init")));
     row("dt_growth", p->get<double>("output.dt_growth_frac"));
   }
   std::println("");
@@ -154,8 +159,8 @@ void print_simulation_parameters(Mesh &mesh, ProblemIn *pin,
     row("opacity floor", p->get<std::string>("opacity.floors.type"));
     if (disc == "implicit") {
       row("newton", std::format("tol {} (atol {}, max {} it)",
-                                p->get<double>("radiation.newton.tol"),
-                                p->get<double>("radiation.newton.atol"),
+                                sci(p->get<double>("radiation.newton.tol")),
+                                sci(p->get<double>("radiation.newton.atol")),
                                 p->get<int>("radiation.newton.max_iter")));
     }
     row("limiter", limiter_desc("radiation"));
@@ -192,7 +197,7 @@ void print_simulation_parameters(Mesh &mesh, ProblemIn *pin,
 
   if (engine_enabled && p->get<bool>("physics.engine.thermal.enabled")) {
     section("Thermal engine");
-    row("energy", p->get<double>("physics.engine.thermal.energy"));
+    row("energy", sci(p->get<double>("physics.engine.thermal.energy")));
     row("mode", p->get<std::string>("physics.engine.thermal.mode"));
     row("t_end", p->get<double>("physics.engine.thermal.tend"));
     row("mass range",
