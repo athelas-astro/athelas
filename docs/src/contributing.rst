@@ -2,6 +2,8 @@
 .. _singularity-eos: https://lanl.github.io/singularity-eos
 .. _JOSS: https://joss.theoj.org/about#ai-policy
 .. _cc: https://www.conventionalcommits.org/en/v1.0.0/
+.. _git-cliff: https://git-cliff.org/
+.. _semver: https://semver.org/
 
 Contributing
 =============================
@@ -22,8 +24,8 @@ request or open an issue.
    and ensure the branch has no conflicts.
 3. At least one Maintainer will review the PR.
 4. Once comments/feedback is addressed, the PR will be merged into the
-   main branch and changes will be added to list of changes in the next
-   release.
+   main branch. User-facing changes are collected automatically from the
+   commit history for the next release.
 5. At present, Releases (with a git version tag) for the ``main`` branch
    of ``athelas`` will occur at a 6 to 12 month cadence or following
    implementation of a major enhancement or capability to the code base.
@@ -46,15 +48,33 @@ convenient as GitHub's tests will launch even on the draft PR.
 
 Commit Messages
 ````````````````
-* Use clear, descriptive commit messages
-* Follow `conventional commit <cc_>`_ format when possible:
-  * ``feat``: for new features
-  * ``fix``: for bug fixes
-  * ``docs``: for documentation changes
-  * ``test``: for test additions/changes
-  * ``refactor``: for code refactoring
-  * ``style``: for formatting changes
 
+The commit that lands on ``main`` must use the `Conventional Commits <cc_>`_
+format. In particular, use a Conventional Commit title for pull requests that
+will be squash-merged:
+
+.. code-block:: text
+
+   type(optional-scope): short description
+
+The changelog publishes the following user-facing types:
+
+* ``feat``: new features
+* ``fix``: bug fixes
+* ``perf``: performance improvements
+* ``docs``: documentation changes
+* ``refactor``: code changes that neither add a feature nor fix a bug
+
+The types ``test``, ``style``, ``chore``, ``build``, and ``ci`` are valid for
+internal work but are omitted from release notes. Scopes are optional; for
+example, ``fix(eos): handle the energy floor``. Mark a breaking change with
+``!`` before the colon and explain it in a ``BREAKING CHANGE:`` footer:
+
+.. code-block:: text
+
+   feat(io)!: replace the checkpoint layout
+
+   BREAKING CHANGE: Checkpoints written by earlier releases cannot be read.
 
 Pull request protocol
 ----------------------
@@ -87,12 +107,117 @@ In order for a pull request to merge, we require:
 - Obey style guidleines (format with ``clang-format`` and pass the necessary test)
 - Pass the existing test suite
 - Have at least one approval from a Maintainer
-- Update `CHANGELOG.md`
 - If generative or agentic AI was used, add an appropriate disclosure (:ref:`ai`).
 - If applicable:
 
   - Write new tests for new features or bugs
   - Include or update documentation.
+
+Versioning and Releases
+-----------------------
+
+Athelas uses `Semantic Versioning <semver_>`_.
+Release notes are generated with `git-cliff <git-cliff_>`_. Contributors do
+not edit ``CHANGELOG.md`` for individual pull requests.
+
+.. note::
+
+   The versioning and release workflow is manual. It is not expected to be 
+   a large burden, but in the future the process may be partially automated.
+
+Release preparation
+```````````````````
+
+This workflow prepares a stable release. It does not currently define release
+candidate tags such as ``-rc.1``.
+
+1. Start from an up-to-date ``main`` with no unrelated changes. Inspect the
+   changes since the latest release, choose the new version, and create a
+   dedicated release branch:
+
+   .. code-block:: bash
+
+      git switch main
+      git pull --ff-only
+      git status --short
+      git log "$(git describe --tags --abbrev=0)"..HEAD --oneline
+      release_version=0.11.0
+      previous_version=0.10.0
+      release_branch="blb/release-v${release_version}"
+      git switch -c "${release_branch}"
+
+   Replace the example versions and ``blb`` branch prefix as appropriate.
+
+2. Update the synchronized version in the following locations:
+
+   * ``CMakeLists.txt``
+   * ``docs/conf.py``
+   * ``scripts/python/athelas_tools/pyproject.toml``
+   * ``scripts/python/athelas_tools/uv.lock``
+   * ``scripts/python/athelas_tools/src/athelas_tools/__init__.py``
+
+   Regenerate the lockfile rather than editing it by hand, then confirm the old
+   version is gone and the new version appears in all version sources:
+
+   .. code-block:: bash
+
+      (cd scripts/python/athelas_tools && uv lock)
+      rg "${previous_version}" CMakeLists.txt docs/conf.py scripts/python/athelas_tools
+      rg "${release_version}" CMakeLists.txt docs/conf.py scripts/python/athelas_tools
+
+   The first search should produce no project-version matches. Dependency
+   versions in ``uv.lock`` are unrelated and may coincidentally match.
+
+3. Preview the exact dated changelog entry without modifying any files. Review
+   its categories, PR links, and breaking-change notices:
+
+   .. code-block:: bash
+
+      git cliff --unreleased --tag "v${release_version}"
+
+4. Once the preview is correct, prepend the entry to ``CHANGELOG.md`` exactly
+   once:
+
+   .. code-block:: bash
+
+      git cliff --unreleased --tag "v${release_version}" \
+        --prepend CHANGELOG.md
+
+5. Inspect the complete release diff, commit it, push the branch, and open a
+   pull request. Do not create the release tag from the branch:
+
+   .. code-block:: bash
+
+      git diff
+      git status --short
+      git add CHANGELOG.md CMakeLists.txt docs/conf.py \
+        scripts/python/athelas_tools/pyproject.toml \
+        scripts/python/athelas_tools/uv.lock \
+        scripts/python/athelas_tools/src/athelas_tools/__init__.py
+      git commit -m "chore(release): prepare v${release_version}"
+      git push -u origin "${release_branch}"
+
+   The release PR must pass the normal review and CI requirements. Check that
+   the PR contains only the version updates and generated changelog entry.
+
+Publishing the release
+``````````````````````
+
+After the release PR is merged, a maintainer tags the resulting commit on
+``main`` and pushes only that tag:
+
+.. code-block:: bash
+
+   release_version=0.11.0
+   git switch main
+   git pull --ff-only
+   git tag -a "v${release_version}" \
+     -m "Athelas v${release_version}"
+   git show --no-patch "v${release_version}"
+   git push origin "v${release_version}"
+
+Create the corresponding GitHub release from the tag and use the matching
+``CHANGELOG.md`` section as its release notes.
 
 Test Suite
 ----------

@@ -9,7 +9,7 @@
 project = "Athelas"
 copyright = "2024-2026, Brandon L. Barker"
 author = "Brandon L. Barker"
-release = "v26.03"
+release = "v0.10.0"
 
 # -- General configuration ---------------------------------------------------
 

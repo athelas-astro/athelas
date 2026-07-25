@@ -1,6 +1,6 @@
 [project]
 name = "athelas-tools"
-version = "26.03"
+version = "0.10.0"
 description = "Python tooling for the Athelas radiation hydrodynamics code."
 readme = "README.md"
 authors = [
