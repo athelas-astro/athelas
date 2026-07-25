@@ -376,6 +376,11 @@ schema.bc = {
 -- output
 -- -------------------------
 schema.output = {
+  basename = {
+    type = "string",
+    default = "",
+    doc = "Optional prefix for HDF5 output filenames; prepended to the problem name.",
+  },
   ncycle_out = {
     type = "double",
     default = 100,

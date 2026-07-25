@@ -648,6 +648,8 @@ ProblemIn::ProblemIn(
   sol::optional<sol::table> out_block = config_["output"];
   sol::table output = *out_block;
 
+  const std::string output_basename =
+      output.get_or<std::string>("basename", "");
   const int ncycle_out = output.get_or("ncycle_out", 1);
   const double dt_hdf5 = output.get_or("dt_hdf5", t_end.value_or(1.0) / 100.0);
   const double dt_growth_frac = output.get_or("dt_growth_frac", 1.05);
@@ -676,6 +678,7 @@ ProblemIn::ProblemIn(
     throw_athelas_error("hist_dt must be strictly > 0.0\n");
   }
   params_->add("output.ncycle_out", ncycle_out);
+  params_->add("output.basename", output_basename);
   params_->add("output.dt_hdf5", dt_hdf5);
   params_->add("output.dt_growth_frac", dt_growth_frac);
   params_->add("output.dt_init", dt_init);

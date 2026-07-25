@@ -40,6 +40,7 @@ config.bc = {
 }
 
 config.output = {
+  basename = "regression",
   ncycle_out = 100,
   dt_hdf5 = 0.05,
   dt_init_frac = 1.05,

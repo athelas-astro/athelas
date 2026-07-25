@@ -98,6 +98,10 @@ void print_simulation_parameters(Mesh &mesh, ProblemIn *pin,
 
   section("Output");
   row("directory", p->get<std::string>("output.dir"));
+  const auto &basename = p->get_ref<std::string>("output.basename");
+  if (!basename.empty()) {
+    row("basename", basename);
+  }
   row("dt_hdf5", sci(p->get<double>("output.dt_hdf5")));
   if (p->get<bool>("output.history_enabled")) {
     row("history",
@@ -636,11 +640,15 @@ void write_output(const MeshState &mesh_state, Mesh &mesh,
 }
 
 // Generate filename with proper padding
-auto generate_filename(const std::string &problem_name,
+auto generate_filename(const std::string &basename,
+                       const std::string &problem_name,
                        const std::string &output_dir, int i_write,
                        int max_digits = 4) -> std::string {
   std::ostringstream oss;
   oss << output_dir << "/";
+  if (!basename.empty()) {
+    oss << basename << "_";
+  }
   oss << problem_name << "_";
 
   if (i_write != -1) {
@@ -667,9 +675,10 @@ void write_output(const MeshState &mesh_state, Mesh &mesh,
   // Generate filename
   static constexpr int max_digits = 6;
   const auto &output_dir = pin->param()->get_ref<std::string>("output.dir");
+  const auto &basename = pin->param()->get_ref<std::string>("output.basename");
   const auto &problem_name = pin->param()->get_ref<std::string>("problem.name");
-  std::string filename =
-      generate_filename(problem_name, output_dir, i_write, max_digits);
+  std::string filename = generate_filename(basename, problem_name, output_dir,
+                                           i_write, max_digits);
 
   write_output(mesh_state, mesh, packages, split_packages, pin, filename, info);
 

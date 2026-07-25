@@ -57,6 +57,7 @@ class SedovBlastWaveTest(AthelasRegressionTest):
       tolerance=1.0e-5,
       build_required=build_required,
       compression_factor=2,
+      output_basename="regression_sedov",
     )
 
   def test_sedov(self):
