@@ -580,6 +580,11 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - Default
      - Required
      - Description
+   * - ``basename``
+     - string
+     - ````
+     - No
+     - Optional prefix for HDF5 output filenames; prepended to the problem name.
    * - ``dt_fixed``
      - double
      - —
@@ -882,3 +887,4 @@ Auto-generated from ``schema.lua``. Each table below documents one section of th
      - —
      - No
      - End time of the simulation.
+

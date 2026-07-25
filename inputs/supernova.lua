@@ -52,6 +52,7 @@ config.basis = {
 }
 
 config.output = {
+  basename = "run",
   ncycle_out = 5,
   dt_growth_frac = 2.0,
   dt_init = 1.0e-16,
