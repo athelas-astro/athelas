@@ -87,7 +87,8 @@ auto Driver::execute() -> int {
     }
   }
   // some startup io
-  print_simulation_parameters(mesh_state_.mesh(), pin_.get());
+  print_simulation_parameters(mesh_state_.mesh(), pin_.get(), manager_.get(),
+                              split_manager_.get(), restart_);
   // Initial dump has file index 0 and is followed by initial history entry
   // 0 on the next line, so all "last_*" counters land at 0 here — restart
   // from this dump then resumes at cycle/h5/hist = 1, matching a fresh-run
@@ -498,17 +499,6 @@ void Driver::initialize(ProblemIn *pin) { // NOLINT
     manager_->load_restart_scalars(restart_package_state_);
     split_manager_->load_restart_scalars(restart_package_state_);
   }
-
-  auto registered_pkgs = manager_->get_package_names();
-  auto split_pkgs = split_manager_->get_package_names();
-  std::print("# Registered Packages ::");
-  for (auto name : registered_pkgs) {
-    std::print(" {}", name);
-  }
-  for (auto name : split_pkgs) {
-    std::print(" {} (operator split)", name);
-  }
-  std::print("\n\n");
 
   // --- Refresh halos and apply limiters to initial condition ---
   // Restart state is already post-step-valid: ghost zones and limited values

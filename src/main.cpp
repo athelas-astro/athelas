@@ -16,6 +16,7 @@
 
 #include "Kokkos_Core.hpp"
 
+#include "build_info.hpp"
 #include "driver.hpp"
 #include "main.hpp"
 #include "problem_in.hpp"
@@ -199,13 +200,22 @@ auto main(int argc, char **argv) -> int {
   [[maybe_unused]] auto sig3 = signal(SIGFPE, segfault_handler);
 #endif
 
-  std::println("# ----------------------------------------------------------");
-  std::println("# Athelas running!");
-  std::println(
-      "# ----------------------------------------------------------\n");
-
-  // create span of args
-  // auto args = std::span( argv, static_cast<size_t>( argc ) );
+  // Identity + build provenance, printed first so it precedes the input-deck
+  // and problem-generator chatter. The detailed run-parameter summary follows
+  // once setup completes (io::print_simulation_parameters).
+  {
+    namespace bi = athelas::build_info;
+    const std::string git_hash =
+        bi::GIT_HASH.empty() ? "unknown" : bi::GIT_HASH;
+    std::println("# ========================================================");
+    std::println("#  Athelas");
+    std::println("#  git {}  |  {}  |  {}", git_hash, bi::OPTIMIZATION,
+                 bi::COMPILER);
+    std::println("#  built {}  ({} / {})", bi::BUILD_TIMESTAMP, bi::OS,
+                 bi::ARCH);
+    std::println(
+        "# ========================================================\n");
+  }
 
   int status = AthelasExitCodes::SUCCESS;
   Kokkos::initialize(argc, argv);

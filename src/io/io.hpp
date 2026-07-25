@@ -103,6 +103,9 @@ void write_output(const MeshState &mesh_state, Mesh &mesh,
                   const PackageManager *split_packages, SlopeLimiter *SL,
                   ProblemIn *pin, const SimInfo &info, int i_write);
 
-void print_simulation_parameters(Mesh &mesh, ProblemIn *pin);
+void print_simulation_parameters(Mesh &mesh, ProblemIn *pin,
+                                 const PackageManager *packages,
+                                 const PackageManager *split_packages,
+                                 bool restart);
 } // namespace io
 } // namespace athelas
