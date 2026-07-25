@@ -32,6 +32,12 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   const auto rho_c = pin->param()->get<double>("problem.params.rho_c", 1.0e8);
   const auto p_thresh =
       pin->param()->get<double>("problem.params.p_threshold", 1.0e-10);
+  // A smooth homologous velocity turns the stationary HSE setup into a
+  // controlled gravity-work test.  It vanishes at the reflecting origin and
+  // leaves the thermodynamic equilibrium profile unchanged.
+  const auto velocity_amplitude =
+      pin->param()->get<double>("problem.params.velocity_amplitude", 0.0);
+  const double r_outer = mesh->get_x_r();
 
   const auto polytropic_k = pin->param()->get<double>("eos.k");
   const auto polytropic_n = pin->param()->get<double>("eos.n");
@@ -71,13 +77,16 @@ void init(MeshState &mesh_state, Mesh *mesh, ProblemIn *pin) {
   };
 
   static const IndexRange qb(nNodes);
+  const auto r = mesh->nodal_grid();
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Pgen :: HydrostaticBalance (2)", DevExecSpace(),
       ib.s, ib.e, qb.s, qb.e, KOKKOS_LAMBDA(const int i, const int q) {
         const int iN = q + 1; // derived interior index
+        const double velocity = velocity_amplitude * r(i, iN) / r_outer;
         evolved(i, q, idx_tau) = tau_func(0.0, i, iN);
-        evolved(i, q, idx_vel) = 0.0;
-        evolved(i, q, idx_ener) = energy_func(0.0, i, iN);
+        evolved(i, q, idx_vel) = velocity;
+        evolved(i, q, idx_ener) =
+            energy_func(0.0, i, iN) + 0.5 * velocity * velocity;
       });
 }
 

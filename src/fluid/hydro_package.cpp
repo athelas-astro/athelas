@@ -50,6 +50,7 @@ auto HydroPackage::update_explicit(const StageData &stage_data,
 
   // --- Dvbide update by mass mastrix ---
   const auto inv_mkk = basis.inv_mass_matrix();
+  const auto dtau_dt = stage_data.get_field<AthelasArray2D<double>>("dtau_dt");
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "Hydro :: delta / M_kk", DevExecSpace(), ib.s, ib.e,
       qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
@@ -57,6 +58,7 @@ auto HydroPackage::update_explicit(const StageData &stage_data,
         for (int v = vb.s; v <= vb.e; ++v) {
           delta_(stage, i, q, v) *= invmkk;
         }
+        dtau_dt(i, q) = delta_(stage, i, q, 0);
       });
 
   return UpdateStatus::Success;

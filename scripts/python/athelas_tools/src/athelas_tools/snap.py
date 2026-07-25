@@ -7,7 +7,6 @@ import argparse
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-
 from athelas import Athelas, AthelasError
 
 

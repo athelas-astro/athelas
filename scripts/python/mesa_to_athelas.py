@@ -1,10 +1,10 @@
 import argparse
 import re
-import numpy as np
 from pathlib import Path
-from typing import Optional, Union, List, Dict, Any
+from typing import Any
 
 import mesa_reader as mr
+import numpy as np
 from astropy import constants as consts
 
 # globals
@@ -70,8 +70,8 @@ class MESAProfile:
 
   def __init__(
     self,
-    logs_dir: Optional[Union[str, Path]] = None,
-    profile_number: Optional[int] = None,
+    logs_dir: str | Path | None = None,
+    profile_number: int | None = None,
   ) -> None:
     """
     Initialize and load a MESA profile.
@@ -93,8 +93,8 @@ class MESAProfile:
       self.profile: mr.MesaData = self._load_final_profile()
 
     # Cache header and columns for easy access
-    self.header: Dict[str, Any] = self._extract_header()
-    self.columns: List[str] = list(self.profile.bulk_names)
+    self.header: dict[str, Any] = self._extract_header()
+    self.columns: list[str] = list(self.profile.bulk_names)
 
   def _load_final_profile(self) -> mr.MesaData:
     """
@@ -107,9 +107,9 @@ class MESAProfile:
     profile_path: Path = self.logs_dir / f"profile{final_profile_num}.data"
     return mr.MesaData(str(profile_path))
 
-  def _extract_header(self) -> Dict[str, Any]:
+  def _extract_header(self) -> dict[str, Any]:
     """Extract header information into a dictionary."""
-    header: Dict[str, Any] = {}
+    header: dict[str, Any] = {}
     for name in self.profile.header_names:
       header[name] = self.profile.header_data[name]
     return header
@@ -147,7 +147,7 @@ class MESAProfile:
       f"{len(self.columns)} columns, {self.n_zones} zones)"
     )
 
-  def get_mass_fraction_columns(self) -> List[str]:
+  def get_mass_fraction_columns(self) -> list[str]:
     """
     Get all mass fraction column names from the profile.
 
@@ -169,10 +169,9 @@ class MESAProfile:
         and any(c.isdigit() for c in col)
         and col not in badlist
         or col in extralist
+        and col[0].isalpha()
       ):
-        # Additional check: starts with element symbol pattern
-        if col[0].isalpha():
-          mass_fractions.append(col)
+        mass_fractions.append(col)
     return mass_fractions
 
   def write_athelas_inputs(
@@ -248,7 +247,7 @@ class MESAProfile:
 
 
 def load_final_profile(
-  logs_dir: Optional[Union[str, Path]] = None,
+  logs_dir: str | Path | None = None,
 ) -> MESAProfile:
   """
   Convenience function to load the final profile from a MESA run.

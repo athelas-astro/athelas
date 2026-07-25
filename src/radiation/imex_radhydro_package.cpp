@@ -185,6 +185,7 @@ auto RadHydroPackage::update_explicit(const StageData &stage_data,
 
   // --- Divide update by mass matrix ---
   auto inv_mqq = basis.inv_mass_matrix();
+  const auto dtau_dt = stage_data.get_field<AthelasArray2D<double>>("dtau_dt");
   athelas::par_for(
       DEFAULT_LOOP_PATTERN, "RadHydro :: delta / M_qq", DevExecSpace(), ib.s,
       ib.e, qb.s, qb.e, KOKKOS_CLASS_LAMBDA(const int i, const int q) {
@@ -192,6 +193,7 @@ auto RadHydroPackage::update_explicit(const StageData &stage_data,
         for (int v = 0; v < NUM_VARS_; ++v) {
           delta_(stage, i, q, v) *= inv_mm;
         }
+        dtau_dt(i, q) = delta_(stage, i, q, 0);
       });
 
   return UpdateStatus::Success;

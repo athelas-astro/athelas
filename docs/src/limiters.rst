@@ -120,7 +120,45 @@ that fail the hierarchical test, the moment limiter preserves high-order
 accuracy at smooth extrema. The ``b_tvd`` and ``m_tvb`` controls carry the same
 meaning as in the TVD minmod limiter; the TVB threshold is applied to each modal
 coefficient with the local width :math:`h_i`. The cell average
-(:math:`k = 0`) is never modified, so the scheme remains conservative.
+(:math:`k = 0`) is never modified.
+
+
+Conservation on the reference-mass mesh
+---------------------------------------
+
+Leaving the modal cell average :math:`u^{(0)}_i` untouched is **not** by itself
+enough to make a limiter conservative in Athelas. Conserved quantities here are
+mass integrals over the reference-mass measure,
+
+.. math::
+
+   Q = \int U \, \mathrm{d}m = \sum_i \sum_q w_q \, \mu_q \, U_{i,q} ,
+   \qquad \mu_q = \sqrt{\gamma}\,\rho\,J ,
+
+whereas preserving :math:`u^{(0)}_i` preserves the *plain* quadrature average
+:math:`\sum_q w_q U_{i,q}`. These two functionals differ whenever :math:`\mu_q`
+varies across a cell --- which it always does in spherical geometry, where
+:math:`\mu \propto r^2`.
+
+``conservative_correction`` (``slope_limiter_utilities.cpp``) closes the gap: it
+re-solves the mode-0 coefficient so that the post-limiting mass-weighted
+integral equals the pre-limiting one exactly,
+
+.. math::
+
+   u^{(0)}_i \leftarrow \frac{1}{m_i}
+     \Big( \sum_q w_q \mu_q U_{i,q}
+           - \sum_{k \ge 1} \sum_q w_q \mu_q P_k(\eta_q) \, u^{(k)}_i \Big) .
+
+It must be called after limiting and before the projection back to the nodal
+basis.
+
+This matters twice over for the specific volume :math:`\tau`. Beyond ordinary
+conservation, the cell volume increment is
+:math:`\Delta X_i = \sum_q w_q \mu_q \tau_q`, so a limiter that fails to
+preserve the mass-weighted average changes :math:`\Delta X_i` and, through the
+prefix scan in ``Mesh::reconstruct_mesh``, **displaces every cell face outward
+of the limited cell**. See :doc:`gravity` for the energy consequences.
 
 
 Input Deck

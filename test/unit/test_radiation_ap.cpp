@@ -25,3 +25,20 @@ TEST_CASE("Radiation AP factor damps only LLF jump dissipation",
   REQUIRE(soft_equal(llf_flux(left, right, 0.25), 10.25, 1.0e-15));
   REQUIRE(soft_equal(llf_flux(left, right, 0.0), 9.0, 1.0e-15));
 }
+
+TEST_CASE("Radiation AP LLF face flux remains conservative", "[radiation]") {
+  using athelas::radiation::llf_flux;
+  using athelas::radiation::LLFRiemannState;
+
+  const LLFRiemannState left{.u = 2.5, .f = -4.0, .alpha = 7.0};
+  const LLFRiemannState right{.u = 0.5, .f = 6.0, .alpha = 7.0};
+
+  for (const double beta : {1.0, 0.2}) {
+    const double face_flux = llf_flux(left, right, beta);
+    // A shared face contributes with opposite signs to the two adjacent P0
+    // cell averages, independently of the AP damping of LLF dissipation.
+    const double left_increment = -face_flux;
+    const double right_increment = face_flux;
+    REQUIRE(soft_equal(left_increment + right_increment, 0.0, 1.0e-15));
+  }
+}

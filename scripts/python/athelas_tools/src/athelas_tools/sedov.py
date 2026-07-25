@@ -3,7 +3,6 @@
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
-
 from athelas import Athelas
 from exactpack.solvers.sedov.sedov import Sedov
 

@@ -14,17 +14,18 @@ Navigation:
 """
 
 import sys
-from pathlib import Path
 from dataclasses import dataclass, field
-
-from athelas_tools.schema_load import load_schema as _load_raw, is_leaf
+from pathlib import Path
+from typing import ClassVar
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Footer, Header, ListItem, ListView, Static
 from textual.reactive import reactive
+from textual.widgets import Footer, Header, ListItem, ListView, Static
 
+from athelas_tools.schema_load import is_leaf
+from athelas_tools.schema_load import load_schema as _load_raw
 
 # ---------------------------------------------------------------------------
 # Schema loading and data model
@@ -272,7 +273,7 @@ class SchemaExplorer(App):
     }
     """
 
-  BINDINGS = [
+  BINDINGS = ClassVar[
     Binding("q", "quit", "Quit"),
     Binding("ctrl+p", "command_palette", "Themes"),
     Binding("j", "cursor_down_vi", "Down", show=True),

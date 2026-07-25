@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 
-from astropy import constants as consts
 import matplotlib.pyplot as plt
 import numpy as np
-
+from astropy import constants as consts
 from athelas import Athelas
 
 plt.style.use("style.mplstyle")

@@ -45,7 +45,8 @@ Mesh::Mesh(const ProblemIn *pin)
       center_of_mass_("Center of mass_", mSize_),
       sqrt_gm_("Sqrt Gamma", mSize_, nNodes_ + 2),
       integration_matrix_("Integration matrix", nNodes_, nNodes_),
-      grid_("Mesh", mSize_, nNodes_ + 2) {
+      grid_("Mesh", mSize_, nNodes_ + 2),
+      node_placement_high_order_("Node placement high order", mSize_) {
   std::vector<double> tmp_nodes(nNodes_);
   std::vector<double> tmp_weights(nNodes_);
 
@@ -181,6 +182,8 @@ void Mesh::copy_from(const Mesh &other) {
   Kokkos::deep_copy(sqrt_gm_, other.sqrt_gm_);
   Kokkos::deep_copy(integration_matrix_, other.integration_matrix_);
   Kokkos::deep_copy(grid_, other.grid_);
+  Kokkos::deep_copy(node_placement_high_order_,
+                    other.node_placement_high_order_);
 }
 
 /**
@@ -340,6 +343,12 @@ void Mesh::create_log_grid() {
 /**
  * Compute the fixed reference mass measure from the initial geometry and
  * density.
+ *
+ * NOTE: dm_deta_ (and mass_r_ in compute_mass_r) are computed once at init and
+ * are assumed time-invariant thereafter -- reconstruct_mesh never recomputes
+ * them. The gravity energy source and the -G M / r potential-energy diagnostic
+ * both rely on this: their exact semi-discrete cancellation holds only because
+ * mu_q and M_q are frozen. Do not call these mid-evolution.
  **/
 KOKKOS_FUNCTION
 void Mesh::compute_mass_measure(AthelasArray3D<double> evolved) {
@@ -572,6 +581,7 @@ void Mesh::reconstruct_mesh(AthelasArray3D<double> evolved,
             }
             X_prev = X_q;
           }
+          node_placement_high_order_(i) = monotone ? 1 : 0;
 
           const double mass_left = mass_r_(i, 0);
           const double mass_width = mass_r_(i, nNodes_ + 1) - mass_left;
@@ -617,6 +627,10 @@ void Mesh::reconstruct_mesh(AthelasArray3D<double> evolved,
         }
         grid_(i, nNodes_ + 1) = x_l_(i + 1);
         sqrt_gm_(i, nNodes_ + 1) = get_sqrt_gm(grid_(i, nNodes_ + 1));
+        // Ghost interior nodes are placed affinely (node_coordinate), i.e. the
+        // fallback style. Gravity never sources ghosts, but keep the flag
+        // consistent.
+        node_placement_high_order_(i) = 0;
       });
 }
 
@@ -660,6 +674,10 @@ auto Mesh::operator()(int i, int j) const -> double { return grid_(i, j); }
 }
 [[nodiscard]] auto Mesh::sqrt_gm() const -> AthelasArray2D<double> {
   return sqrt_gm_;
+}
+[[nodiscard]] auto Mesh::node_placement_high_order() const
+    -> AthelasArray1D<int> {
+  return node_placement_high_order_;
 }
 
 } // namespace athelas

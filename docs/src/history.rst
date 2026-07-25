@@ -60,6 +60,22 @@ Additional columns are registered when their physics packages are enabled. For
 example, radiation runs add radiation energy, radiation momentum, and radiation
 boundary energy rate columns. Nickel heating runs add total isotope masses.
 
+Gravity runs add, among others:
+
+* ``Total Gravitational Energy [erg]`` -- the discrete potential energy
+  :math:`W_h = \sum_q H_q \varphi_q`, which is the quantity the weak gravity
+  energy source is constructed to conserve against.
+* ``Cumulative Limiter Mesh Work [erg]`` -- gravitational potential energy moved
+  by the limiters relocating interior nodes, rather than by any physical
+  source. A measure of limiter dissipation.
+* ``Cumulative Limiter Energy Correction [erg]`` and
+  ``Cumulative Limiter Energy Clamp Residual [erg]`` -- when the limiter energy
+  correction is enabled, the energy it returned to the fluid and the shortfall
+  the EOS floor prevented returning. Both zero when the correction is off.
+
+See :doc:`gravity` for what these diagnose and how to interpret a nonzero
+value.
+
 Diagnostics can also add history columns. For example, enabling the shock
 tracker adds:
 

@@ -73,6 +73,7 @@ class Driver {
   std::string restart_filename_;
   bool restart_;
   io::SimInfo restart_info_{}; // populated by restart load; zero otherwise
+  PackageRestartState restart_package_state_;
 
   std::unique_ptr<BoundaryConditions> bcs_;
 

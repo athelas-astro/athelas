@@ -57,7 +57,6 @@ config.output = {
   dt_init = 1.0e-16,
   history = {
     fn = config.problem.name .. ".hst",
-    dt = 1.0,
   },
 }
 
@@ -103,15 +102,15 @@ config.fluid = {
 
 config.radiation = {
   discretization = "implicit",
-  ap_coefficient = 3.0,
+  ap_coefficient = 1.5,
   timestep = {
     max_fractional_change_e = 0.01,
-    max_change_f = 0.01,
+    max_change_f = 0.05,
     energy_change_scale = 1.0e12,
   },
   newton = {
-    max_iter = 48,
-    tol = 8.0e-8,
+    max_iter = 24,
+    tol = 1.0e-8,
   },
   limiter = {
     type = "minmod",
@@ -133,6 +132,7 @@ config.heating = {
 config.gravity = {
   model = "spherical",
   operator_split = false,
+  limiter_energy_correction = true,
 }
 
 config.eos = {
