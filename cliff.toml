@@ -1,7 +1,7 @@
 [changelog]
 header = """
 # Changelog\n
-All notable changes to this project will be documented in this file.\n
+All notable changes to Athelas will be documented in this file.\n
 """
 body = """
 {% if version %}\
