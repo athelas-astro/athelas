@@ -53,6 +53,7 @@ config.bc = {
 }
 
 config.output = {
+  dt_growth_frac = 1.1,
   ncycle_out = 100,
   dt_init = 1.0e-17,
   history = {
