@@ -13,11 +13,14 @@ using basis::NodalBasis, basis::geometric_weak_eta_derivative;
 
 GeometryPackage::GeometryPackage(const ProblemIn *pin, const int n_stages,
                                  const bool active)
-    : active_(active) {
+    : active_(active), radiation_explicit_(false) {
   const int nx = pin->param()->get<int>("mesh.nx");
-  bool rad_active = pin->param()->get<bool>("physics.radiation.enabled");
+  const bool rad_active = pin->param()->get<bool>("physics.radiation.enabled");
+  radiation_explicit_ =
+      rad_active &&
+      pin->param()->get<std::string>("radiation.discretization") == "explicit";
   int nvars_geom = 1; // sources velocity
-  if (rad_active) {
+  if (radiation_explicit_) {
     nvars_geom++;
   }
   delta_ = AthelasArray4D<double>("geometry delta", n_stages, nx + 2,
@@ -55,8 +58,7 @@ auto GeometryPackage::update_explicit(const StageData &stage_data,
             (P * geom_source) * inv_mkk(i, q);
       });
 
-  const bool rad_active = stage_data.enabled("radiation");
-  if (rad_active) {
+  if (radiation_explicit_) {
     constexpr double c2 = constants::c_cgs * constants::c_cgs;
     const int idx_rad_energy =
         stage_data.var_index("evolved", "specific_radiation_energy");
@@ -88,7 +90,6 @@ void GeometryPackage::apply_delta(AthelasArray3D<double> lhs,
   static const int nq = static_cast<int>(lhs.extent(1));
   static const IndexRange ib(std::make_pair(1, nx - 2));
   static const IndexRange qb(nq);
-  static const int nvars_geom = delta_.extent(3);
 
   const int stage = dt_info.stage;
   constexpr int idx_vel = 1;
@@ -101,9 +102,7 @@ void GeometryPackage::apply_delta(AthelasArray3D<double> lhs,
             dt_info.dt_coef * delta_(stage, i, q, pkg_vars::Velocity);
       });
 
-  // Clunky, but checks for radiation enabled. If more things are sources
-  // by geometry later we will need to revisit.
-  if (nvars_geom == 2) {
+  if (radiation_explicit_) {
     athelas::par_for(
         DEFAULT_LOOP_PATTERN, "Geometry :: Apply delta :: Radiation",
         DevExecSpace(), ib.s, ib.e, qb.s, qb.e,

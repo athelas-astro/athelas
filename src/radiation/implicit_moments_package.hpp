@@ -115,6 +115,7 @@ class ImplicitRadiationMomentsPackage {
 
  private:
   bool active_;
+  bool spherical_;
 
   BoundaryConditions *bcs_;
 

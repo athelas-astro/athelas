@@ -18,7 +18,8 @@
 #include "utils/error.hpp"
 
 namespace athelas::radiation {
-using basis::NodalBasis, basis::basis_eval;
+using basis::NodalBasis, basis::basis_eval,
+    basis::geometric_weak_eta_derivative;
 using eos::EOS;
 
 /**
@@ -28,7 +29,10 @@ using eos::EOS;
 ImplicitRadiationMomentsPackage::ImplicitRadiationMomentsPackage(
     const ProblemIn *pin, int n_stages, int nq, BoundaryConditions *bcs, int nx,
     bool active)
-    : active_(active), bcs_(bcs),
+    : active_(active),
+      spherical_(pin->param()->get<std::string>("mesh.geometry") ==
+                 "spherical"),
+      bcs_(bcs),
       faces_{
           .u_f_l = AthelasArray2D<double>("ImplicitMoments::u_f_l", nx + 2, 3),
           .u_f_r = AthelasArray2D<double>("ImplicitMoments::u_f_r", nx + 2, 3),
@@ -127,6 +131,8 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
   const auto &eos = stage_data.eos();
   const auto &opac = stage_data.opac();
   const double ap_coefficient = params_.get<double>("ap_coefficient");
+  const bool spherical = spherical_;
+  constexpr double c2 = constants::c_cgs * constants::c_cgs;
   // C = 0 recovers standard LLF; skip the per-face opacity work entirely.
   const bool ap_correction = ap_coefficient > 0.0;
 
@@ -260,6 +266,15 @@ void ImplicitRadiationMomentsPackage::evaluate_residual(
             rhs_f += w_dphi_sqrtgm * flux_f;
           }
 
+          if (spherical) {
+            const double rho = 1.0 / evolved(i, q, idx_tau);
+            const double e_rad = U(i, q, u_idx_er) * rho;
+            const double f_rad = U(i, q, u_idx_fr) * rho;
+            const double geom_source = geometric_weak_eta_derivative(
+                phi, dphi, sqrt_gm, weights, i, q, nNodes);
+            rhs_f += c2 * p_rad_perp(e_rad, f_rad) * geom_source;
+          }
+
           const double m = mkk(i, q);
           eos::EOSLambda lambda;
           double X = 0.0;
@@ -350,6 +365,7 @@ auto ImplicitRadiationMomentsPackage::update_implicit(
   auto dr = mesh.widths();
   auto weights = mesh.weights();
   auto sqrt_gm = mesh.sqrt_gm();
+  const bool spherical = spherical_;
 
   const auto &eos = stage_data.eos();
   const auto &opac = stage_data.opac();
@@ -641,6 +657,19 @@ auto ImplicitRadiationMomentsPackage::update_implicit(
             solver_.mat_diag(blk, row_eg, col_fr) -= dt_aii * m * src_d.dsedfr;
             solver_.mat_diag(blk, row_eg, col_v) -= dt_aii * m * src_d.dsedv;
             solver_.mat_diag(blk, row_eg, col_eg) -= dt_aii * m * src_d.dsedeg;
+
+            if (spherical) {
+              const double rho = 1.0 / evolved(i, q, idx_tau);
+              const double e_rad = newton_.u_rad_work(i, q, u_idx_er) * rho;
+              const double f_rad = newton_.u_rad_work(i, q, u_idx_fr) * rho;
+              const auto p_perp = p_rad_perp_with_derivatives(e_rad, f_rad);
+              const double geom_source = geometric_weak_eta_derivative(
+                  phi, dphi, sqrt_gm, weights, i, q, nNodes);
+              solver_.mat_diag(blk, row_fr, col_er) -=
+                  dt_aii * c2 * geom_source * rho * p_perp.d_pressure_dE;
+              solver_.mat_diag(blk, row_fr, col_fr) -=
+                  dt_aii * c2 * geom_source * rho * p_perp.d_pressure_dF;
+            }
           }
 
           // Volume term - diagonal block
