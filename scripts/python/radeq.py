@@ -2,12 +2,11 @@
 
 import glob
 
-from astropy import constants as consts
-from scipy.integrate import odeint
 import matplotlib.pyplot as plt
 import numpy as np
-
+from astropy import constants as consts
 from athelas_tools.athelas import Athelas
+from scipy.integrate import odeint
 
 
 class ThermalEquilibrium:
@@ -92,7 +91,7 @@ def main():
   athelas_time = np.zeros(len(files) - 0)
   athelas_ener = np.zeros(len(files) - 0)
 
-  fig, ax = plt.subplots()
+  _, ax = plt.subplots()
   i = 0
   for fn in files:
     if "basis" in fn:
