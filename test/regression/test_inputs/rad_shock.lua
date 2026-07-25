@@ -55,7 +55,6 @@ config.bc = {
 
 config.output = {
   ncycle_out = 100,
-  dt_growth_frac = 1.1,
   dt_init = 1.0e-17,
   history = {
     fn = config.problem.name .. ".hst",
