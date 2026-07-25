@@ -2,7 +2,6 @@ local config = {}
 
 config.problem = {
   name = "rad_shock",
-  x_d = 0.0132,
   cfl = 0.5,
 
   params = {
