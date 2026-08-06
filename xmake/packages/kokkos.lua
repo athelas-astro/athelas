@@ -88,12 +88,37 @@ on_install("linux", function(package)
   -- the Clang branch in CMakeLists.txt, applied here since that one only
   -- covers Athelas's own configure, not Kokkos's independent one.
   --
-  -- Left unspecified which OpenMP runtime to use: an explicit "=libomp" links
-  -- but fails at the final -lomp step, because it skips clang's normal
-  -- auto-added search path for its own bundled runtime. Bare -fopenmp lets
-  -- clang locate that runtime itself.
+  -- Clang's OpenMP runtime (libomp) isn't guaranteed to be on the linker's
+  -- default search path -- on Ubuntu + apt.llvm.org's clang, -fopenmp adds
+  -- -lomp to the link line but no matching -L, so even a plain hello-world
+  -- link fails during CMake's own compiler-works sanity check (which runs
+  -- before Kokkos's find_package(OpenMP) above gets a chance to). Ask the
+  -- resolved compiler where it would put/find its own OpenMP runtime and
+  -- pass that directory explicitly, rather than guessing at flag spellings.
+  -- CMAKE_EXE_LINKER_FLAGS set here is forwarded into CMake's internal
+  -- try_compile() sanity check too (policy CMP0056), so this fixes the exact
+  -- step that fails otherwise.
   if package:has_tool("cxx", "clang") then
-    table.insert(configs, "-DCMAKE_CXX_FLAGS=-stdlib=libstdc++ -fopenmp")
+    local cxx = package:build_getenv("cxx")
+    local libomp = try {
+      function()
+        return os.iorunv(cxx, {"-stdlib=libstdc++", "-fopenmp", "-print-file-name=libomp.so"})
+      end,
+    }
+    if libomp then
+      libomp = libomp:trim()
+      if os.isfile(libomp) then
+        local libomp_dir = path.directory(libomp)
+        table.insert(configs, "-DCMAKE_EXE_LINKER_FLAGS=-L" .. libomp_dir)
+        table.insert(configs, "-DCMAKE_SHARED_LINKER_FLAGS=-L" .. libomp_dir)
+        table.insert(configs, "-DCMAKE_LIBRARY_PATH=" .. libomp_dir)
+      else
+        wprint("athelas_kokkos: `%s -print-file-name=libomp.so` did not resolve "
+          .. "to a real file; clang OpenMP link may fail.", cxx)
+      end
+    end
+
+    table.insert(configs, "-DCMAKE_CXX_FLAGS=-stdlib=libstdc++ -fopenmp=libomp")
   end
 
   import("package.tools.cmake").install(package, configs, {

@@ -7,6 +7,7 @@ on:
 jobs:
   build-and-test:
     runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 90
 
     strategy:
       fail-fast: false
@@ -69,6 +70,7 @@ jobs:
         key: xmake-global-packages-${{ runner.os }}-${{ matrix.toolchain }}-debug-${{ hashFiles('xmake/dependencies.lua') }}
 
     - name: Configure
+      timeout-minutes: 45
       run: xmake f --toolchain=${{ matrix.toolchain }} -m debug --unit_tests=y --yes
 
     - name: Build
