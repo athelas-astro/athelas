@@ -79,6 +79,18 @@ on_install("linux", function(package)
     "-DKokkos_ENABLE_DEBUG_BOUNDS_CHECK=" .. enabled,
   }
 
+  -- Kokkos does its own find_package(OpenMP REQUIRED) in cmake/kokkos_tpls.cmake,
+  -- a separate CMake configure with none of the flags below inherited from
+  -- Athelas's own CMakeLists.txt. Stock FindOpenMP does not reliably locate
+  -- Clang's OpenMP runtime on every platform, and the whole project links
+  -- against libstdc++ (see stdc++exp in targets/athelas.lua), so Kokkos must
+  -- be built against it too rather than Clang's libc++ default. Same fix as
+  -- the Clang branch in CMakeLists.txt, applied here since that one only
+  -- covers Athelas's own configure, not Kokkos's independent one.
+  if package:has_tool("cxx", "clang") then
+    table.insert(configs, "-DCMAKE_CXX_FLAGS=-stdlib=libstdc++ -fopenmp=libomp")
+  end
+
   import("package.tools.cmake").install(package, configs, {
     builddir = path.join(package:builddir(), "cmake-build"),
   })
