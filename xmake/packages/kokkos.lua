@@ -87,8 +87,13 @@ on_install("linux", function(package)
   -- be built against it too rather than Clang's libc++ default. Same fix as
   -- the Clang branch in CMakeLists.txt, applied here since that one only
   -- covers Athelas's own configure, not Kokkos's independent one.
+  --
+  -- Left unspecified which OpenMP runtime to use: an explicit "=libomp" links
+  -- but fails at the final -lomp step, because it skips clang's normal
+  -- auto-added search path for its own bundled runtime. Bare -fopenmp lets
+  -- clang locate that runtime itself.
   if package:has_tool("cxx", "clang") then
-    table.insert(configs, "-DCMAKE_CXX_FLAGS=-stdlib=libstdc++ -fopenmp=libomp")
+    table.insert(configs, "-DCMAKE_CXX_FLAGS=-stdlib=libstdc++ -fopenmp")
   end
 
   import("package.tools.cmake").install(package, configs, {
