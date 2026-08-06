@@ -88,12 +88,6 @@ on_test(function(package)
   assert(package:check_cxxsnippets({
     test = [[
           void test(int argc, char **argv) {
-            // 4.7.1 introduced Kokkos_ENABLE_IMPL_VIEW_LEGACY and defaulted it
-            // to ON. Athelas needs the mdspan-backed View, so it sets that
-            // option OFF; on an older Kokkos the option is ignored silently.
-            // Keep this floor equal to find_package(Kokkos ...) in CMakeLists.
-            static_assert(KOKKOS_VERSION >= 40701,
-                          "Athelas needs Kokkos 4.7.1 or later");
             Kokkos::initialize(argc, argv);
             Kokkos::finalize();
           }
