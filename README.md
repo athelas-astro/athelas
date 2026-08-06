@@ -30,7 +30,8 @@ git clone --recursive https://github.com/athelas-astro/athelas.git
 ```
 
 # Building
-`athelas` is built using `cmake`. From the root directory of `athelas`, run the following:
+
+CMake remains supported. From the root directory of `athelas`, run:
 
 ```sh
 mkdir build && cd build
@@ -38,14 +39,56 @@ cmake ..
 cmake --build . # or make -j
 ```
 
+An experimental xmake build is also available:
+
+```sh
+xmake f
+xmake build athelas
+xmake run athelas -i inputs/sod.lua
+```
+
+Alongside xmake's `debug`, `release`, `releasedbg`, and `profile` modes,
+Athelas provides `relwithdebinfo` (CMake-style `RelWithDebInfo`) and `perf`
+(sampling profiles without `-pg`). The `asan`, `tsan`, `ubsan`, and `lsan`
+modes use xmake's corresponding sanitizer policies.
+`allsan` combines the compatible address, leak, and undefined-behavior sanitizers
+with debug settings; ThreadSanitizer must be run separately.
+
+Dependencies built from submodules are cached under `build/.packages/` and
+keyed on the submodule revision, so a bump rebuilds them. A dependency is cached
+as a unit, so that rebuild is a full one. 
+
 # Running
 To run `athelas` simply execute `./athelas -i ../inputs/sod.lua`, for instance.
 
 # Tests
+
 Regression tests live in `test/regression`. To run all test, run 
 `python run_regression_tests.py`. Pass `-e /path/to/athelas/executable` to 
 avoid rebuilding each test. To run a specific test, run 
 `python run_regression_tests.py --test test_sod -e /path/to/athelas/executable` etc.
+
+To build and run the unit tests with xmake:
+
+```sh
+xmake f --unit_tests=y
+xmake test -g unit
+```
+
+The group filter runs the unit suite without invoking regression tests, even
+when both test options are enabled.
+
+Regression tests are registered separately:
+
+```sh
+xmake f --regression_tests=y
+xmake test -g regression
+xmake test regression_tests/sod
+```
+
+When available, xmake runs the regression suite in the locked `uv` environment
+under `scripts/python/athelas_tools`. Otherwise, the active Python environment
+must provide the regression-test dependencies.
 
 
 # Kokkos

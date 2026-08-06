@@ -41,6 +41,8 @@ endif()
 
 set(Kokkos_ENABLE_AGGRESSIVE_VECTORIZATION ON CACHE BOOL
     "Kokkos aggressive vectorization" FORCE)
+set(Kokkos_ENABLE_IMPL_VIEW_LEGACY OFF CACHE BOOL
+    "Use Kokkos' mdspan-backed View implementation")
 
 ### c++23 standards
 set(CMAKE_CXX_STANDARD 23)
@@ -118,9 +120,10 @@ include_directories("src/opacity")
 include_directories("src/solvers")
 include_directories("src/timestepper")
 
-include_directories(athelas PUBLIC
-  "${PROJECT_BINARY_DIR}"
-  )
+# Generated headers (loop_layout.hpp, lua_schema.hpp) live here.
+# include_directories() takes no target or visibility keyword; passing them
+# added bogus "athelas" and "PUBLIC" entries to the include path.
+include_directories("${PROJECT_BINARY_DIR}")
 
 # --- Source Files ---
 set( ATHELAS_SOURCES 
@@ -216,7 +219,9 @@ endif()
 # Kokkos
 if (NOT TARGET Kokkos::kokkos)
   if (ATHELAS_IMPORT_KOKKOS)
-    find_package(Kokkos 4.7)
+    # 4.7.1 introduced Kokkos_ENABLE_IMPL_VIEW_LEGACY, which is set OFF below.
+    # Keep this floor equal to the static_assert in xmake/packages/kokkos.lua.
+    find_package(Kokkos 4.7.1)
     if (NOT Kokkos_FOUND)
       unset(ATHELAS_IMPORT_KOKKOS CACHE)
       message(FATAL_ERROR "Could not find external Kokkos. Consider importing a Kokkos installation into your environment or disabling external Kokkos with e.g. -DATHELAS_IMPORT_KOKKOS=OFF")
@@ -316,9 +321,12 @@ else()
   set(PAR_LOOP_INNER_LAYOUT_TAG loop_pattern_undefined_tag)
 endif()
 
+# Generated into the binary directory, as lua_schema.hpp is. Generating into
+# src/ would shadow the copy produced by other build systems, because src/ comes
+# first on the include path.
 configure_file(
   ${CMAKE_SOURCE_DIR}/src/loop_layout.hpp.in
-  ${CMAKE_SOURCE_DIR}/src/loop_layout.hpp
+  ${PROJECT_BINARY_DIR}/loop_layout.hpp
   @ONLY
 )
 
@@ -363,9 +371,6 @@ add_subdirectory(external/eigen)
 find_package ( HDF5 REQUIRED COMPONENTS CXX HL )
 message(STATUS "HDF5_LIBRARIES = ${HDF5_CXX_LIBRARIES}")
 include_directories(${HDF5_INCLUDE_DIRS}) # seems to be needed for compilation on github actions...
-
-# toml++
-include_directories("external/tomlplusplus")
 
 # --- main ---
 

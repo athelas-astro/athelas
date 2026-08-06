@@ -1,0 +1,90 @@
+name: XMake Build and Unit Tests
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: [gcc, clang]
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -qq git
+        sudo apt-get install -qq libhdf5-dev liblapack-dev liblapacke-dev libopenblas-dev libomp-dev
+        sudo apt-get install -qq gcc-14 g++-14
+        # Set gcc-14 as the default gcc
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 140
+        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 140
+        sudo apt-get install -y clang-19 libc++-19-dev libc++abi-19-dev libomp-19-dev llvm-19-dev
+        sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-19 100
+        sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-19 100
+        sudo apt-get install -y liblua5.4-dev
+
+    - name: Install xmake
+      uses: xmake-io/github-action-setup-xmake@v1
+      with:
+        xmake-version: latest
+
+    # Kokkos and Kokkos Kernels are built from source and dominate the job time.
+    # The key is the recorded submodule revisions, which is what the package
+    # cache keys on as well, so a bump invalidates both together. Toolchain is
+    # also part of the key: it's baked into the built packages (compiler ABI),
+    # so gcc and clang must not share a cache entry.
+    - name: Compute dependency cache key
+      id: deps
+      run: |
+        key=""
+        for module in external/Kokkos external/kokkos-kernels external/spiner external/eigen external/sol2; do
+          key="$key-$(git rev-parse "HEAD:$module")"
+        done
+        echo "key=$key" >> "$GITHUB_OUTPUT"
+
+    - name: Cache built dependencies
+      uses: actions/cache@v4
+      with:
+        path: build/.packages
+        key: xmake-deps-${{ runner.os }}-${{ matrix.toolchain }}-debug${{ steps.deps.outputs.key }}
+
+    # catch2 and openmp resolve through xmake's normal package system rather
+    # than the submodule-backed recipes above, so they install under the
+    # global package directory instead of build/.packages. Keyed on
+    # dependencies.lua since that's where the catch2 version pin lives, and on
+    # toolchain for the same reason as the cache above.
+    - name: Cache xmake global packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.xmake/packages
+        key: xmake-global-packages-${{ runner.os }}-${{ matrix.toolchain }}-debug-${{ hashFiles('xmake/dependencies.lua') }}
+
+    - name: Configure
+      run: xmake f --toolchain=${{ matrix.toolchain }} -m debug --unit_tests=y --yes
+
+    - name: Build
+      run: xmake build --yes
+
+    - name: Run unit tests
+      run: xmake test -g unit
+
+    # The dependency recipes build out of the submodule directories. Nothing may
+    # be written back into them; a dirty submodule means a recipe regressed.
+    - name: Check submodules are unmodified
+      run: |
+        for module in external/Kokkos external/kokkos-kernels external/spiner; do
+          if [ -n "$(git -C "$module" status --porcelain)" ]; then
+            echo "::error::$module was modified by the build"
+            git -C "$module" status --porcelain
+            exit 1
+          fi
+        done
