@@ -7,7 +7,6 @@ add_deps("athelas_configuration")
 add_rules("toolkit.provenance")
 set_values("toolkit.provenance.template", path.join(os.projectdir(), "src", "build_info.cpp.in"))
 
--- This legacy implementation is also excluded from ATHELAS_SOURCES in CMake.
 -- We will eventually remove that file..
 add_files(path.join(os.projectdir(), "src", "**.cpp|basis/polynomial_basis.cpp"))
 
@@ -19,6 +18,13 @@ if get_config("backend") == "openmp" then
 end
 add_cxxflags("-Wall")
 add_syslinks("stdc++exp")
+
+-- Clang defaults to a stdlib that lacks full C++23 support (e.g. std::expected)
+-- on some setups; force libstdc++.
+if get_config("toolchain") == "clang" then
+  add_cxxflags("-stdlib=libstdc++")
+  add_ldflags("-stdlib=libstdc++")
+end
 
 on_load(function(target)
   target:set("rundir", os.workingdir())
