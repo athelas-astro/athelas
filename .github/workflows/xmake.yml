@@ -74,7 +74,7 @@ jobs:
       run: xmake f --toolchain=${{ matrix.toolchain }} -m debug --unit_tests=y --yes
 
     - name: Build
-      run: xmake build --yes
+      run: xmake build -v --yes
 
     - name: Run unit tests
       run: xmake test -g unit
