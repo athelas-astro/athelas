@@ -100,11 +100,11 @@ on_install("linux", function(package)
   -- step that fails otherwise.
   if package:has_tool("cxx", "clang") then
     local cxx = package:build_getenv("cxx")
-    local libomp = try {
+    local libomp = try({
       function()
-        return os.iorunv(cxx, {"-stdlib=libstdc++", "-fopenmp", "-print-file-name=libomp.so"})
+        return os.iorunv(cxx, { "-stdlib=libstdc++", "-fopenmp", "-print-file-name=libomp.so" })
       end,
-    }
+    })
     if libomp then
       libomp = libomp:trim()
       if os.isfile(libomp) then
@@ -113,8 +113,7 @@ on_install("linux", function(package)
         table.insert(configs, "-DCMAKE_SHARED_LINKER_FLAGS=-L" .. libomp_dir)
         table.insert(configs, "-DCMAKE_LIBRARY_PATH=" .. libomp_dir)
       else
-        wprint("athelas_kokkos: `%s -print-file-name=libomp.so` did not resolve "
-          .. "to a real file; clang OpenMP link may fail.", cxx)
+        wprint("athelas_kokkos: `%s -print-file-name=libomp.so` did not resolve " .. "to a real file; clang OpenMP link may fail.", cxx)
       end
     end
 
