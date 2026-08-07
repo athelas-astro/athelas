@@ -12,6 +12,7 @@ set_defaultmode("relwithdebinfo")
 -- from xmake/toolkit, which is project-agnostic and can be shared
 -- See xmake/toolkit/README.md.
 includes("xmake/toolkit")
+add_moduledirs("xmake/modules")
 
 add_rules("mode.debug", "mode.release", "mode.releasedbg", "mode.profile")
 add_rules("toolkit.modes", "toolkit.sanitizers")

@@ -45,6 +45,9 @@ on_load(function(package)
       source_revision = package:config("kokkos_source_revision"),
     },
   })
+  if package:config("backend") == "openmp" then
+    package:add("deps", "openmp")
+  end
 end)
 
 on_install("linux", function(package)
@@ -88,6 +91,10 @@ on_install("linux", function(package)
     "-DKokkosKernels_ENABLE_TPL_CUSOLVER=OFF",
     "-DKokkosKernels_ENABLE_TPL_CUSPARSE=OFF",
   }
+
+  -- Its own CMake configure calls find_package(Kokkos REQUIRED), which
+  -- transitively re-runs find_dependency(OpenMP); see xmake/modules/clang_openmp.lua.
+  import("clang_openmp").apply(package, configs)
 
   import("package.tools.cmake").install(package, configs, {
     builddir = path.join(package:builddir(), "cmake-build"),
