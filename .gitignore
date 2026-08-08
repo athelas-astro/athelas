@@ -48,6 +48,9 @@ bin/
 lib/
 compile_commands.json
 
+# xmake things
+.xmake/
+
 # journal things
 *.db
 
@@ -62,4 +65,4 @@ matplotlibrc
 *__pycache__
 
 # generated
-src/loop_layout.hpp
+generated/
