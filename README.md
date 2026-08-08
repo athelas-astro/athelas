@@ -31,7 +31,7 @@ git clone --recursive https://github.com/athelas-astro/athelas.git
 
 # Building
 
-CMake remains supported. From the root directory of `athelas`, run:
+The easiest way to build is with `cmake`. From the root directory of `athelas`, run:
 
 ```sh
 mkdir build && cd build
